@@ -70,7 +70,9 @@ export function nuevoEvento({ id, tipo, cuando, fecha, capturado, quien, datos, 
 }
 
 export const estaVigente = (e) => !!e && (e.estado || VIGENTE) === VIGENTE;
-export const vigentes = (eventos) => (eventos || []).filter(estaVigente);
+// Los vigentes, ya sin repetidos: quien pregunte por aquí nunca cuenta dos veces
+// el mismo evento, aunque la lista venga de juntar dos aparatos.
+export const vigentes = (eventos) => sinRepetir(eventos).filter(estaVigente);
 
 // Cancelar: el evento se queda, tachado, y deja de producir efectos.
 export function cancelarEvento(evento, { motivo, quien, cuando }) {
@@ -104,6 +106,21 @@ export function sinRepetir(eventos) {
     if (!ya || (estaVigente(ya) && !estaVigente(e))) porId.set(e.id, e);
   }
   return [...porId.values()];
+}
+
+// Juntar lo de este aparato con lo que llegó de la nube. Un evento no cambia lo
+// que dice, así que no hay "cuál versión gana": sólo importa si alguno de los
+// dos ya dejó de estar vigente. Devuelve también cuáles son nuevos o cambiaron,
+// para guardar sólo ésos.
+export function juntarEventos(locales, deLaNube) {
+  const porId = new Map((locales || []).filter(e => e?.id).map(e => [e.id, e]));
+  const cambiaron = [];
+  for (const n of deLaNube || []) {
+    if (!n?.id) continue;
+    const l = porId.get(n.id);
+    if (!l || (estaVigente(l) && !estaVigente(n))) { porId.set(n.id, n); cambiaron.push(n); }
+  }
+  return { eventos: [...porId.values()], cambiaron };
 }
 
 // ── Las consecuencias ──────────────────────────────────────────────────────

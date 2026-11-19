@@ -13,7 +13,7 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 
 ## Operación integral (etapa abierta el 19 nov) — modelo y orden en `EVENTOS.md`
 
-**Próxima entrega operativa:** cuadrillas y horas por parcela (de ahí sale el costo de mano de obra).
+**Próxima entrega operativa:** almacén por movimientos (retiro ≠ consumo, herramientas, combustible, conciliación del día).
 
 | Asunto | En rama | Probado | Publicado | Validado en el rancho |
 |---|---|---|---|---|
@@ -26,15 +26,23 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | El pase de lista toma la presencia del checador sin capturarla otra vez | Sí | Sí | Sí | Falta |
 | Menú por grupos, accesos anclados, enfoque por administrador | Sí | Sí | Sí | Falta la opinión de Migue |
 | El acomodo sigue a la persona entre aparatos | Sí | Sí | Sí | Falta con dos aparatos reales |
-| Cuadrillas, asignación a parcela, horas / jornal / destajo, historial de sueldos | No | — | — | — |
+| Cuadrillas: mandar a parcela y labor con una captura, cambios en el día, "ya acabaron", destajo | Sí | Sí (reloj simulado: un día completo) | Sí | **Falta: con gente y parcelas reales** |
+| Mano de obra: quién, dónde, cuánto tiempo, haciendo qué y cuánto costó, con el rastro de cada importe | Sí | Sí | Sí | Falta |
+| Esa mano de obra entra sola a los reportes de costo que ya existían | Sí | Sí | Sí | Falta |
+| Tableta cerrada en el checador (con clave para abrir) | Sí | Sí | Sí | **Falta: en la tableta de la nave** |
+| Los minutos de "lectura repetida" se cambian desde la app | Sí | Sí | Sí | — |
+| Los eventos viven fuera del cajón de 5 MB y se baja sólo lo nuevo | Sí | Sí (local); **la bajada por partes sólo simulada** | Sí | **Falta: con semanas de marcas reales** |
+| Medio día, horas extra, séptimo día y otras reglas de pago | No | — | — | Hay que definirlas |
+| Capturar la modalidad de pago en la ficha del trabajador (hoy sólo por día, salvo que se cargue de otra forma) | No | — | — | — |
 | Almacén por movimientos, herramientas, combustible, conciliación del día | No | — | — | — |
 | Costos reales por parcela, cultivo, actividad y temporada | No | — | — | — |
 
 **Problemas y riesgos abiertos**
 
-- **El guardado del teléfono se va a llenar.** Todo vive en un cajón de unos 5 MB. Con cien personas checando dos veces al día son meses, no años. Hay que mudarlo antes de operar a diario.
+- **El cálculo recorre todos los eventos cada vez.** Con unos meses de marcas va bien; con años habrá que cerrar periodos y guardar su resumen. No urge, pero está anotado.
 - **Las existencias del almacén se pisan entre aparatos** (número guardado, no suma de movimientos). Se corrige en la entrega del almacén.
-- **El checador no bloquea la tableta**: quien la tenga en la mano puede salirse a otras pantallas del encargado. Falta un modo cerrado.
+- **La tableta cerrada no impide salirse del navegador**: eso lo cierra el propio aparato (en Android, "fijar pantalla"). La app ya no deja ir a otras pantallas.
+- **Si alguien teclea una actividad a mano para quien ya fue mandado con su cuadrilla, el costo se duplica.** La app lo avisa en Mano de obra, pero no lo impide.
 - **Dos personas con el mismo PIN** no pueden checar con PIN (el checador lo dice). Hay que revisar los PIN al dar de alta a la gente.
 - Una prueba de la base falló dos veces de forma intermitente y no se ha podido repetir; la corrida completa ya guarda el detalle.
 

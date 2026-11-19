@@ -38,19 +38,21 @@ Revisado contra el principio. Nada de esto se destruye; se va pasando por etapas
 | Subida a la nube | Bien: sube por identificador, un reintento no duplica el renglón | Nada |
 | Dinero | Bien: se cancela con motivo, no se borra | Que un pago apunte a la obligación que paga (compra ≠ pago) |
 | **Existencias del almacén** | **Mal para varios aparatos**: la existencia es un número guardado que cada pantalla sobrescribe. Dos teléfonos sin señal que sacan del mismo artículo: gana el último y se pierde una salida | Que la existencia salga de sumar movimientos (eventos), por ubicación. Es la entrega 3 |
-| Actividades de campo | El costo de mano de obra se calcula al capturar y se guarda dentro de la actividad | Que salga de la asignación de la cuadrilla y de las horas, no de teclearlo. Entrega 2 |
+| Actividades de campo | El costo de mano de obra se tecleaba como actividad | **Hecho**: sale de las marcas y de la asignación de la cuadrilla. Las actividades tecleadas de antes siguen contando; si alguien teclea además la misma jornada, se avisa como doble |
 | Asistencia | Era una palomita por día, capturada aparte de las actividades | **Hecho**: sale de las marcas del checador |
 | Aplicaciones, cosechas, compras | Cada una guarda sus consecuencias por su cuenta (inventario, costo) | Pasarlas a eventos conforme toque cada entrega |
-| Guardado en el teléfono | Todo vive en un cajón de unos 5 MB | Con cien personas checando dos veces al día se llena en meses. Hay que mudarlo a un almacén más grande antes de operar a diario. **Riesgo abierto** |
+| Guardado en el teléfono | Todo vivía en un cajón de unos 5 MB que se reescribía entero | **Hecho para los eventos**: viven aparte en el almacén grande del navegador, uno por renglón, y de la nube se baja sólo lo nuevo. Lo demás (catálogos, dinero) sigue en el cajón, que para eso alcanza |
 
 ## Entregas
 
 1. **Checador** (hecha): credencial con QR, entrada y salida por QR o PIN,
    llegada directa a campo autorizada, sin señal, sin duplicados, correcciones
    con motivo, jornada del día.
-2. **Cuadrillas y horas por parcela**: armar cuadrillas con quien ya checó,
-   asignarlas a parcela y actividad, cambios durante el día, jornal / hora /
-   destajo, historial de sueldos. De aquí sale el costo de mano de obra.
+2. **Cuadrillas y mano de obra** (hecha): mandar a quien ya checó a parcela y
+   labor con una sola captura, cambios durante el día, "ya acabaron", destajo,
+   pago por día / por hora / a destajo, y el reporte de quién, dónde, cuánto
+   tiempo, haciendo qué y cuánto costó, con el rastro de cada importe. Tableta
+   cerrada en el checador. Reglas del rancho que se cambian desde la app.
 3. **Almacén por movimientos**: artículos y herramientas con QR, retiro,
    devolución, transferencia, consumo y "quedó en campo", existencias por
    ubicación, conciliación del día por excepciones, combustible con destino.
@@ -62,6 +64,16 @@ Revisado contra el principio. Nada de esto se destruye; se va pasando por etapas
 Las dejé con un valor para poder avanzar; se cambian en un renglón.
 
 - **15 minutos**: una segunda lectura de la misma persona antes de ese tiempo se
-  toma como repetida, no como salida.
+  toma como repetida, no como salida. Ya se cambia desde Jornadas (sólo un
+  administrador) y queda quién lo cambió.
+- **Quien cobra por día devenga su día completo con que haya llegado**, trabaje
+  3 horas o 9, y ese día se reparte entre lo que hizo según el tiempo. No hay
+  medio día ni horas extra todavía.
+- **El tiempo en el rancho sin mandar a una parcela** (entre que llegó y lo
+  mandaron, o después de "ya acabaron") se devenga pero queda como "sin
+  asignar": no se le carga a ninguna parcela.
+- **El destajo se reparte parejo** entre quienes lo hicieron.
+- **La modalidad de cada trabajador** (por día, por hora, sólo destajo) sale de
+  su ficha; quien no la tenga, cobra por día.
 - **Quién corrige una marca**: encargados y administradores. Nadie la suya.
 - **Una entrada sin salida no vale horas** hasta que alguien la cierre a mano.

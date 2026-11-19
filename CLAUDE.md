@@ -50,6 +50,18 @@ Usuarios reales de la app:
 - **`src/checador.js`**: credenciales con QR, marcas de entrada y salida, y la
   jornada que sale de ellas. Entrar al rancho NO es trabajar en una parcela; una
   entrada sin salida no vale 8 horas, vale "no se sabe".
+- **`src/cuadrillas.js`**: a dónde se mandó a cada quien (`asignacion`,
+  `fin_asignacion`, `destajo`) y la mano de obra que sale de cruzar eso con las
+  marcas: `manoDeObra()`. Cambiar de parcela o de labor es OTRA asignación, no
+  una edición. Tiempo en el rancho sin asignar NO se le carga a ninguna parcela:
+  queda aparte, a la vista. Lo repartido suma exacto lo devengado. Las reglas
+  que el rancho puede cambiar (`AJUSTES`) también son eventos. `normalizeData`
+  mete esa mano de obra a `actividadesContables`, así que los reportes de
+  siempre la ven **sin que nadie teclee una actividad** — teclearla además la
+  duplica (`capturasDobles` lo avisa).
+- **`src/almacenEventos.js`**: los eventos NO viven en el cajón de 5 MB: viven
+  en IndexedDB (`LLAVES.eventos`), uno por renglón (`useCajon`). De la nube se
+  bajan aparte, sólo lo nuevo y por páginas (`leerEventosDesde`), cada 2 min.
 - **`src/menu.js`**: encontrar las cosas. Cada pantalla tiene UN nombre y UN
   grupo (`FUNCIONES`, `GRUPOS`), cada perfil ve sólo las suyas (`PANTALLAS_DE`),
   y cada persona ancla su inicio y escoge su barra de abajo. Se guarda por
@@ -167,7 +179,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **112 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **114 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

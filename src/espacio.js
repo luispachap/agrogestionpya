@@ -36,10 +36,13 @@ export function llavesDe(espacio) {
     // Cómo acomodó cada persona su inicio y su barra. No son datos del rancho:
     // no suben, y no se borran al reiniciar el teléfono.
     menu: `agro_menu_v8:${e}`,
+    // El almacén grande (IndexedDB) donde viven los eventos, y el candado del
+    // checador cuando la tableta se deja cerrada en esa pantalla.
+    eventos: `agro_eventos_v8:${e}`, checador: `agro_checador_v8:${e}`,
   };
 }
 // Lo que se puede borrar al "reiniciar este teléfono": SÓLO lo de este espacio.
-export const llavesQueSeReinician = (espacio) => { const l = llavesDe(espacio); return [l.datos, l.cola, l.fallidas, l.sesion, l.reset]; };
+export const llavesQueSeReinician = (espacio) => { const l = llavesDe(espacio); return [l.datos, l.cola, l.fallidas, l.sesion, l.reset, l.checador]; };
 
 // La marca de nacimiento. Se pone una vez y no se cambia.
 export const marcarEspacio = (registro, espacio) =>

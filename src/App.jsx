@@ -1,17 +1,23 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component, createContext, useContext } from "react";
 // Una operación, múltiples consecuencias: el evento se captura una vez.
-import { estaVigente, cambioPermitido } from "./eventos.js";
+import { estaVigente, cambioPermitido, sinRepetir, juntarEventos } from "./eventos.js";
+import { abrirAlmacenDeEventos, borrarAlmacenDeEventos } from "./almacenEventos.js";
 // El checador: credenciales, marcas de entrada y salida, y la jornada que sale de ellas.
 import {
   NAVE, emitirCredencial, textoDeCredencial, quienEsPorQR, quienEsPorPin, marcar, marcaQueFalto, cancelarMarca, cambiarHoraDeMarca, voltearMarca,
   resumenDelDia as resumenDeAsistencia, presenciasDe, horasYMinutos,
 } from "./checador.js";
+// Cuadrillas: a dónde se mandó a cada quien, y la mano de obra que sale de ahí.
+import {
+  asignar, terminar, anotarDestajo, repartoActual, manoDeObra, agrupar, actividadesDeManoDeObra, capturasDobles,
+  ajusteVigente, cambiarAjuste, AJUSTES, horasDe,
+} from "./cuadrillas.js";
 // Encontrar las cosas: grupos, lo de cada perfil, lo anclado y lo que más se usa.
 import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarraDe, barraDe, necesitaMenu, alternarInicio, alternarBarra, moverEnInicio, volverALoDeFabrica, anotarUso, masUsadas, ancladasConDatos, TOPE_BARRA, ENFOQUES, PERFILES_CON_ENFOQUE, faltaEnfoque, elegirEnfoque, alternarGrupo, mezclarPrefs, sellarAcomodo, mismoAcomodo } from "./menu.js";
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
 import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo } from "./acceso.js";
-import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias } from "./dataApi";
+import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde } from "./dataApi";
 import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, generarSQLCuentas, exportarPolizas, HOJAS } from "./excelLoader";
 // El estado de cuenta del banco: se valida solo antes de entrar.
 import {
@@ -262,6 +268,17 @@ textarea.inp{min-height:90px;resize:none;}
 .card-title + .jor-marca{border-top:none;}
 .jor-acc{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
 .jor-acc button{padding:7px 12px;border-radius:50px;border:1.5px solid var(--border);background:transparent;color:var(--text);font-family:'Nunito',sans-serif;font-size:12px;font-weight:700;cursor:pointer;}
+/* ── Cuadrillas y mano de obra ── */
+.rep-fichas{display:flex;flex-wrap:wrap;gap:8px;}
+.rep-ficha{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:9px 12px;border-radius:12px;border:1.5px solid var(--border);background:var(--card2);color:var(--text);font-family:'Nunito',sans-serif;cursor:pointer;text-align:left;min-height:46px;}
+.rep-ficha.on{border-color:var(--accent);background:rgba(228,178,63,.14);}
+.rep-nom{font-size:13px;font-weight:800;line-height:1.15;}
+.rep-hr{font-size:11px;color:var(--muted);}
+.rep-barra{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(74px + env(safe-area-inset-bottom));width:calc(100% - 24px);max-width:456px;z-index:60;background:var(--surface);border:1.5px solid var(--accent);border-radius:18px;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.45);}
+.mo-dos{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border-soft);}
+.mo-cab{width:100%;display:flex;align-items:center;gap:10px;background:transparent;border:none;color:var(--text);font-family:'Nunito',sans-serif;text-align:left;cursor:pointer;padding:0;}
+.mo-labor{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:9px 0;border-top:1px solid var(--border-soft);font-size:14px;}
+.mo-cab + .mo-labor{margin-top:12px;}
 /* ── Menú y accesos del inicio ── */
 .acc-link{background:transparent;border:none;color:var(--accent);font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;cursor:pointer;padding:6px 4px;}
 .acc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
@@ -849,6 +866,41 @@ function useLS(key, init) {
   const [v, sv] = useState(() => { const stored = lsGet(key); return stored === undefined ? init : stored; });
   useEffect(() => { lsSet(key, v); }, [key, v]);
   return [v, sv];
+}
+
+// El cajón del teléfono, con los EVENTOS aparte. Todo lo demás sigue en el
+// cajón de siempre; los eventos (que crecen sin tope) viven en el almacén
+// grande y se guardan uno por uno. Mientras no terminan de cargar, `listos` es
+// falso: el checador espera, para no decidir "entrada o salida" con media lista.
+function useCajon(llaves, init) {
+  const [v, sv] = useState(() => { const stored = lsGet(llaves.datos); return stored === undefined ? init : stored; });
+  const [listos, setListos] = useState(false);
+  const almacen = useRef(null);            // null = todavía no / no hay: se guarda en el cajón de siempre
+  const guardados = useRef(new Map());     // id → el objeto ya guardado (para guardar sólo lo que cambió)
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const a = await abrirAlmacenDeEventos(llaves.eventos);
+      let lista = [];
+      if (a) { try { lista = await a.leer(); } catch { lista = []; } }
+      if (!vivo) return;
+      almacen.current = a;
+      for (const e of lista) guardados.current.set(e.id, e);
+      // Lo que hubiera quedado en el cajón viejo se muda aquí (y se guarda en el siguiente paso).
+      sv(d => ({ ...d, eventos: sinRepetir([...lista, ...(Array.isArray(d.eventos) ? d.eventos : [])]) }));
+      setListos(true);
+    })();
+    return () => { vivo = false; };
+  }, [llaves.eventos]);
+  useEffect(() => {
+    if (!listos || !almacen.current) { lsSet(llaves.datos, v); return; }
+    const nuevos = (v.eventos || []).filter(e => e?.id && guardados.current.get(e.id) !== e);
+    lsSet(llaves.datos, { ...v, eventos: [] });
+    if (nuevos.length === 0) return;
+    almacen.current.guardar(nuevos).then(() => { for (const e of nuevos) guardados.current.set(e.id, e); })
+      .catch(() => { try { window.__agroGuardadoFallo = true; window.dispatchEvent(new Event("agro-guardado-fallo")); } catch { /* sin window */ } });
+  }, [llaves.datos, v, listos]);
+  return [v, sv, { listos, almacen }];
 }
 
 function getSugerencia(parcela, mes) {
@@ -2339,6 +2391,13 @@ function normalizeData(d) {
     }
     return a;
   });
+  // La mano de obra que sale de los EVENTOS (checador + cuadrillas) entra a los
+  // mismos reportes de siempre, sin que nadie la teclee como actividad. No se
+  // guarda: se calcula cada vez. Lo que no tiene parcela NO entra aquí.
+  if (!Array.isArray(fix.eventos)) fix.eventos = [];
+  const __moEv = manoDeObra(fix.eventos, fix.trabajadores || [], { hoy: fechaLocal(), ahora: new Date().toISOString() });
+  fix.manoDeObraEventos = __moEv;
+  fix.actividadesContables = fix.actividadesContables.concat(actividadesDeManoDeObra(__moEv.partes, fix.trabajadores || []));
   return fix;
 }
 
@@ -5990,7 +6049,8 @@ function BuzonPapeles({ data, add, upd, setInv, session, onClose }) {
 const normalizarNombre = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 
 function AppInner() {
-  const [rawData, setData] = useLS(LLAVES.datos, INITIAL);
+  const [rawData, setData, cajonEventos] = useCajon(LLAVES, INITIAL);
+  const eventosListos = cajonEventos.listos;
   // normalizeData incluye el cálculo de mano de obra (recorre todas las actividades),
   // así que lo memorizamos: solo se recalcula cuando rawData cambia, no en cada render.
   const data = useMemo(() => normalizeData(rawData), [rawData]);
@@ -6118,6 +6178,7 @@ function AppInner() {
           if (plan.accion === "limpiar") {
             lsSet(LLAVES.reset, cfgSegNube.resetToken);
             plan.claves.forEach(k => localStorage.removeItem(k));
+            await borrarAlmacenDeEventos(LLAVES.eventos);
             window.location.reload();
             return;
           }
@@ -6134,6 +6195,9 @@ function AppInner() {
         // La mezcla vive en sincroniza.js, con sus pruebas. Lo que trae lápida
         // en la nube (alguien lo borró) se quita de este teléfono.
         setData(prev => mezclarConNube(prev, datosNube).datos);
+        bajarEventosRef.current?.().then(r => {
+          if (activo && r && !r.ok) setAvisosLectura(a => ({ ...(a || {}), fallas: [...((a && a.fallas) || []), { tabla: "eventos", mensaje: r.mensaje || "no se pudo leer" }], topes: (a && a.topes) || [], cuando: new Date().toISOString() }));
+        });
         // Con la bajada hecha: medir el plan y subir lo que falte.
         leerConsumo().then(c => { if (activo) setConsumo(c); });
         procesarCola();
@@ -6151,6 +6215,31 @@ function AppInner() {
     })();
     return () => { activo = false; };
   }, [session?.id, session?.cuenta]);
+
+  // Los eventos se bajan aparte y sólo lo nuevo: desde la marca del último que
+  // este aparato ya tiene. Corre al entrar y luego cada dos minutos, para que la
+  // tableta del checador se entere de quien llegó directo a campo (y al revés).
+  const bajarEventosRef = useRef(null);
+  const bajandoEventos = useRef(false);
+  bajarEventosRef.current = async () => {
+    if (!supabaseListo || !online || !session || !eventosListos || bajandoEventos.current) return null;
+    bajandoEventos.current = true;
+    try {
+      const a = cajonEventos.almacen.current;
+      const desde = a ? await a.meta("marca_nube").catch(() => null) : null;
+      const r = await leerEventosDesde(desde || null);
+      if (!r.ok) return r;
+      if (r.eventos.length > 0) setData(prev => { const j = juntarEventos(prev.eventos, r.eventos); return j.cambiaron.length ? { ...prev, eventos: j.eventos } : prev; });
+      if (a && r.marca && r.marca !== desde) await a.ponMeta("marca_nube", r.marca).catch(() => {});
+      return r;
+    } finally { bajandoEventos.current = false; }
+  };
+  useEffect(() => {
+    if (!supabaseListo || !session || !online || !eventosListos) return;
+    const primera = setTimeout(() => bajarEventosRef.current?.(), 1500);
+    const reloj = setInterval(() => bajarEventosRef.current?.(), 120000);
+    return () => { clearTimeout(primera); clearInterval(reloj); };
+  }, [session?.id, online, eventosListos]);
 
   // Subir las fotos que falten cuando hay señal. Si el medidor dice que el
   // almacén está lleno, no se intenta: se quedan en el teléfono y se avisa.
@@ -6276,7 +6365,8 @@ function AppInner() {
     if (sec === "actividades") item = sellarSueldoDelDia(item, trabajadoresRef.current);
     item = apartarArchivos(sec, item);
     const ni = marcarTocado({ ...item, id: item.id || `${sec[0]}${Date.now()}${Math.floor(Math.random() * 1000)}` });
-    setData(d => ({ ...d, [sec]: [...(Array.isArray(d[sec]) ? d[sec] : []), ni] }));
+    // Un evento con el mismo identificador es el MISMO evento: un doble toque no lo mete dos veces.
+    setData(d => { const lista = Array.isArray(d[sec]) ? d[sec] : []; return sec === "eventos" && lista.some(x => x.id === ni.id) ? d : { ...d, [sec]: [...lista, ni] }; });
     replicarANube("add", sec, ni);
     return ni;
   }, [setData, replicarANube, apartarArchivos]);
@@ -6473,6 +6563,25 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
     });
   }, [quienMenu]);
   useEffect(() => { if (quienMenu && FUNCIONES[page]) cambiarPrefsMenu(p => anotarUso(p, page, new Date().toISOString()), false); }, [page, quienMenu, cambiarPrefsMenu]);
+  // MODO CERRADO: la tableta de la nave se deja clavada en el checador. Quien
+  // la tenga en la mano no puede salirse a otras pantallas del encargado; para
+  // abrirla hace falta la clave que puso quien la cerró. Sobrevive a recargar.
+  const [cerrado, setCerradoRaw] = useState(() => lsGet(LLAVES.checador) || null);
+  const huellaDeClave = (c) => sha256Hex(new TextEncoder().encode("checador|" + String(c).trim()));
+  const cerrarChecador = (clave) => {
+    const c = String(clave || "").trim();
+    if (!/^\d{4,8}$/.test(c)) return "La clave para abrir es de 4 a 8 números.";
+    const estado = { huella: huellaDeClave(c), por: session?.nombre || "", desde: new Date().toISOString() };
+    lsSet(LLAVES.checador, estado); setCerradoRaw(estado); return "";
+  };
+  const abrirChecador = (clave) => {
+    if (!cerrado || huellaDeClave(clave) !== cerrado.huella) return false;
+    try { localStorage.removeItem(LLAVES.checador); } catch { /* sin almacén */ }
+    setCerradoRaw(null); return true;
+  };
+  const clavado = !!cerrado && ["admin", "encargado"].includes(session?.role);
+  useEffect(() => { if (clavado && page !== "checador") setPage("checador"); }, [clavado, page]);
+
   // El checador tiene que servir sin señal. En los aparatos que no traen lector
   // de códigos (iPhone, iPad) el nuestro se baja aparte: se baja de una vez, con
   // señal, para que ya esté guardado cuando la tableta se quede sin internet.
@@ -6680,8 +6789,10 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "asistencia" && <PaseLista data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "resumen" && <ResumenSemanal data={data} onClose={() => setPage("home")} />}
               {page === "respaldo" && <RespaldoDatos data={data} setData={setData} onClose={() => setPage("home")} />}
-              {page === "checador" && <Checador data={data} add={add} session={session} onNav={setPage} onClose={() => setPage("home")} />}
+              {page === "checador" && <Checador data={data} add={add} session={session} onNav={setPage} onClose={() => setPage("home")} listo={eventosListos} cerrado={clavado ? cerrado : null} onCerrar={cerrarChecador} onAbrir={abrirChecador} />}
               {page === "credenciales" && <Credenciales data={data} upd={upd} session={session} onClose={() => setPage("home")} />}
+              {page === "reparto" && <Reparto data={data} add={add} session={session} onNav={setPage} onClose={() => setPage("home")} />}
+              {page === "mano-obra" && <ManoDeObra data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "jornadas" && <Jornadas data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "arranque" && <ArranqueLimpio data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "seguridad" && <PanelSeguridad data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
@@ -6718,8 +6829,9 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
             </>}
             {isEncargado && <>
               {page === "home" && <EncargadoHome data={data} session={session} onNav={setPage} onLogout={cerrarSesion} online={online} />}
-              {page === "checador" && <Checador data={data} add={add} session={session} onNav={setPage} onClose={() => setPage("home")} />}
+              {page === "checador" && <Checador data={data} add={add} session={session} onNav={setPage} onClose={() => setPage("home")} listo={eventosListos} cerrado={clavado ? cerrado : null} onCerrar={cerrarChecador} onAbrir={abrirChecador} />}
               {page === "credenciales" && <Credenciales data={data} upd={upd} session={session} onClose={() => setPage("home")} />}
+              {page === "reparto" && <Reparto data={data} add={add} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "jornadas" && <Jornadas data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "tareas" && <EncargadoTareas data={data} add={add} upd={upd} del={del} session={session} />}
               {page === "personal" && <EncargadoPersonal data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} session={session} />}
@@ -6780,6 +6892,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "rendimiento-parcelas" && <RendimientoParcelas data={data} onClose={() => setPage("home")} />}
             </>}
             {isDueno && <>
+              {page === "mano-obra" && <ManoDeObra data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "home" && <DuenoHome data={data} session={session} onNav={setPage} onLogout={cerrarSesion} />}
               {page === "panel-financiero" && <PanelFinanciero data={data} onClose={() => setPage("home")} />}
               {page === "reportes" && <AdminReportes data={data} soloLectura={true} />}
@@ -6788,6 +6901,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "operacion" && <PanelOperacion data={data} onClose={() => setPage("home")} />}
             </>}
             {isFinanzas && <>
+              {page === "mano-obra" && <ManoDeObra data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "jornadas" && <Jornadas data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "home" && <FinanzasHome data={data} session={session} onNav={setPage} onLogout={cerrarSesion} />}
               {page === "proyeccion" && <ProyeccionSemanal data={data} onClose={() => setPage("home")} />}
@@ -6809,7 +6923,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
           </ErrorBoundary>
           </MenuCtx.Provider>
         </div>
-        <nav className="bottom-nav">
+        {!clavado && <nav className="bottom-nav">
           {nav.map(n => (
             <button key={n.id} className={`bn-item${page === n.id ? " active" : ""}`} onClick={() => setPage(n.id)}>
               <span className="bn-icon"><Ic e={n.icon} /></span>
@@ -6824,14 +6938,14 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               <span className="bn-label">Menú</span>
             </button>
           )}
-        </nav>
-        {menuAbierto && <MenuCtx.Provider value={ctxMenu}><MenuTodo acomodar={menuAbierto === "acomodar"} /></MenuCtx.Provider>}
+        </nav>}
+        {menuAbierto && !clavado && <MenuCtx.Provider value={ctxMenu}><MenuTodo acomodar={menuAbierto === "acomodar"} /></MenuCtx.Provider>}
         {/* Hablarle a la app está EN TODOS LADOS: el botón flotante sale en
             cualquier pantalla, para quien sea. Antes esto abría un panel que
             le hablaba a la IA sin llave y sólo devolvía "Hubo un error de
             conexión" — código muerto que ocupaba el mejor lugar de la
             pantalla. */}
-        {page !== "dictado" && page !== "checador" && (
+        {page !== "dictado" && page !== "checador" && page !== "reparto" && (
           <button className="ai-fab" title="Dile a la app lo que pasó" onClick={() => setPage("dictado")}>
             <Ic e="💬" />
           </button>
@@ -7514,7 +7628,7 @@ function LectorQR({ onLeer, pausado }) {
 
 // Entrada y salida desde la tableta de la nave (o desde el teléfono del
 // encargado cuando alguien llega directo a campo). Una lectura = una marca.
-function Checador({ data, add, session, onNav, onClose }) {
+function Checador({ data, add, session, onNav, onClose, listo = true, cerrado = null, onCerrar, onAbrir }) {
   const trabajadores = data.trabajadores || [];
   const [lugarId, setLugarId] = useState("nave");
   const [pin, setPin] = useState("");
@@ -7528,7 +7642,8 @@ function Checador({ data, add, session, onNav, onClose }) {
   const registrar = (quienEs) => {
     if (!quienEs.ok) { decir({ tono: "mal", titulo: "No se registró", linea: quienEs.dice }); return; }
     const ahora = new Date();
-    const r = marcar({ eventos: eventosRef.current, trabajador: quienEs.trabajador, via: quienEs.via, ahora: ahora.toISOString(), fecha: fechaLocal(ahora), quien: quienDe(session), lugar });
+    if (!listo) { decir({ tono: "aviso", titulo: "Un momento", linea: "Todavía se están cargando las marcas de este aparato." }); return; }
+    const r = marcar({ eventos: eventosRef.current, trabajador: quienEs.trabajador, via: quienEs.via, ahora: ahora.toISOString(), fecha: fechaLocal(ahora), quien: quienDe(session), lugar, ventanaMin: ajusteVigente(eventosRef.current, "ventana_repetida_min").valor });
     if (!r.ok) { decir({ tono: r.repetida ? "aviso" : "mal", titulo: quienEs.trabajador.nombre, linea: r.dice }); return; }
     const guardado = add("eventos", r.evento);
     eventosRef.current = [...eventosRef.current, guardado];   // la siguiente lectura ya la ve, aunque React no haya pintado
@@ -7538,18 +7653,49 @@ function Checador({ data, add, session, onNav, onClose }) {
   const hoy = today();
   const r = resumenDeAsistencia(data.eventos, trabajadores, { fecha: hoy, hoy, ahora: new Date().toISOString() });
   const sinCredencial = trabajadores.filter(t => t.activo !== false && !t.credencial?.codigo).length;
+  const [candado, setCandado] = useState(null);     // null · "cerrar" · "abrir"
+  const [clave, setClave] = useState("");
+  const [diceCandado, setDiceCandado] = useState("");
+  const conCandado = () => {
+    if (candado === "cerrar") { const d = onCerrar(clave); if (d) { setDiceCandado(d); return; } }
+    else if (!onAbrir(clave)) { setDiceCandado("Esa no es la clave."); setClave(""); return; }
+    setCandado(null); setClave(""); setDiceCandado("");
+  };
 
   return (
     <div>
       <div className="top-bar">
-        <button className="btn-ghost" onClick={onClose}>‹</button>
+        {!cerrado && <button className="btn-ghost" onClick={onClose}>‹</button>}
         <h2 style={{ flex: 1 }}>Checador</h2>
-        <button className="btn btn-outline btn-sm" onClick={() => onNav("jornadas")}>Ver el día</button>
+        {cerrado
+          ? <button className="btn btn-outline btn-sm" onClick={() => { setCandado("abrir"); setClave(""); setDiceCandado(""); }}><Ic e="🔒" /> Abrir</button>
+          : <>
+            <button className="btn btn-outline btn-sm" onClick={() => { setCandado("cerrar"); setClave(""); setDiceCandado(""); }}><Ic e="🔒" /> Dejar cerrada</button>
+            <button className="btn btn-outline btn-sm" onClick={() => onNav("jornadas")}>Ver el día</button>
+          </>}
       </div>
+      {candado && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setCandado(null); }}>
+          <div className="modal-sheet">
+            <div className="card-title">{candado === "cerrar" ? "Dejar la tableta cerrada en el checador" : "Abrir la tableta"}</div>
+            <div className="text-sm text-muted" style={{ marginBottom: 12 }}>
+              {candado === "cerrar"
+                ? "Desde aquí sólo se podrá checar: sin menú, sin regresar, y sigue así aunque se apague. Para abrirla hará falta la clave que pongas ahora. Apúntala: si se olvida, hay que cerrar la sesión de este aparato y volver a entrar."
+                : `La cerró ${cerrado?.por || "alguien"}. Escribe la clave que puso.`}
+            </div>
+            <input className="inp" type="password" inputMode="numeric" autoComplete="off" placeholder="Clave de 4 a 8 números" aria-label="Clave del checador" value={clave} onChange={e => setClave(e.target.value.replace(/\D/g, "").slice(0, 8))} style={{ marginBottom: 10 }} />
+            {diceCandado && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 10 }}>{diceCandado}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setCandado(null)}>No</button>
+              <button className="btn btn-accent" style={{ flex: 1 }} disabled={clave.length < 4} onClick={conCandado}>{candado === "cerrar" ? "Cerrar" : "Abrir"}</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="section-pad">
         <div className="chk-lugar">
           <span className="text-sm text-muted">Estás registrando en</span>
-          <select className="inp" value={lugarId} onChange={e => setLugarId(e.target.value)} aria-label="Dónde se registra">
+          <select className="inp" value={lugarId} disabled={!!cerrado} onChange={e => setLugarId(e.target.value)} aria-label="Dónde se registra">
             <option value="nave">La nave</option>
             {(data.ranchos || []).map(x => <option key={x.id} value={x.id}>Llegó directo a: {x.nombre}</option>)}
           </select>
@@ -7786,7 +7932,299 @@ function Jornadas({ data, add, upd, session, onNav, onClose }) {
           </div>
         )}
         {r.jornadas.length === 0 && r.sinLlegar.length === 0 && <div className="card"><div className="text-sm text-muted">Todavía no hay trabajadores dados de alta ni marcas este día.</div></div>}
+        <ReglasDelRancho data={data} add={add} session={session} claves={["ventana_repetida_min"]} />
       </div>
+    </div>
+  );
+}
+
+// Las reglas del rancho que se pueden cambiar. Cada cambio es un evento: queda
+// quién la cambió y cuándo, y la regla anterior no se pierde.
+function ReglasDelRancho({ data, add, session, claves }) {
+  const [valores, setValores] = useState({});
+  const [dice, setDice] = useState("");
+  if (session.role !== "admin") return null;
+  const guardar = (clave) => {
+    const ahora = new Date();
+    const r = cambiarAjuste({ clave, valor: valores[clave], quien: quienDe(session), cuando: ahora.toISOString(), fecha: fechaLocal(ahora) });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); setValores(v => ({ ...v, [clave]: undefined })); setDice("");
+  };
+  return (
+    <div className="card">
+      <div className="card-title">Reglas del rancho</div>
+      {claves.map(clave => {
+        const v = ajusteVigente(data.eventos, clave);
+        return (
+          <div key={clave} className="form-group">
+            <label className="form-label" htmlFor={`regla-${clave}`}>{AJUSTES[clave].nombre}</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input id={`regla-${clave}`} className="inp" type="number" inputMode="numeric" min={AJUSTES[clave].minimo} max={AJUSTES[clave].maximo} value={valores[clave] ?? v.valor} onChange={e => setValores(x => ({ ...x, [clave]: e.target.value }))} />
+              <button className="btn btn-outline btn-sm" disabled={valores[clave] == null || String(valores[clave]) === String(v.valor)} onClick={() => guardar(clave)}>Guardar</button>
+            </div>
+            <div className="text-xs text-muted" style={{ marginTop: 4 }}>{v.evento ? `Lo puso ${v.por} el ${fechaLocal(new Date(v.desde))}.` : "Es el valor con el que viene."}</div>
+          </div>
+        );
+      })}
+      {dice && <div className="text-sm" style={{ color: "var(--red)" }}>{dice}</div>}
+    </div>
+  );
+}
+
+const ACTIVIDADES_DE_CAMPO = ["Preparación de suelo", "Siembra", "Fertilización", "Riego", "Control de plagas", "Deshierbe", "Cosecha", "Limpieza"];
+
+// A dónde va cada quien hoy. Se escoge a la gente que ya checó, se dice parcela
+// y labor, y con UNA captura queda toda la cuadrilla. Cambiar de parcela o de
+// labor es volver a mandar: lo anterior termina solo.
+function Reparto({ data, add, session, onNav, onClose }) {
+  const hoy = today();
+  const [, setTic] = useState(0);
+  useEffect(() => { const r = setInterval(() => setTic(n => n + 1), 60000); return () => clearInterval(r); }, []);
+  const ahora = new Date().toISOString();
+  const r = repartoActual(data.eventos, { fecha: hoy, hoy, ahora });
+  const [sel, setSel] = useState({});
+  const F0 = { parcelaId: "", actividad: "", otra: "", cuadrilla: "", hora: "" };
+  const [form, setForm] = useState(F0);
+  const [destajo, setDestajo] = useState(null);       // { grupo, cantidad, unidad, tarifa }
+  const [dice, setDice] = useState("");
+  const nombre = (id) => (data.trabajadores || []).find(t => t.id === id)?.nombre || "Sin ficha en este aparato";
+  const parcela = (id) => (data.parcelas || []).find(p => p.id === id);
+  const adentro = new Set([...r.sinAsignar.map(x => x.trabajadorId), ...r.grupos.flatMap(g => g.miembros.map(m => m.trabajadorId))]);
+  const elegidos = Object.keys(sel).filter(id => sel[id] && adentro.has(id));
+  const tocar = (id) => setSel(x => ({ ...x, [id]: !x[id] }));
+  const marcarVarios = (ids, si) => setSel(x => ({ ...x, ...Object.fromEntries(ids.map(id => [id, si])) }));
+  const actividades = [...new Set([...ACTIVIDADES_DE_CAMPO, ...(data.eventos || []).filter(e => e.tipo === "asignacion").map(e => e.datos.actividad)])].sort((a, b) => a.localeCompare(b));
+  const aIso = (hhmm) => new Date(`${hoy}T${hhmm}:00`).toISOString();
+  const quien = quienDe(session);
+
+  const mandar = () => {
+    const res = asignar({ trabajadorIds: elegidos, parcelaId: form.parcelaId, actividad: form.actividad === "__otra__" ? form.otra : form.actividad, cuadrilla: form.cuadrilla,
+      desde: form.hora ? aIso(form.hora) : ahora, fecha: hoy, quien, capturado: ahora });
+    if (!res.ok) { setDice(res.dice); return; }
+    add("eventos", res.evento); setSel({}); setForm(f => ({ ...F0, parcelaId: f.parcelaId, actividad: f.actividad })); setDice("");
+  };
+  const acabaron = (ids) => {
+    const res = terminar({ trabajadorIds: ids, desde: ahora, fecha: hoy, quien, capturado: ahora });
+    if (!res.ok) { setDice(res.dice); return; }
+    add("eventos", res.evento); setSel({}); setDice("");
+  };
+  const guardarDestajo = () => {
+    const g = destajo.grupo;
+    const res = anotarDestajo({ trabajadorIds: g.miembros.map(m => m.trabajadorId), parcelaId: g.parcelaId, actividad: g.actividad, unidad: destajo.unidad, cantidad: destajo.cantidad, tarifa: destajo.tarifa, cuando: ahora, fecha: hoy, quien, capturado: ahora });
+    if (!res.ok) { setDice(res.dice); return; }
+    add("eventos", res.evento); setDestajo(null); setDice("");
+  };
+  const ficha = (id, desde) => (
+    <button key={id} className={`rep-ficha${sel[id] ? " on" : ""}`} onClick={() => tocar(id)} aria-pressed={!!sel[id]}>
+      <span className="rep-nom">{nombre(id)}</span><span className="rep-hr">desde {horaCorta(desde)}</span>
+    </button>
+  );
+
+  return (
+    <div>
+      <div className="top-bar">
+        <button className="btn-ghost" onClick={onClose}>‹</button><h2 style={{ flex: 1 }}>Cuadrillas</h2>
+        <button className="btn btn-outline btn-sm" onClick={() => onNav("checador")}>Checador</button>
+      </div>
+      <div className="section-pad" style={{ paddingBottom: elegidos.length ? 330 : undefined }}>
+        {adentro.size === 0 && (
+          <div className="card"><div className="text-sm">Todavía nadie ha checado entrada hoy.</div>
+            <div className="text-xs text-muted" style={{ marginTop: 6 }}>Aquí se reparte a quien ya está en el rancho. Quien llegó directo a campo se registra en el Checador, escogiendo su rancho.</div></div>
+        )}
+        {r.sinAsignar.length > 0 && (
+          <div className="card">
+            <div className="flex-b" style={{ marginBottom: 10 }}>
+              <span className="card-title" style={{ marginBottom: 0, color: "var(--gold)" }}>Sin mandar ({r.sinAsignar.length})</span>
+              <button className="acc-link" onClick={() => { const ids = r.sinAsignar.map(x => x.trabajadorId); marcarVarios(ids, !ids.every(id => sel[id])); }}>{r.sinAsignar.every(x => sel[x.trabajadorId]) ? "Quitar todos" : "Marcar todos"}</button>
+            </div>
+            <div className="rep-fichas">{r.sinAsignar.map(x => ficha(x.trabajadorId, x.desde))}</div>
+            <div className="text-xs text-muted" style={{ marginTop: 8 }}>Están en el rancho pero su tiempo no se le carga a ninguna parcela.</div>
+          </div>
+        )}
+        {r.grupos.map(g => (
+          <div key={g.clave} className="card">
+            <div className="flex-b" style={{ marginBottom: 2 }}>
+              <span className="card-title" style={{ marginBottom: 0 }}>{parcela(g.parcelaId)?.nombre || "Parcela que no está en este aparato"}</span>
+              <span className="text-sm text-muted">{g.miembros.length}</span>
+            </div>
+            <div className="text-sm" style={{ marginBottom: 10 }}>{g.actividad}{g.cuadrilla ? ` · ${g.cuadrilla}` : ""}</div>
+            <div className="rep-fichas">{g.miembros.map(m => ficha(m.trabajadorId, m.desde))}</div>
+            <div className="jor-acc">
+              <button onClick={() => { const ids = g.miembros.map(m => m.trabajadorId); marcarVarios(ids, !ids.every(id => sel[id])); }}>Marcar a todos para moverlos</button>
+              <button onClick={() => acabaron(g.miembros.map(m => m.trabajadorId))}>Ya acabaron</button>
+              <button onClick={() => { setDestajo({ grupo: g, cantidad: "", unidad: "caja", tarifa: "" }); setDice(""); }}>Anotar destajo</button>
+            </div>
+          </div>
+        ))}
+        {r.sinChecar.length > 0 && (
+          <div className="card">
+            <div className="card-title" style={{ color: "var(--gold)" }}>Mandados sin haber checado ({r.sinChecar.length})</div>
+            <div className="text-sm">{r.sinChecar.map(x => nombre(x.trabajadorId)).join(", ")}</div>
+            <div className="text-xs text-muted" style={{ marginTop: 6 }}>No cuentan horas hasta que chequen su entrada (o un encargado la ponga en Jornadas, con su motivo).</div>
+          </div>
+        )}
+        {dice && !elegidos.length && !destajo && <div className="text-sm" style={{ color: "var(--red)" }}>{dice}</div>}
+      </div>
+
+      {destajo && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setDestajo(null); }}>
+          <div className="modal-sheet">
+            <div className="card-title">Destajo · {parcela(destajo.grupo.parcelaId)?.nombre} · {destajo.grupo.actividad}</div>
+            <div className="text-sm text-muted" style={{ marginBottom: 10 }}>Lo que hicieron entre los {destajo.grupo.miembros.length}. Se reparte parejo.</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="dj-c">Cuánto</label><input id="dj-c" className="inp" type="number" inputMode="decimal" value={destajo.cantidad} onChange={e => setDestajo(d => ({ ...d, cantidad: e.target.value }))} /></div>
+              <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="dj-u">De qué</label><input id="dj-u" className="inp" value={destajo.unidad} onChange={e => setDestajo(d => ({ ...d, unidad: e.target.value }))} /></div>
+            </div>
+            <div className="form-group"><label className="form-label" htmlFor="dj-t">A cómo cada una ($)</label><input id="dj-t" className="inp" type="number" inputMode="decimal" value={destajo.tarifa} onChange={e => setDestajo(d => ({ ...d, tarifa: e.target.value }))} /></div>
+            {Number(destajo.cantidad) > 0 && Number(destajo.tarifa) > 0 && <div className="text-sm" style={{ marginBottom: 10 }}>Son <b>{fmt(Number(destajo.cantidad) * Number(destajo.tarifa))}</b> en total.</div>}
+            {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setDestajo(null)}>No</button>
+              <button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarDestajo}>Guardar destajo</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {elegidos.length > 0 && (
+        <div className="rep-barra">
+          <div className="flex-b" style={{ marginBottom: 8 }}>
+            <b>Mandar a {elegidos.length}</b>
+            <button className="acc-link" onClick={() => setSel({})}>Soltar</button>
+          </div>
+          <select className="inp" aria-label="Parcela" value={form.parcelaId} onChange={e => setForm(f => ({ ...f, parcelaId: e.target.value }))} style={{ marginBottom: 8 }}>
+            <option value="">¿A qué parcela?</option>
+            {(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
+          <select className="inp" aria-label="Qué van a hacer" value={form.actividad} onChange={e => setForm(f => ({ ...f, actividad: e.target.value }))} style={{ marginBottom: 8 }}>
+            <option value="">¿A hacer qué?</option>
+            {actividades.map(a => <option key={a} value={a}>{a}</option>)}
+            <option value="__otra__">Otra cosa…</option>
+          </select>
+          {form.actividad === "__otra__" && <input className="inp" placeholder="¿Qué van a hacer?" aria-label="Otra actividad" value={form.otra} onChange={e => setForm(f => ({ ...f, otra: e.target.value }))} style={{ marginBottom: 8 }} />}
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <input className="inp" placeholder="Nombre de la cuadrilla (opcional)" aria-label="Nombre de la cuadrilla" value={form.cuadrilla} onChange={e => setForm(f => ({ ...f, cuadrilla: e.target.value }))} style={{ flex: 2 }} />
+            <input className="inp" type="time" aria-label="Desde qué hora (vacío = ahora)" value={form.hora} onChange={e => setForm(f => ({ ...f, hora: e.target.value }))} style={{ flex: 1 }} />
+          </div>
+          {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 6 }}>{dice}</div>}
+          <button className="btn btn-accent" style={{ width: "100%" }} onClick={mandar}>Mandar{form.hora ? ` desde las ${form.hora}` : " desde ahorita"}</button>
+          {(data.parcelas || []).length === 0 && <div className="text-xs text-muted" style={{ marginTop: 6 }}>No hay parcelas dadas de alta todavía.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Quién trabajó, dónde, cuánto tiempo, haciendo qué y cuánto costó. Todo sale
+// de las marcas del checador y de las asignaciones: aquí no se captura nada.
+function ManoDeObra({ data, add, session, onClose }) {
+  const hoy = today();
+  const lunes = (() => { const d = new Date(hoy + "T12:00:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return fechaLocal(d); })();
+  const [rango, setRango] = useState({ desde: hoy, hasta: hoy, cual: "hoy" });
+  const [vista, setVista] = useState("parcela");
+  const [abierto, setAbierto] = useState(null);
+  const [rastro, setRastro] = useState(null);         // una parte
+  const r = useMemo(() => manoDeObra(data.eventos, data.trabajadores || [], { desde: rango.desde, hasta: rango.hasta, hoy, ahora: new Date().toISOString() }), [data.eventos, data.trabajadores, rango.desde, rango.hasta, hoy]);
+  const dobles = capturasDobles(data.actividades, r.partes);
+  const nombre = (id) => (data.trabajadores || []).find(t => t.id === id)?.nombre || "Sin ficha en este aparato";
+  const parcela = (id) => (id ? (data.parcelas || []).find(p => p.id === id)?.nombre || "Parcela que no está en este aparato" : "Sin asignar a parcela");
+  const grupos = vista === "parcela" ? agrupar(r.partes, ["parcelaId"]) : agrupar(r.partes, ["trabajadorId"]);
+  const etiquetas = (g) => <>{g.provisional && <span className="jor-etq">sigue adentro</span>}{g.estimado && <span className="jor-etq">sueldo estimado</span>}</>;
+  const modalidad = { dia: "por día", hora: "por hora", destajo: "a destajo" };
+  const decir = (id) => {
+    const e = (data.eventos || []).find(x => x.id === id);
+    if (!e) return { titulo: "Un evento que este aparato todavía no ha bajado", linea: id };
+    const base = `${fechaLocal(new Date(e.cuando))} · ${horaCorta(e.cuando)}`;
+    const quienFue = `Lo registró ${e.quien?.nombre || "—"}${e.relacion === "corrige" ? " (corrección)" : ""}`;
+    if (e.tipo === "marca") return { titulo: `${base} · ${e.datos.sentido}`, linea: `${e.datos.via === "qr" ? "Con credencial" : e.datos.via === "pin" ? "Con PIN" : e.datos.via === "remoto" ? `Directo a ${e.datos.lugar?.nombre || "campo"}` : `A mano: "${e.datos.motivo || ""}"`} · ${quienFue}` };
+    if (e.tipo === "asignacion") return { titulo: `${base} · mandado a ${parcela(e.datos.parcelaId)}`, linea: `${e.datos.actividad}${e.datos.cuadrilla ? ` · ${e.datos.cuadrilla}` : ""} · junto con ${e.datos.trabajadorIds.length - 1} más · ${quienFue}` };
+    if (e.tipo === "destajo") return { titulo: `${base} · destajo`, linea: `${fmtN(e.datos.cantidad)} ${e.datos.unidad} a ${fmt(e.datos.tarifa)} entre ${e.datos.trabajadorIds.length} · ${quienFue}` };
+    return { titulo: `${base} · ${e.tipo}`, linea: quienFue };
+  };
+  const linea = (p, i) => (
+    <button key={i} className="jor-fila" onClick={() => setRastro(p)}>
+      <span className="mn-tx" style={{ flex: 1 }}>
+        <span className="mn-n">{vista === "parcela" ? nombre(p.trabajadorId) : parcela(p.parcelaId)}</span>
+        <span className="mn-s">{p.fecha !== rango.desde || rango.desde !== rango.hasta ? `${p.fecha} · ` : ""}{p.actividad || (p.sinHoras ? "no checó salida" : "en el rancho, sin mandar")} · {p.modalidad === "destajo" ? `${fmtN(p.unidades)} ${p.unidad}` : horasDe(p.minutos)} · {modalidad[p.modalidad]}</span>
+      </span>
+      <b>{fmt(p.monto)}</b><span className="mn-fl">›</span>
+    </button>
+  );
+
+  return (
+    <div>
+      <div className="top-bar"><button className="btn-ghost" onClick={onClose}>‹</button><h2>Mano de obra</h2></div>
+      <div className="section-pad">
+        <div className="tabs-pill" style={{ padding: "0 0 10px" }}>
+          <button className={`tab-pill${rango.cual === "hoy" ? " active" : ""}`} onClick={() => setRango({ desde: hoy, hasta: hoy, cual: "hoy" })}>Hoy</button>
+          <button className={`tab-pill${rango.cual === "semana" ? " active" : ""}`} onClick={() => setRango({ desde: lunes, hasta: hoy, cual: "semana" })}>Esta semana</button>
+          <button className={`tab-pill${rango.cual === "fechas" ? " active" : ""}`} onClick={() => setRango(x => ({ ...x, cual: "fechas" }))}>Otras fechas</button>
+        </div>
+        {rango.cual === "fechas" && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <input type="date" className="inp" aria-label="Desde" value={rango.desde} max={rango.hasta} onChange={e => setRango(x => ({ ...x, desde: e.target.value || x.desde }))} />
+            <input type="date" className="inp" aria-label="Hasta" value={rango.hasta} max={hoy} onChange={e => setRango(x => ({ ...x, hasta: e.target.value || x.hasta }))} />
+          </div>
+        )}
+        <div className="card">
+          <div className="stat-label">Devengado en el periodo</div>
+          <div className="stat-val" style={{ fontSize: 30 }}>{fmt(r.total)}</div>
+          <div className="mo-dos">
+            <div><div className="stat-label">Cargado a parcelas</div><b>{fmt(r.totalAsignado)}</b><div className="text-xs text-muted">{horasDe(r.minutosAsignados)}</div></div>
+            <div><div className="stat-label" style={{ color: r.totalSinAsignar > 0 ? "var(--gold)" : undefined }}>Sin asignar</div><b>{fmt(r.totalSinAsignar)}</b><div className="text-xs text-muted">{horasDe(r.minutosSinAsignar)}</div></div>
+          </div>
+          <div className="text-xs text-muted" style={{ marginTop: 8 }}>Lo cargado más lo sin asignar suma exacto lo devengado. Lo sin asignar no se reparte entre las parcelas para que cuadre: se queda a la vista.</div>
+        </div>
+
+        {(r.avisos.length > 0 || dobles.length > 0) && (
+          <div className="card">
+            <div className="card-title" style={{ color: "var(--gold)" }}>Por revisar ({r.avisos.length + dobles.length})</div>
+            {r.avisos.map((a, i) => <div key={i} className="jor-marca"><b>{nombre(a.trabajadorId)}</b> · {a.fecha}<div className="text-xs text-muted">{a.dice}</div></div>)}
+            {dobles.map((d, i) => <div key={"d" + i} className="jor-marca"><b>{nombre(d.trabajadorId)}</b> · {d.fecha}<div className="text-xs text-muted">Ese día también tiene una actividad tecleada a mano en {parcela(d.parcelaId)}: su costo puede estar contado dos veces. Hay que cancelar una de las dos.</div></div>)}
+          </div>
+        )}
+
+        <div className="tabs-pill" style={{ padding: "0 0 10px" }}>
+          <button className={`tab-pill${vista === "parcela" ? " active" : ""}`} onClick={() => { setVista("parcela"); setAbierto(null); }}>Por parcela</button>
+          <button className={`tab-pill${vista === "persona" ? " active" : ""}`} onClick={() => { setVista("persona"); setAbierto(null); }}>Por persona</button>
+        </div>
+        {grupos.length === 0 && <div className="card"><div className="text-sm text-muted">En esas fechas no hay marcas del checador ni destajos. Aquí no se captura: sale de lo que se checó y de a dónde se mandó a cada quien.</div></div>}
+        {grupos.map(g => {
+          const k = vista === "parcela" ? (g.parcelaId || "_sin") : g.trabajadorId;
+          const esSuelto = vista === "parcela" && !g.parcelaId;
+          return (
+            <div key={k} className="card" style={esSuelto ? { borderColor: "var(--gold)" } : undefined}>
+              <button className="mo-cab" onClick={() => setAbierto(abierto === k ? null : k)}>
+                <span className="mn-tx" style={{ flex: 1 }}>
+                  <span className="mn-n" style={{ fontSize: 16, color: esSuelto ? "var(--gold)" : undefined }}>{vista === "parcela" ? parcela(g.parcelaId) : nombre(g.trabajadorId)}</span>
+                  <span className="mn-s">{horasDe(g.minutos)} · {new Set(g.partes.map(p => vista === "parcela" ? p.trabajadorId : p.parcelaId)).size} {vista === "parcela" ? "persona(s)" : "lugar(es)"}</span>
+                </span>
+                {etiquetas(g)}<b style={{ fontSize: 17 }}>{fmt(g.monto)}</b><span className="mn-fl">{abierto === k ? "−" : "+"}</span>
+              </button>
+              {abierto === k && vista === "parcela" && agrupar(g.partes, ["actividad"]).map(a => (
+                <div key={a.actividad || "_"} className="mo-labor"><span>{a.actividad || "Sin labor"}</span><span className="text-muted">{horasDe(a.minutos)}</span><b>{fmt(a.monto)}</b></div>
+              ))}
+              {abierto === k && g.partes.map(linea)}
+            </div>
+          );
+        })}
+        <ReglasDelRancho data={data} add={add} session={session} claves={["horas_jornada"]} />
+      </div>
+
+      {rastro && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setRastro(null); }}>
+          <div className="modal-sheet">
+            <div className="flex-b" style={{ marginBottom: 6 }}><span className="card-title" style={{ marginBottom: 0 }}>De dónde sale {fmt(rastro.monto)}</span><button className="acc-link" onClick={() => setRastro(null)}>Cerrar</button></div>
+            <div className="text-sm" style={{ marginBottom: 10 }}>{nombre(rastro.trabajadorId)} · {parcela(rastro.parcelaId)} · {rastro.fecha}</div>
+            {rastro.evs.map(id => { const d = decir(id); return <div key={id} className="jor-marca"><b>{d.titulo}</b><div className="text-xs text-muted">{d.linea}</div></div>; })}
+            <div className="text-xs text-muted" style={{ marginTop: 10 }}>
+              {rastro.modalidad === "dia" ? "Cobra por día: su día se reparte entre lo que hizo, según el tiempo en cada cosa." : rastro.modalidad === "hora" ? `Cobra por hora: sólo el tiempo que se sabe, sobre una jornada de ${ajusteVigente(data.eventos, "horas_jornada").valor} horas.` : "Es destajo: unidades por tarifa, repartido parejo entre quienes lo hicieron."}
+              {rastro.estimado ? " El sueldo de ese día no consta en su historial: se usó el de hoy, como estimado." : ""}
+              {rastro.provisional ? " Sigue adentro: el reparto puede cambiar cuando cheque su salida." : ""}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -13696,7 +14134,9 @@ function RespaldoDatos({ data, setData, onClose }) {
               // Sólo el cajón de ESTE espacio. Lo de antes no se toca.
               [LLAVES.datos, LLAVES.cola, LLAVES.fallidas].forEach(k => localStorage.removeItem(k));
             } catch { /* ignorar */ }
-            window.location.reload();
+            // Los eventos viven aparte: también se borra su copia, para volver a bajarlos completos.
+            borrarAlmacenDeEventos(LLAVES.eventos).finally(() => window.location.reload());
+            return;
           }}><Ic e="🔄" /> Recargar este dispositivo desde la nube</button>
         </div>
 
@@ -19281,6 +19721,8 @@ function PaseLista({ data, add, upd, session, onClose }) {
   });
   const actIdx = new Set();
   (data.actividades || []).forEach(a => { if (a.registradoPor?.id && a.fecha) actIdx.add(`${a.registradoPor.id}|${a.fecha}`); });
+  // Quien fue mandado a una parcela con su cuadrilla ya tiene su trabajo del día: no hay que teclearlo.
+  (data.manoDeObraEventos?.partes || []).forEach(p => { if (p.parcelaId) actIdx.add(`${p.trabajadorId}|${p.fecha}`); });
 
   const estadoCelda = (tid, f) => {
     const a = asisIdx[`${tid}|${f}`];

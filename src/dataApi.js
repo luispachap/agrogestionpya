@@ -89,6 +89,7 @@ export async function leerTodo() {
   const fallas = [];
   const topes = [];
   for (const t of TABLAS) {
+    if (t === "eventos") continue;   // crecen sin tope: se bajan aparte y sólo lo nuevo (leerEventosDesde)
     try {
       const filas = await leerColeccion(t);
       resultado[t] = filas;
@@ -105,6 +106,34 @@ export async function leerTodo() {
   resultado._fallas = fallas;
   resultado._topes = topes;
   return resultado;
+}
+
+// ------------------------------------------------------------
+//  Los EVENTOS se bajan aparte: sólo los que cambiaron desde la última vez, y
+//  por páginas, porque crecen sin tope (cada marca del checador es uno) y la
+//  base entrega mil renglones por pedido. `desde` es la marca del último que
+//  este aparato ya tiene; se devuelve la nueva para guardarla.
+//  Si una página falla, se avisa (ok: false) y NO se adelanta la marca.
+// ------------------------------------------------------------
+export async function leerEventosDesde(desde) {
+  if (!supabaseListo) return { ok: false, eventos: [], marca: desde || null };
+  const PAGINA = 1000; const vistos = new Map(); let marca = desde || null;
+  try {
+    for (let vuelta = 0; vuelta < 200; vuelta++) {
+      let q = supabase.from("eventos").select("*").order("actualizado", { ascending: true }).order("id", { ascending: true }).limit(PAGINA);
+      if (marca) q = q.gte("actualizado", marca);
+      const { data, error } = await q;
+      if (error) throw error;
+      const filas = data || []; const antes = vistos.size;
+      for (const f of filas) vistos.set(f.id, filaAObjeto(f));
+      if (filas.length > 0) marca = filas[filas.length - 1].actualizado;
+      // Menos de una página, o una página que ya no trajo nada nuevo: se acabó.
+      if (filas.length < PAGINA || vistos.size === antes) break;
+    }
+    return { ok: true, eventos: [...vistos.values()], marca };
+  } catch (e) {
+    return { ok: false, eventos: [], marca: desde || null, mensaje: e?.message || "error desconocido" };
+  }
 }
 
 // ------------------------------------------------------------

@@ -13,7 +13,7 @@ npx vite --port 5173 >/dev/null 2>&1 &
 VITE_SUPABASE_URL=http://localhost:5199 VITE_SUPABASE_ANON_KEY=prueba npx vite --port 5174 >/dev/null 2>&1 &
 python3 -c "import time; time.sleep(6)"
 falla=0
-for t in humo recorrido archivos campo arranque cuentas menu checador; do
+for t in humo recorrido archivos campo arranque cuentas menu checador cuadrillas; do
   printf "   %s: " "$t"; python3 pruebas/${t}_navegador.py | tail -1 || falla=1
 done
 pkill -f "vite" 2>/dev/null || true

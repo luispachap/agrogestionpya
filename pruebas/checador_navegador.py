@@ -22,7 +22,13 @@ g["SEMILLA"]["trabajadores"] = [
 video = pathlib.Path(tempfile.mkdtemp()) / "credencial.y4m"
 subprocess.run(["node", str(aqui / "apoyo" / "qr_video.mjs"), f"AGRO1:T:t-qr:{CODIGO}", str(video)], check=True, cwd=str(aqui.parent))
 datos = lambda pg: pg.evaluate("() => JSON.parse(localStorage.getItem('agro_v8:local'))")
-marcas = lambda pg: [e for e in datos(pg).get("eventos", []) if e["tipo"] == "marca"]
+# Los eventos ya no viven en el cajón: viven en el almacén grande del navegador.
+LEER_EVENTOS = """() => new Promise((ok) => { const r = indexedDB.open('agro_eventos_v8:local', 1);
+  r.onupgradeneeded = () => { r.result.createObjectStore('eventos', { keyPath: 'id' }); r.result.createObjectStore('meta'); };
+  r.onsuccess = () => { const q = r.result.transaction('eventos').objectStore('eventos').getAll(); q.onsuccess = () => { r.result.close(); ok(q.result); }; q.onerror = () => ok([]); };
+  r.onerror = () => ok([]); })"""
+eventos = lambda pg: sorted(pg.evaluate(LEER_EVENTOS), key=lambda e: e["capturado"])
+marcas = lambda pg: [e for e in eventos(pg) if e["tipo"] == "marca"]
 def teclea(pg, pin):
     for d in pin: pg.locator(".chk-teclas button", has_text=d).first.click()
     pg.locator(".chk-teclas button.ok").click(); pg.wait_for_timeout(400)
@@ -78,6 +84,11 @@ with sync_playwright() as p:
     # ── El pase de lista ya lo sabe, sin capturarlo otra vez ──
     pg.evaluate("() => window.__agroIr('pase-lista')"); pg.wait_for_timeout(500)
     caso("el pase de lista no guardó una asistencia paralela", len(datos(pg).get("asistencia", [])) == 0)
+    caso("los eventos no engordan el cajón del teléfono: viven aparte", datos(pg).get("eventos") == [] and len(eventos(pg)) >= 4, len(eventos(pg)))
+    pg.reload(); pg.wait_for_timeout(1500)
+    if pg.locator(".login-bg").count(): g["entrar"](pg, "Encargado", "5501"); pg.wait_for_timeout(500)
+    pg.evaluate("() => window.__agroIr('jornadas')"); pg.wait_for_timeout(600)
+    caso("y siguen ahí después de cerrar y volver a abrir", pg.get_by_text("Adentro (3)").count() == 1, pg.locator(".card-title").all_inner_texts())
 
     # ── Credenciales ──
     pg.evaluate("() => window.__agroIr('credenciales')"); pg.wait_for_timeout(500)

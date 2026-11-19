@@ -107,7 +107,7 @@ test("el_contador_y_el_capataz_abren_con_cosas_distintas_aunque_los_dos_puedan_t
   const contador = elegirEnfoque(prefsVacias(), "dinero"), capataz = elegirEnfoque(prefsVacias(), "campo");
   assert.ok(faltaEnfoque("admin", prefsVacias()) && !faltaEnfoque("admin", contador) && !faltaEnfoque("agronomo", prefsVacias()));
   assert.deepEqual(barraDe("admin", contador).map(x => x.id), ["movimientos", "contabilidad", "banco"]);
-  assert.deepEqual(barraDe("admin", capataz).map(x => x.id), ["checador", "registrar-actividad", "papeles"]);
+  assert.deepEqual(barraDe("admin", capataz).map(x => x.id), ["checador", "reparto", "papeles"]);
   assert.equal(menuDe("admin", contador)[0].id, "dinero");
   assert.equal(menuDe("admin", capataz)[0].id, "campo");
   assert.ok(ancladasDe("admin", capataz).includes("registrar-actividad") && !ancladasDe("admin", capataz).includes("contpaqi"));
