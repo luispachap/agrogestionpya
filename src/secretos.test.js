@@ -45,3 +45,11 @@ test("C-6 · la recarga remota ya no borra las colas de pendientes", () => {
   const tramo = app.slice(i, i + 900);
   assert.equal(/agro_pending_v7"\)|agro_fallidas_v1"\)/.test(tramo.replace(/lsGet\("agro_(pending_v7|fallidas_v1)"\)/g, "")), false);
 });
+test("M-7 · ningún archivo fuente ni de prueba trae apellidos de la nómina real", () => {
+  // No se escriben aquí los nombres (sería repetir el dato): se vigila el patrón
+  // de la nómina real — NOMBRE EN MAYÚSCULAS con id t_eNN y campo de nómina.
+  for (const f of readdirSync(dir).filter(x => /\.(js|jsx)$/.test(x))) {
+    if (f === "secretos.test.js") continue;
+    assert.equal(/codigoNomina:\s*"E\d+"/.test(leer(f)), false, `${f} trae renglones de la nómina real`);
+  }
+});

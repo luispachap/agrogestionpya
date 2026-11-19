@@ -184,20 +184,20 @@ test("el_apodo_viene_dentro_del_nombre_en_la_nomina_de_verdad", () => {
   // seguían verdes, porque el fixture inventaba un campo `apodo` que los
   // datos de verdad no tienen.
   const NOMINA = [
-    { id: "t_e01", nombre: "JUAN GONZALEZ ALVAREZ (CHONITO)", categoria: "jornalero" },
-    { id: "t_e04", nombre: "BENITO TORRES ELICERIO (VENAO)", categoria: "jornalero" },
-    { id: "t_e10", nombre: "RODRIGO GONZALEZ RODRIGUEZ (RIGO)", categoria: "jornalero" },
+    { id: "t_e01", nombre: "ANASTASIO PRUEBA UNO (TACHO)", categoria: "jornalero" },
+    { id: "t_e04", nombre: "ZENON PRUEBA DOS (ZURDO)", categoria: "jornalero" },
+    { id: "t_e10", nombre: "ALBERTO PRUEBA TRES (BETO)", categoria: "jornalero" },
   ];
   const conApodo = (texto) => repartirElDia({
     texto, personas: NOMINA, parcelas: PARCELAS, hoy: "2026-09-08",
   });
 
-  const venao = conApodo("El Venao se va a la 53 a regar.");
-  assert.equal(venao.sinAsignar.length, 0);
-  assert.deepEqual(venao.tareas[0].personas.map(p => p.id), ["t_e04"]);
+  const zurdo = conApodo("El Zurdo se va a la 53 a regar.");
+  assert.equal(zurdo.sinAsignar.length, 0);
+  assert.deepEqual(zurdo.tareas[0].personas.map(p => p.id), ["t_e04"]);
 
-  assert.deepEqual(conApodo("Rigo se va a barbechar el Naranjo.").tareas[0].personas.map(p => p.id), ["t_e10"]);
-  assert.deepEqual(conApodo("Chonito que limpie la bodega.").tareas[0].personas.map(p => p.id), ["t_e01"]);
+  assert.deepEqual(conApodo("Beto se va a barbechar el Naranjo.").tareas[0].personas.map(p => p.id), ["t_e10"]);
+  assert.deepEqual(conApodo("Tacho que limpie la bodega.").tareas[0].personas.map(p => p.id), ["t_e01"]);
 });
 
 test("una_parcela_que_se_llama_como_un_trabajador_no_le_asigna_el_dia", () => {

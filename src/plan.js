@@ -275,7 +275,7 @@ function comoSeLlamaElDia(fecha, dia) {
 
 // En la nómina de verdad el apodo NO viene en un campo aparte: viene dentro
 // del nombre y entre paréntesis, como lo capturó quien hizo la nómina —
-// "BENITO TORRES ELICERIO (VENAO)", "RODRIGO GONZALEZ RODRIGUEZ (RIGO)".
+// "NOMBRE APELLIDO (APODO)", "NOMBRE APELLIDO (APODO)".
 //
 // Y Gera nombra a la gente por el apodo, siempre. Sin esto, "el Venao se va a
 // la 53" no reconocía a nadie: la última palabra del nombre era "(VENAO)" con
