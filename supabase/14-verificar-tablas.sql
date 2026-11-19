@@ -20,6 +20,11 @@ with necesarias(tabla) as (
     ('bitacora'), ('avances_fase'), ('embarques'), ('terminados'), ('corridas'),
     ('estibas'), ('config_seguridad'), ('config_emisor'), ('control_corrida'),
     ('config_contpaqi'),
+    ('lecturas'), ('patrones_lectura'), ('estados_cuenta'),
+    ('titulares'), ('bolsas'), ('aportaciones'),
+    ('animales'), ('pesajes'), ('tratamientos'), ('potreros'),
+    ('indicaciones'), ('chat'), ('vuelos'),
+    ('auditoria'),
     ('perfiles')
 )
 select
@@ -53,6 +58,11 @@ with necesarias(tabla) as (
     ('bitacora'), ('avances_fase'), ('embarques'), ('terminados'), ('corridas'),
     ('estibas'), ('config_seguridad'), ('config_emisor'), ('control_corrida'),
     ('config_contpaqi'),
+    ('lecturas'), ('patrones_lectura'), ('estados_cuenta'),
+    ('titulares'), ('bolsas'), ('aportaciones'),
+    ('animales'), ('pesajes'), ('tratamientos'), ('potreros'),
+    ('indicaciones'), ('chat'), ('vuelos'),
+    ('auditoria'),
     ('perfiles')
 )
 select

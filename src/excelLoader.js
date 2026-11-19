@@ -494,3 +494,130 @@ export function exportarPolizas(movimientos, opciones = {}) {
   XLSX.writeFile(wb, fname);
   return { polizas: numPoliza - 1, movimientos: movimientos.length, archivo: fname };
 }
+
+// ------------------------------------------------------------
+//  LEER UNA HOJA CRUDA (para el estado de cuenta del banco)
+//
+//  A diferencia de leerExcel(), que busca las hojas de la plantilla de la
+//  app, esto abre el archivo tal como venga del banco: cada banco pone sus
+//  columnas donde quiere, y quien decide qué es cada una es src/banco.js.
+//
+//  Muchos bancos ponen dos o tres renglones de membrete antes de los
+//  encabezados. Por eso se busca el renglón que de verdad parece encabezado
+//  (el que trae "fecha" y "saldo") en vez de suponer que es el primero.
+// ------------------------------------------------------------
+export async function leerHojaCruda(file, { hoja } = {}) {
+  // Un CSV se lee como TEXTO, a mano. No se le pasa a la librería de Excel
+  // porque ésta adivina las fechas a la americana: "12/08/2026" lo convierte
+  // en 8 de diciembre, no en 12 de agosto. Un estado de cuenta de agosto
+  // acabaría en diciembre y nadie se enteraría. En un .xlsx no hay ese
+  // riesgo, porque ahí la fecha es un número serial sin ambigüedad.
+  if (/\.csv$/i.test(file.name || "")) return leerCsvCrudo(await file.text());
+
+  const buffer = await file.arrayBuffer();
+  const wb = XLSX.read(buffer, { type: "array", cellDates: false, raw: false });
+  const nombre = hoja || wb.SheetNames[0];
+  const ws = wb.Sheets[nombre];
+  if (!ws) return { hojas: wb.SheetNames, encabezados: [], filas: [], porque: `El archivo no trae la hoja "${nombre}".` };
+
+  const todas = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", blankrows: false });
+  const pareceEncabezado = (f) => {
+    const t = f.map(c => String(c).toUpperCase());
+    return t.some(c => c.includes("FECHA")) && t.some(c => c.includes("SALDO"));
+  };
+  let iEnc = todas.findIndex(pareceEncabezado);
+  if (iEnc === -1) iEnc = 0;   // no se encontró: se usa el primero y banco.js dirá qué falta
+
+  return {
+    hojas: wb.SheetNames,
+    hoja: nombre,
+    encabezados: (todas[iEnc] || []).map(c => String(c).trim()),
+    filas: todas.slice(iEnc + 1),
+    renglonEncabezado: iEnc,
+    porque: iEnc > 0 ? `Se saltaron ${iEnc} renglón(es) de membrete antes de los encabezados.` : null,
+  };
+}
+
+// ------------------------------------------------------------
+//  Leer una hoja COMPLETA, tal cual, sin buscarle encabezado.
+//
+//  `leerHojaCruda` de arriba busca el renglon que trae "fecha" y "saldo",
+//  porque un estado de cuenta del banco viene con membrete encima. La hoja de
+//  fertirriego de Fito no tiene ninguna de esas dos palabras: si se le aplica
+//  esa busqueda, no encuentra nada, se queda con el primer renglon y tira la
+//  cabecera con el cultivo y las hectareas. Sin las hectareas no se puede
+//  comprobar la multiplicacion, y ahi se cae toda la validacion.
+//
+//  Por eso esta devuelve TODOS los renglones y no decide nada. Quien decide
+//  que es cada renglon es src/fertiriego.js, que si conoce el formato.
+// ------------------------------------------------------------
+export async function leerHojaCompleta(file, { hoja } = {}) {
+  // El CSV se lee como texto por lo mismo de siempre: la libreria de Excel
+  // convierte "17/07/2026" en 7 de julio... o en 17 de julio, segun le
+  // parezca, y sin avisar.
+  if (/\.csv$/i.test(file.name || "")) {
+    const r = leerCsvCrudo(await file.text());
+    return { hojas: [], hoja: null, filas: [r.encabezados, ...r.filas].filter(f => f && f.length) };
+  }
+  const buffer = await file.arrayBuffer();
+  const wb = XLSX.read(buffer, { type: "array", cellDates: false, raw: false });
+  const nombre = hoja || wb.SheetNames[0];
+  const ws = wb.Sheets[nombre];
+  if (!ws) return { hojas: wb.SheetNames, hoja: nombre, filas: [], porque: `El archivo no trae la hoja "${nombre}".` };
+  return {
+    hojas: wb.SheetNames,
+    hoja: nombre,
+    filas: XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", blankrows: false })
+      .map(f => f.map(c => String(c == null ? "" : c).trim())),
+  };
+}
+
+// ------------------------------------------------------------
+//  Partir un CSV a mano, respetando las comillas.
+//
+//  Por qué no se le pasa a la librería de Excel: ésa adivina las fechas a la
+//  americana. "12/08/2026" lo convierte en 8 de DICIEMBRE, no en 12 de
+//  agosto, y sin avisar. Un estado de cuenta de agosto acabaría fechado en
+//  diciembre y nadie se enteraría. Aquí el texto se queda como texto y quien
+//  interpreta la fecha es `aFecha`, que sabe que en México el día va primero.
+//
+//  En un .xlsx no hay ese riesgo: ahí la fecha es un número serial y no tiene
+//  ambigüedad posible.
+// ------------------------------------------------------------
+function leerCsvCrudo(texto) {
+  const partirRenglon = (linea) => {
+    const celdas = [];
+    let actual = "";
+    let enComillas = false;
+    for (let i = 0; i < linea.length; i++) {
+      const c = linea[i];
+      if (c === '"') {
+        if (enComillas && linea[i + 1] === '"') { actual += '"'; i++; }
+        else enComillas = !enComillas;
+      } else if ((c === "," || c === ";") && !enComillas) {
+        celdas.push(actual); actual = "";
+      } else {
+        actual += c;
+      }
+    }
+    celdas.push(actual);
+    return celdas.map(c => c.trim());
+  };
+
+  const lineas = String(texto || "").split("\n").map(l => l.replace(/\r$/, "")).filter(l => l.trim() !== "");
+  const todas = lineas.map(partirRenglon);
+  const pareceEncabezado = (f) => {
+    const t = f.map(c => String(c).toUpperCase());
+    return t.some(c => c.includes("FECHA")) && t.some(c => c.includes("SALDO"));
+  };
+  let iEnc = todas.findIndex(pareceEncabezado);
+  if (iEnc === -1) iEnc = 0;
+  return {
+    hojas: ["csv"], hoja: "csv",
+    encabezados: todas[iEnc] || [],
+    filas: todas.slice(iEnc + 1),
+    renglonEncabezado: iEnc,
+    porque: iEnc > 0 ? `Se saltaron ${iEnc} renglón(es) de membrete antes de los encabezados.` : null,
+  };
+}
+

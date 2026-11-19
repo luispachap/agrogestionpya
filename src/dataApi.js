@@ -24,6 +24,11 @@ export const TABLAS = [
   "incidencias", "prestamos", "cajachica", "creditos", "proveedores",
   "ciclos", "asistencia", "envios_bodega", "solicitudes_compra", "bitacora", "avances_fase",
   "embarques", "terminados", "corridas", "estibas", "config_seguridad", "config_emisor", "control_corrida", "config_contpaqi",
+  "lecturas", "patrones_lectura", "estados_cuenta",
+  "titulares", "bolsas", "aportaciones",
+  "animales", "pesajes", "tratamientos", "potreros",
+  "indicaciones", "chat", "vuelos",
+  "auditoria",
 ];
 
 // Catálogos que sí subimos a la nube en la primera carga.
@@ -75,6 +80,25 @@ const COLUMNAS_REALES = {
   estibas:        ["id"],
   config_seguridad: ["id"],
   config_contpaqi: ["id"],
+  lecturas:        ["id", "tipo", "estado", "fecha"],
+  patrones_lectura:["id", "emisor", "tipo"],
+  estados_cuenta:  ["id", "banco", "cuenta", "periodo", "confiable"],
+  titulares:       ["id", "nombre", "rfc"],
+  bolsas:          ["id", "nombre", "tipo", "titularId"],
+  aportaciones:    ["id", "titularId", "tipo", "fecha"],
+  animales:        ["id", "arete", "sexo", "potreroId"],
+  pesajes:         ["id", "animalId", "fecha"],
+  tratamientos:    ["id", "animalId", "fecha", "producto"],
+  potreros:        ["id", "nombre"],
+  auditoria:       ["id", "fecha", "tabla", "registroId", "accion", "quien"],
+  // Lo que Fito o Gera mandan hacer. "estado" y "asignadoA" van como columna
+  // real porque la pregunta de todos los dias es "que traigo pendiente yo".
+  indicaciones:    ["id", "fecha", "tipo", "estado", "parcelaId", "asignadoA"],
+  // El chat. "estado" aparte para poder sacar los pendientes de confirmar sin
+  // bajar todo el hilo.
+  chat:            ["id", "fecha", "tipo", "estado", "deQuien"],
+  // Los vuelos del dron, por parcela y por fecha: asi se arma la linea del tiempo.
+  vuelos:          ["id", "fecha", "parcelaId"],
   config_emisor: ["id"],
   control_corrida: ["id"],
 };
@@ -160,17 +184,36 @@ export async function leerColeccion(tabla) {
 //  LEER TODO: trae todas las colecciones a la vez
 //  Devuelve un objeto { ranchos: [...], parcelas: [...], ... }
 // ------------------------------------------------------------
+//  Si una tabla falla al bajar, NO se convierte en lista vacía y ya. Una
+//  lista vacía y "no pude leerla" son cosas distintas: si se cae la lectura
+//  de egresos, la utilidad se calcularía sin un solo gasto y se pintaría
+//  igual de verde. Un dato que falta no es un cero.
+//
+//  Devuelve las colecciones más dos metadatos que NO son arreglos (así el
+//  merge de App.jsx los ignora solo):
+//    _fallas — [{ tabla, mensaje }] de lo que no se pudo leer
+//    _topes  — [{ tabla, tope }] de lo que se bajó recortado por el tope
 export async function leerTodo() {
   if (!supabaseListo) throw new Error("Supabase no está configurado");
   const resultado = {};
+  const fallas = [];
+  const topes = [];
   for (const t of TABLAS) {
     try {
-      resultado[t] = await leerColeccion(t);
+      const filas = await leerColeccion(t);
+      resultado[t] = filas;
+      // Si vinieron exactamente las del tope, es que hay más historial allá
+      // que no se bajó. Los reportes de esa tabla están viendo una parte.
+      const tope = TOPE_LECTURA[t];
+      if (tope && filas.length >= tope) topes.push({ tabla: t, tope });
     } catch (e) {
       console.warn(`No se pudo leer ${t}:`, e.message);
       resultado[t] = [];
+      fallas.push({ tabla: t, mensaje: e?.message || "error desconocido" });
     }
   }
+  resultado._fallas = fallas;
+  resultado._topes = topes;
   return resultado;
 }
 

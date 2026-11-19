@@ -2,6 +2,8 @@
 
 Fecha: 18 de noviembre de 2026 · Rama: `produccion/fase-1-auditoria` · Autor: Claude
 
+> **Corrección (18 nov, más tarde):** la sección 0 y la base de este diagnóstico quedaron superadas. La versión más completa es la publicada, no la «recuperada». Ver `03-VERSIONES.md` y `../TABLERO.md`.
+
 **Veredicto: AgroGestión no puede usarse hoy para operar el rancho.** No es un tema
 de pantallas (hay 65 y la mayoría responde), sino de cimientos: los datos se pierden
 o se pisan entre teléfonos, cualquiera puede entrar como administrador, y la base de

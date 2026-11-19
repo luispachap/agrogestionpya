@@ -20,19 +20,42 @@ Usuarios reales de la app:
 
 ## Arquitectura
 
-- **Un solo archivo**: `src/App.jsx` (~14,700 líneas, ~70 componentes). Es grande a
-  propósito: nació en StackBlitz y así se ha mantenido. Si vas a partirlo, propónlo
-  antes y hazlo por etapas verificando build en cada una — nunca de golpe.
+- **Casi un solo archivo**: `src/App.jsx` (~14,600 líneas). Es grande a propósito:
+  nació en StackBlitz y así se ha mantenido. Si vas a partirlo, propónlo antes y
+  hazlo por etapas verificando build en cada una — nunca de golpe.
+- **`src/calculos.js`**: lo que se puede probar sin abrir la app — dinero, fechas,
+  cancelación, costo de mano de obra, saldos de crédito. Salió de `App.jsx` porque
+  ahí dentro no se podía llamar nada desde fuera y por lo tanto **no se podía
+  escribir ni una prueba**. Toda lógica de cálculo nueva va aquí, con su prueba.
+- **`src/icons.jsx`**: los iconos, el tema claro/oscuro y los helpers de saludo y
+  fecha larga.
+- **`src/lectura.js`** + **`src/maquinaria.js`** + **`src/banco.js`**: leer papeles,
+  cruzar horómetro con diésel, y validar estados de cuenta. Puros y probados,
+  como `calculos.js`.
+- **`src/socios.js`**: varios RFC, una sola empresa. El eje del sistema.
+- **`src/ganado.js`**: el padrón, la báscula, la jeringa y los potreros.
+- **`src/vigilancia.js`**: que el dueño se entere a tiempo.
+- **`src/almacen.js`**: vales de salida, mermas con causa y conteo a ciegas.
+- **`src/pdf.js`**: leer PDF. **Se carga con `import()` dinámico** — pesa ~365 kB
+  y sale en su propio archivo, así que sólo lo baja quien abre un PDF. El
+  tractorista que nada más captura diésel nunca lo descarga.
+- **`src/lectorPapeles.js`**: la cascada de verdad (toca cámara, códigos y red).
+  Ver más abajo.
 - **Backend**: Supabase (PostgreSQL + auth). `src/supabase.js` (cliente),
   `src/dataApi.js` (lectura/escritura por tabla).
 - **Excel**: `src/excelLoader.js` (plantillas, importación, pólizas CONTPAQi).
 - **Estilos**: un único template string `const CSS` dentro de `App.jsx`. No hay
   Tailwind ni CSS externo.
-- **Iconos**: fuente Material Symbols **auto-hospedada** en
-  `public/fonts/ms-icons.woff2` (subset de 98 iconos, 11 KB). El mapa `MS_ICONS`
-  traduce emoji → nombre, y `MS_CP` nombre → carácter. El componente `<Ic e="🏭"/>`
-  hace el render. Es local a propósito: el rancho tiene internet intermitente y no
-  se le puede pedir la fuente a Google. El service worker la precachea.
+- **Iconos**: SVG dibujados **dentro del propio código**, en `src/icons.jsx`. El
+  mapa `ICONS` guarda el trazo y `EMOJI_MAP` traduce emoji → nombre; el componente
+  `<Ic e="🏭"/>` sigue siendo la forma de usarlos. No hay fuente que descargar, así
+  que funcionan sin señal desde el primer arranque. (Antes era una fuente
+  auto-hospedada; `public/fonts/ms-icons.woff2` quedó de esa época y ya nadie la
+  usa.) Si necesitas un icono que no está, agrégalo a `ICONS` — no metas un emoji
+  suelto, porque `<Ic>` cae a una etiqueta genérica cuando no encuentra el nombre.
+- **Tema claro/oscuro**: `aplicarTemaGuardado()` corre antes del primer render y
+  `<ThemeBtn/>` lo cambia. Cualquier color nuevo va como variable CSS, nunca
+  quemado, o se rompe en uno de los dos temas.
 - **Despliegue**: StackBlitz → GitHub → Vercel. Luis pega los archivos en
   StackBlitz; considera esto al entregar cambios.
 
@@ -106,14 +129,18 @@ se equivoca, pierde la confianza de todos.
 
 Después de **cada** cambio en `App.jsx`, en este orden:
 
-1. `npm run build` — el build real de Vite es la prueba más fuerte. Debe decir
-   "✓ built" y transformar 75 módulos.
-2. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
+1. `npm test` — las pruebas de `src/calculos.js`. Corren con el corredor que ya
+   trae node; no hay nada que instalar. **Cada arreglo deja una prueba con nombre**,
+   en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
+   no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
+   por qué la prueba existía.
+2. `npm run build` — debe decir "✓ built" y transformar **89 módulos**, y el
+   archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
+3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.
-3. Para lógica de cálculo (rates, reparto, conversiones), escribe una prueba
-   aislada con `node -e` y verifica con números reales antes de dar por bueno.
-4. Para cambios visuales, levanta el dev server y toma captura; no confíes en que
-   "debería verse bien".
+4. **Levanta la app y ábrela.** El build NO detecta un `ReferenceError`: compila
+   feliz y la pantalla truena al abrirse. Ya pasó una vez con el panel del dueño.
+   Si tocaste una pantalla, entra a esa pantalla.
 
 ## Cosas que se han roto antes
 
@@ -128,7 +155,20 @@ Después de **cada** cambio en `App.jsx`, en este orden:
   revoltura no se selecciona ninguna → el panel en vivo nunca aparecía. Ahora el
   limpio entra cuando la tarima entra al pool.
 - **Zona horaria**: Supabase guarda en UTC. Zacatecas es UTC−6. Un timestamp de
-  "4:30" es 10:30 de la mañana local. Ha causado falsas alarmas.
+  "4:30" es 10:30 de la mañana local. Ha causado falsas alarmas. **Para decidir qué
+  día o qué mes es, usa `fechaLocal`/`mesLocal`/`sumarDias` de `calculos.js`; para
+  guardar una marca de tiempo, UTC.** Nunca `toISOString()` para sacar un día: el
+  panel del dueño cambiaba de mes a las 6 de la tarde y el resumen semanal encogía
+  de 7 a 6 días, por eso mismo.
+- **El empate lo ganaba la nube**: al sincronizar, lo local no llevaba marca de
+  tiempo y la nube sí, así que una corrección hecha sin señal desaparecía de la
+  pantalla al volver el internet. Ahora `add`/`upd` estampan `_actualizado` y en
+  un empate gana lo local (`ganaAlSincronizar`). El dato nunca se había perdido
+  —la cola lo guardaba— pero la persona veía que su corrección se borró sola, que
+  es peor.
+- **Un dato que falta no es un cero**: `leerTodo()` convertía en lista vacía toda
+  tabla que fallara al bajar, y la utilidad salía igual de verde. Ahora devuelve
+  `_fallas` y `_topes` y la app lo dice en una banda arriba.
 
 ## Documentos imprimibles
 
@@ -145,23 +185,301 @@ por cultivo), corrida (cartón/min por corte), calidad (% de bueno, defectos) y
 rendimiento por parcela (kg y kg/ha). Aparecen solas cuando hay 2+ datos y se
 ocultan si no hay — nunca gráficas vacías.
 
-## Pendiente
+## Leer papeles: de gratis a caro
 
-Rediseño visual pendiente basado en un PDF de referencia ("La mezcla"): el login
-ya está hecho (aro degradado, chips de color por rol, botón dorado). Falta el
-**home ejecutivo**: saludo con nombre, tarjeta grande de utilidad neta, banda de
-alertas, accesos rápidos en cuadrícula, últimas actividades.
+El rancho le compra a los mismos veinte proveedores todo el año, y el ticket de
+agosto tiene el mismo formato que el de julio. Mandar cada papel a un modelo es
+pagar por resolver un problema ya resuelto — **y mete variabilidad donde no la
+había**: la misma línea puede leerse distinto dos veces. El orden es:
+
+1. **El QR** de la factura impresa (`BarcodeDetector`, nativo). Da el folio
+   fiscal. **Nunca le hagas OCR al total**: un 3 leído como 8 sale plausible y
+   equivocado y nadie lo revisa. El UUID o valida o no valida.
+2. **El XML del CFDI** (`DOMParser`, nativo). Trae todo exacto, gratis, sin señal.
+3. **El patrón aprendido** de ese proveedor. Guarda **junto a qué palabra** estaba
+   cada dato y **cuál** de los números era — nunca el valor. Por eso el ancla
+   `TOTAL` no casa dentro de `SUBTOTAL`, y por eso en `IVA 16%  1,080.00` sabe que
+   el que importa es el segundo número.
+4. **La IA**, sólo para un formato que todavía no se conoce.
+5. **"Por identificar"** si sigue sin saber. No adivina: una persona lo resuelve
+   en diez segundos, contra tres horas en el cierre.
+
+**Lo que esto NO hace, y hay que decirlo:** el patrón **no quita la llamada a la
+IA cuando lo único que hay es una foto**. Para aplicar una regla hace falta texto,
+y de una foto el texto sale de leerla; un OCR local pesa megas y `public/sw.js` es
+red primero. Lo que el patrón sí ahorra en una foto es que la IA ya sólo
+transcribe: cuál número es el total lo decide la regla, igual todos los meses. Un
+papel que llega como archivo (XML, Excel, CSV) no pasa por la IA **nunca**.
+
+Por eso, igual que con el banco: **pídele al proveedor el XML, no la foto.**
+
+- **La llave de la IA NO puede vivir en el navegador.** Está en
+  `supabase/functions/leer-papel/`, una Edge Function. Vite mete toda variable
+  `VITE_*` dentro del archivo que Vercel le sirve a cualquiera.
+- **Si la Edge Function no está instalada, la app no se rompe**: lo dice y ofrece
+  capturar a mano. La foto se guarda siempre — nunca se pierde evidencia de un pago,
+  aunque salga borrosa.
+- **Sólo se aprende de lo que una persona confirmó.** Aprender de una lectura que
+  nadie revisó es aprender de una suposición. Y de un XML **no se aprenden anclas**:
+  ya viene estructurado, y `Moneda="MXN" Total="` sería un ancla envenenada para un
+  ticket de papel.
+- **La medida es cuántas sobrevivieron sin corregir**, no cuántas se propusieron:
+  esa sube sola con proponer más, aunque se proponga mal (`tasaSobrevivencia`). Sin
+  revisiones no hay tasa — un 100 % sobre cero revisiones es una mentira.
+
+## Para qué existe este sistema
+
+No es contabilidad ni es fiscal. Es **control interno en un negocio familiar**:
+que no se pierda dinero, que nadie mueva algo sin dejar rastro, y que el dueño
+se entere **a tiempo**. En una familia el activo real es la confianza, así que
+el trabajo del sistema es que todos vean los mismos números sin tener que
+creerle a nadie — y **nunca decidir por la persona**.
+
+De ahí salen las tres de `src/vigilancia.js`:
+
+- **¿Alcanza para el sábado?** Una palabra: *alcanza*, *falta*, o **NO SÉ TU
+  SALDO** — con la letra chica pegada: de dónde salió cada saldo y de qué fecha
+  es. Si falta el saldo de una bolsa, si el que hay tiene más de 15 días, o si no
+  hay ninguna bolsa registrada, **no contesta "alcanza"**. Un saldo de hace dos
+  meses sigue siendo mejor que ninguno, pero no se disfraza de actual. Y nunca
+  dice "no compres".
+- **Lo que dejó de aparecer.** La métrica que importa no es "falló", es "NO
+  APARECIÓ": una captura que truena se ve sola, la que dejó de hacerse no. El
+  tractor que lleva 24 días sin reportar sale aquí. **No supone por qué** —puede
+  estar descompuesto, prestado, o alguien dejó de anotar—, sólo dice cuántos días
+  lleva. Y "nunca se ha capturado" va aparte de "dejó de aparecer": son problemas
+  distintos.
+- **Contra el mismo mes del año pasado**, no contra el mes pasado. Un rancho es
+  estacional: en agosto siempre cae. Comparar contra julio produce alarmas falsas,
+  y **las alarmas falsas enseñan a ignorar las alarmas**. Si no hay datos del año
+  pasado, no se compara contra el mes pasado como premio de consolación: se dice
+  que todavía no hay con qué comparar.
+
+## Un papel entra por donde sea, y siempre se valida igual
+
+Excel, CSV, **PDF** y **foto**. Todos acaban en la misma forma
+(`{encabezados, filas}`) y pasan por la **misma validación aritmética** — y eso
+es lo que hace segura la foto: si la IA leyó mal un dígito, la cadena de saldos
+se rompe y el estado no entra. La aritmética atrapa lo que el ojo no.
+
+- **PDF con capa de texto** (el del portal del banco, el del contador): se lee
+  **exacto, gratis y sin IA**. Es el caso más común.
+- **Las columnas salen de la GEOMETRÍA, no de contar espacios.** El PDF trae la
+  posición X de cada celda: ésa es la información de columnas de verdad
+  (`columnasPorPosicion`). Contarle los espacios a un texto ya colapsado es
+  adivinar algo que el archivo decía exacto — y así funciona igual con los
+  importes alineados a la derecha, que es como los pone cualquier banco.
+- **PDF escaneado** (una foto metida en un PDF): se dice que lo es y se ofrece
+  leerlo como foto. No se devuelve un archivo vacío en silencio.
+- Lo que decide si un PDF es legible **no es cuántos renglones trae** sino si se
+  encuentran las columnas: un estado de un mes flojo trae cinco movimientos y es
+  perfectamente bueno.
+
+## El ganado
+
+Antes no había nada — "ganado" en el código eran los "bonos ganados" de la
+nómina. `src/ganado.js` trae el padrón, el cuadre del hato, la báscula, la
+jeringa y los potreros. Dos reglas mandan ahí:
+
+- **El tiempo de retiro es seguridad**, igual que la reentrada en las parcelas:
+  vender un animal antes de que pase el retiro de un medicamento le llega al
+  consumidor. Si NO se capturó el retiro, la respuesta **no es "ya se puede
+  vender": es "no sé"**.
+- **El hato se cuadra, pero NO se ajusta.** Si el conteo del potrero no coincide
+  con el padrón, la diferencia se queda con su nombre. Un animal que falta es
+  una pregunta, no un número que se corrige. Y cada baja lleva su motivo: la
+  mortandad también se anota.
+
+## Varios RFC, una sola empresa — el eje
+
+Fiscalmente son personas distintas. Económicamente es **un solo negocio**. Hasta
+que existió `src/socios.js`, la utilidad que enseñaba la app era la de un negocio
+imaginario donde todo el dinero es del mismo dueño.
+
+- **Titular** = una persona o un RFC. **Bolsa** = una cuenta, una tarjeta o un
+  efectivo, y cada bolsa tiene **un** dueño.
+- Migue paga al proveedor con su tarjeta → gasto del rancho, y **el rancho le
+  queda debiendo a Migue**. Un cliente deposita con Rodolfo → ingreso del rancho,
+  y **Rodolfo tiene dinero del rancho en su bolsa**. Eso es `cuentaCorriente`, y
+  **es la función que evita pleitos entre hermanos**.
+- **La app NO decide qué es del rancho y qué es personal.** `proponerDestino`
+  propone a partir de cómo se marcó antes y **dice en qué se basa** ("así se
+  marcó 340 veces"); si al mismo proveedor se le ha marcado de las dos formas,
+  **no propone**: depende del caso, y ahí es donde se equivocaría.
+- **Lo personal no se borra: se marca y se excluye**, para que el estado de
+  cuenta siga cuadrando contra el banco.
+- **Un traspaso entre bolsas propias no es ingreso ni gasto** — contarlo así
+  infla el año por los dos lados.
+- **El dinero sin bolsa NO se reparte entre los socios**: se dice cuánto es y que
+  esos saldos están incompletos. Repartir lo que no se sabe es exactamente cómo
+  se ensucia la cuenta entre hermanos.
+- La utilidad **nunca se enseña sola**: lleva pegado cuánto quedó fuera por
+  personal y cuántos movimientos nadie ha marcado todavía.
+- Se deja dicho **a nombre de qué RFC** quedó cada comprobante. **No se calculan
+  impuestos**: esto es control interno.
+
+## El estado de cuenta del banco se valida solo
+
+Se sube el Excel o CSV que el banco da y la app lo **comprueba antes de creerle
+nada**:
+
+    saldo inicial + Σ abonos − Σ cargos = saldo final
+    saldo anterior + abono − cargo      = saldo del renglón
+
+La segunda es la valiosa: la primera dice que *algo* está mal, la segunda dice
+**cuál renglón**. Si no cuadra al centavo, el archivo entra marcado **NO
+CONFIABLE** y no alimenta ningún reporte. Es preferible pedir otro archivo que
+conciliar contra cifras inventadas.
+
+**Dos trampas reales que ya mordieron y tienen prueba:**
+
+- **La librería de Excel lee las fechas a la americana.** `"12/08/2026"` lo
+  convierte en **8 de diciembre**, no en 12 de agosto, y sin avisar — un estado
+  de agosto acabaría fechado en diciembre. Por eso un **CSV se lee como texto**
+  (`leerCsvCrudo`), nunca por XLSX. En un `.xlsx` no hay riesgo: ahí la fecha es
+  un número serial sin ambigüedad, y `aFecha` lo convierte.
+- **Un renglón que no se lee se cae en silencio.** Y si el saldo inicial se toma
+  del primer renglón que sobrevivió, lo que queda **encadena perfecto** y el
+  archivo parece bueno. Por eso `leerMovimientos` devuelve `{movimientos,
+  descartadas}` y **cualquier descarte vuelve el archivo no confiable**.
+
+**Conciliar** es la última pieza: cada movimiento del banco contra lo que ya está
+capturado. Y ahí se cierra la pregunta que de verdad importa — no "¿cuáles tienen
+factura?", que es la pregunta chica, sino que **ninguno se quede sin nombre**. Un
+movimiento queda *explicado*, *explicado sin comprobante*, o **SIN EXPLICACIÓN**;
+y "sin explicación" quiere decir que falta información, **no que falte dinero**.
+Un gasto sin factura no es un problema a esconder: es un gasto no deducible que
+hay que registrar como tal, porque lo grave no es que exista, es que nadie sepa
+que existe.
+
+Otras reglas: de la cuenta se guardan **sólo los últimos cuatro dígitos**; el
+mismo estado (banco+cuenta+periodo) no se carga dos veces; **no se piden claves
+del banco** ni se guarda ninguna; los movimientos del banco **no se editan ni se
+borran** — el banco es la verdad; y la conciliación **propone con el criterio en
+palabras** ("importe exacto + el nombre en el concepto + 3 días") y espera un sí,
+porque dos pagos del mismo importe también cuadran perfecto.
+
+## El horómetro y el diésel ya se capturaban
+
+Los dos datos llevaban años guardándose y nadie los cruzaba: el horómetro se
+tecleaba y ahí moría. `src/maquinaria.js` los junta, y `<AvisoHorometro>` lo enseña
+debajo del campo, en la misma pantalla del tractorista.
+
+Reglas que no se rompen ahí:
+- **No acusa.** Dice "el tractor 3 en barbecho viene en 14.2 L/h; su promedio de
+  las últimas 9 labores de barbecho es 10.8" y se calla. Nunca la palabra robo.
+- **No bloquea.** La labor se guarda aunque el horómetro no cuadre. Si la app
+  impide capturar, el gasto no desaparece: desaparece el registro.
+- **No corrige la lectura mala.** La marca y la deja visible: el patrón de quién
+  captura mal también es información.
+- **No estima lo que no sabe.** Con menos de 3 labores no da promedio; con una
+  lectura de hace más de 30 días dice "de esta máquina no sé sus horas".
+- **No reparte un faltante de tanque entre las máquinas.** Cuadrar repartiendo es
+  exactamente la forma en que se esconde un faltante.
+
+## Nada de dinero se borra
+
+Ingresos, egresos, préstamos, caja chica y créditos **no tienen botón de borrar**:
+se **cancelan**, con motivo obligatorio y con quién. El registro se queda tachado
+y visible, y deja de contar en los totales.
+
+Por qué: en una familia donde nadie desconfía de nadie, borrar parece cómodo hasta
+el día en que hay que reconstruir un mes y la mitad de los renglones ya no existe.
+Un abono de $30,000 borrado "porque estaba mal capturado" y el proveedor que cobra
+otra vez: sin el registro no hay forma de probar el primer pago.
+
+Cómo está armado:
+- `marcarCancelado`, `estaCancelado` y `vivos` en `calculos.js`.
+- `cancelar(sec, id, etiqueta)` y `reactivar(sec, id)` en `AppInner`.
+- `<BotonCancelar>` reemplaza al bote de basura; `<SelloCancelado>` es el renglón
+  que explica quién, cuándo y por qué.
+- **Toda suma de dinero pasa por `vivos(...)`.** Si agregas un total nuevo sobre
+  ingresos, egresos, préstamos, caja chica o créditos y se te olvida, vas a estar
+  contando dinero cancelado. Las LISTAS sí muestran lo cancelado, tachado; los
+  TOTALES no lo cuentan.
+
+El dinero se opera en centavos enteros (`sumarDinero`, `multiplicarDinero`,
+`repartirDinero`), y `repartirDinero` le da el sobrante a la última parte para que
+la suma cuadre exacta. `fmt` enseña centavos sólo cuando los hay: así las pantallas
+siguen limpias pero un descuadre de centavos se ve.
+
+## El almacén: el vale no bloquea, y el conteo es a ciegas
+
+- **La salida carga el COSTO PROMEDIO**, no el último precio. Urea a $580 en
+  marzo y a $940 en agosto: salen 40 bultos y se cargan a $868, que es el
+  promedio de lo que de verdad hay. Si el insumo no tiene costo, la salida se
+  registra igual pero **no le carga nada al destino** y lo dice — un costo
+  inventado se arrastra a todas las parcelas del año.
+- **El vale NUNCA bloquea.** Almacén a las seis de la mañana, la camioneta
+  esperando: el producto ya salió, y negar el registro no lo devuelve al
+  estante — sólo logra que nadie capture y que el sistema se vuelva mentira. Se
+  avisa y se guarda.
+- **El saldo SÍ puede quedar en negativo.** `setInv` ya no lo recorta en cero:
+  recortarlo es la misma trampa que prorratear un faltante para que cuadre —
+  hace que los libros se vean bien y borra el dato que servía. Un −30 dice algo
+  concreto: o entró mercancía que nadie capturó, o salió más de lo anotado.
+- **Una merma sin causa no se registra.** "No se sabe" es una causa válida y
+  honesta —y se cuenta aparte, porque es la que hay que bajar—; dejarlo en
+  blanco no lo es.
+- **El conteo es A CIEGAS**: la pantalla NO enseña el saldo del sistema hasta
+  después de capturar lo contado. Un conteo en que el capturista ve el número
+  de la pantalla no es un conteo, es una copia. Y el saldo **no se ajusta
+  solo**: la diferencia se vuelve un ajuste, y el ajuste lleva causa.
+
+## La bitácora es de sólo inserción
+
+`auditoria` **no tiene política de update ni de delete** en Supabase. Sin
+política, Postgres las niega: nadie —tampoco el admin— puede modificarla ni
+borrarla. Una auditoría que se puede editar no es una auditoría, es una
+sugerencia.
+
+Ahí se anota quién canceló, reactivó o borró qué, con el motivo y con una copia
+de lo que decía el registro (sin la foto, que ya vive en el registro mismo). Se
+escribe con `anotarEnBitacora`, y se ve en la pantalla **Bitácora** — porque una
+bitácora que nadie puede leer tampoco sirve.
+
+Y el SQL 22 **quita el permiso de borrado** en las tablas de dinero (ingresos,
+egresos, préstamos, caja chica, créditos, estados de cuenta). La app ya no las
+borraba, pero eso sólo tapaba la puerta de la app; ésta cierra la de abajo. Las
+demás tablas se dejan como estaban a propósito: borrar un catálogo mal capturado
+es normal y no esconde nada.
+
+## Pendiente
+- **Correr `supabase/18-tablas-lectura-de-papeles.sql`** y desplegar la Edge
+  Function (las instrucciones están en su encabezado). Sin el SQL, la app avisa en
+  pantalla que dos tablas no se pudieron leer — que es justo lo que debe hacer.
+- **Salidas del almacén con el costo promedio**: la ENTRADA ya mueve el costo
+  promedio ponderado (`costoPromedio`) — urea a $580 en marzo más 40 bultos a
+  $940 en agosto quedan en 50 a $868, que es la respuesta a "¿cargó $23,200 o
+  $37,600?". Falta que las SALIDAS a parcela carguen ese promedio, y las mermas
+  con nombre.
+- **Reentrada y carencia ya avisan** (`ventanasDeSeguridad`): alerta roja de "no
+  entrar", ámbar de "no cortar", y una tercera, azul y **aparte**, para los
+  productos sin etiqueta capturada — "no sé" no es una alarma de peligro, es una
+  de dato faltante, y confundirlas enseña a ignorar las dos. En el inventario se
+  ve producto por producto. **Es seguridad de personas, no un dato más**, y por
+  eso un producto sin reentrada capturada NUNCA dice "ya se puede entrar".
+  Lo que falta: que el aviso llegue también al trabajador antes de mandarlo, no
+  sólo al admin en el tablero.
+
+**Y una regla de esa parte:** un papel se aplica **UNA sola vez**. La marca vive en
+el propio registro (`lectura.aplicado`), no en una lista aparte, para que no haya
+forma de que se desincronicen. Dos aplicaciones del mismo ticket duplican el gasto,
+y un gasto duplicado se descubre tarde y mal.
+- Lo que sigue después está en `ARRANQUE-CLAUDE.md` (sección 9) y en
+  `LO-QUE-FALTA-CONSTRUIR.md`: titulares y bolsas, lectura de estados de cuenta,
+  cuenta corriente entre socios, el ganado.
 
 ## Secretos
 
-Nunca pongas credenciales en el código ni las pidas por chat. Solo existen dos
-variables y ambas son públicas por diseño (`VITE_SUPABASE_URL`,
-`VITE_SUPABASE_ANON_KEY`); van en `.env.local` (ignorado por git) y en Vercel.
-**Toda variable `VITE_*` acaba en el JavaScript público**: jamás una contraseña ahí.
-La "cuenta técnica compartida" se desactivó por eso (ver `docs/auditoria/`).
+Nunca pongas credenciales en el código ni las pidas por chat. El cliente sólo lee
+`VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`, públicas por diseño. **Toda variable
+`VITE_*` acaba en el JavaScript público**: jamás una contraseña ahí
+(`src/secretos.test.js` lo vigila). Tampoco datos personales en `INITIAL`.
 
-## Estado real (auditoría de noviembre 2026)
+## Estado real y por dónde seguir
 
-Lee `docs/auditoria/00-DIAGNOSTICO.md` antes de cambiar nada. Lo esencial: la app
-NO está lista para operar; la base de Supabase está pausada; lo publicado en
-app.agroselectos.com sale de otro repositorio (`vitejs-vite-3ymxjehp`), no de éste.
+`docs/TABLERO.md` es la fuente de verdad del avance. Antes de cambiar acceso,
+sesión o sincronización lee `docs/auditoria/02-CONTENCION-P0.md`. Las reglas de
+quién entra viven en `src/acceso.js` (puro, probado). Nada se publica sin
+autorización de Luis. Luis y Migue son superadministradores con cuenta propia.
