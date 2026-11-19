@@ -137,6 +137,7 @@ export const ICONS = {
   pepper: <><path d="M9 7.5C6 8.5 4.5 11 4.5 14c0 4 3 6.5 7.5 6.5s7.5-2.5 7.5-6.5c0-3-1.5-5.5-4.5-6.5" /><path d="M9 7.5c1 2.5 5 2.5 6 0M9 7.5c.5-1.5 1.5-2.3 3-2.3s2.5.8 3 2.3" /><path d="M12 5.2V3" /></>,
 
   // ── Puntos de estado (mantienen su color propio) ──
+  menu: <><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></>,
   dotGreen: <circle cx="12" cy="12" r="6" fill="#84C001" stroke="none" />,
   dotYellow: <circle cx="12" cy="12" r="6" fill="#E4B23F" stroke="none" />,
   dotRed: <circle cx="12" cy="12" r="6" fill="#E36464" stroke="none" />,

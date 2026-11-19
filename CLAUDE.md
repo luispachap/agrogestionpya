@@ -38,6 +38,13 @@ Usuarios reales de la app:
 - **`src/ganado.js`**: el padrón, la báscula, la jeringa y los potreros.
 - **`src/vigilancia.js`**: que el dueño se entere a tiempo.
 - **`src/almacen.js`**: vales de salida, mermas con causa y conteo a ciegas.
+- **`src/menu.js`**: encontrar las cosas. Cada pantalla tiene UN nombre y UN
+  grupo (`FUNCIONES`, `GRUPOS`), cada perfil ve sólo las suyas (`PANTALLAS_DE`),
+  y cada persona ancla su inicio y escoge su barra de abajo (se guarda por
+  persona en `LLAVES.menu`, sólo en ese teléfono). El inicio ya NO lleva una
+  cuadrícula de tarjetas: lleva `<AccesosInicio/>`. **Una pantalla nueva se da
+  de alta en `menu.js`** o nadie la encuentra; la prueba compara contra `App.jsx`.
+  La app acomoda, no decide: lo que la persona ancló no lo mueve el uso.
 - **`src/pdf.js`**: leer PDF. **Se carga con `import()` dinámico** — pesa ~365 kB
   y sale en su propio archivo, así que sólo lo baja quien abre un PDF. El
   tractorista que nada más captura diésel nunca lo descarga.
@@ -142,7 +149,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **106 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **107 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

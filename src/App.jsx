@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo, Component, createContext, useContext } from "react";
+// Encontrar las cosas: grupos, lo de cada perfil, lo anclado y lo que más se usa.
+import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarraDe, barraDe, necesitaMenu, alternarInicio, alternarBarra, moverEnInicio, volverALoDeFabrica, anotarUso, masUsadas, ancladasConDatos, TOPE_BARRA } from "./menu.js";
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
 import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo } from "./acceso.js";
@@ -210,6 +212,37 @@ textarea.inp{min-height:90px;resize:none;}
 .li-right{text-align:right;flex-shrink:0;}
 .li-val{font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:700;color:var(--money);}
 .li-val-sub{font-size:11px;color:var(--muted);}
+/* ── Menú y accesos del inicio ── */
+.acc-link{background:transparent;border:none;color:var(--accent);font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;cursor:pointer;padding:6px 4px;}
+.acc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.acc{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px 12px;background:var(--card2);border:1px solid var(--border);border-radius:14px;cursor:pointer;color:var(--text);font-family:'Nunito',sans-serif;min-height:92px;}
+.acc:active{transform:scale(.97);}
+.acc-ic{font-size:22px;color:var(--accent);display:flex;}
+.acc-n{font-size:12px;font-weight:700;line-height:1.2;text-align:center;}
+.acc-tit{font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin:18px 0 4px;}
+.acc-todo{width:100%;margin-top:14px;padding:12px;background:transparent;border:1px dashed var(--border);border-radius:12px;color:var(--text);font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
+.mn-hoja{padding-bottom:calc(24px + env(safe-area-inset-bottom));min-height:70vh;}
+.mn-ayuda{font-size:12px;color:var(--muted);line-height:1.45;margin:0 2px 12px;}
+.mn-grupo{border:1px solid var(--border);border-radius:14px;margin-bottom:8px;overflow:hidden;background:var(--card2);}
+.mn-cab{width:100%;display:flex;align-items:center;gap:12px;padding:14px;background:transparent;border:none;color:var(--text);font-family:'Nunito',sans-serif;cursor:pointer;text-align:left;}
+.mn-gn{flex:1;font-size:15px;font-weight:800;}
+.mn-cu{font-size:12px;color:var(--muted);font-weight:700;}
+.mn-fl{width:18px;text-align:center;font-size:18px;color:var(--muted);line-height:1;}
+.mn-ic{font-size:20px;color:var(--accent);display:flex;flex-shrink:0;width:24px;justify-content:center;}
+.mn-fila{display:flex;align-items:center;gap:4px;border-top:1px solid var(--border-soft);padding-right:6px;}
+.acc-tit + .mn-fila{border-top:none;}
+.mn-fila.aqui{background:rgba(228,178,63,.07);}
+.mn-ir{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:11px 8px 11px 14px;background:transparent;border:none;color:var(--text);font-family:'Nunito',sans-serif;cursor:pointer;text-align:left;}
+.mn-tx{display:flex;flex-direction:column;min-width:0;}
+.mn-n{font-size:14px;font-weight:700;}
+.mn-s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mn-pin{width:40px;height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:var(--muted);opacity:.6;font-size:19px;cursor:pointer;border-radius:10px;}
+.mn-pin.on{color:var(--accent);opacity:1;}
+.mn-pin.on .ic{fill:currentColor;}
+.mn-pin:disabled{opacity:.2;cursor:default;}
+.mn-chip{flex-shrink:0;padding:6px 10px;border-radius:50px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-family:'Nunito',sans-serif;font-size:11px;font-weight:800;cursor:pointer;}
+.mn-chip.on{background:var(--accent);border-color:var(--accent);color:#0a1405;}
+.bn-item .bn-label{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .tabs-pill{display:flex;gap:6px;overflow-x:auto;padding:0 20px 12px;scrollbar-width:none;}
 .tabs-pill::-webkit-scrollbar{display:none;}
 .tab-pill{padding:8px 18px;border-radius:50px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:'Nunito',sans-serif;transition:all .15s;}
@@ -6362,6 +6395,28 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
   // Sin esto se recalcularía en cada render de App (cada navegación lo pagaría).
   const alertas = useMemo(() => genAlertas(data), [data]);
 
+  // ── El menú de cada quien: qué ancló, qué puso en la barra y qué abre más.
+  // Vive en este teléfono, por persona. No es dato del rancho: no sube a la nube.
+  const quienMenu = session?.id || session?.role || null;
+  const rolMenu = session?.role || "";
+  const [menuTodas, setMenuTodas] = useState(() => { try { return JSON.parse(localStorage.getItem(LLAVES.menu) || "{}") || {}; } catch { return {}; } });
+  const [menuAbierto, setMenuAbierto] = useState(null);   // null · "ver" · "acomodar"
+  const prefsMenu = useMemo(() => prefsDe(menuTodas, quienMenu), [menuTodas, quienMenu]);
+  const cambiarPrefsMenu = useCallback((fn) => {
+    if (!quienMenu) return;
+    setMenuTodas(t => {
+      const n = conPrefs(t, quienMenu, fn(prefsDe(t, quienMenu)));
+      try { localStorage.setItem(LLAVES.menu, JSON.stringify(n)); } catch { /* si no cabe, se pierde el acomodo, no un dato */ }
+      return n;
+    });
+  }, [quienMenu]);
+  useEffect(() => { if (quienMenu && FUNCIONES[page]) cambiarPrefsMenu(p => anotarUso(p, page, new Date().toISOString())); }, [page, quienMenu, cambiarPrefsMenu]);
+  const ctxMenu = useMemo(() => ({
+    rol: rolMenu, prefs: prefsMenu, cambiar: cambiarPrefsMenu, pagina: page,
+    ir: (id) => { setMenuAbierto(null); setPage(id); },
+    abrir: (acomodar) => setMenuAbierto(acomodar ? "acomodar" : "ver"), cerrar: () => setMenuAbierto(null),
+  }), [rolMenu, prefsMenu, cambiarPrefsMenu, page]);
+
   if (!session) return <div className="agro-root"><style>{CSS}</style><LoginScreen data={data} add={add} upd={upd} onLogin={setSession} /></div>;
 
   const isAdmin = session.role === "admin";
@@ -6415,7 +6470,10 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
     { id: "mis", icon: "📋", label: "Mis Días" },
     { id: "reporte", icon: "⚠️", label: "Reportar" },
   ];
-  const nav = isAdmin ? navA : isEncargado ? navE : isAgronomo ? navAg : isDueno ? navD : isFinanzas ? navF : isExterno ? navExt : navT;
+  const navBase = isAdmin ? navA : isEncargado ? navE : isAgronomo ? navAg : isDueno ? navD : isFinanzas ? navF : isExterno ? navExt : navT;
+  // El primer botón es el inicio de ese perfil; los demás los escoge la persona.
+  const nav = [navBase[0], ...barraDe(rolMenu, prefsMenu).map(x => ({ id: x.id, icon: x.icono, label: x.corto }))];
+  const conMenu = necesitaMenu(rolMenu, prefsMenu);
   const pendBadge = alertas.filter(a => a.tipo === "red").length + data.incidencias.filter(i => i.estado === "pendiente").length + (data.compras || []).filter(c => c.estado === "pendiente").length + (data.actividades || []).filter(a => a.estado === "pendiente_aprobacion").length;
   const tareasPend = (data.tareas || []).filter(t => t.estado === "pendiente" && t.asignadoA === session.id).length;
 
@@ -6494,6 +6552,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
           </div>
         )}
         <div className="screen">
+          <MenuCtx.Provider value={ctxMenu}>
           <ErrorBoundary key={`${session.role}-${page}`} onReset={() => { setSession(null); setPage("home"); setNavParam(null); }}>
             {isAdmin && <>
               {page === "home" && <AdminHome data={data} alertas={alertas} onNav={setPage} onLogout={cerrarSesion} pending={pending} online={online} />}
@@ -6646,6 +6705,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "rendimiento-parcelas" && <RendimientoParcelas data={data} onClose={() => setPage("home")} />}
             </>}
           </ErrorBoundary>
+          </MenuCtx.Provider>
         </div>
         <nav className="bottom-nav">
           {nav.map(n => (
@@ -6656,7 +6716,14 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {n.id === "mis" && isTrab && tareasPend > 0 && <span className="bn-badge">{tareasPend}</span>}
             </button>
           ))}
+          {conMenu && (
+            <button className={`bn-item${menuAbierto ? " active" : ""}`} onClick={() => setMenuAbierto("ver")}>
+              <span className="bn-icon"><Ic name="menu" /></span>
+              <span className="bn-label">Menú</span>
+            </button>
+          )}
         </nav>
+        {menuAbierto && <MenuCtx.Provider value={ctxMenu}><MenuTodo acomodar={menuAbierto === "acomodar"} /></MenuCtx.Provider>}
         {/* Hablarle a la app está EN TODOS LADOS: el botón flotante sale en
             cualquier pantalla, para quien sea. Antes esto abría un panel que
             le hablaba a la IA sin llave y sólo devolvía "Hubo un error de
@@ -7283,6 +7350,142 @@ function AprobacionExternos({ data, upd, onBack }) {
 }
 
 /* ════════════ ADMIN HOME ════════════ */
+
+// ════════════════════════════════════════════════════════════════════════
+//  EL MENÚ Y LOS ACCESOS DEL INICIO
+//  Las reglas viven en menu.js. Aquí sólo se pinta.
+// ════════════════════════════════════════════════════════════════════════
+const MenuCtx = createContext(null);
+
+// Lo que cada quien ancló + lo que más abre. Reemplaza a la pared de tarjetas.
+function AccesosInicio() {
+  const m = useContext(MenuCtx);
+  if (!m) return null;
+  const ancladas = ancladasConDatos(m.rol, m.prefs);
+  const usadas = masUsadas(m.rol, m.prefs);
+  return (
+    <div className="card">
+      <div className="flex-b" style={{ marginBottom: 12 }}>
+        <span className="card-title" style={{ marginBottom: 0 }}>Tus accesos</span>
+        <button className="acc-link" onClick={() => m.abrir(true)}>Acomodar</button>
+      </div>
+      {ancladas.length === 0 && <div className="text-sm text-muted" style={{ marginBottom: 10 }}>No tienes nada anclado. Toca "Acomodar" y marca con la estrella lo que quieras tener aquí.</div>}
+      <div className="acc-grid">
+        {ancladas.map(a => (
+          <button key={a.id} className="acc" onClick={() => m.ir(a.id)}>
+            <span className="acc-ic"><Ic e={a.icono} /></span>
+            <span className="acc-n">{a.nombre}</span>
+          </button>
+        ))}
+      </div>
+      {usadas.length > 0 && <>
+        <div className="acc-tit">Lo que más usas</div>
+        {usadas.map(a => (
+          <div key={a.id} className="mn-fila">
+            <button className="mn-ir" onClick={() => m.ir(a.id)}>
+              <span className="mn-ic"><Ic e={a.icono} /></span>
+              <span className="mn-tx"><span className="mn-n">{a.nombre}</span><span className="mn-s">{a.sub}</span></span>
+            </button>
+            <button className="mn-pin" title="Anclar al inicio" onClick={() => m.cambiar(p => alternarInicio(m.rol, p, a.id).prefs)}><Ic name="star" /></button>
+          </div>
+        ))}
+      </>}
+      <button className="acc-todo" onClick={() => m.abrir(false)}><Ic name="menu" /> Ver todo el menú</button>
+    </div>
+  );
+}
+
+// El menú completo: buscador arriba, y los grupos se abren y se cierran.
+function MenuTodo({ acomodar: empiezaAcomodando }) {
+  const m = useContext(MenuCtx);
+  const grupos = useMemo(() => menuDe(m.rol), [m.rol]);
+  const [q, setQ] = useState("");
+  const [acomodar, setAcomodar] = useState(!!empiezaAcomodando);
+  const [dice, setDice] = useState("");
+  const [abiertos, setAbiertos] = useState(() => {
+    const g = FUNCIONES[m.pagina]?.grupo || grupos[0]?.id;
+    return g ? { [g]: true } : {};
+  });
+  const enInicio = ancladasDe(m.rol, m.prefs);
+  const enBarra = enBarraDe(m.rol, m.prefs);
+  const hallados = q.trim() ? buscarEnMenu(m.rol, q) : null;
+  const tocar = (alternar, id) => m.cambiar(p => { const r = alternar(m.rol, p, id); setDice(r.dice); return r.prefs; });
+
+  const fila = (x) => (
+    <div key={x.id} className={`mn-fila${m.pagina === x.id ? " aqui" : ""}`}>
+      <button className="mn-ir" onClick={() => m.ir(x.id)}>
+        <span className="mn-ic"><Ic e={x.icono} /></span>
+        <span className="mn-tx"><span className="mn-n">{x.nombre}</span><span className="mn-s">{x.sub}</span></span>
+      </button>
+      {acomodar && (
+        <button className={`mn-chip${enBarra.includes(x.id) ? " on" : ""}`} onClick={() => tocar(alternarBarra, x.id)}>Barra</button>
+      )}
+      <button className={`mn-pin${enInicio.includes(x.id) ? " on" : ""}`} title={enInicio.includes(x.id) ? "Quitar del inicio" : "Anclar al inicio"} onClick={() => tocar(alternarInicio, x.id)}><Ic name="star" /></button>
+    </div>
+  );
+
+  return (
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) m.cerrar(); }}>
+      <div className="modal-sheet mn-hoja">
+        <div className="flex-b" style={{ marginBottom: 12 }}>
+          <span className="card-title" style={{ marginBottom: 0, fontSize: 18 }}>{acomodar ? "Acomodar tu menú" : "Menú"}</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="acc-link" onClick={() => { setAcomodar(a => !a); setDice(""); }}>{acomodar ? "Listo" : "Acomodar"}</button>
+            <button className="acc-link" onClick={m.cerrar}>Cerrar</button>
+          </div>
+        </div>
+        <input className="inp" placeholder="Buscar: nómina, banco, corrida…" value={q} onChange={e => setQ(e.target.value)} style={{ marginBottom: 12 }} />
+        {acomodar && (
+          <div className="mn-ayuda">
+            La <b>estrella</b> lo pone en tu inicio. <b>Barra</b> lo pone abajo (caben {TOPE_BARRA}, además de Inicio y Menú). Es sólo tuyo y de este teléfono.
+          </div>
+        )}
+        {dice && <div className="mn-ayuda" style={{ color: "var(--gold)" }}>{dice}</div>}
+
+        {acomodar && !hallados && enInicio.length > 0 && (
+          <div className="mn-grupo abierto">
+            <div className="mn-cab" style={{ cursor: "default" }}><span className="mn-ic"><Ic name="star" /></span><span className="mn-gn">Tu inicio, en este orden</span></div>
+            {enInicio.map((id, i) => (
+              <div key={id} className="mn-fila">
+                <span className="mn-ir" style={{ cursor: "default" }}>
+                  <span className="mn-ic"><Ic e={FUNCIONES[id].icono} /></span>
+                  <span className="mn-tx"><span className="mn-n">{FUNCIONES[id].nombre}</span></span>
+                </span>
+                <button className="mn-pin" disabled={i === 0} title="Subir" onClick={() => m.cambiar(p => moverEnInicio(m.rol, p, id, -1))}><Ic name="arrowUp" /></button>
+                <button className="mn-pin" disabled={i === enInicio.length - 1} title="Bajar" onClick={() => m.cambiar(p => moverEnInicio(m.rol, p, id, 1))}><Ic name="arrowDown" /></button>
+                <button className="mn-pin on" title="Quitar del inicio" onClick={() => tocar(alternarInicio, id)}><Ic name="star" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {hallados && (hallados.length === 0
+          ? <div className="text-sm text-muted" style={{ padding: "8px 4px" }}>No hay nada con ese nombre en tu menú.</div>
+          : <div className="mn-grupo abierto">{hallados.map(fila)}</div>)}
+
+        {!hallados && grupos.map(g => {
+          const abierto = !!abiertos[g.id];
+          return (
+            <div key={g.id} className={`mn-grupo${abierto ? " abierto" : ""}`}>
+              <button className="mn-cab" onClick={() => setAbiertos(a => ({ ...a, [g.id]: !a[g.id] }))}>
+                <span className="mn-ic"><Ic e={g.icono} /></span>
+                <span className="mn-gn">{g.nombre}</span>
+                <span className="mn-cu">{g.funciones.length}</span>
+                <span className="mn-fl">{abierto ? "−" : "+"}</span>
+              </button>
+              {abierto && g.funciones.map(fila)}
+            </div>
+          );
+        })}
+
+        {acomodar && (m.prefs.inicio || m.prefs.barra) && (
+          <button className="acc-todo" onClick={() => { m.cambiar(volverALoDeFabrica); setDice(""); }}>Dejarlo como venía</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AdminHome({ data, alertas, onNav, onLogout, pending, online }) {
   const actsC = data.actividadesContables || data.actividades;
   const cTotal = actsC.reduce((s, a) => s + a.costoTotal, 0);
@@ -7328,45 +7531,7 @@ function AdminHome({ data, alertas, onNav, onLogout, pending, online }) {
           <div className="stat-card"><div className="stat-label">Costo de campo</div><div className="stat-val" style={{ fontSize: 18 }}>{fmt(cTotal)}</div><div className="stat-sub">{actsC.length} actividades</div></div>
           <div className="stat-card"><div className="stat-label">Conexión</div><div className="stat-val" style={{ fontSize: 15, color: online ? "var(--safe)" : "var(--red)" }}>{online ? <><span className="dot-live" /> Online</> : <><span className="dot-live off" /> Offline</>}</div>{pending.length > 0 && <div className="stat-sub">{pending.length} por sync</div>}</div>
         </div>
-        <div className="card">
-          <div className="card-title">Accesos rápidos</div>
-          <div className="option-grid" style={{ marginBottom: 12 }}>
-            <div className="option-card" onClick={() => onNav("arranque")}><span className="oc-icon"><Ic e="🎯" /></span><span className="oc-label">Arranque</span><span className="oc-sub">Cuentas, conteo, saldos, inicio</span></div>
-            <div className="option-card" onClick={() => onNav("papeles")}><span className="oc-icon"><Ic e="📷" /></span><span className="oc-label">Papeles</span><span className="oc-sub">Foto de ticket o factura</span></div>
-            <div className="option-card" onClick={() => onNav("banco")}><span className="oc-icon"><Ic e="🏦" /></span><span className="oc-label">Banco</span><span className="oc-sub">Estado de cuenta</span></div>
-            <div className="option-card" onClick={() => onNav("socios")}><span className="oc-icon"><Ic e="👥" /></span><span className="oc-label">Socios</span><span className="oc-sub">Quién puso y quién sacó</span></div>
-            <div className="option-card" onClick={() => onNav("aldia")}><span className="oc-icon"><Ic e="🎯" /></span><span className="oc-label">¿Alcanza?</span><span className="oc-sub">Y qué dejó de aparecer</span></div>
-            <div className="option-card" onClick={() => onNav("ganado")}><span className="oc-icon"><Ic e="🐄" /></span><span className="oc-label">Ganado</span><span className="oc-sub">Padrón, báscula y jeringa</span></div>
-            <div className="option-card" onClick={() => onNav("bitacora")}><span className="oc-icon"><Ic e="🔐" /></span><span className="oc-label">Bitácora</span><span className="oc-sub">Quién hizo qué</span></div>
-            <div className="option-card" onClick={() => onNav("vales")}><span className="oc-icon"><Ic e="📦" /></span><span className="oc-label">Vales</span><span className="oc-sub">Salidas, mermas y conteo</span></div>
-            <div className="option-card" onClick={() => onNav("dictado")}><span className="oc-icon"><Ic e="💬" /></span><span className="oc-label">Dile a la app</span><span className="oc-sub">Habla y ella lo registra</span></div>
-            <div className="option-card" onClick={() => onNav("fito")}><span className="oc-icon"><Ic e="📄" /></span><span className="oc-label">Hoja de Fito</span><span className="oc-sub">Fertirriego que se comprueba</span></div>
-            <div className="option-card" onClick={() => onNav("chat")}><span className="oc-icon"><Ic e="💬" /></span><span className="oc-label">Chat</span><span className="oc-sub">Lo del grupo, ya clasificado</span></div>
-            <div className="option-card" onClick={() => onNav("dron")}><span className="oc-icon"><Ic e="🚁" /></span><span className="oc-label">Dron</span><span className="oc-sub">Las parcelas desde arriba</span></div>
-            <div className="option-card" onClick={() => onNav("eldia")}><span className="oc-icon"><Ic e="☀️" /></span><span className="oc-label">El día</span><span className="oc-sub">Clima, reparto y qué se acaba</span></div>
-            <div className="option-card" onClick={() => onNav("registrar-actividad")}><span className="oc-icon"><Ic e="✏️" /></span><span className="oc-label">Registrar</span><span className="oc-sub">Actividad de campo</span></div>
-            <div className="option-card" onClick={() => onNav("registro-masivo")}><span className="oc-icon"><Ic e="👥" /></span><span className="oc-label">Reg. masivo</span><span className="oc-sub">Varios a la vez</span></div>
-            <div className="option-card" onClick={() => onNav("cosechas")}><span className="oc-icon"><Ic e="🌾" /></span><span className="oc-label">Cosechas</span><span className="oc-sub">Rendimiento</span></div>
-            <div className="option-card" onClick={() => onNav("parcelas")}><span className="oc-icon"><Ic e="🗺️" /></span><span className="oc-label">Parcelas</span><span className="oc-sub">Ranchos y fenología</span></div>
-            <div className="option-card" onClick={() => onNav("equipo")}><span className="oc-icon"><Ic e="👷" /></span><span className="oc-label">Equipo</span><span className="oc-sub">Personal, maquinaria</span></div>
-          </div>
-          <div className="option-grid" style={{ marginBottom: 12 }}>
-            <div className="option-card" onClick={() => onNav("calendario")}><span className="oc-icon"><Ic e="🗓️" /></span><span className="oc-label">Calendario</span><span className="oc-sub">Siembras y cultivos</span></div>
-            <div className="option-card" onClick={() => onNav("panel-parcelas")}><span className="oc-icon"><Ic e="🌾" /></span><span className="oc-label">Estado</span><span className="oc-sub">Avance de parcelas</span></div>
-            <div className="option-card" onClick={() => onNav("resumen")}><span className="oc-icon"><Ic e="📰" /></span><span className="oc-label">Resumen</span><span className="oc-sub">Cómo va la semana</span></div>
-            <div className="option-card" onClick={() => onNav("ciclos")}><span className="oc-icon"><Ic e="📅" /></span><span className="oc-label">Temporadas</span><span className="oc-sub">Resultado global</span></div>
-          </div>
-          <div className="option-grid" style={{ marginBottom: 0 }}>
-            <div className="option-card" onClick={() => onNav("pase-lista")}><span className="oc-icon"><Ic e="✅" /></span><span className="oc-label">Pase de lista</span><span className="oc-sub">Asistencia de la semana</span></div>
-            <div className="option-card" onClick={() => onNav("respaldo")}><span className="oc-icon"><Ic e="💾" /></span><span className="oc-label">Respaldo</span><span className="oc-sub">Guardar copia</span></div>
-            <div className="option-card" onClick={() => onNav("seguridad")}><span className="oc-icon"><Ic e="🔐" /></span><span className="oc-label">Seguridad</span><span className="oc-sub">PINs de dirección</span></div>
-            <div className="option-card" onClick={() => onNav("panel-financiero")}><span className="oc-icon"><Ic e="💰" /></span><span className="oc-label">¿Cómo vamos?</span><span className="oc-sub">Resumen del dinero</span></div>
-            <div className="option-card" onClick={() => onNav("subir-nube")}><span className="oc-icon"><Ic e="☁️" /></span><span className="oc-label">Subir a la nube</span><span className="oc-sub">Migración inicial</span></div>
-            <div className="option-card" onClick={() => onNav("solicitudes")}><span className="oc-icon"><Ic e="🛒" /></span><span className="oc-label">Compras</span><span className="oc-sub">Solicitudes del personal</span></div>
-            <div className="option-card" onClick={() => onNav("operacion")}><span className="oc-icon"><Ic e="🎯" /></span><span className="oc-label">Operación</span><span className="oc-sub">Qué pasa ahora en campo</span></div>
-            <div className="option-card" onClick={() => onNav("mas-funciones")}><span className="oc-icon"><Ic e="🧰" /></span><span className="oc-label">Más funciones</span><span className="oc-sub">Todo lo demás</span></div>
-          </div>
-        </div>
+        <AccesosInicio />
         <div className="card">
           <div className="flex-b mb-2"><span className="card-title" style={{ marginBottom: 0 }}>Últimas actividades</span><button className="btn-ghost btn-sm" onClick={() => onNav("movimientos")}>Ver todo ›</button></div>
           {ultimas.map(a => {
@@ -10504,39 +10669,7 @@ function EncargadoHome({ data, session, onNav, onLogout, online }) {
           <div className="stat-card"><div className="stat-label">Tareas activas</div><div className="stat-val" style={{ fontSize: 20 }}>{tareasActivas}</div></div>
           <div className="stat-card"><div className="stat-label">Préstamos por cobrar</div><div className="stat-val" style={{ fontSize: 16, color: "var(--gold)" }}>{fmt(saldoPrestamos)}</div></div>
         </div>
-        <div className="card">
-          <div className="card-title">Accesos rápidos</div>
-          <div className="option-grid" style={{ marginBottom: 12 }}>
-            <div className="option-card" onClick={() => onNav("registro-masivo")}><span className="oc-icon"><Ic e="👥" /></span><span className="oc-label">Reg. masivo</span><span className="oc-sub">Varios a la vez</span></div>
-            <div className="option-card" onClick={() => onNav("papeles")}><span className="oc-icon"><Ic e="📷" /></span><span className="oc-label">Papeles</span><span className="oc-sub">Foto de ticket o factura</span></div>
-            <div className="option-card" onClick={() => onNav("banco")}><span className="oc-icon"><Ic e="🏦" /></span><span className="oc-label">Banco</span><span className="oc-sub">Estado de cuenta</span></div>
-            <div className="option-card" onClick={() => onNav("socios")}><span className="oc-icon"><Ic e="👥" /></span><span className="oc-label">Socios</span><span className="oc-sub">Quién puso y quién sacó</span></div>
-            <div className="option-card" onClick={() => onNav("aldia")}><span className="oc-icon"><Ic e="🎯" /></span><span className="oc-label">¿Alcanza?</span><span className="oc-sub">Y qué dejó de aparecer</span></div>
-            <div className="option-card" onClick={() => onNav("ganado")}><span className="oc-icon"><Ic e="🐄" /></span><span className="oc-label">Ganado</span><span className="oc-sub">Padrón, báscula y jeringa</span></div>
-            <div className="option-card" onClick={() => onNav("bitacora")}><span className="oc-icon"><Ic e="🔐" /></span><span className="oc-label">Bitácora</span><span className="oc-sub">Quién hizo qué</span></div>
-            <div className="option-card" onClick={() => onNav("vales")}><span className="oc-icon"><Ic e="📦" /></span><span className="oc-label">Vales</span><span className="oc-sub">Salidas, mermas y conteo</span></div>
-            <div className="option-card" onClick={() => onNav("dictado")}><span className="oc-icon"><Ic e="💬" /></span><span className="oc-label">Dile a la app</span><span className="oc-sub">Habla y ella lo registra</span></div>
-            <div className="option-card" onClick={() => onNav("fito")}><span className="oc-icon"><Ic e="📄" /></span><span className="oc-label">Hoja de Fito</span><span className="oc-sub">Fertirriego que se comprueba</span></div>
-            <div className="option-card" onClick={() => onNav("chat")}><span className="oc-icon"><Ic e="💬" /></span><span className="oc-label">Chat</span><span className="oc-sub">Lo del grupo, ya clasificado</span></div>
-            <div className="option-card" onClick={() => onNav("dron")}><span className="oc-icon"><Ic e="🚁" /></span><span className="oc-label">Dron</span><span className="oc-sub">Las parcelas desde arriba</span></div>
-            <div className="option-card" onClick={() => onNav("eldia")}><span className="oc-icon"><Ic e="☀️" /></span><span className="oc-label">El día</span><span className="oc-sub">Clima, reparto y qué se acaba</span></div>
-            <div className="option-card" onClick={() => onNav("registrar-actividad")}><span className="oc-icon"><Ic e="✏️" /></span><span className="oc-label">Registrar</span><span className="oc-sub">Una actividad</span></div>
-            <div className="option-card" onClick={() => onNav("cosechas")}><span className="oc-icon"><Ic e="🌾" /></span><span className="oc-label">Cosechas</span><span className="oc-sub">Ver y ajustar</span></div>
-            <div className="option-card" onClick={() => onNav("tareas")}>
-              <span className="oc-icon"><Ic e="✅" /></span><span className="oc-label">Tareas</span><span className="oc-sub">Asignar trabajo</span>
-              {tareasActivas > 0 && <span className="bn-badge" style={{ top: 8, right: 8 }}>{tareasActivas}</span>}
-            </div>
-            <div className="option-card" onClick={() => onNav("personal")}><span className="oc-icon"><Ic e="👷" /></span><span className="oc-label">Personal</span><span className="oc-sub">Actividades, préstamos</span></div>
-          </div>
-          <div className="option-grid" style={{ marginBottom: 0 }}>
-            <div className="option-card" onClick={() => onNav("pase-lista")}><span className="oc-icon"><Ic e="✅" /></span><span className="oc-label">Pase de lista</span><span className="oc-sub">Asistencia de la semana</span></div>
-            <div className="option-card" onClick={() => onNav("caja")}><span className="oc-icon"><Ic e="💵" /></span><span className="oc-label">Caja chica</span><span className="oc-sub">Gastos y movimientos</span></div>
-            <div className="option-card" onClick={() => onNav("solicitudes")}><span className="oc-icon"><Ic e="🛒" /></span><span className="oc-label">Compras</span><span className="oc-sub">Solicitar y gestionar</span></div>
-            <div className="option-card" onClick={() => onNav("estibas")}><span className="oc-icon"><Ic e="🏷️" /></span><span className="oc-label">Estibas</span><span className="oc-sub">Etiquetas y trazabilidad</span></div>
-            <div className="option-card" onClick={() => onNav("corrida")}><span className="oc-icon"><Ic e="🏭" /></span><span className="oc-label">Corrida</span><span className="oc-sub">Encajado por calibre</span></div>
-            <div className="option-card" onClick={() => onNav("operacion")}><span className="oc-icon"><Ic e="🎯" /></span><span className="oc-label">Operación</span><span className="oc-sub">Qué pasa ahora en campo</span></div>
-          </div>
-        </div>
+        <AccesosInicio />
         <div className="card">
           <div className="card-title">Actividad reciente del equipo</div>
           {[...(data.actividades || [])].sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 4).map(a => {
@@ -13574,21 +13707,7 @@ function AgronomoHome({ data, session, onNav, onLogout, online }) {
           <div className="stat-card"><div className="stat-label">Parcelas en campo</div><div className="stat-val">{parcelasActivas}</div></div>
         </div>
 
-        <div className="card">
-          <div className="card-title">Acciones</div>
-          <div className="option-grid" style={{ marginBottom: 0 }}>
-            <div className="option-card" onClick={() => onNav("aplicaciones")}><span className="oc-icon"><Ic e="🧪" /></span><span className="oc-label">Registrar</span><span className="oc-sub">Fertirriego / tratamiento</span></div>
-            <div className="option-card" onClick={() => onNav("panel-parcelas")}><span className="oc-icon"><Ic e="🌾" /></span><span className="oc-label">Parcelas</span><span className="oc-sub">Estado de cultivos</span></div>
-            <div className="option-card" onClick={() => onNav("indicaciones")}><span className="oc-icon"><Ic e="📋" /></span><span className="oc-label">Indicaciones</span><span className="oc-sub">Mandar al personal</span></div>
-            <div className="option-card" onClick={() => onNav("compras-insumos")}><span className="oc-icon"><Ic e="📦" /></span><span className="oc-label">Registrar compra</span><span className="oc-sub">Insumo ya comprado</span></div>
-            <div className="option-card" onClick={() => onNav("reporte")}><span className="oc-icon"><Ic e="⚠️" /></span><span className="oc-label">Reportar</span><span className="oc-sub">Incidencia en cultivo</span></div>
-            <div className="option-card" onClick={() => onNav("solicitudes")}><span className="oc-icon"><Ic e="🛒" /></span><span className="oc-label">Solicitar compra</span><span className="oc-sub">Lista para finanzas</span></div>
-            <div className="option-card" onClick={() => onNav("operacion")}><span className="oc-icon"><Ic e="🎯" /></span><span className="oc-label">Operación</span><span className="oc-sub">Qué pasa ahora en campo</span></div>
-            <div className="option-card" onClick={() => onNav("variedades")}><span className="oc-icon"><Ic e="🧬" /></span><span className="oc-label">Variedades</span><span className="oc-sub">Tipos de cada cultivo</span></div>
-            <div className="option-card" onClick={() => onNav("reporte-variedades")}><span className="oc-icon"><Ic e="📊" /></span><span className="oc-label">Comparar variedades</span><span className="oc-sub">Costo y rendimiento</span></div>
-            <div className="option-card" onClick={() => onNav("rendimiento-parcelas")}><span className="oc-icon"><Ic e="🌱" /></span><span className="oc-label">Rendimiento parcelas</span><span className="oc-sub">Cajas y calibres</span></div>
-          </div>
-        </div>
+        <AccesosInicio />
 
         <div className="card">
           <div className="card-title">Últimas aplicaciones</div>
@@ -14278,16 +14397,7 @@ function DuenoHome({ data, session, onNav, onLogout }) {
           </div>
         )}
 
-        <div className="card">
-          <div className="card-title">Ver reportes</div>
-          <div className="option-grid" style={{ marginBottom: 0 }}>
-            <div className="option-card" onClick={() => onNav("panel-financiero")}><span className="oc-icon"><Ic e="💰" /></span><span className="oc-label">¿Cómo vamos?</span><span className="oc-sub">Resumen del dinero</span></div>
-            <div className="option-card" onClick={() => onNav("reportes")}><span className="oc-icon"><Ic e="📈" /></span><span className="oc-label">Reportes</span><span className="oc-sub">Por cultivo y parcela</span></div>
-            <div className="option-card" onClick={() => onNav("panel-parcelas")}><span className="oc-icon"><Ic e="🌾" /></span><span className="oc-label">Parcelas</span><span className="oc-sub">Estado de cultivos</span></div>
-            <div className="option-card" onClick={() => onNav("resumen")}><span className="oc-icon"><Ic e="📰" /></span><span className="oc-label">Resumen</span><span className="oc-sub">Cómo va la semana</span></div>
-            <div className="option-card" onClick={() => onNav("operacion")}><span className="oc-icon"><Ic e="🎯" /></span><span className="oc-label">Operación</span><span className="oc-sub">Qué pasa ahora en campo</span></div>
-          </div>
-        </div>
+        <AccesosInicio />
 
         <div className="card">
           <div className="card-title">Cultivos en curso</div>
@@ -14352,32 +14462,7 @@ function FinanzasHome({ data, session, onNav, onLogout }) {
           <div className="stat-card wide"><div className="stat-label">Caja chica disponible</div><div className="stat-val" style={{ fontSize: 22, color: caja >= 0 ? "var(--safe)" : "var(--red)" }}>{fmt(caja)}</div></div>
         </div>
 
-        <div className="card">
-          <div className="card-title">Acciones</div>
-          <div className="text-xs font-bold text-muted" style={{ margin: "4px 0 8px 4px", letterSpacing: 0.5 }}><Ic e="💼" /> DÍA A DÍA</div>
-          <div className="option-grid" style={{ marginBottom: 0 }}>
-            <div className="option-card" onClick={() => onNav("proyeccion")}><span className="oc-icon"><Ic e="📅" /></span><span className="oc-label">Semana</span><span className="oc-sub">Qué se va a necesitar</span></div>
-            <div className="option-card" onClick={() => onNav("deudas")}><span className="oc-icon"><Ic e="🏦" /></span><span className="oc-label">Deudas</span><span className="oc-sub">Créditos y pagos</span></div>
-            <div className="option-card" onClick={() => onNav("contabilidad")}><span className="oc-icon"><Ic e="📊" /></span><span className="oc-label">Finanzas</span><span className="oc-sub">Ingresos y egresos</span></div>
-            <div className="option-card" onClick={() => onNav("operacion")}><span className="oc-icon"><Ic e="🎯" /></span><span className="oc-label">Operación</span><span className="oc-sub">Qué pasa ahora en campo</span></div>
-            <div className="option-card" onClick={() => onNav("solicitudes")}><span className="oc-icon"><Ic e="🛒" /></span><span className="oc-label">Compras</span><span className="oc-sub">Solicitudes del personal</span></div>
-            <div className="option-card" onClick={() => onNav("contpaqi")}><span className="oc-icon"><Ic e="📑" /></span><span className="oc-label">ContPAQi</span><span className="oc-sub">Exportar pólizas</span></div>
-          </div>
-          <div className="text-xs font-bold text-muted" style={{ margin: "16px 0 8px 4px", letterSpacing: 0.5 }}><Ic e="🧄" /> BODEGA Y TRAZABILIDAD</div>
-          <div className="option-grid" style={{ marginBottom: 0 }}>
-            <div className="option-card" onClick={() => onNav("embarque")}><span className="oc-icon"><Ic e="🚛" /></span><span className="oc-label">Salida de camión</span><span className="oc-sub">Embarque y pesada</span></div>
-            <div className="option-card" onClick={() => onNav("terminados")}><span className="oc-icon"><Ic e="🧄" /></span><span className="oc-label">Ajo terminado</span><span className="oc-sub">Inventario por calibre</span></div>
-            <div className="option-card" onClick={() => onNav("consignaciones")}><span className="oc-icon"><Ic e="📋" /></span><span className="oc-label">Consignaciones</span><span className="oc-sub">Pendientes de cobro</span></div>
-            <div className="option-card" onClick={() => onNav("corrida")}><span className="oc-icon"><Ic e="🏭" /></span><span className="oc-label">Corrida de ajo</span><span className="oc-sub">Encajado y remisión</span></div>
-            <div className="option-card" onClick={() => onNav("estibas")}><span className="oc-icon"><Ic e="🏷️" /></span><span className="oc-label">Trazabilidad</span><span className="oc-sub">Estibas y códigos</span></div>
-            <div className="option-card" onClick={() => onNav("comercializacion")}><span className="oc-icon"><Ic e="📈" /></span><span className="oc-label">Comercialización</span><span className="oc-sub">Precio/kg y clientes</span></div>
-          </div>
-          <div className="text-xs font-bold text-muted" style={{ margin: "16px 0 8px 4px", letterSpacing: 0.5 }}><Ic e="👷" /> PERSONAL</div>
-          <div className="option-grid" style={{ marginBottom: 0 }}>
-            <div className="option-card" onClick={() => onNav("nomina")}><span className="oc-icon"><Ic e="🧾" /></span><span className="oc-label">Nómina semanal</span><span className="oc-sub">Pago por trabajador</span></div>
-            <div className="option-card" onClick={() => onNav("pase-lista")}><span className="oc-icon"><Ic e="✅" /></span><span className="oc-label">Pase de lista</span><span className="oc-sub">Asistencia + faltantes</span></div>
-          </div>
-        </div>
+        <AccesosInicio />
       </div>
     </div>
   );

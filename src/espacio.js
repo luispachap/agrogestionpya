@@ -33,6 +33,9 @@ export function llavesDe(espacio) {
   return {
     datos: `agro_v8:${e}`, cola: `agro_cola_v8:${e}`, fallidas: `agro_fallidas_v8:${e}`,
     sesion: `agro_sesion_v8:${e}`, campo: `agro_campo_v8:${e}`, reset: `agro_reset_v8:${e}`,
+    // Cómo acomodó cada persona su inicio y su barra. No son datos del rancho:
+    // no suben, y no se borran al reiniciar el teléfono.
+    menu: `agro_menu_v8:${e}`,
   };
 }
 // Lo que se puede borrar al "reiniciar este teléfono": SÓLO lo de este espacio.
