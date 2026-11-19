@@ -188,6 +188,7 @@ pruebas de la Etapa 2.
 | 2. Cimientos de datos | IndexedDB, bandeja de salida, borrado lógico, movimientos para saldos | 1 | Pasan las pruebas de corte de señal y duplicados (matriz F) |
 | 3. Identidad y permisos | Cuentas por persona, PIN en servidor, reglas por rol, bitácora | 0, 2 | Ninguna de las pruebas de ataque E6–E9 se reproduce |
 | 4. Registro de jornada 2027 | Checador (entrada/salida), correcciones sin borrar el original, exportación | 2, 3 | Ver sección «Jornada» |
+| 5-bis. Incorporación Inteligente | Bandeja de documentos, lectura y propuesta con niveles A/B/C. Primero la prueba vertical del ticket. Diseño en `01-INCORPORACION-INTELIGENTE.md` | 0, 2, 3 | La prueba vertical cumple sus metas con el lote sintético |
 | 5. Módulos de la junta | Bodegas y sobrantes, bitácora por turnos, expediente legal | 2, 3 | Validados con Migue y Fito en campo |
 | 6. Tablero de Migue | Inicio que responde las 8 preguntas de la Fase 3 | 1–5 | Migue las contesta en menos de un minuto |
 | 7. Operación paralela | 4 semanas junto al Excel y papel actuales | todo | Coincidencia total con los controles manuales |
