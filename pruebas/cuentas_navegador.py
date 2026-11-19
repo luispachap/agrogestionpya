@@ -29,6 +29,7 @@ def nube(route):
     if DEPURA: print("   [nube]", r.method, ruta, (r.headers.get("accept") or "")[:40], flush=True)
     try: cuerpo = json.loads(r.post_data) if r.post_data else {}
     except Exception: cuerpo = {}          # un archivo subiendo, no un registro
+    if ruta == "/auth/v1/resend": estado.setdefault("reenvios", []).append(cuerpo); return J({})
     if ruta == "/auth/v1/signup": estado["altas"].append(cuerpo); return J({**USUARIO, "email": cuerpo.get("email"), "email_confirmed_at": None})
     if ruta == "/auth/v1/token": return J(SESION) if cuerpo.get("password") == "contrasena-larga-1" else J({"error": "invalid_grant", "error_description": "Invalid login credentials"}, 400)
     if ruta.startswith("/auth/v1/"): return J(USUARIO if ruta.endswith("/user") else {})
@@ -58,6 +59,19 @@ with sync_playwright() as p:
     pg.on("pageerror", lambda e: errores.append(str(e)))
     pg.on("dialog", lambda d: (dialogos.append(d.message), d.accept("INICIO") if d.type == "prompt" else d.accept()))
     pg.goto(URL); pg.wait_for_timeout(800); pg.evaluate("() => localStorage.clear()"); pg.reload(); pg.wait_for_timeout(1200)
+
+    # ── 0 · volver del correo de confirmación ──
+    pg.goto("about:blank")   # el enlace del correo abre la app desde cero, no dentro de la misma página
+    pg.goto(URL + "#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired"); pg.wait_for_timeout(1500)
+    caso("un enlace caducado se explica en la app, no en una página rota", pg.get_by_text("ya se usó o caducó").count() > 0 and "#" not in pg.url)
+    pg.get_by_placeholder("Tu correo o tu PIN").fill("uno@prueba.invalid")
+    pg.get_by_role("button", name="Mandar otra vez el correo de confirmación").click(); pg.wait_for_timeout(900)
+    re = (estado.get("reenvios") or [{}])[0]
+    caso("y se puede pedir otro correo desde ahí", re.get("email") == "uno@prueba.invalid" and re.get("type") == "signup" and pg.get_by_text("se mandó otro correo").count() > 0)
+    pg.goto("about:blank")
+    pg.goto(URL + f"#access_token={FICHA}&expires_in=36000&refresh_token=r&token_type=bearer&type=signup"); pg.wait_for_timeout(3000)
+    caso("al volver con el correo confirmado, la app lo dice y pide entrar", pg.get_by_text("Correo confirmado. Ahora entra").count() > 0 and pg.locator(".login-bg").count() == 1)
+    pg.evaluate("() => localStorage.clear()"); pg.goto(URL); pg.wait_for_timeout(1200)
 
     # ── 1 · crear la cuenta ──
     pg.get_by_text("Es mi primera vez: crear mi cuenta").click()

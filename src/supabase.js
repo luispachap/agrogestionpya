@@ -5,6 +5,11 @@ import { espacioDe, llavesDe } from "./espacio.js";
 // TODA variable VITE_* se copia tal cual al JavaScript que baja cualquier
 // visitante: aquí jamás puede leerse un correo ni una contraseña. La antigua
 // "cuenta técnica compartida" se retiró por eso (docs/auditoria, C-2).
+// La dirección con la que se abrió la app, guardada ANTES de crear el cliente:
+// si la persona viene del correo de confirmación, el cliente borra esa "cola"
+// de la dirección en cuanto la procesa, y la app ya no sabría decirle qué pasó.
+export const DIRECCION_AL_ABRIR = typeof window !== "undefined" ? window.location.href : "";
+
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 

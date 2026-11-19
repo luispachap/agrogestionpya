@@ -92,3 +92,26 @@ export function sesionDeCuenta(perfil) {
     superadmin,
   };
 }
+
+// ── Al regresar del correo de confirmación ──────────────────────────────────
+// El enlace del correo trae a la persona de vuelta a la app con una "cola" en
+// la dirección. Aquí se lee esa cola y se dice, en palabras, qué pasó.
+// No abre ninguna puerta: entrar sigue siendo con correo y contraseña.
+export function regresoDelCorreo(direccion) {
+  const cola = String(direccion || "");
+  const trozo = cola.includes("#") ? cola.slice(cola.indexOf("#") + 1) : (cola.includes("?") ? cola.slice(cola.indexOf("?") + 1) : "");
+  const p = new URLSearchParams(trozo);
+  if (p.get("error") || p.get("error_code")) {
+    const caduco = /expired|invalid/i.test(`${p.get("error_code") || ""} ${p.get("error_description") || ""}`);
+    return {
+      viene: true, ok: false,
+      dice: caduco
+        ? "Ese enlace ya se usó o caducó. Si tu correo ya quedó confirmado, entra con tu correo y contraseña; si no, pide que te lo manden otra vez."
+        : "No se pudo confirmar el correo con ese enlace. Pide que te lo manden otra vez.",
+    };
+  }
+  if (p.get("type") === "signup" || (p.get("access_token") && p.get("type") !== "recovery")) {
+    return { viene: true, ok: true, dice: "Correo confirmado. Ahora entra con tu correo y contraseña." };
+  }
+  return { viene: false, ok: false, dice: "" };
+}

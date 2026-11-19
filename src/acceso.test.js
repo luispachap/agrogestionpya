@@ -87,3 +87,21 @@ test("los_demas_roles_entran_como_lo_que_son_y_no_como_superadministrador", () =
     assert.equal(s.role, rol); assert.equal(s.superadmin, false);
   }
 });
+
+// ── El regreso desde el correo de confirmación ──────────────────────────────
+import { regresoDelCorreo } from "./acceso.js";
+test("al_volver_del_correo_confirmado_la_app_lo_dice_y_pide_entrar", () => {
+  const r = regresoDelCorreo("https://sitio.example/#access_token=abc&expires_in=3600&refresh_token=x&token_type=bearer&type=signup");
+  assert.equal(r.viene, true); assert.equal(r.ok, true); assert.match(r.dice, /Correo confirmado/);
+});
+test("un_enlace_caducado_se_explica_en_vez_de_dejar_una_pagina_rota", () => {
+  const r = regresoDelCorreo("https://sitio.example/#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired");
+  assert.equal(r.ok, false); assert.match(r.dice, /ya se usó o caducó/);
+  assert.equal(regresoDelCorreo("https://sitio.example/?error=server_error&error_description=x").viene, true);
+});
+test("abrir_la_app_normal_no_es_volver_del_correo", () => {
+  assert.equal(regresoDelCorreo("https://sitio.example/").viene, false);
+  assert.equal(regresoDelCorreo("").viene, false);
+  // un enlace de recuperar contraseña no se anuncia como "correo confirmado"
+  assert.equal(regresoDelCorreo("https://sitio.example/#access_token=abc&type=recovery").viene, false);
+});

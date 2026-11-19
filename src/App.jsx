@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from "react";
-import { supabase, supabaseListo, ESPACIO, LLAVES } from "./supabase";
+import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
-import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta } from "./acceso.js";
+import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo } from "./acceso.js";
 import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada } from "./dataApi";
 import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, generarSQLCuentas, exportarPolizas, HOJAS } from "./excelLoader";
 // El estado de cuenta del banco: se valida solo antes de entrar.
@@ -6695,6 +6695,30 @@ function LoginScreen({ data, add, upd, onLogin }) {
   const [codigo, setCodigo] = useState("");
   const [pideCodigo, setPideCodigo] = useState(false);
   const [aviso, setAviso] = useState("");
+  // ¿La persona viene de tocar el enlace del correo de confirmación? Se le
+  // dice qué pasó y se limpia la dirección. La sesión que ese enlace abre se
+  // cierra: aquí se entra con correo y contraseña, para que el perfil se
+  // reclame por el camino de siempre.
+  const [reenviarA, setReenviarA] = useState("");
+  useEffect(() => {
+    const r = regresoDelCorreo(DIRECCION_AL_ABRIR);
+    if (!r.viene) return;
+    setRole("admin");
+    if (r.ok) setAviso(r.dice); else { setError(r.dice); setReenviarA(" "); }
+    try { window.history.replaceState(null, "", window.location.pathname); } catch { /* ignorar */ }
+    if (supabaseListo) setTimeout(() => { supabase.auth.signOut().catch(() => {}); }, 1500);
+  }, []);
+  const reenviar = async () => {
+    const correo = (busq.includes("@") ? busq : nuevo.correo).trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) { setError("Escribe tu correo arriba y vuelve a tocar \"Mandar otra vez\"."); return; }
+    setCargando(true);
+    try {
+      const { error: e } = await supabase.auth.resend({ type: "signup", email: correo, options: { emailRedirectTo: window.location.origin } });
+      if (e) setError(/rate|seconds|limit/i.test(e.message) ? "Se acaba de mandar uno. Espera un minuto y vuelve a intentar." : `No se pudo mandar: ${e.message}`);
+      else { setError(""); setAviso(`Listo: se mandó otro correo de confirmación a ${correo}. Revisa también la carpeta de spam.`); }
+    } catch { setError("No se pudo conectar. Intenta de nuevo."); }
+    finally { setCargando(false); }
+  };
   const crearCuenta = async () => {
     setError(""); setAviso("");
     if (!supabaseListo) { setError("La conexión con la nube no está configurada"); return; }
@@ -6735,7 +6759,9 @@ function LoginScreen({ data, add, upd, onLogin }) {
           email: busq.trim(), password: pwd,
         });
         if (errAuth) {
-          setError(/confirm/i.test(errAuth.message) ? "Falta confirmar tu correo: abre el mensaje que te llegó y toca el enlace." : "Correo o contraseña incorrectos");
+          const sinConfirmar = /confirm/i.test(errAuth.message);
+          setError(sinConfirmar ? "Falta confirmar tu correo: abre el mensaje que te llegó y toca el enlace." : "Correo o contraseña incorrectos");
+          if (sinConfirmar) setReenviarA(busq.trim());
           setCargando(false); return;
         }
         // Buscar el perfil para saber el rol real
@@ -6892,6 +6918,9 @@ function LoginScreen({ data, add, upd, onLogin }) {
         )}
         {aviso && <div className="alert alert-green mb-3"><span className="alert-icon"><Ic e="✅" /></span><div className="alert-body"><div className="alert-desc">{aviso}</div></div></div>}
         {error && <div className="alert alert-red mb-3"><span className="alert-icon"><Ic e="❌" /></span><div className="alert-body"><div className="alert-desc">{error}</div></div></div>}
+        {reenviarA && supabaseListo && !crear && (
+          <button className="btn btn-outline mb-3" style={{ width: "100%" }} onClick={reenviar} disabled={cargando}>Mandar otra vez el correo de confirmación</button>
+        )}
         {crear
           ? <button className="btn btn-accent" onClick={crearCuenta} disabled={cargando}>{cargando ? "Creando..." : "Crear mi cuenta"}</button>
           : <button className="btn btn-accent" onClick={entrar} disabled={cargando}>{cargando ? "Entrando..." : "Entrar →"}</button>}
