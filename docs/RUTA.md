@@ -9,33 +9,67 @@ prueba automática que lo comprueba (con datos de mentira). *Montado* = corriend
 en el proyecto nuevo de Supabase. *Validado* = comprobado por Luis y Migue en sus
 teléfonos. **Hoy nada está montado ni validado: el proyecto nuevo aún no existe.**
 
-## El único paso que me detiene
+## Cambio de estrategia del 19 de noviembre: arranque limpio
 
-En la cuenta de Supabase sólo existe **una organización ("P&A")**, que es la
-bloqueada. Un proyecto "aislado" necesita una **organización nueva**, y crear
-organizaciones sólo se puede desde el panel — yo no tengo esa herramienta. No
-creé el proyecto dentro de "P&A": no quedaría aislado de ATALAYA, y sería
-brincarse la restricción.
+AgroGestión nunca operó de verdad; lo guardado son pruebas. La operación nueva
+empieza **sin registros de antes**: sólo catálogos aprobados por Luis y Migue,
+inventario por conteo físico, saldos con evidencia y una fecha oficial de
+inicio. Lo anterior se conserva intacto y aparte. Detalle: `ARRANQUE-LIMPIO.md`.
 
-**Luis:** supabase.com → menú de organizaciones → *New organization* → nombre
-"AgroGestion", plan **Free**. Si Supabase no lo permite por la restricción de
-facturación, ésa es la respuesta: no se intenta por otro lado, y lo vemos.
-En cuanto exista, todo lo de la sección "Montaje" lo hago yo (≈ una sesión).
+Lo que eso cambió en el plan:
 
-## Las diez instrucciones
+- **Ya no se importa nada** de la base anterior ni de los teléfonos. La base
+  anterior deja de ser requisito.
+- **Los teléfonos ya no pueden llenar la base nueva con lo que traen.** Era un
+  hueco real del plan anterior; está cerrado con dos candados (uno en la app,
+  otro en la base) y probado en navegador real.
+- **La app ya no trae nada de fábrica.** El rancho y las 24 parcelas escritos
+  en el código pasaron a la hoja de revisión.
+- **Las pruebas no se hacen en producción** (ver "Decisiones").
 
-| # | Instrucción | En rama | Probado | Montado | Validado |
+## Lo que me detiene
+
+En la cuenta de Supabase sólo existe **una organización ("P&A")**, la bloqueada.
+Crear otra sólo se puede desde el panel. No creé nada dentro de "P&A".
+
+**Luis:** supabase.com → *New organization* → "AgroGestion", plan **Free**. Si
+Supabase no lo permite por la restricción de facturación, ésa es la respuesta:
+no se intenta por otro lado.
+
+## Estado
+
+| # | Asunto | En rama | Probado | Montado | Validado |
 |---|---|---|---|---|---|
-| 1 | Proyecto nuevo y aislado | Verificado: no se puede sin organización nueva | — | **No — falta el paso de Luis** | No |
-| 2 | Reconstruir la base desde las hojas | Sí (`supabase/orden.json`, 24 hojas) | Sí: se arma desde cero, trae las 54 tablas que usa la app, todas con candado | No | No |
-| 3 | Datos anteriores: no se pierden ni se pisan | Sí (`docs/DATOS-DE-LA-BASE-ANTERIOR.md`) | — | — | — |
-| 4 | Fotos y PDF fuera de la base | Sí (hoja 26, `archivos.js`) | Sí: navegador real + ataques a la base | No | No |
-| 5 | Medidor, avisos y freno de saturación | Sí (hoja 27, banda en la app) | Sí | No | No |
-| 6 | IA una vez por documento, con presupuesto propio | Sí (hoja 28, función `leer-papel`) | La parte del teléfono y la tabla, sí. **La función del servidor, no** (necesita el proyecto) | No | No |
-| 7 | Campo por la cuenta del encargado, sin cuenta compartida | Sí (hoja 29, teléfono ligado) | Sí: navegador real contra una nube de mentira que rechaza como la de verdad | No | No |
-| 8 | Historial económico sin inventar sueldos | Sí (`calculos.js`) | Sí | — | No |
-| 9 | Probar todo en el proyecto nuevo y en teléfonos | Guía lista (`docs/PRUEBA-EN-TELEFONOS.md`) | — | No | No |
-| 10 | Cambio de producción preparado, sin ejecutar | Sí (`docs/CAMBIO-DE-PRODUCCION.md`) | — | — | — |
+| 1 | Organización y proyecto nuevos, aislados | — | — | **No: falta el paso de Luis** | No |
+| 2 | Base reconstruible desde cero (25 hojas, 54 tablas) y que nace vacía | Sí | Sí | No | No |
+| 3 | Lo viejo no entra: cajón propio por espacio + candado en la base | Sí | Sí (navegador real + ataques a la base) | No | No |
+| 4 | Lo viejo se conserva: nada se borra, se puede descargar | Sí | Sí | — | No |
+| 5 | Catálogos sólo validados (herramienta y hoja de revisión) | Sí | Sí, de punta a punta con datos de mentira | — | No |
+| 6 | Sin PIN, cuentas ni permisos de antes | Sí | Sí | No | No |
+| 7 | Inventario inicial por conteo físico | Regla escrita; **falta conectarla a la pantalla** | La regla, sí | No | No |
+| 8 | Saldos iniciales con corte, responsable y evidencia | Regla escrita; **falta la pantalla** | La regla, sí | No | No |
+| 9 | Fecha oficial de inicio | En la base; **falta el botón en la app** | Sí | No | No |
+| 10 | Datos de prueba fuera de producción | Depende de la decisión de abajo | — | — | — |
+| — | Fotos fuera de la base, medidor, IA con tope, campo por encargado, lápidas, sueldos | Sí | Sí | No | No |
+| — | Función de lectura con IA en el servidor | Sí | **No** (necesita el proyecto) | No | No |
+
+## Decisiones que necesito
+
+1. **Dónde se prueba.** El plan gratuito da dos proyectos activos por persona y
+   Luis ya usa uno (el despacho): no caben pruebas y producción a la vez.
+   Propongo crear primero el de **pruebas**, validar en teléfonos, eliminarlo y
+   crear el de **producción** limpio. Alternativa: que Migue cree el de pruebas
+   con su cuenta. Detalle en `ARRANQUE-LIMPIO.md`, sección 6.
+2. **La fecha de inicio de operaciones.**
+3. **Quién aprueba los catálogos** y de qué fuentes (qué respaldos existen).
+
+## Necesita autorización, y no se ha hecho
+
+- Crear proyectos en Supabase (cuando exista la organización; costo $0).
+- Eliminar el proyecto de pruebas al terminar.
+- Cargar los catálogos aprobados.
+- Publicar a producción.
+- Cualquier llave o gasto de IA.
 
 ## Qué cambia en la app (ya en la rama `produccion/base-vigente`)
 
@@ -72,16 +106,17 @@ En cuanto exista, todo lo de la sección "Montaje" lo hago yo (≈ una sesión).
 
 ## Montaje (lo hago yo en cuanto exista la organización)
 
-1. Crear el proyecto en la organización nueva — plan gratuito, costo $0.
-2. Aplicar las 24 hojas en el orden de `supabase/orden.json`.
-3. Correr contra el proyecto real los mismos ataques de `pruebas/base/`.
-4. Revisar los avisos de seguridad del propio Supabase.
-5. Instalar la función `leer-papel` (queda apagada hasta que haya llave de IA).
-6. **Luis y Migue** crean su cuenta con su correo; yo los nombro
-   superadministradores; **Luis** apaga el registro libre de cuentas.
-7. Publicar una **vista previa** (no producción) apuntando al proyecto nuevo.
-8. Prueba en teléfonos (`docs/PRUEBA-EN-TELEFONOS.md`).
-9. Con tu autorización: `docs/CAMBIO-DE-PRODUCCION.md`.
+Primero en el proyecto **de pruebas**; después, igual, en el de producción.
+
+1. Crear el proyecto — plan gratuito, costo $0.
+2. Aplicar las 25 hojas en el orden de `supabase/orden.json`.
+3. **Sellar el espacio** y comprobar que no hay ni un registro de operación.
+4. Correr contra el proyecto real los mismos ataques de `pruebas/base/`.
+5. Revisar los avisos de seguridad del propio Supabase.
+6. Cuentas nuevas de Luis y Migue → superadministradores; **Luis** apaga el
+   registro libre de cuentas.
+7. Vista previa apuntando a ese proyecto → `PRUEBA-EN-TELEFONOS.md`.
+8. Arranque: `ARRANQUE-LIMPIO.md`, sección 5. Cambio: `CAMBIO-DE-PRODUCCION.md`.
 
 ## Lo que sigue abierto
 
@@ -89,6 +124,7 @@ En cuanto exista, todo lo de la sección "Montaje" lo hago yo (≈ una sesión).
   Migue usando la app de verdad; la prueba en teléfonos es el momento.
 - **Notas de voz:** siguen dentro del registro (el almacén sólo acepta fotos y
   PDF). Son pocas y cortas; se mueven después si el medidor lo pide.
+- **La pantalla de importar catálogos desde Excel** sigue ahí para superadministradores; se brinca la hoja de revisión. Regla: no usarla en el arranque.
 - **Respaldo automático:** el plan gratuito no lo trae. Queda el respaldo manual
   desde la app y el que yo puedo sacar con autorización. La restauración hay que
   ensayarla una vez en el proyecto nuevo antes del cambio.
@@ -102,5 +138,15 @@ En cuanto exista, todo lo de la sección "Montaje" lo hago yo (≈ una sesión).
 
 ## Cómo correr todas las pruebas
 
-`sh pruebas/todo.sh` — 639 de reglas, 32 contra la base, compilación, y 48 pasos
-en navegador real (acceso, 131 pantallas por rol, fotos, captura de campo).
+`sh pruebas/todo.sh` — 661 de reglas, 40 contra la base, compilación, y 61 pasos
+en navegador real (acceso, 131 pantallas por rol, fotos, captura de campo y
+arranque limpio). Ninguna prueba ni candado anterior se quitó.
+
+## Lo que viene después
+
+La especificación ampliada de la reunión de administración (asistencia, QR,
+inventarios, herramientas, combustible, insumos, mano de obra, seguimiento
+agronómico, finanzas, tierras y agua). **No se ha implementado nada de eso**:
+espero los requisitos y las prioridades. Lo único que adelanté, porque lo pide
+el arranque, son las reglas del conteo inicial, los saldos iniciales y la fecha
+de inicio.

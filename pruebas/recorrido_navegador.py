@@ -30,8 +30,8 @@ SEMILLA = {
 }
 def sembrar(pg):
     pg.goto(URL); pg.wait_for_timeout(1200)
-    pg.evaluate("""s => { const d = JSON.parse(localStorage.getItem('agro_v7') || '{}');
-        localStorage.clear(); localStorage.setItem('agro_v7', JSON.stringify({ ...d, ...JSON.parse(s) })); }""", json.dumps(SEMILLA))
+    pg.evaluate("""s => { const d = JSON.parse(localStorage.getItem('agro_v8:local') || '{}');
+        localStorage.clear(); localStorage.setItem('agro_v8:local', JSON.stringify({ ...d, ...JSON.parse(s) })); }""", json.dumps(SEMILLA))
     pg.reload(); pg.wait_for_timeout(1200)
 def entrar(pg, tarjeta, clave):
     pg.locator(".role-card", has_text=tarjeta).first.click()
@@ -59,7 +59,7 @@ with sync_playwright() as p:
     caso("entra el administrador con su PIN propio", entrar(pg, "Admin", "7391"))
     caso("con guardado sano NO sale el aviso", pg.get_by_text("NO está guardando").count() == 0)
     pg.evaluate("""() => { const o = Storage.prototype.setItem;
-        Storage.prototype.setItem = function (k, v) { if (k === 'agro_v7') throw new DOMException('lleno', 'QuotaExceededError'); return o.call(this, k, v); }; }""")
+        Storage.prototype.setItem = function (k, v) { if (k === 'agro_v8:local') throw new DOMException('lleno', 'QuotaExceededError'); return o.call(this, k, v); }; }""")
     pg.evaluate("() => window.__agroIr('equipo')"); pg.wait_for_timeout(600)
     pg.aceptar = True  # cualquier cambio de datos sirve: nombrar cabo intenta guardar
     pg.locator('button[title^="Nombrar cabo"]').first.click(); pg.wait_for_timeout(900)
@@ -70,7 +70,7 @@ with sync_playwright() as p:
     # ── 2 · Borrar a un trabajador pide confirmación ──
     pg = nueva(); sembrar(pg); entrar(pg, "Admin", "7391")
     pg.evaluate("() => window.__agroIr('equipo')"); pg.wait_for_timeout(600)
-    n = lambda: len(pg.evaluate("() => JSON.parse(localStorage.getItem('agro_v7')).trabajadores"))
+    n = lambda: len(pg.evaluate("() => JSON.parse(localStorage.getItem('agro_v8:local')).trabajadores"))
     boton = pg.get_by_label("Borrar a TRABAJADOR DE PRUEBA")
     caso("el trabajador de prueba aparece en Equipo", boton.count() == 1 and n() == 1)
     pg.aceptar = False; boton.click(); pg.wait_for_timeout(700)
@@ -78,7 +78,7 @@ with sync_playwright() as p:
     caso("si se contesta que NO, el trabajador sigue ahí", n() == 1 and boton.count() == 1)
     pg.aceptar = True; boton.click(); pg.wait_for_timeout(900)
     caso("si se contesta que SÍ, se borra", n() == 0)
-    bit = pg.evaluate("() => (JSON.parse(localStorage.getItem('agro_v7')).auditoria || [])")
+    bit = pg.evaluate("() => (JSON.parse(localStorage.getItem('agro_v8:local')).auditoria || [])")
     caso("y el borrado queda anotado en la bitácora", any(x.get("accion") == "borro" and x.get("tabla") == "trabajadores" for x in bit), f"{len(bit)} renglones")
     pg.context.close()
 

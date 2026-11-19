@@ -50,7 +50,7 @@ def entrar_trabajador(pg):
         pg.wait_for_timeout(300)
         if pg.locator(".login-bg").count() == 0: return True
     return False
-COLA = "() => JSON.parse(localStorage.getItem('agro_pending_v7') || '[]')"
+COLA = "() => JSON.parse(localStorage.getItem('agro_cola_v8:localhost') || '[]')"
 
 with sync_playwright() as p:
     b = p.chromium.launch()
@@ -61,7 +61,7 @@ with sync_playwright() as p:
     pg.on("pageerror", lambda e: errores.append(str(e)))
     pg.on("dialog", lambda d: d.accept())
     pg.goto(URL); pg.wait_for_timeout(1200)
-    pg.evaluate("s => { localStorage.clear(); localStorage.setItem('agro_v7', s); }", json.dumps(SEMILLA))
+    pg.evaluate("s => { localStorage.clear(); localStorage.setItem('agro_v8:localhost', s); }", json.dumps(SEMILLA))
     pg.reload(); pg.wait_for_timeout(1200)
 
     # ── 1 · sin cuenta ligada ──
@@ -70,17 +70,17 @@ with sync_playwright() as p:
         trabajadorId: 't-prueba', registradoPor: { rol: 'trabajador', id: 't-prueba', nombre: 'TRABAJADOR DE PRUEBA' } })""")
     pg.wait_for_timeout(6000)   # tiempo de sobra para que la cola hubiera reintentado
     cola = pg.evaluate(COLA)
-    act = pg.evaluate("() => JSON.parse(localStorage.getItem('agro_v7')).actividades")
+    act = pg.evaluate("() => JSON.parse(localStorage.getItem('agro_v8:localhost')).actividades")
     caso("la captura quedó guardada en el teléfono", len(act) == 1)
     caso("y lleva el sueldo de ese día pegado", len(act) == 1 and act[0].get("sueldoDia") == 350 and act[0].get("trabajadorNombre") == "TRABAJADOR DE PRUEBA")
     caso("espera en la cola sin gastar intentos", len(cola) == 1 and cola[0].get("intentos", 0) == 0 and len(rechazadas) == 1, f"intentos={cola[0].get('intentos') if cola else '-'}, rechazos de la nube={len(rechazadas)}")
     caso("la app dice que está SIN subir y por qué", pg.get_by_text("SIN subir: ninguna cuenta está ligada").count() > 0)
-    caso("nada se apartó como fallido", pg.evaluate("() => JSON.parse(localStorage.getItem('agro_fallidas_v1') || '[]').length") == 0)
+    caso("nada se apartó como fallido", pg.evaluate("() => JSON.parse(localStorage.getItem('agro_fallidas_v8:localhost') || '[]').length") == 0)
 
     # ── 2 · el encargado deja su cuenta ligada ──
     pg.evaluate("""([ses, cuenta]) => { localStorage.setItem('sb-localhost-auth-token', JSON.stringify(ses));
-        localStorage.setItem('agro_campo_v1', JSON.stringify({ cuentaId: cuenta, nombre: 'ENCARGADO DE PRUEBA', desde: new Date().toISOString() }));
-        localStorage.removeItem('agro_session_v1'); }""", [SESION, CUENTA])
+        localStorage.setItem('agro_campo_v8:localhost', JSON.stringify({ cuentaId: cuenta, nombre: 'ENCARGADO DE PRUEBA', desde: new Date().toISOString() }));
+        localStorage.removeItem('agro_sesion_v8:localhost'); }""", [SESION, CUENTA])
     pg.reload(); pg.wait_for_timeout(2500)
     caso("con el teléfono ligado, la cuenta del encargado NO abre sus pantallas sola", pg.locator(".login-bg").count() == 1)
 
@@ -97,9 +97,9 @@ with sync_playwright() as p:
     caso("y ya no sale el aviso de 'sin subir'", pg.get_by_text("SIN subir: ninguna cuenta está ligada").count() == 0)
 
     # ── 4 · un cambio de sueldo queda anotado ──
-    pg.evaluate("() => { const t = JSON.parse(localStorage.getItem('agro_v7')).trabajadores[0]; window.__agro.upd('trabajadores', { ...t, sueldo_dia: 400 }); }")
+    pg.evaluate("() => { const t = JSON.parse(localStorage.getItem('agro_v8:localhost')).trabajadores[0]; window.__agro.upd('trabajadores', { ...t, sueldo_dia: 400 }); }")
     pg.wait_for_timeout(1200)
-    t = pg.evaluate("() => JSON.parse(localStorage.getItem('agro_v7')).trabajadores[0]")
+    t = pg.evaluate("() => JSON.parse(localStorage.getItem('agro_v8:localhost')).trabajadores[0]")
     h = t.get("historialSueldo") or []
     caso("subir un sueldo deja anotado desde cuándo y cuánto ganaba antes", len(h) == 1 and h[0]["sueldo_dia"] == 400 and h[0]["anterior"] == 350, json.dumps(h))
     caso("ninguna pantalla tronó", not errores, "; ".join(errores)[:200])

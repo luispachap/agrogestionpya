@@ -25,16 +25,16 @@ with sync_playwright() as p:
         sigue_fuera = pg.locator(".login-bg").count() > 0
         caso(f"C-1 · PIN de fábrica de {rol} ya no entra", sigue_fuera, (pg.locator(".alert-desc").first.text_content() or "")[:70] if sigue_fuera else "ENTRÓ COMO " + rol.upper())
         if not sigue_fuera:  # versión vulnerable: limpiar para poder seguir probando
-            pg.evaluate("() => localStorage.removeItem('agro_session_v1')"); pg.reload(); pg.wait_for_timeout(1200)
+            pg.evaluate("() => localStorage.removeItem('agro_sesion_v8:local')"); pg.reload(); pg.wait_for_timeout(1200)
     # C-3: sesión falsificada escrita a mano en el teléfono
     for falsa in ({"role": "admin", "id": "admin", "nombre": "X", "cuenta": True}, {"role": "encargado", "id": "inventado", "nombre": "X"}, {"role": "finanzas", "id": "finanzas", "cuenta": True}):
-        pg.evaluate("s => localStorage.setItem('agro_session_v1', s)", json.dumps(falsa))
+        pg.evaluate("s => localStorage.setItem('agro_sesion_v8:local', s)", json.dumps(falsa))
         pg.reload(); pg.wait_for_timeout(1200)
         fuera = pg.locator(".login-bg").count() > 0
-        borrada = pg.evaluate("() => localStorage.getItem('agro_session_v1')") is None
+        borrada = pg.evaluate("() => localStorage.getItem('agro_sesion_v8:local')") is None
         caso(f"C-3 · sesión falsa de {falsa['role']} es rechazada y borrada", fuera and borrada)
     # M-7: la app recién abierta no trae trabajadores en el teléfono
-    datos = pg.evaluate("() => JSON.parse(localStorage.getItem('agro_v7') || '{}')")
+    datos = pg.evaluate("() => JSON.parse(localStorage.getItem('agro_v8:local') || '{}')")
     caso("M-7 · una instalación nueva no trae trabajadores precargados", len(datos.get("trabajadores", [])) == 0, f"{len(datos.get('trabajadores', []))} trabajadores")
     caso("sin errores de ejecución en la página", not errores, "; ".join(errores)[:200])
     b.close()

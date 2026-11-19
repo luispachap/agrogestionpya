@@ -43,7 +43,9 @@ test("C-6 · la recarga remota ya no borra las colas de pendientes", () => {
   const i = app.indexOf("planDeRecarga({");
   assert.ok(i > 0);
   const tramo = app.slice(i, i + 900);
-  assert.equal(/agro_pending_v7"\)|agro_fallidas_v1"\)/.test(tramo.replace(/lsGet\("agro_(pending_v7|fallidas_v1)"\)/g, "")), false);
+  // La recarga lee las colas para decidir, pero no las borra: sólo quita lo que diga el plan.
+  assert.equal(/removeItem\(LLAVES\.(cola|fallidas)\)/.test(tramo), false);
+  assert.match(tramo, /plan\.claves\.forEach/);
 });
 test("M-7 · ningún archivo fuente ni de prueba trae apellidos de la nómina real", () => {
   // No se escriben aquí los nombres (sería repetir el dato): se vigila el patrón

@@ -19,7 +19,7 @@ def png(semilla, lado=900):
     return b"\x89PNG\r\n\x1a\n" + trozo(b"IHDR", struct.pack(">IIBBBBB", lado, lado, 8, 2, 0, 0, 0)) + trozo(b"IDAT", zlib.compress(filas, 1)) + trozo(b"IEND", b"")
 
 SEMILLA = {"config_seguridad": [{"id": "seg", "pin_admin": h("7391")}]}
-LEE = "() => JSON.parse(localStorage.getItem('agro_v7'))"
+LEE = "() => JSON.parse(localStorage.getItem('agro_v8:local'))"
 EN_TELEFONO = """() => new Promise(ok => { const p = indexedDB.open('agro_archivos_v1', 1);
   p.onsuccess = () => { const r = p.result.transaction('archivos').objectStore('archivos').getAll();
     r.onsuccess = () => ok(r.result.map(f => ({ id: f.id, bytes: f.bytes, subido: f.subido, tam: f.blob.size }))); }; })"""
@@ -32,7 +32,7 @@ with sync_playwright() as p:
     pg.on("pageerror", lambda e: errores.append(str(e)))
     pg.on("dialog", lambda d: d.dismiss())
     pg.goto(URL); pg.wait_for_timeout(1200)
-    pg.evaluate("s => { localStorage.clear(); localStorage.setItem('agro_v7', s); }", json.dumps(SEMILLA))
+    pg.evaluate("s => { localStorage.clear(); localStorage.setItem('agro_v8:local', s); }", json.dumps(SEMILLA))
     pg.reload(); pg.wait_for_timeout(1200)
     pg.locator(".role-card", has_text="Admin").first.click()
     pg.locator(".login-sheet input").first.fill("7391")
@@ -54,7 +54,7 @@ with sync_playwright() as p:
     caso("hay una ficha del archivo con su peso", len(fichas) == 1 and fichas[0]["bytes"] > 20000, f"{fichas[0]['bytes'] // 1024} kB" if fichas else "")
     tel = pg.evaluate(EN_TELEFONO)
     caso("la foto está en el cajón de fotos del teléfono", len(tel) == 1 and tel[0]["tam"] == tel[0]["bytes"] and tel[0]["id"] == fichas[0]["id"])
-    peso = pg.evaluate("() => localStorage.getItem('agro_v7').length")
+    peso = pg.evaluate("() => localStorage.getItem('agro_v8:local').length")
     caso("la memoria de datos ya no carga la foto", peso < fichas[0]["bytes"] / 4, f"datos {peso // 1024} kB contra foto de {fichas[0]['bytes'] // 1024} kB")
 
     texto2 = subir(1)   # la MISMA foto otra vez

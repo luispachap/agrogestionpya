@@ -61,8 +61,11 @@ Usuarios reales de la app:
 
 ## Datos
 
-- **Estado local**: `localStorage` (`agro_v7` datos, `agro_pending_v7` cola de
-  subida, `agro_session_v1` sesión, `agro_corrida_cfg`, `agro_reset_token`).
+- **Estado local**: `localStorage`, en un cajón propio por ESPACIO (un espacio =
+  un proyecto de Supabase). Las llaves salen de `LLAVES` en `src/supabase.js`
+  (`agro_v8:<espacio>`, `agro_cola_v8:<espacio>`…). **Nunca escribas una llave a
+  mano**, y nunca `localStorage.clear()`: en el teléfono vive aparte lo de antes
+  (`agro_v7` y su cola), que la app no lee, no sube y no borra.
 - **Sincronización**: escribe local + encola a la nube. `TABLAS_NUBE` en `App.jsx`
   y `TABLAS` en `dataApi.js` **deben coincidir siempre**.
 - **Columnas**: las tablas de Supabase tienen columnas fijas; todo campo extra
@@ -134,7 +137,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **103 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **105 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.
@@ -470,6 +473,28 @@ y un gasto duplicado se descubre tarde y mal.
   `LO-QUE-FALTA-CONSTRUIR.md`: titulares y bolsas, lectura de estados de cuenta,
   cuenta corriente entre socios, el ganado.
 
+## Arranque limpio: lo de antes no entra
+
+AgroGestión nunca operó de verdad; lo guardado en la base anterior y en los
+teléfonos son pruebas. La operación arranca SIN registros de antes
+(`docs/ARRANQUE-LIMPIO.md`). Reglas que no se rompen:
+
+- **Dos candados.** En la app, el cajón por espacio (`src/espacio.js`). En la
+  base, la hoja 31: rechaza todo registro que no traiga la marca `_espacio` de
+  su espacio, aunque quien lo suba tenga permiso. `marcarTocado` pone la marca.
+- **`INITIAL` va vacío.** Nada de fábrica: ni rancho, ni parcelas, ni gente.
+- **Sólo catálogos validados** entran de antes, por `herramientas/catalogos.mjs`
+  (hoja de Excel → sí/no de Luis y Migue → carga con autorización). Sin PIN, sin
+  existencias, sin costos, con id nuevo. Nunca un movimiento.
+- **Un respaldo de antes no se restaura** (`revisarRespaldo`). Lo de antes sólo
+  se puede descargar.
+- Inventario inicial = conteo físico con fecha, lugar y responsable. Saldos
+  iniciales = fecha de corte, responsable y evidencia. La fecha de inicio se
+  declara una vez (`declarar_inicio`). Las reglas están en `src/arranque.js`.
+- **Los datos de prueba no tocan producción**, y una vista previa nunca lleva
+  las llaves del proyecto de producción.
+- `respaldos/` no se sube al repositorio: trae nombres de personas.
+
 ## Infraestructura propia y plan gratuito
 
 AgroGestión vive en su propio proyecto de Supabase (plan gratuito: 500 MB de
@@ -484,7 +509,7 @@ el plan y el estado. La base se arma desde cero con `supabase/orden.json`.
 - **Borrar deja lápida** (`borrar_registro`, hoja 30). No hay borrado directo en
   ninguna tabla. La mezcla con la nube vive en `src/sincroniza.js`.
 - **La gente de campo sube por la cuenta de su encargado** (teléfono ligado,
-  `agro_campo_v1`). Nunca una cuenta técnica compartida, y nunca se liga la
+  `LLAVES.campo`). Nunca una cuenta técnica compartida, y nunca se liga la
   cuenta de un superadministrador.
 - **La IA se llama una vez por documento** (por huella) y con tope mensual
   (`limites`, `uso_ia`). `uso_ia` sólo la escribe la función del servidor.

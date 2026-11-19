@@ -126,7 +126,7 @@ test("ninguna_tabla_queda_sin_candado", async () => {
     where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity`);
   assert.deepEqual(sin.map((x) => x.relname), []);
   const viejas = await verdad(db, `select tablename, policyname from pg_policies where schemaname = 'public'
-    and (qual like '%tiene_perfil%' or with_check like '%tiene_perfil%') and tablename not in ('auditoria', 'permisos_rol', 'limites')`);
+    and (qual like '%tiene_perfil%' or with_check like '%tiene_perfil%') and tablename not in ('auditoria', 'permisos_rol', 'limites', 'operacion')`);
   assert.deepEqual(viejas, [], "no debe quedar ninguna regla vieja de 'quien tenga perfil puede todo'");
 });
 test("la_reversa_devuelve_el_trabajo_pero_no_reabre_el_hoyo", async () => {

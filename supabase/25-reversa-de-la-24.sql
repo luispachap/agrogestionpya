@@ -15,7 +15,7 @@ begin
   for t in
     select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind = 'r'
-      and c.relname not in ('perfiles','permisos_rol','auditoria','limites','uso_ia')
+      and c.relname not in ('perfiles','permisos_rol','auditoria','limites','uso_ia','operacion')
   loop
     for p in select policyname from pg_policies where schemaname = 'public' and tablename = t loop
       execute format('drop policy %I on %I', p.policyname, t);

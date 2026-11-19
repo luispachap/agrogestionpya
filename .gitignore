@@ -20,3 +20,6 @@ npm-debug.log*
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# Respaldos de teléfonos y hojas de catálogos: traen datos personales. Nunca al repositorio.
+respaldos/

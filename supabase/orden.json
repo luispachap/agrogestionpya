@@ -1,13 +1,30 @@
 {
   "_": "El orden para reconstruir la base desde cero. Lo usan las pruebas (pruebas/base) y la guía de montaje. Las hojas 0, 3 y 12 (limpiezas), 14 a 16 (revisiones) y 25 (reversa) no van aquí a propósito.",
   "hojas": [
-    "1-esquema", "2-seguridad", "4-tabla-solicitudes-compra", "5-tabla-bitacora",
-    "6-tabla-avances-fase", "7-tabla-embarques", "8-tabla-terminados", "9-tabla-corridas",
-    "10-tabla-estibas", "11-tabla-config-seguridad", "13-tablas-emisor-y-control",
-    "17-tabla-config-contpaqi", "18-tablas-lectura-de-papeles", "19-tabla-estados-de-cuenta",
-    "20-tablas-titulares-y-bolsas", "21-tablas-ganado", "22-auditoria-y-borrado",
+    "1-esquema",
+    "2-seguridad",
+    "4-tabla-solicitudes-compra",
+    "5-tabla-bitacora",
+    "6-tabla-avances-fase",
+    "7-tabla-embarques",
+    "8-tabla-terminados",
+    "9-tabla-corridas",
+    "10-tabla-estibas",
+    "11-tabla-config-seguridad",
+    "13-tablas-emisor-y-control",
+    "17-tabla-config-contpaqi",
+    "18-tablas-lectura-de-papeles",
+    "19-tabla-estados-de-cuenta",
+    "20-tablas-titulares-y-bolsas",
+    "21-tablas-ganado",
+    "22-auditoria-y-borrado",
     "23-chat-indicaciones-y-dron",
-    "24-permisos-por-rol", "26-archivos-en-almacen-privado", "27-consumo-y-limites",
-    "28-uso-de-ia", "29-captura-de-campo", "30-borrar-deja-lapida"
+    "24-permisos-por-rol",
+    "26-archivos-en-almacen-privado",
+    "27-consumo-y-limites",
+    "28-uso-de-ia",
+    "29-captura-de-campo",
+    "30-borrar-deja-lapida",
+    "31-operacion-y-espacio-limpio"
   ]
 }

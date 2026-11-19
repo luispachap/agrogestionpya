@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from "react";
-import { supabase, supabaseListo } from "./supabase";
+import { supabase, supabaseListo, ESPACIO, LLAVES } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
 import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta } from "./acceso.js";
 import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada } from "./dataApi";
@@ -82,6 +82,7 @@ import {
   abrirAlmacen, almacenListo, guardarEnTelefono, enlaceDeArchivo, contenidoDeArchivo,
   subirArchivosPendientes, archivosSinSubir,
 } from "./almacenArchivos.js";
+import { marcarEspacio, llavesQueSeReinician, loDeAntes, sobreDeRespaldo, revisarRespaldo, LLAVES_ANTERIORES } from "./espacio.js";
 import { mezclarConNube, planDeSubida, puedeLigarTelefono, vinculoDe, abrePantallasSola } from "./sincroniza.js";
 import { revisarHorometro, compararConsumo, consumoPorHora } from "./maquinaria.js";
 
@@ -487,36 +488,12 @@ const nombreUbicacion = (codigo) => {
 };
 
 const INITIAL = {
-  ranchos: [
-    { id: "r_agro", nombre: "Agroselectos P&A", lat: null, lng: null, hectareas: 0 },
-  ],
-  parcelas: [
-    /* Parcelas reales importadas del sistema de nóminas (Agroselectos P&A) */
-    { id: "p_r01", ranchoId: "r_agro", ubicacionId: "R01", nombre: "RANCHO 1",     cultivo: "", hectareas: 0, emoji: "🌾", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r02", ranchoId: "r_agro", ubicacionId: "R02", nombre: "RANCHO 2",     cultivo: "", hectareas: 0, emoji: "🌾", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r03", ranchoId: "r_agro", ubicacionId: "R03", nombre: "RANCHO 3",     cultivo: "", hectareas: 0, emoji: "🌾", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r04", ranchoId: "r_agro", ubicacionId: "R04", nombre: "RANCHO 4",     cultivo: "", hectareas: 0, emoji: "🌾", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r05", ranchoId: "r_agro", ubicacionId: "R05", nombre: "GON",          cultivo: "", hectareas: 0, emoji: "🌱", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r06", ranchoId: "r_agro", ubicacionId: "R06", nombre: "CANAL",        cultivo: "", hectareas: 0, emoji: "🌱", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r07", ranchoId: "r_agro", ubicacionId: "R07", nombre: "CARRETERA 1",  cultivo: "", hectareas: 0, emoji: "🌱", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r08", ranchoId: "r_agro", ubicacionId: "R08", nombre: "CARRETERA 2",  cultivo: "", hectareas: 0, emoji: "🌱", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r09", ranchoId: "r_agro", ubicacionId: "R09", nombre: "EL 50",        cultivo: "", hectareas: 0, emoji: "🌾", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r10", ranchoId: "r_agro", ubicacionId: "R10", nombre: "EL 51",        cultivo: "", hectareas: 0, emoji: "🌾", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r11", ranchoId: "r_agro", ubicacionId: "R11", nombre: "EL 53",        cultivo: "", hectareas: 0, emoji: "🌾", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r12", ranchoId: "r_agro", ubicacionId: "R12", nombre: "SAN FELIPE 1", cultivo: "", hectareas: 0, emoji: "🌿", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r13", ranchoId: "r_agro", ubicacionId: "R13", nombre: "SAN FELIPE 2", cultivo: "", hectareas: 0, emoji: "🌿", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r14", ranchoId: "r_agro", ubicacionId: "R14", nombre: "SAN FELIPE 3", cultivo: "", hectareas: 0, emoji: "🌿", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r15", ranchoId: "r_agro", ubicacionId: "R15", nombre: "SAN FELIPE 4", cultivo: "", hectareas: 0, emoji: "🌿", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r16", ranchoId: "r_agro", ubicacionId: "R16", nombre: "DON JOSE 1",   cultivo: "", hectareas: 0, emoji: "🌱", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r17", ranchoId: "r_agro", ubicacionId: "R17", nombre: "DON JOSE 2",   cultivo: "", hectareas: 0, emoji: "🌱", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r18", ranchoId: "r_agro", ubicacionId: "R18", nombre: "DON JOSE 3",   cultivo: "", hectareas: 0, emoji: "🌱", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r19", ranchoId: "r_agro", ubicacionId: "R19", nombre: "TULO",         cultivo: "", hectareas: 0, emoji: "🌾", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r20", ranchoId: "r_agro", ubicacionId: "R20", nombre: "GUERO 1",      cultivo: "", hectareas: 0, emoji: "🌾", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r21", ranchoId: "r_agro", ubicacionId: "R21", nombre: "GUERO 2",      cultivo: "", hectareas: 0, emoji: "🌾", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r22", ranchoId: "r_agro", ubicacionId: "R22", nombre: "MARCOS",       cultivo: "", hectareas: 0, emoji: "🌱", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r23", ranchoId: "r_agro", ubicacionId: "R23", nombre: "RANCHO NARANJO", cultivo: "", hectareas: 0, emoji: "🌾", lat: null, lng: null, foto: null, cicloFenologico: [] },
-    { id: "p_r00", ranchoId: "r_agro", ubicacionId: "R00", nombre: "BODEGA",       cultivo: "", hectareas: 0, emoji: "🏚️", lat: null, lng: null, foto: null, cicloFenologico: [] },
-  ],
+  // NADA de fábrica. La operación arranca limpia: ranchos, parcelas y todo
+  // catálogo entran por la revisión de catálogos, aprobados uno por uno.
+  // (Las parcelas que antes venían escritas aquí están en
+  // herramientas/catalogo-del-codigo.json, como una fuente más a revisar.)
+  ranchos: [],
+  parcelas: [],
   cultivos: [],
   siembras: [],
   // Los trabajadores NO van en el código: nombre, sueldo y PIN son datos personales
@@ -2028,11 +2005,11 @@ function useOffline() {
   const [online, setOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
   // Cola de operaciones pendientes de enviar a Supabase. Cada item:
   //   { id, operacion: "upd"|"del", sec, payload, queuedAt, intentos }
-  const [pending, setPending] = useLS("agro_pending_v7", []);
+  const [pending, setPending] = useLS(LLAVES.cola, []);
   // Operaciones que fallaron muchas veces. NO se borran: se apartan aquí para
   // no atascar la cola, pero quedan disponibles para reintentar manualmente.
   // Así NUNCA se pierde un dato en silencio.
-  const [fallidas, setFallidas] = useLS("agro_fallidas_v1", []);
+  const [fallidas, setFallidas] = useLS(LLAVES.fallidas, []);
   const [justSynced, setJustSynced] = useState(false);
   const [sinCuenta, setSinCuenta] = useState(false);
   const procesandoRef = useRef(false);
@@ -2145,8 +2122,9 @@ class ErrorBoundary extends Component {
             <button className="btn btn-accent" onClick={() => this.setState({ error: null })}>Reintentar</button>
             <button className="btn btn-outline" style={{ marginTop: 10 }} onClick={() => { if (this.props.onReset) this.props.onReset(); this.setState({ error: null }); }}>Volver al inicio</button>
             <button className="btn btn-danger" style={{ marginTop: 10 }} onClick={() => {
-              if (confirm("Esto borra los datos guardados en este dispositivo y reinicia la app con los datos de ejemplo. ¿Continuar?")) {
-                try { window.localStorage.clear(); } catch {}
+              if (confirm("Esto borra de ESTE teléfono los datos de la operación actual (lo que ya subió a la nube se vuelve a bajar; lo que no haya subido se pierde). ¿Continuar?")) {
+                // Nunca se borra TODO el teléfono: ahí vive, aparte, lo de antes.
+                try { llavesQueSeReinician(ESPACIO).forEach(k => window.localStorage.removeItem(k)); } catch {}
                 window.location.reload();
               }
             }}>Reiniciar datos de la app</button>
@@ -5912,7 +5890,7 @@ function BuzonPapeles({ data, add, upd, setInv, session, onClose }) {
 const normalizarNombre = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 
 function AppInner() {
-  const [rawData, setData] = useLS("agro_v7", INITIAL);
+  const [rawData, setData] = useLS(LLAVES.datos, INITIAL);
   // normalizeData incluye el cálculo de mano de obra (recorre todas las actividades),
   // así que lo memorizamos: solo se recalcula cuando rawData cambia, no en cada render.
   const data = useMemo(() => normalizeData(rawData), [rawData]);
@@ -5924,22 +5902,22 @@ function AppInner() {
   // porque no acceden a información sensible y se busca su comodidad en campo.
   useEffect(() => {
     try {
-      const guardada = localStorage.getItem("agro_session_v1");
+      const guardada = localStorage.getItem(LLAVES.sesion);
       if (!guardada) return;
       // sesionRestaurable NUNCA devuelve un rol de dirección (esos se reconstruyen
       // abajo, preguntándole su perfil al servidor) y sólo devuelve un rol de campo
       // si esa persona existe en el catálogo.
-      const s = sesionRestaurable(JSON.parse(guardada), normalizeData(lsGet("agro_v7")));
+      const s = sesionRestaurable(JSON.parse(guardada), normalizeData(lsGet(LLAVES.datos)));
       if (s) setSessionRaw(s);
-      else localStorage.removeItem("agro_session_v1");
+      else localStorage.removeItem(LLAVES.sesion);
     } catch { /* ignorar */ }
   }, []);
   // setSession persiste la sesión; al cerrar (null) la borra.
   const setSession = useCallback((s) => {
     setSessionRaw(s);
     try {
-      if (s) localStorage.setItem("agro_session_v1", JSON.stringify(s));
-      else localStorage.removeItem("agro_session_v1");
+      if (s) localStorage.setItem(LLAVES.sesion, JSON.stringify(s));
+      else localStorage.removeItem(LLAVES.sesion);
     } catch { /* ignorar */ }
   }, []);
   const [page, setPageRaw] = useState("home");
@@ -5948,7 +5926,7 @@ function AppInner() {
   // El cajón de fotos del teléfono se abre antes que nada.
   useEffect(() => { abrirAlmacen(); }, []);
   // ¿Este teléfono quedó ligado a la cuenta de un encargado para que su gente capture?
-  const [vinculo, setVinculo] = useLS("agro_campo_v1", null);
+  const [vinculo, setVinculo] = useLS(LLAVES.campo, null);
   // El medidor del plan gratuito: base, fotos e IA.
   const [consumo, setConsumo] = useState(null);
   const [sinSubir, setSinSubir] = useState({ cuantos: 0, bytes: 0, noSuben: 0 });
@@ -5976,7 +5954,7 @@ function AppInner() {
           .select("id, nombre, rol").eq("id", ses.user.id).maybeSingle();
         // En un teléfono de campo la cuenta del encargado sirve para SUBIR,
         // no para abrir sus pantallas a quien tome el teléfono.
-        if (sesionDeCuenta(perfil) && activo && abrePantallasSola(lsGet("agro_campo_v1"))) {
+        if (sesionDeCuenta(perfil) && activo && abrePantallasSola(lsGet(LLAVES.campo))) {
           setSession(sesionDeCuenta(perfil));
         }
       } catch { /* sin conexión: el usuario puede seguir usando PIN */ }
@@ -6034,11 +6012,11 @@ function AppInner() {
         try {
           const cfgSegNube = (datosNube.config_seguridad || [])[0] || {};
           const plan = planDeRecarga({
-            tokenNube: cfgSegNube.resetToken, tokenLocal: lsGet("agro_reset_token"),
-            pendientes: lsGet("agro_pending_v7"), fallidas: lsGet("agro_fallidas_v1"),
+            tokenNube: cfgSegNube.resetToken, tokenLocal: lsGet(LLAVES.reset),
+            pendientes: lsGet(LLAVES.cola), fallidas: lsGet(LLAVES.fallidas), llaveDatos: LLAVES.datos,
           });
           if (plan.accion === "limpiar") {
-            lsSet("agro_reset_token", cfgSegNube.resetToken);
+            lsSet(LLAVES.reset, cfgSegNube.resetToken);
             plan.claves.forEach(k => localStorage.removeItem(k));
             window.location.reload();
             return;
@@ -6150,7 +6128,10 @@ function AppInner() {
   // el internet: la nube trae marca (se la pone dataApi al subir) y lo local
   // no traía ninguna, así que la corrección que alguien acababa de hacer
   // desaparecía de la pantalla. No se sube a Supabase (dataApi la descarta).
-  const marcarTocado = (item) => ({ ...item, _actualizado: new Date().toISOString() });
+  // Cada registro que nace o se toca aquí lleva la marca de ESTE espacio. La
+  // base rechaza lo que llegue sin ella (hoja SQL 31): así nada guardado para
+  // otro proyecto, ni de cuando la app estaba a prueba, entra a la operación.
+  const marcarTocado = (item) => marcarEspacio({ ...item, _actualizado: new Date().toISOString() }, ESPACIO);
 
   const upd = useCallback((sec, item) => {
     // Un cambio de sueldo se ANOTA (desde cuándo y cuánto ganaba antes): así
@@ -12555,7 +12536,7 @@ function RespaldoDatos({ data, setData, onClose }) {
 
   const exportar = () => {
     try {
-      const contenido = JSON.stringify(data, null, 2);
+      const contenido = JSON.stringify(sobreDeRespaldo(data, ESPACIO, new Date().toISOString()), null, 2);
       const blob = new Blob([contenido], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -12577,12 +12558,16 @@ function RespaldoDatos({ data, setData, onClose }) {
     const reader = new FileReader();
     reader.onload = ev => {
       try {
-        const obj = JSON.parse(ev.target.result);
-        if (!obj || typeof obj !== "object" || !Array.isArray(obj.parcelas)) {
+        // Sólo entra un respaldo de ESTE espacio. Uno de antes (o de pruebas)
+        // metería registros inventados a la operación real.
+        const rev = revisarRespaldo(JSON.parse(ev.target.result), ESPACIO);
+        if (!rev.entra) { setMsg({ tipo: "err", txt: rev.dice }); return; }
+        const obj = rev.datos;
+        if (!Array.isArray(obj.parcelas)) {
           setMsg({ tipo: "err", txt: "El archivo no parece un respaldo válido." });
           return;
         }
-        if (confirm("¿Reemplazar TODOS los datos actuales con los del respaldo? Esto no se puede deshacer.")) {
+        if (confirm(`${rev.dice}\n\n¿Reemplazar TODOS los datos de este teléfono con los del respaldo? Esto no se puede deshacer.`)) {
           setData(obj);
           setMsg({ tipo: "ok", txt: "Datos restaurados correctamente." });
         }
@@ -12686,10 +12671,33 @@ function RespaldoDatos({ data, setData, onClose }) {
 
         <div className="card">
           <div className="card-title">Restaurar desde un respaldo</div>
+          <div className="text-xs text-muted mb-3">Sólo se aceptan respaldos de esta misma operación. Los de cuando la app estaba a prueba no se cargan.</div>
           <div className="text-xs text-muted mb-3">Carga un archivo de respaldo. Reemplaza todos los datos actuales por los del archivo.</div>
           <input ref={fileRef} type="file" accept="application/json,.json" onChange={importar} style={{ display: "none" }} />
           <button className="btn btn-outline" onClick={() => fileRef.current && fileRef.current.click()}><Ic e="📤" /> Elegir archivo de respaldo</button>
         </div>
+
+        {(() => {
+          // Lo que este teléfono guardaba de cuando la app estaba a prueba. La app ya
+          // no lo lee ni lo sube; aquí sólo se puede DESCARGAR, tal cual, para archivo.
+          const antes = loDeAntes(k => localStorage.getItem(k));
+          if (!antes.hay) return null;
+          return (
+            <div className="card">
+              <div className="card-title">Datos de antes en este teléfono</div>
+              <div className="text-xs text-muted mb-3">
+                Este teléfono guarda registros de cuando la app estaba a prueba. <b>No se usan ni se suben</b> a la operación actual, y nadie los borra. Puedes descargarlos para conservarlos.
+              </div>
+              <button className="btn btn-outline" onClick={() => {
+                const todo = {};
+                LLAVES_ANTERIORES.forEach(k => { const v = localStorage.getItem(k); if (v != null && !/session|token/.test(k)) todo[k] = v; });
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(new Blob([JSON.stringify({ _archivoAnterior: true, descargado: new Date().toISOString(), llaves: todo })], { type: "application/json" }));
+                a.download = `datos-de-antes-${today()}.json`; a.click();
+              }}><Ic e="📥" /> Descargar los datos de antes</button>
+            </div>
+          );
+        })()}
 
         <div className="card" style={{ border: "1px solid rgba(245,166,35,.35)", background: "rgba(245,166,35,.05)" }}>
           <div className="card-title" style={{ color: "var(--gold)" }}>Recargar desde la nube</div>
@@ -12699,9 +12707,8 @@ function RespaldoDatos({ data, setData, onClose }) {
           <button className="btn btn-outline" style={{ width: "100%", borderColor: "var(--gold)", color: "var(--gold)" }} onClick={() => {
             if (!window.confirm("Se borrará la copia de datos de ESTE dispositivo y se recargará desde la nube. Lo que aún no se haya subido se perderá. ¿Continuar?")) return;
             try {
-              localStorage.removeItem("agro_v7");
-              localStorage.removeItem("agro_pending_v7");
-              localStorage.removeItem("agro_fallidas_v1");
+              // Sólo el cajón de ESTE espacio. Lo de antes no se toca.
+              [LLAVES.datos, LLAVES.cola, LLAVES.fallidas].forEach(k => localStorage.removeItem(k));
             } catch { /* ignorar */ }
             window.location.reload();
           }}><Ic e="🔄" /> Recargar este dispositivo desde la nube</button>
@@ -14297,7 +14304,7 @@ function SubirCatalogos({ data, setData, session, onClose }) {
         const registros = colecciones[tabla] || [];
         if (registros.length === 0) { r[tabla] = { ok: true, cantidad: 0, omitido: true }; continue; }
         try {
-          const n = await subirColeccion(tabla, registros);
+          const n = await subirColeccion(tabla, registros.map(r => marcarEspacio(r, ESPACIO)));
           r[tabla] = { ok: true, cantidad: n };
         } catch (e) {
           r[tabla] = { ok: false, error: e.message };
@@ -18796,7 +18803,7 @@ function PanelSeguridad({ data, add, upd, session, onClose }) {
             const nuevo = { ...(cfg || { id: "seguridad" }), resetToken: token, resetFecha: today(), resetPor: session.id };
             if (cfg) upd("config_seguridad", nuevo); else add("config_seguridad", nuevo);
             // Este mismo dispositivo ya queda al día con el token (no se recarga a sí mismo)
-            try { lsSet("agro_reset_token", token); } catch { /* ignorar */ }
+            try { lsSet(LLAVES.reset, token); } catch { /* ignorar */ }
             setMsg({ tipo: "ok", txt: "Orden enviada. Cada dispositivo se recargará desde la nube la próxima vez que abra la app." });
           }}><Ic e="🔄" /> Mandar orden de recarga a todos</button>
         </div>

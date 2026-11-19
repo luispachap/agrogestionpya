@@ -1,8 +1,16 @@
 # Prueba en teléfonos reales — la hacen Luis y Migue
 
 Esto es lo único que yo no puedo hacer. Se hace sobre la **vista previa**
-conectada al proyecto nuevo, con datos de mentira. Media hora, dos teléfonos.
+conectada al proyecto **de pruebas** — nunca al de producción —, con datos de
+mentira. Media hora, dos teléfonos.
 A cada paso: ✔ o ✘ y, si falla, una captura de pantalla.
+
+## 0 · Que lo viejo no entre (lo más importante de este arranque)
+Con un teléfono que **sí haya usado la app antes**:
+- a. Abrir la vista previa y entrar con cuenta. ¿Abre **vacía**: sin parcelas, sin gente, sin gastos?
+- b. Respaldo → ¿aparece la tarjeta "Datos de antes en este teléfono"? Descargar. ¿Baja un archivo?
+- c. Intentar "Restaurar" con ese archivo o con un respaldo viejo. (Debe negarse y decir por qué.)
+- d. Yo reviso en la base que no haya llegado ni un registro que no sea de la prueba.
 
 ## A · Entrar
 1. Luis entra con su correo y contraseña. ¿Ve todas las pantallas de administrador?

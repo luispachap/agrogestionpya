@@ -56,9 +56,11 @@ test("C-6 · con registros sin subir, la recarga se pospone y no borra nada", ()
   assert.deepEqual(r, { accion: "posponer", sinSubir: 2 });
 });
 test("C-6 · sin pendientes, limpia sólo la copia de datos — nunca las colas", () => {
-  const r = planDeRecarga({ tokenNube: "b", tokenLocal: "a", pendientes: [], fallidas: [] });
+  const r = planDeRecarga({ tokenNube: "b", tokenLocal: "a", pendientes: [], fallidas: [], llaveDatos: "agro_v8:abc" });
   assert.equal(r.accion, "limpiar");
-  assert.deepEqual(r.claves, ["agro_v7"]);
+  assert.deepEqual(r.claves, ["agro_v8:abc"]);
+  // y sin saber cuál es la llave de este espacio, no borra nada (nunca "lo de antes")
+  assert.deepEqual(planDeRecarga({ tokenNube: "b", tokenLocal: "a", pendientes: [], fallidas: [] }).claves, []);
 });
 test("C-6 · misma orden ya aplicada, o sin orden: no hace nada", () => {
   assert.equal(planDeRecarga({ tokenNube: "a", tokenLocal: "a", pendientes: [] }).accion, "nada");

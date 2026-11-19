@@ -1,0 +1,106 @@
+{
+ "_": "Lo que venía escrito en el código de la versión de prueba. NO entra solo: pasa por la revisión de catálogos como cualquier otra fuente.",
+ "ranchos": [
+  {
+   "nombre": "Agroselectos P&A"
+  }
+ ],
+ "parcelas": [
+  {
+   "ubicacionId": "R01",
+   "nombre": "RANCHO 1"
+  },
+  {
+   "ubicacionId": "R02",
+   "nombre": "RANCHO 2"
+  },
+  {
+   "ubicacionId": "R03",
+   "nombre": "RANCHO 3"
+  },
+  {
+   "ubicacionId": "R04",
+   "nombre": "RANCHO 4"
+  },
+  {
+   "ubicacionId": "R05",
+   "nombre": "GON"
+  },
+  {
+   "ubicacionId": "R06",
+   "nombre": "CANAL"
+  },
+  {
+   "ubicacionId": "R07",
+   "nombre": "CARRETERA 1"
+  },
+  {
+   "ubicacionId": "R08",
+   "nombre": "CARRETERA 2"
+  },
+  {
+   "ubicacionId": "R09",
+   "nombre": "EL 50"
+  },
+  {
+   "ubicacionId": "R10",
+   "nombre": "EL 51"
+  },
+  {
+   "ubicacionId": "R11",
+   "nombre": "EL 53"
+  },
+  {
+   "ubicacionId": "R12",
+   "nombre": "SAN FELIPE 1"
+  },
+  {
+   "ubicacionId": "R13",
+   "nombre": "SAN FELIPE 2"
+  },
+  {
+   "ubicacionId": "R14",
+   "nombre": "SAN FELIPE 3"
+  },
+  {
+   "ubicacionId": "R15",
+   "nombre": "SAN FELIPE 4"
+  },
+  {
+   "ubicacionId": "R16",
+   "nombre": "DON JOSE 1"
+  },
+  {
+   "ubicacionId": "R17",
+   "nombre": "DON JOSE 2"
+  },
+  {
+   "ubicacionId": "R18",
+   "nombre": "DON JOSE 3"
+  },
+  {
+   "ubicacionId": "R19",
+   "nombre": "TULO"
+  },
+  {
+   "ubicacionId": "R20",
+   "nombre": "GUERO 1"
+  },
+  {
+   "ubicacionId": "R21",
+   "nombre": "GUERO 2"
+  },
+  {
+   "ubicacionId": "R22",
+   "nombre": "MARCOS"
+  },
+  {
+   "ubicacionId": "R23",
+   "nombre": "RANCHO NARANJO"
+  },
+  {
+   "ubicacionId": "R00",
+   "nombre": "BODEGA"
+  }
+ ]
+}

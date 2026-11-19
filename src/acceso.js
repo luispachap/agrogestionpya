@@ -68,11 +68,12 @@ export function sesionRestaurable(guardada, data) {
  * no subido se perdía. Ahora la copia local sólo se limpia si NO queda nada
  * por subir; si queda, se pospone y se avisa.
  */
-export function planDeRecarga({ tokenNube, tokenLocal, pendientes, fallidas }) {
+export function planDeRecarga({ tokenNube, tokenLocal, pendientes, fallidas, llaveDatos }) {
   if (!tokenNube || tokenNube === tokenLocal) return { accion: "nada" };
   const sinSubir = (Array.isArray(pendientes) ? pendientes.length : 0) + (Array.isArray(fallidas) ? fallidas.length : 0);
   if (sinSubir > 0) return { accion: "posponer", sinSubir };
-  return { accion: "limpiar", claves: ["agro_v7"] };
+  // Sólo la copia de datos de ESTE espacio. Lo de antes no se toca nunca.
+  return { accion: "limpiar", claves: llaveDatos ? [llaveDatos] : [] };
 }
 
 // ── La cuenta manda la pantalla ─────────────────────────────────────────────

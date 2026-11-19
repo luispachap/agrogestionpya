@@ -9,11 +9,27 @@ Actualizado: 19 nov 2026 · Rama de trabajo: `produccion/base-vigente` · Rama d
 
 **Hoy: nada de esta etapa está desplegado ni validado.** Lo publicado sigue siendo la versión vulnerable, y el proyecto nuevo de Supabase aún no existe (falta que Luis cree la organización).
 
+## Arranque limpio (nuevo, 19 nov) — detalle en `ARRANQUE-LIMPIO.md`
+
+| Asunto | En rama | Probado | Desplegado | Validado |
+|---|---|---|---|---|
+| Lo guardado en los teléfonos no entra a la operación nueva | Sí | Sí (navegador real) | No | No |
+| Segundo candado: la base rechaza lo que no es de su espacio | Sí | Sí | No | No |
+| Un respaldo de antes no se puede restaurar | Sí | Sí | No | No |
+| Lo de antes no se borra y se puede descargar | Sí | Sí | No | No |
+| La app ya no trae rancho ni parcelas de fábrica | Sí | Sí | No | No |
+| La base nace sin un solo registro de operación | Sí | Sí | No | No |
+| Catálogos: hoja de revisión y carga sólo de lo aprobado | Sí | Sí | — | No |
+| Fecha oficial de inicio, una sola vez | En la base; falta el botón | Sí | No | No |
+| Conteo inicial con fecha, lugar y responsable | Regla; falta conectarla a la pantalla | La regla | No | No |
+| Saldos iniciales con corte, responsable y evidencia | Regla; falta la pantalla | La regla | No | No |
+| Ambiente de pruebas separado de producción | **Decisión pendiente** | — | — | — |
+
 ## Infraestructura propia (nuevo)
 
 | Asunto | En rama | Probado | Desplegado | Validado |
 |---|---|---|---|---|
-| Base reconstruible desde cero (24 hojas, 54 tablas) | Sí | Sí | No | No |
+| Base reconstruible desde cero (25 hojas, 54 tablas) | Sí | Sí | No | No |
 | Fotos y PDF fuera de los registros, almacén privado, sin duplicados | Sí | Sí (navegador real + base) | No | No |
 | Lo borrado deja lápida y no revive | Sí | Sí | No | No |
 | Captura de campo por la cuenta del encargado | Sí | Sí (navegador real, nube de mentira) | No | No |
@@ -58,13 +74,14 @@ Actualizado: 19 nov 2026 · Rama de trabajo: `produccion/base-vigente` · Rama d
 
 | Batería | Resultado |
 |---|---|
-| Reglas, cálculos y nombres sin definir (`npm test`) | 639 de 639 |
-| La base armada desde cero y atacada directo (`npm run test:base`) | 32 de 32 |
+| Reglas, cálculos y nombres sin definir (`npm test`) | 661 de 661 |
+| La base armada desde cero y atacada directo (`npm run test:base`) | 40 de 40 |
 | Navegador, versión compilada (`humo`) | 9 de 9 (lo publicado hoy: 4 de 9) |
 | Navegador, recorrido por rol (`recorrido`) | 17 de 17 |
 | Navegador, fotos fuera de los registros (`archivos`) | 9 de 9 |
 | Navegador, captura de campo (`campo`) | 13 de 13 |
-| Compilación | correcta, 103 módulos, lector de PDF aparte |
+| Navegador, arranque limpio (`arranque`) | 13 de 13 |
+| Compilación | correcta, 105 módulos, lector de PDF aparte |
 
 Todo junto: `sh pruebas/todo.sh`.
 
@@ -78,7 +95,8 @@ Todo junto: `sh pruebas/todo.sh`.
 | `auditoria/06` | Mano de obra | Hecho |
 | `PUBLICACION-EMERGENCIA-P0.md` (rama de emergencia) | Qué se publica, orden y reversa | Listo, esperando autorización |
 | `RUTA.md` | Plan con infraestructura propia y estado de las diez instrucciones | Vigente |
-| `DATOS-DE-LA-BASE-ANTERIOR.md` | Qué se recupera, de dónde y cuándo | Vigente |
+| `ARRANQUE-LIMPIO.md` | Qué entra, puertas de contaminación, catálogos, con qué se abre | Vigente |
+| `DATOS-DE-LA-BASE-ANTERIOR.md` | Lo de antes se conserva y no se importa | Vigente |
 | `PRUEBA-EN-TELEFONOS.md` | Lo que prueban Luis y Migue | Listo |
 | `CAMBIO-DE-PRODUCCION.md` | El cambio y la reversa | Preparado, sin ejecutar |
 | Pantallas nuevas (17) | Todas abren sin error. Revisadas a fondo: sólo el buzón | **Faltan 16 por revisar a fondo** |
@@ -87,12 +105,13 @@ Todo junto: `sh pruebas/todo.sh`.
 
 | # | Qué | Urgencia |
 |---|---|---|
-| L-1 | Crear la organización nueva "AgroGestion" (plan gratuito) en Supabase | **Es lo único que me detiene** |
-| L-2 | Que cada teléfono descargue y mande su respaldo (`DATOS-DE-LA-BASE-ANTERIOR.md`) | **Hoy** |
-| L-3 | Ver en el panel cuántos días quedan para reactivar la base pausada, y probar "descargar respaldo" | Esta semana |
+| L-1 | Crear la organización nueva "AgroGestion" (plan gratuito) en Supabase | **Es lo que me detiene** |
+| L-5 | Decidir dónde se prueba: proyecto de pruebas primero y producción después, o que Migue cree el de pruebas | Antes de montar |
+| L-6 | Fecha oficial de inicio de operaciones | Antes del arranque |
+| L-7 | Juntar los respaldos que existan para la hoja de catálogos, y con Migue marcar sí / no | Antes del arranque |
 | L-4 | Hacer privados los dos repositorios; borrar las dos variables viejas en Vercel | Alta |
 | D-4 | Con Migue: quién va por día, por hora o a destajo | Antes del piloto |
-| D-9 | Llave y presupuesto de IA (sin esto el buzón lee XML y proveedores conocidos, no fotos nuevas) | Cuando toque |
+| D-9 | Llave y presupuesto de IA | Cuando toque |
 | D-2 | Separar el sistema del despacho del repositorio publicado | Media |
 
 ## Decisiones ya tomadas por Luis
@@ -104,6 +123,7 @@ Todo junto: `sh pruebas/todo.sh`.
 - AgroGestión tendrá infraestructura propia en Supabase gratuito, sin depender de ATALAYA. Nada se contrata sin autorización.
 - La gente de campo captura desde el teléfono de un encargado con cuenta; sin cuenta técnica compartida.
 - No se congelan sueldos históricos con valores de hoy.
+- **Arranque limpio:** la operación nueva empieza sin registros de antes. Sólo catálogos validados por Luis y Migue; inventario por conteo físico; saldos con evidencia; fecha oficial de inicio. Lo anterior se conserva intacto y no es requisito. Los datos de prueba no tocan producción.
 
 ## Versiones (nada se ha eliminado)
 
