@@ -13,7 +13,7 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 
 ## Operación integral (etapa abierta el 19 nov) — modelo y orden en `EVENTOS.md`
 
-**Próxima entrega operativa:** que el insumo que hoy se teclea dentro de una actividad pase a ser un consumo del almacén (una sola puerta), existencias por lugar con su conteo, y faltas y permisos con causa.
+**Próxima entrega operativa:** validar el almacén en el rancho con `docs/RECORRIDO-ALMACEN-RANCHO.md`; después, faltas y permisos con causa, y pagos con recibos.
 
 | Asunto | En rama | Probado | Publicado | Validado en el rancho |
 |---|---|---|---|---|
@@ -40,7 +40,15 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | Cuadrillas sólo en su pantalla: retiradas del registro de actividades del administrador y del registro masivo | Sí | Sí | Sí | **Falta: que el encargado diga si le falta algo** |
 | Cuadrilla: precio por el trabajo, hectáreas, nota y registrar un día anterior | Sí | Sí | Sí | Falta |
 | Operador: su rato en el camión se le carga al vehículo con lo que ya gana | Sí | Sí | Sí | **Falta: un día real con traslado** |
-| Lo que costó cada vehículo: operador + combustible y materiales del almacén + taller pagado | Sí | Sí | Sí | Falta. No se reparte a parcelas todavía (falta el criterio) |
+| Lo que costó cada vehículo: operador + combustible y materiales del almacén + taller pagado + depreciación | Sí | Sí | Sí | Falta |
+| A qué benefició cada vehículo: reparto a parcelas por personas transportadas (o por viaje, horas, km, parejo), sin crear otro gasto | Sí | Sí (reglas; en pantalla sólo el caso simple) | Sí | **Falta: un mes real para ver si el reparto tiene sentido** |
+| La existencia se calcula de movimientos: compras, conteos, entregas, devoluciones, transferencias y mermas | Sí | Sí (dos aparatos sin señal, en distinto orden y con reintento) | Sí | **Falta: dos teléfonos de verdad sin señal** |
+| Insumo anotado en una actividad y cerrado en Entregas: cuenta una vez | Sí | Sí (tres órdenes de llegada) | Sí | **Falta: con un trabajador real** |
+| Conteo por bodega, absoluto ("había tanto") | Sí | Sí | Sí | Falta |
+| Falta de existencia: se registra y queda discrepancia pendiente, sin inventar ajustes | Sí | Sí | Sí | Falta |
+| Plazos de lo entregado (24 h / 72 h; herramientas 7 y 15 días), "sigue en uso" con fecha | Sí | Sí | Sí | Falta. Son avisos al abrir la app, no mensajes al teléfono |
+| Baja de herramienta con causa, valor y evidencia; la decisión con el trabajador va aparte | Sí | Sí | Sí | Falta |
+| El aviso de "cuándo se acaba" y las alertas de mínimo ven los movimientos nuevos | Sí | Sí | Sí | Falta |
 | Almacén: entregar no es gastar; queda a cargo de quien lo recibe | Sí | Sí | Sí | **Falta: una semana de entregas reales** |
 | Cierre de lo entregado: se usó (ahí nace el costo), regresó, se quedó con otro, se rompió o perdió | Sí | Sí | Sí | Falta |
 | Herramientas prestadas: quién la trae, devolución y baja con causa | Sí | Sí | Sí | Falta |
@@ -62,9 +70,10 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 **Problemas y riesgos abiertos**
 
 - **El cálculo recorre todos los eventos cada vez.** Con unos meses de marcas va bien; con años habrá que cerrar periodos y guardar su resumen. No urge, pero está anotado.
-- **Las existencias del almacén:** las entregas, consumos y devoluciones ya son movimientos que se suman (no se pisan entre aparatos). Las ENTRADAS (compras) y el conteo todavía mueven el número guardado en el catálogo: dos aparatos que capturen una compra del mismo artículo sin señal se pueden pisar. Falta pasarlas al mismo modelo.
-- **El insumo tecleado dentro de una actividad** (el trabajador que anota "usé 3 bultos") sigue restando del inventario y cargando su costo por su lado. Si además se entrega y se cierra en Entregas, ese insumo se cuenta dos veces. Mientras tanto: los insumos, por Entregas. Es lo siguiente a unificar.
-- **La predicción de "cuándo se acaba"** todavía lee las salidas de antes; no ve los consumos nuevos.
+- **El costo promedio de un artículo sigue siendo un número guardado.** La existencia ya no se pisa entre aparatos, pero si dos aparatos sin señal capturan una compra del mismo artículo, el costo promedio que queda es el del último que subió. Falta calcularlo también de los movimientos.
+- **El orden de los movimientos depende del reloj de cada aparato.** Un teléfono con la hora mal puesta puede hacer que un conteo "pase" antes de un movimiento que en realidad fue anterior. Los teléfonos toman la hora de la red; si alguno no, hay que corregirlo.
+- **Los avisos de entregas vencidas no llegan como mensaje**: salen al abrir la app, al que lo trae, al encargado y (al segundo plazo) al administrador.
+- **El reparto del costo de vehículos es una vista, no entra todavía a los reportes de costo por parcela de siempre** (ésos siguen enseñando el costo directo). El costo completo por parcela se ve en Mano de obra.
 - **La tableta cerrada no impide salirse del navegador**: eso lo cierra el propio aparato (en Android, "fijar pantalla"). La app ya no deja ir a otras pantallas.
 - **La entrada de la cuadrilla con su PIN sigue existiendo** (es la única captura que hace la propia cuadrilla). Ya no puede duplicar: no guarda un día que el encargado ya registró, y si aun así llegan dos (sin señal, en aparatos distintos) la cuenta toma sólo el de Cuadrillas. Se retira cuando el encargado confirme que la pantalla nueva le basta. Lo único que la anterior hace y la nueva no: que la cuadrilla se registre sola, y anotar la cosecha en la misma captura (la cosecha va en Cosechas).
 - **Actividad tecleada a mano para quien ya checó ese día:** ya no duplica; manda el checador y lo tecleado no cuenta su mano de obra.

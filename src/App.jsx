@@ -16,10 +16,11 @@ import {
 import { registrarCuadrilla, registrarTraslado, costoDeCuadrillas, actividadesDeCuadrillas, integrantesConocidos, yaTieneTraslado, pagosDe, CRITERIOS_FLETE, unaSolaFuente, yaEstaEnCuadrillas, capturasAnterioresDe } from "./eventuales.js";
 // El almacén por movimientos: entregar no es gastar. Y lo que cuesta cada vehículo.
 import {
-  entregar, cerrar as cerrarEntrega, seQueda, consumirDirecto, transferir, estadoDelAlmacen, porCerrar, costoDeConsumos, actividadesDeAlmacen,
-  conExistenciaReal, paraGuardarArticulo, textoDeArticulo, leerArticulo, CAUSAS_BAJA, NAVE as ALMACEN_PRINCIPAL,
+  entregar, cerrar as cerrarEntrega, seQueda, consumirDirecto, transferir, merma as registrarMerma, contar as registrarConteo, resolver as resolverAlmacen, movimientoDeSiempre, instanteDe,
+  estadoDelAlmacen, porCerrar, avisosPara, porRevisar, costoDeConsumos, actividadesDeAlmacen, resumenDeAjustes, salidasParaPrediccion,
+  conExistenciaReal, paraGuardarArticulo, textoDeArticulo, leerArticulo, CAUSAS_BAJA, CAUSAS_AJUSTE, PLAZOS, NAVE as ALMACEN_PRINCIPAL,
 } from "./movimientos.js";
-import { costoDeVehiculos } from "./vehiculos.js";
+import { costoDeVehiculos, repartirVehiculos, indirectoPorParcela } from "./vehiculos.js";
 // Encontrar las cosas: grupos, lo de cada perfil, lo anclado y lo que más se usa.
 import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarraDe, barraDe, necesitaMenu, alternarInicio, alternarBarra, moverEnInicio, volverALoDeFabrica, anotarUso, masUsadas, ancladasConDatos, TOPE_BARRA, ENFOQUES, PERFILES_CON_ENFOQUE, faltaEnfoque, elegirEnfoque, alternarGrupo, mezclarPrefs, sellarAcomodo, mismoAcomodo } from "./menu.js";
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
@@ -2422,9 +2423,11 @@ function normalizeData(d) {
   fix.actividadesContables = fix.actividadesContables.concat(actividadesDeCuadrillas(__cq.partes));
   // El almacén: lo que movieron los eventos se le suma a la existencia al
   // enseñarla (no se guarda dos veces), y el costo nace en el CONSUMO, no al sacar.
-  const __alm = estadoDelAlmacen(fix.eventos);
+  // La existencia se CALCULA de los movimientos; el número del catálogo es sólo el punto de partida.
+  const __alm = estadoDelAlmacen(fix.eventos, fix.inventario);
   fix.almacen = __alm;
   fix.inventario = conExistenciaReal(fix.inventario, __alm);
+  fix.salidasInv = (fix.entradas_inv || []).concat(salidasParaPrediccion(__alm));
   fix.actividadesContables = fix.actividadesContables.concat(actividadesDeAlmacen(__alm.consumos));
   return fix;
 }
@@ -2554,7 +2557,7 @@ function ElDia({ data, add, upd, session, onClose }) {
 
   /* ── Lo que se va a acabar ── */
   const faltantes = loQueVaAFaltar({
-    inventario: data.inventario, salidas: data.entradas_inv, hoy: today(), horizonteDias: 30,
+    inventario: data.inventario, salidas: data.salidasInv || data.entradas_inv, hoy: today(), horizonteDias: 30,
   });
 
   return (
@@ -4109,223 +4112,125 @@ function Dictado({ data, add, session, onClose }) {
      enseña lo que decía el sistema. Un conteo en que el capturista ve el
      saldo no es un conteo, es una copia. */
 
-function AlmacenVales({ data, add, upd, setInv, session, onClose }) {
-  // Las salidas ya no van aquí: van en Entregas del almacén (sacar no es gastar).
+function AlmacenVales({ data, add, session, onClose }) {
+  // Las salidas van en Entregas del almacén. Aquí se CUENTA y se registran mermas.
+  // Un conteo no le suma ni le resta al número: deja dicho "a esta hora había
+  // tanto", y la diferencia se calcula contra los movimientos.
+  const hoy = today(); const quien = quienDe(session);
   const [tab, setTab] = useState("conteo");
+  const [lugar, setLugar] = useState(ALMACEN_PRINCIPAL);
   const [sel, setSel] = useState("");
-  const [cant, setCant] = useState("");
-  const [destino, setDestino] = useState("parcela");
-  const [destinoId, setDestinoId] = useState("");
-  // El conteo a ciegas: mientras no se confirme, el saldo del sistema NO se
-  // enseña. Ése es todo el punto.
   const [contado, setContado] = useState("");
-  const [resultado, setResultado] = useState(null);
+  const [resultado, setResultado] = useState(null);     // sólo existe DESPUÉS de capturar lo contado
   const [causa, setCausa] = useState("");
   const [nota, setNota] = useState("");
-
+  const [dice, setDice] = useState("");
+  const [listo, setListo] = useState("");
+  const [m, setM] = useState({ articuloId: "", cantidad: "", causa: "", nota: "" });
   const insumos = data.inventario || [];
+  const estado = data.almacen || estadoDelAlmacen(data.eventos, []);
+  const lugares = [ALMACEN_PRINCIPAL, ...new Set(insumos.flatMap(a => Object.keys(a._otrosLugares || {})))];
   const insumo = insumos.find(i => i.id === sel);
-  const conteos = (data.entradas_inv || []).filter(m => m.esConteo);
-  const faltaContar = loQueFaltaContar({ insumos, conteos });
-  const mermas = resumenMermas({ movimientos: data.entradas_inv, insumos });
-
-  const sacar = () => {
-    if (!insumo) { alert("Elige el insumo."); return; }
-    const v = valeDeSalida({
-      insumo, cantidad: cant, destino, destinoId,
-      quien: session.nombre, fecha: today(),
-    });
-    if (!v.sirve) { alert(v.avisos.join("\n")); return; }
-    // Se AVISA, pero se guarda. Nunca se niega una salida que ya ocurrió.
-    if (v.avisos.length > 0 && !confirm(`${v.avisos.join("\n\n")}\n\n¿Registro la salida?`)) return;
-    setInv(insumo.id, -v.vale.cantidad, {
-      fecha: v.vale.fecha,
-      concepto: `Vale de salida a ${v.vale.destino || "sin destino"}${v.vale.dejaNegativo ? " (dejó el saldo en negativo)" : ""}`,
-      parcelaId: destino === "parcela" ? destinoId : "",
-      registradoPor: { rol: session.role, id: session.id, nombre: session.nombre },
-    });
-    alert(v.vale.costoTotal !== null
-      ? `Listo. Salieron ${v.vale.cantidad} ${insumo.unidad} y se le cargaron ${fmt(v.vale.costoTotal)} al destino, al costo promedio de la bodega.`
-      : `Listo. Salieron ${v.vale.cantidad} ${insumo.unidad}. No se le cargó costo al destino porque el insumo no tiene costo registrado.`);
-    setCant(""); setDestinoId("");
+  const hayEn = (a, l) => (l === ALMACEN_PRINCIPAL ? Number(a.existencia) || 0 : Number((a._otrosLugares || {})[l]) || 0);
+  const faltaContar = loQueFaltaContar({ insumos, conteos: estado.conteos.map(c => ({ insumoId: c.articuloId, fecha: c.fecha })), hoy });
+  const resumen = resumenDeAjustes(estado, insumos);
+  const limpia = () => { setResultado(null); setContado(""); setCausa(""); setNota(""); setDice(""); };
+  const comparar = () => { const r = compararConteo({ contado, insumo: { existencia: hayEn(insumo, lugar) } }); if (!r.hay) { setDice(r.porque); return; } setResultado(r); setDice(""); };
+  const guardarConteo = () => {
+    const ahora = new Date().toISOString();
+    const res = registrarConteo({ articulo: insumo, lugar, contado: resultado.contado, existencia: resultado.sistema, causa, nota, responsable: session.nombre || "", quien, cuando: ahora, fecha: hoy });
+    if (!res.ok) { setDice(res.dice); return; }
+    add("eventos", res.evento);
+    setListo(res.diferencia === 0 ? `Conteo registrado: ${insumo.nombre} cuadró en ${fmtN(resultado.contado)} ${insumo.unidad}.` : `Conteo registrado: ${insumo.nombre} queda en ${fmtN(resultado.contado)} ${insumo.unidad}. ${res.diferencia < 0 ? "Faltaron" : "Sobraron"} ${fmtN(Math.abs(res.diferencia))}, por: ${CAUSAS_AJUSTE[causa] || causa}.`);
+    limpia(); setSel("");
   };
-
-  const confirmarConteo = () => {
-    if (!insumo) { alert("Elige el insumo."); return; }
-    const c = compararConteo({ contado, insumo });
-    if (!c.hay) { alert(c.porque); return; }
-    setResultado(c);
+  const guardarMerma = () => {
+    const a = insumos.find(i => i.id === m.articuloId);
+    const res = registrarMerma({ articulo: a, lugar, cantidad: m.cantidad, causa: m.causa, nota: m.nota, quien, cuando: new Date().toISOString(), fecha: hoy });
+    if (!res.ok) { setDice(res.dice); return; }
+    add("eventos", res.evento); setListo(`Merma registrada: ${fmtN(Number(m.cantidad))} ${a.unidad} de ${a.nombre}.`); setM({ articuloId: "", cantidad: "", causa: "", nota: "" }); setDice("");
   };
-
-  const registrarAjuste = () => {
-    const a = clasificarAjuste({ delta: resultado.diferencia, causa, nota });
-    if (!a.sirve) { alert(a.porque); return; }
-    setInv(insumo.id, a.delta, {
-      fecha: today(),
-      concepto: `Ajuste por conteo: ${a.causa}${a.nota ? ` — ${a.nota}` : ""}`,
-      registradoPor: { rol: session.role, id: session.id, nombre: session.nombre },
-    });
-    // El conteo queda registrado aunque haya cuadrado: saber que se contó y
-    // cuadró vale tanto como saber que no.
-    add("entradas_inv", {
-      esConteo: true, esAjuste: a.delta !== 0, insumoId: insumo.id, nombre: insumo.nombre,
-      contado: resultado.contado, segunSistema: resultado.sistema, cantidad: a.delta,
-      causa: a.causa, nota: a.nota, fecha: today(),
-      contadoPor: session.nombre,
-    });
-    alert(`Ajuste registrado: ${a.porque}`);
-    setResultado(null); setContado(""); setCausa(""); setNota("");
-  };
-
-  const soloContar = () => {
-    add("entradas_inv", {
-      esConteo: true, esAjuste: false, insumoId: insumo.id, nombre: insumo.nombre,
-      contado: resultado.contado, segunSistema: resultado.sistema, cantidad: 0,
-      fecha: today(), contadoPor: session.nombre,
-    });
-    alert("Conteo registrado. Cuadró.");
-    setResultado(null); setContado("");
-  };
-
+  const selLugar = lugares.length > 1 && (
+    <div className="form-group"><label className="form-label" htmlFor="ct-lugar">Bodega</label>
+      <select id="ct-lugar" className="inp" value={lugar} onChange={e => { setLugar(e.target.value); limpia(); }}>{lugares.map(l => <option key={l} value={l}>{l === ALMACEN_PRINCIPAL ? "Almacén principal" : l}</option>)}</select></div>
+  );
   return (
     <div>
-      <div className="top-bar">
-        <button className="btn-ghost" onClick={onClose}>‹</button>
-        <h2 style={{ flex: 1 }}>Conteo y mermas</h2>
-      </div>
+      <div className="top-bar"><button className="btn-ghost" onClick={onClose}>‹</button><h2 style={{ flex: 1 }}>Conteo y mermas</h2></div>
       <div className="tabs-pill">
         {[["conteo", `Conteo${faltaContar.tocan.length ? ` (${faltaContar.tocan.length})` : ""}`], ["mermas", "Mermas"]].map(([v, lb]) => (
-          <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => { setTab(v); setResultado(null); setContado(""); }}>{lb}</button>
+          <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => { setTab(v); limpia(); setListo(""); }}>{lb}</button>
         ))}
       </div>
-
-      {tab === "salida" && (
-        <div className="section-pad">
-          <div className="card ab">
-            <div className="card-title">Lo que sale del almacén</div>
-            <div className="form-group"><label className="form-label">Insumo</label>
-              <select className="inp" value={sel} onChange={e => setSel(e.target.value)}>
-                <option value="">— elige —</option>
-                {insumos.map(i => <option key={i.id} value={i.id}>{i.nombre} ({i.existencia} {i.unidad})</option>)}
-              </select>
-            </div>
-            <div className="form-group"><label className="form-label">Cantidad</label>
-              <input type="number" className="inp" value={cant} onChange={e => setCant(e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">¿A dónde va?</label>
-              <select className="inp" value={destino} onChange={e => { setDestino(e.target.value); setDestinoId(""); }}>
-                {DESTINOS_SALIDA.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
-            {destino === "parcela" && (
-              <div className="form-group"><label className="form-label">Parcela</label>
-                <select className="inp" value={destinoId} onChange={e => setDestinoId(e.target.value)}>
-                  <option value="">— elige —</option>
-                  {(data.parcelas || []).map(pp => <option key={pp.id} value={pp.id}>{pp.nombre}</option>)}
-                </select>
-              </div>
-            )}
-            {insumo && cant && (
-              <div className="text-xs text-muted mb-2">
-                {(() => { const c = costoDeSalida({ insumo, cantidad: cant });
-                  return c.completo
-                    ? `Se le van a cargar ${fmt(c.costoTotal)} al destino — ${c.porque}`
-                    : c.porque; })()}
-              </div>
-            )}
-            <button className="btn btn-accent" onClick={sacar}>Registrar la salida</button>
-            <div className="text-xs text-muted mt-3">
-              Si el saldo no alcanza, la salida <b>se registra igual</b> y te avisa. El producto
-              ya salió del almacén: negarlo aquí no lo devuelve al estante, sólo logra que nadie
-              capture.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {tab === "conteo" && (
-        <div className="section-pad">
+      <div className="section-pad">
+        {listo && <div className="card" style={{ borderColor: "var(--green)" }}><div className="text-sm">{listo}</div></div>}
+        {tab === "conteo" && <>
           <div className="card ab">
             <div className="card-title">Conteo a ciegas</div>
-            <div className="text-xs text-muted mb-3">
-              Cuenta primero y escribe lo que contaste. <b>El saldo del sistema no se enseña
-              hasta después</b>: un conteo en que ves el número de la pantalla no es un conteo,
-              es una copia.
-            </div>
-            <div className="form-group"><label className="form-label">Insumo</label>
-              <select className="inp" value={sel} onChange={e => { setSel(e.target.value); setResultado(null); setContado(""); }}>
+            <div className="text-xs text-muted mb-3">Cuenta primero y escribe lo que contaste. <b>Lo que dice el sistema no se enseña hasta después</b>: un conteo en que ves el número de la pantalla no es un conteo, es una copia.</div>
+            {selLugar}
+            <div className="form-group"><label className="form-label" htmlFor="ct-art">Artículo</label>
+              <select id="ct-art" className="inp" value={sel} onChange={e => { setSel(e.target.value); limpia(); }}>
                 <option value="">— elige —</option>
                 {/* A propósito NO se enseña la existencia aquí. */}
                 {insumos.map(i => <option key={i.id} value={i.id}>{i.nombre} ({i.unidad})</option>)}
               </select>
             </div>
-            {!resultado && (
-              <>
-                <div className="form-group"><label className="form-label">¿Cuántos contaste?</label>
-                  <input type="number" className="inp" value={contado} onChange={e => setContado(e.target.value)} /></div>
-                <button className="btn btn-accent" onClick={confirmarConteo}>Ya conté — ver la diferencia</button>
-              </>
-            )}
-            {resultado && (
-              <>
-                <div className="card" style={{ borderLeft: `3px solid ${resultado.cuadra ? "var(--safe)" : "var(--gold)"}`, marginBottom: 10 }}>
-                  <div className="text-sm">{resultado.porque}</div>
-                </div>
-                {resultado.cuadra
-                  ? <button className="btn btn-accent" onClick={soloContar}>Registrar el conteo</button>
-                  : (
-                    <>
-                      <div className="form-group"><label className="form-label">¿Por qué la diferencia?</label>
-                        <select className="inp" value={causa} onChange={e => setCausa(e.target.value)}>
-                          <option value="">— elige la causa —</option>
-                          {CAUSAS_MERMA.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        <div className="text-xs text-muted mt-2">
-                          "No se sabe" es una respuesta válida y honesta. Dejarlo en blanco no lo es.
-                        </div>
-                      </div>
-                      <div className="form-group"><label className="form-label">Nota (opcional)</label>
-                        <input className="inp" value={nota} onChange={e => setNota(e.target.value)} /></div>
-                      <button className="btn btn-accent" onClick={registrarAjuste}>Registrar el ajuste</button>
-                    </>
-                  )}
-                <button className="btn-ghost text-xs mt-2" onClick={() => { setResultado(null); setContado(""); }}>Empezar de nuevo</button>
-              </>
-            )}
-          </div>
-
-          <div className="card">
-            <div className="card-title">Lo que falta contar</div>
-            <div className="text-sm text-muted">{faltaContar.dice}</div>
-            {faltaContar.tocan.map((f, i) => (
-              <div key={i} className="text-xs text-muted" style={{ marginTop: 4 }}>
-                · {f.insumo.nombre}{f.nunca ? " — nunca se ha contado" : ` — hace ${f.dias} días`}
+            {insumo && !resultado && <>
+              <div className="form-group"><label className="form-label" htmlFor="ct-cont">Lo que contaste</label><input id="ct-cont" type="number" inputMode="decimal" className="inp" value={contado} onChange={e => setContado(e.target.value)} /></div>
+              {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+              <button className="btn btn-accent" onClick={comparar}>Comparar</button>
+            </>}
+            {insumo && resultado && <>
+              <div className="card" style={{ borderColor: resultado.cuadra ? "var(--green)" : "var(--gold)" }}><div className="text-sm">{resultado.porque}</div>
+                {insumo._conAlguien > 0 && lugar === ALMACEN_PRINCIPAL && <div className="text-xs text-muted" style={{ marginTop: 6 }}>Aparte, {fmtN(insumo._conAlguien)} {insumo.unidad} andan fuera con alguien (ver Entregas): ésos no deben estar en el estante.</div>}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {tab === "mermas" && (
-        <div className="section-pad">
-          <div className="card">
-            <div className="card-title">Lo que se fue en mermas</div>
-            <div className="text-sm">{mermas.dice}</div>
-            {Object.entries(mermas.porCausa).map(([c, v]) => (
-              <div key={c} className="flex-b text-sm" style={{ marginTop: 4 }}>
-                <span style={{ color: c === "no se sabe" ? "var(--red)" : "var(--muted)" }}>{c}</span>
-                <span className="font-bold">{fmt(v)}</span>
+              {!resultado.cuadra && <>
+                <div className="form-group"><label className="form-label" htmlFor="ct-causa">¿Por qué no cuadra?</label>
+                  <select id="ct-causa" className="inp" value={causa} onChange={e => setCausa(e.target.value)}><option value="">— elige —</option>{Object.entries(CAUSAS_AJUSTE).filter(([k]) => k !== "inicial").map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+                <div className="form-group"><label className="form-label" htmlFor="ct-nota">Nota (opcional)</label><input id="ct-nota" className="inp" value={nota} onChange={e => setNota(e.target.value)} /></div>
+              </>}
+              {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-outline" style={{ flex: 1 }} onClick={limpia}>Volver a contar</button>
+                <button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarConteo}>Registrar conteo</button>
               </div>
-            ))}
-            <div className="text-xs text-muted mt-3">
-              Un ajuste sin causa no se puede registrar. Un "−30 bultos" sin decir por qué es
-              dinero que se fue sin que nadie explicara nada, y en dos meses es costumbre.
-            </div>
+              <div className="text-xs text-muted mt-3">Queda escrito que a esta hora había {fmtN(resultado.contado)}. No se le suma ni se le resta a un número: si otro aparato sube después un movimiento anterior, la diferencia se recalcula sola.</div>
+            </>}
           </div>
-        </div>
-      )}
+          <div className="card"><div className="card-title">Lo que falta contar</div><div className="text-sm text-muted">{faltaContar.dice}</div>
+            {faltaContar.tocan.slice(0, 12).map(f => <div key={f.insumo.id} className="mo-act"><span>{f.insumo.nombre}</span><span /><span className="text-muted">{f.nunca ? "nunca" : `hace ${f.dias} días`}</span></div>)}
+          </div>
+        </>}
+        {tab === "mermas" && <>
+          <div className="card ab">
+            <div className="card-title">Registrar una merma</div>
+            <div className="text-xs text-muted mb-3">Para lo que se sabe que se perdió sin tener que contar todo: se derramó, se mojó, caducó.</div>
+            {selLugar}
+            <select className="inp" aria-label="Artículo de la merma" value={m.articuloId} onChange={e => setM(x => ({ ...x, articuloId: e.target.value }))} style={{ marginBottom: 8 }}><option value="">¿Qué artículo?</option>{insumos.filter(i => !i.esHerramienta).map(i => <option key={i.id} value={i.id}>{i.nombre} ({i.unidad})</option>)}</select>
+            <input className="inp" type="number" inputMode="decimal" aria-label="Cuánto se perdió" placeholder="¿Cuánto?" value={m.cantidad} onChange={e => setM(x => ({ ...x, cantidad: e.target.value }))} style={{ marginBottom: 8 }} />
+            <select className="inp" aria-label="Causa de la merma" value={m.causa} onChange={e => setM(x => ({ ...x, causa: e.target.value }))} style={{ marginBottom: 8 }}><option value="">¿Qué pasó?</option>{CAUSAS_MERMA.map(c => <option key={c} value={c}>{c}</option>)}</select>
+            <input className="inp" aria-label="Nota de la merma" placeholder="Nota (opcional)" value={m.nota} onChange={e => setM(x => ({ ...x, nota: e.target.value }))} style={{ marginBottom: 10 }} />
+            {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+            <button className="btn btn-accent" onClick={guardarMerma}>Registrar merma</button>
+          </div>
+          <div className="card">
+            <div className="flex-b"><span className="card-title" style={{ marginBottom: 0 }}>Faltantes y mermas</span><b>{fmt(resumen.faltante)}</b></div>
+            {resumen.lista.length === 0 && <div className="text-sm text-muted">No hay mermas ni diferencias de conteo registradas.</div>}
+            {Object.entries(resumen.porCausa).map(([k, v]) => <div key={k} className="mo-act"><span>{CAUSAS_AJUSTE[k] || k}</span><span /><b>{fmt(v)}</b></div>)}
+            {resumen.sinSaber > 0 && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 6 }}>{fmt(resumen.sinSaber)} está en "no se sabe": ése es el que hay que bajar.</div>}
+            {resumen.sobrantes.length > 0 && <div className="text-xs text-muted" style={{ marginTop: 6 }}>{resumen.sobrantes.length} conteo(s) encontraron MÁS de lo que decía el sistema: entró algo que nadie capturó.</div>}
+          </div>
+          {resumen.lista.slice().reverse().slice(0, 30).map(a => (
+            <div key={a.ev} className="card"><div className="flex-b"><b>{a.articulo}</b><b style={{ color: a.diferencia < 0 ? "var(--red)" : undefined }}>{a.diferencia > 0 ? "+" : ""}{fmtN(a.diferencia)} {a.unidad}</b></div>
+              <div className="text-xs text-muted">{a.fecha} · {a.lugar === ALMACEN_PRINCIPAL ? "Almacén principal" : a.lugar} · {a.clase === "conteo" ? `conteo: había ${fmtN(a.calculado)}, se contaron ${fmtN(a.contado)}` : "merma"} · {CAUSAS_AJUSTE[a.causa] || a.causa} · {a.quien}{a.nota ? ` · "${a.nota}"` : ""}</div></div>
+          ))}
+        </>}
+      </div>
     </div>
   );
 }
+
 
 /* ════════════ LA BITÁCORA ════════════ */
 /* Quién hizo qué y cuándo. En Supabase esta tabla NO tiene política de update
@@ -4341,7 +4246,6 @@ const QUE_PASO = {
   borro: { verbo: "borró", color: "var(--red)" },
   cambio: { verbo: "cambió", color: "var(--muted)" },
 };
-
 function Bitacora({ data, onClose }) {
   const [filtro, setFiltro] = useState("");
   const todo = [...(data.auditoria || [])].sort((a, b) => String(b.cuando || b.fecha || "").localeCompare(String(a.cuando || a.fecha || "")));
@@ -6128,7 +6032,8 @@ function AppInner() {
 
   // Persiste la versión normalizada una sola vez si hizo falta migrar.
   useEffect(() => {
-    if (JSON.stringify(rawData) !== JSON.stringify(data)) setData(data);
+    // (El inventario se guarda SIN lo que le suman los movimientos al enseñarlo: si no, se contaría dos veces.)
+    if (JSON.stringify(rawData) !== JSON.stringify(data)) setData({ ...data, inventario: (data.inventario || []).map(a => paraGuardarArticulo(a)) });
   }, []);
 
   // Restaurar sesión real de Supabase si hay una guardada (recargas, regresar al día siguiente).
@@ -6355,7 +6260,16 @@ function AppInner() {
     // Un cambio de sueldo se ANOTA (desde cuándo y cuánto ganaba antes): así
     // el costo de los meses pasados no se recalcula con el sueldo nuevo.
     if (sec === "trabajadores") item = anotarCambioDeSueldo(trabajadoresRef.current.find(t => t.id === item.id), item, today());
-    if (sec === "inventario") item = paraGuardarArticulo(item);   // lo que movieron los eventos no se guarda otra vez en el catálogo
+    if (sec === "inventario") {
+      // El catálogo no es por donde se mueve la existencia. Si una pantalla de
+      // antes "le sumó" al número, esa diferencia se vuelve un MOVIMIENTO
+      // (con su id propio, que no se pisa con el de otro aparato), y el número
+      // guardado se queda como estaba.
+      const visto = inventarioVistoRef.current.find(a => a.id === item.id);
+      const dif = visto ? Math.round(((Number(item.existencia) || 0) - (Number(visto.existencia) || 0)) * 1000) / 1000 : 0;
+      if (dif !== 0 && moverInvRef.current) moverInvRef.current(item.id, dif);
+      item = paraGuardarArticulo(item, inventarioRef.current.find(a => a.id === item.id));
+    }
     const it = marcarTocado(apartarArchivosRef.current ? apartarArchivosRef.current(sec, item) : item);
     setData(d => {
       const col = Array.isArray(d[sec]) ? d[sec] : [];
@@ -6368,6 +6282,12 @@ function AppInner() {
   // nueva la foto del sueldo con que se costea ese día.
   const trabajadoresRef = useRef([]);
   trabajadoresRef.current = data.trabajadores || [];
+  // El catálogo tal como está guardado (sin lo que le suman los movimientos al enseñarlo).
+  const inventarioRef = useRef([]);
+  inventarioRef.current = rawData.inventario || [];
+  const inventarioVistoRef = useRef([]);          // el mismo catálogo, como se ve en pantalla (con los movimientos sumados)
+  inventarioVistoRef.current = data.inventario || [];
+  const moverInvRef = useRef(null);
   const apartarArchivosRef = useRef(null);
   // Las fotos y los PDF salen del registro antes de guardarlo: el archivo se
   // queda en el teléfono (y sube aparte) y el registro sólo lleva la referencia.
@@ -6524,52 +6444,27 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
 
   // setInv: cambia el stock de un insumo. Si recibe `movimiento` (con concepto, parcela, etc),
   // también registra el movimiento como un renglón en entradas_inv (con cantidad negativa si es salida).
-  const setInv = useCallback((id, delta, movimiento) => {
-    let inventarioActualizado = null;
-    let movimientoAgregado = null;
-    setData(d => {
-      const inv = (Array.isArray(d.inventario) ? d.inventario : []);
-      const item = inv.find(i => i.id === id);
-      if (!item) return d;
-      // El saldo SÍ puede quedar en negativo, a propósito.
-      //
-      // Recortarlo en cero es la misma trampa que prorratear un faltante para
-      // que cuadre: hace que los libros se vean bien y borra justo el dato que
-      // servía. Un negativo dice algo concreto — o entró mercancía que nadie
-      // capturó, o salió más de lo que se anotó — y las dos cosas hay que
-      // saberlas. Se ve feo en la pantalla, y así debe ser.
-      const itemNuevo = { ...item, existencia: Math.round((item.existencia + delta) * 1000) / 1000 };
-      inventarioActualizado = itemNuevo;
-      const next = {
-        ...d,
-        inventario: inv.map(i => i.id === id ? itemNuevo : i),
-      };
-      if (movimiento) {
-        const prev = Array.isArray(d.entradas_inv) ? d.entradas_inv : [];
-        const reg = {
-          id: `mov${Date.now()}_${id}`,
-          insumoId: id,
-          nombre: item.nombre,
-          unidad: item.unidad,
-          cantidad: delta,
-          fecha: movimiento.fecha || today(),
-          concepto: movimiento.concepto || (delta < 0 ? "Salida" : "Entrada"),
-          parcelaId: movimiento.parcelaId || "",
-          actividadId: movimiento.actividadId || "",
-          indicacionId: movimiento.indicacionId || "",
-          costo_unit: item.costo_unit || 0,
-          costo_total: (item.costo_unit || 0) * delta,
-          registradoPor: movimiento.registradoPor || null,
-        };
-        movimientoAgregado = reg;
-        next.entradas_inv = [...prev, reg];
-      }
-      return next;
+  // "Súmale / réstale al inventario" ya NO cambia un número guardado: agrega un
+  // movimiento. La existencia se calcula de todos los movimientos, así que dos
+  // aparatos sin señal no se pisan y un reintento no duplica (mismo id).
+  // El renglón de `entradas_inv` se sigue escribiendo: es el papel de la compra
+  // o de la salida para finanzas, no la existencia.
+  const setInv = useCallback((id, delta, movimiento, contexto) => {
+    const item = inventarioRef.current.find(i => i.id === id);
+    if (!item || !Number(delta)) return;
+    // `contexto`: para qué parcela fue y quién lo usó, cuando la pantalla lo sabe. Con eso se empata con lo que esa persona trae del almacén.
+    const ahora = new Date().toISOString(); const fecha = (movimiento && movimiento.fecha) || contexto?.fecha || today();
+    const quien = quienDe(session);
+    const ev = movimientoDeSiempre({ articulo: item, delta, movimiento: { ...(contexto || {}), ...(movimiento || {}) }, usadoPor: movimiento?.usadoPor || contexto?.usadoPor || null, quien, cuando: instanteDe(fecha, today(), ahora), fecha });
+    if (ev) add("eventos", { ...ev, capturado: ahora });
+    if (movimiento) add("entradas_inv", {
+      id: `mov${Date.now()}_${id}`, insumoId: id, nombre: item.nombre, unidad: item.unidad, cantidad: delta, fecha,
+      concepto: movimiento.concepto || (delta < 0 ? "Salida" : "Entrada"), parcelaId: movimiento.parcelaId || "", actividadId: movimiento.actividadId || "", indicacionId: movimiento.indicacionId || "",
+      costo_unit: item.costo_unit || 0, costo_total: (item.costo_unit || 0) * delta, registradoPor: movimiento.registradoPor || null, _evento: ev?.id || null,
+      ...(movimiento.esVale ? { esVale: true } : {}), ...(movimiento.destino ? { destino: movimiento.destino } : {}),
     });
-    // Replicar a la nube (fuera del setData para no replicar varias veces si React renderiza dos veces)
-    if (inventarioActualizado) replicarANube("upd", "inventario", inventarioActualizado);
-    if (movimientoAgregado) replicarANube("add", "entradas_inv", movimientoAgregado);
-  }, [setData, replicarANube]);
+  }, [add, session]);
+  moverInvRef.current = setInv;
 
   // Memoizado: genAlertas escanea actividades, asistencia, embarques y créditos.
   // Sin esto se recalcularía en cada render de App (cada navegación lo pagaría).
@@ -6787,6 +6682,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
           </div>
         )}
         <div className="screen">
+          {session && page === "home" && <AvisoEntregas data={data} session={session} onNav={setPage} />}
           <MenuCtx.Provider value={ctxMenu}>
           <ErrorBoundary key={`${session.role}-${page}`} onReset={() => { setSession(null); setPage("home"); setNavParam(null); }}>
             {isAdmin && <>
@@ -7316,7 +7212,10 @@ function ArranqueLimpio({ data, add, upd, setInv, session, onClose }) {
     for (const r of renglones) {
       const a = articulos.find(x => x.id === r.insumoId);
       const contado = Number(r.contado), antes = Number(a.existencia) || 0, delta = Math.round((contado - antes) * 1000) / 1000;
-      if (delta !== 0) setInv(a.id, delta, { fecha: conteo.fecha, concepto: `Inventario inicial por conteo físico (${conteo.ubicacion})`, registradoPor: quien });
+      // El conteo inicial es un movimiento: "ese día había TANTO". No sobrescribe un número.
+      const ahoraC = new Date().toISOString();
+      const ev = registrarConteo({ articulo: a, contado, existencia: antes, causa: "inicial", nota: `Conteo físico inicial en ${conteo.ubicacion.trim()}`, responsable: conteo.responsable, quien: quienDe(session), cuando: instanteDe(conteo.fecha, today(), ahoraC), fecha: conteo.fecha });
+      if (ev.ok) add("eventos", { ...ev.evento, capturado: ahoraC });
       add("entradas_inv", {
         esConteo: true, conteoInicial: true, esAjuste: delta !== 0, insumoId: a.id, nombre: a.nombre,
         contado, segunSistema: antes, cantidad: delta, causa: "inventario inicial",
@@ -8046,7 +7945,7 @@ function Reparto({ data, add, session, onNav, onClose }) {
 
   const mandar = () => {
     const veh = form.parcelaId.startsWith("v:") ? (data.maquinaria || []).find(m => m.id === form.parcelaId.slice(2)) : null;
-    const res = asignar({ trabajadorIds: elegidos, parcelaId: veh ? null : form.parcelaId, vehiculoId: veh?.id || null, vehiculo: veh?.nombre || "", actividad: form.actividad === "__otra__" ? form.otra : form.actividad, cuadrilla: form.cuadrilla,
+    const res = asignar({ trabajadorIds: elegidos, parcelaId: veh ? null : form.parcelaId, vehiculoId: veh?.id || null, vehiculo: veh?.nombre || "", beneficiaId: veh && (form.actividad === "__otra__" ? form.otra : form.actividad) !== "Traslado de personal" ? form.beneficiaId || null : null, actividad: form.actividad === "__otra__" ? form.otra : form.actividad, cuadrilla: form.cuadrilla,
       desde: form.hora ? aIso(form.hora) : ahora, fecha: hoy, quien, capturado: ahora });
     if (!res.ok) { setDice(res.dice); return; }
     add("eventos", res.evento); setSel({}); setForm(f => ({ ...F0, parcelaId: f.parcelaId, actividad: f.actividad })); setDice("");
@@ -8167,6 +8066,12 @@ function Reparto({ data, add, session, onNav, onClose }) {
             <optgroup label="Parcelas">{(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</optgroup>
             {(data.maquinaria || []).length > 0 && <optgroup label="Vehículos y maquinaria (operador)">{(data.maquinaria || []).map(m => <option key={m.id} value={`v:${m.id}`}>{m.nombre}</option>)}</optgroup>}
           </select>
+          {form.parcelaId.startsWith("v:") && form.actividad && form.actividad !== "Traslado de personal" && (
+            <select className="inp" aria-label="Para qué parcela es" value={form.beneficiaId || ""} onChange={e => setForm(f => ({ ...f, beneficiaId: e.target.value }))} style={{ marginBottom: 8 }}>
+              <option value="">¿Para qué parcela es? (si no es para ninguna, déjalo así)</option>
+              {(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            </select>
+          )}
           {form.parcelaId.startsWith("v:") && <div className="text-xs text-muted" style={{ margin: "-2px 0 8px" }}>Su tiempo se le carga al vehículo con lo que ya gana, sólo mientras esté asignado. Al terminar el traslado se le asigna a lo que siga.</div>}
           <select className="inp" aria-label="Qué van a hacer" value={form.actividad} onChange={e => setForm(f => ({ ...f, actividad: e.target.value }))} style={{ marginBottom: 8 }}>
             <option value="">¿A hacer qué?</option>
@@ -8231,7 +8136,7 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
     if (!yaLlegaron) {
       if (!form.transporte) { setDice("Falta decir cómo llegaron (si no se sabe, escoge \"Sin transporte registrado\")."); return; }
       const v = (data.maquinaria || []).find(m => m.id === form.vehiculoId);
-      const t = registrarTraslado({ cuadrillaId: comun.cuadrillaId, cuadrilla: nombreCq, tipo: form.transporte, vehiculoId: form.vehiculoId, vehiculo: v?.nombre || "", monto: form.flete, personas: gente.length || Number(form.cuantos) || 0, fecha: fechaReg, cuando: paso, capturado: ahora, quien });
+      const t = registrarTraslado({ cuadrillaId: comun.cuadrillaId, cuadrilla: nombreCq, tipo: form.transporte, vehiculoId: form.vehiculoId, vehiculo: v?.nombre || "", monto: form.flete, km: form.km, personas: gente.length || Number(form.cuantos) || 0, fecha: fechaReg, cuando: paso, capturado: ahora, quien });
       if (!t.ok) { setDice(t.dice); return; }
       traslado = t.evento;
     }
@@ -8336,6 +8241,7 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
                 <select className="inp" aria-label="Vehículo" value={form.vehiculoId} onChange={e => pon({ vehiculoId: e.target.value })} style={{ marginBottom: 6 }}>
                   <option value="">¿En cuál?</option>{(data.maquinaria || []).map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
                 </select>
+                <input className="inp" type="number" inputMode="decimal" aria-label="Kilómetros del viaje" placeholder="Kilómetros del viaje (opcional)" value={form.km || ""} onChange={e => pon({ km: e.target.value })} style={{ marginBottom: 6 }} />
                 <div className="text-xs text-muted">No se le pone importe: lo que cuesta ese viaje sale del combustible, el mantenimiento y el operador del vehículo. Ponerlo aquí lo contaría dos veces.{(data.maquinaria || []).length === 0 ? " Todavía no hay vehículos dados de alta en Equipo." : ""}</div>
               </>}
               {form.transporte === "flete" && <>
@@ -8393,16 +8299,49 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
   );
 }
 
+// El aviso de lo entregado que nadie ha cerrado. Le sale al que lo trae y al
+// encargado desde el primer plazo, y al administrador cuando pasa el segundo.
+// (Es un aviso dentro de la app, al abrirla: no manda mensajes al teléfono.)
+function AvisoEntregas({ data, session, onNav }) {
+  const quien = quienDe(session);
+  const estado = data.almacen;
+  if (!estado || estado.lotes.length === 0) return null;
+  const hoy = today();
+  const plazos = { aviso_h: Number(ajusteVigente(data.eventos, "alm_aviso_h").valor), escala_h: Number(ajusteVigente(data.eventos, "alm_escala_h").valor), aviso_largo_d: Number(ajusteVigente(data.eventos, "alm_aviso_largo_d").valor), escala_largo_d: Number(ajusteVigente(data.eventos, "alm_escala_largo_d").valor) };
+  const a = avisosPara(porCerrar(estado, { hoy, ahora: new Date().toISOString(), plazos }), quien);
+  const deOtros = a.lista.filter(l => l.recibe.id !== quien.id);
+  if (a.mios.length === 0 && deOtros.length === 0) return null;
+  const puedeAbrir = quien.rol === "admin" || quien.rol === "encargado";
+  return (
+    <div className="section-pad" style={{ paddingBottom: 0 }}>
+      {a.mios.length > 0 && (
+        <div className="card" style={{ borderColor: a.mios.some(l => l.nivel === "aviso" || l.nivel === "escalado") ? "var(--gold)" : undefined }}>
+          <div className="card-title" style={{ marginBottom: 4 }}>Traes del almacén</div>
+          {a.mios.map(l => <div key={l.id} className="text-sm">{fmtN(l.saldo)} {l.unidad} de {l.articulo} <span className="text-muted">· {l.dias === 0 ? "desde hoy" : `desde hace ${l.dias} día(s)`}{l.nivel === "aviso" || l.nivel === "escalado" ? " · hay que decirle al encargado qué pasó con esto" : ""}</span></div>)}
+        </div>
+      )}
+      {deOtros.length > 0 && (
+        <div className="card" style={{ borderColor: a.nivel === "escalado" ? "var(--red)" : "var(--gold)" }} onClick={() => puedeAbrir && onNav("entregas")}>
+          <div className="text-sm"><b>{deOtros.length} entrega(s) del almacén {a.nivel === "escalado" ? "llevan demasiado sin cerrarse" : "pasaron su plazo sin cerrarse"}.</b> {deOtros.slice(0, 3).map(l => `${l.recibe.nombre}: ${fmtN(l.saldo)} ${l.unidad} de ${l.articulo}`).join(" · ")}{deOtros.length > 3 ? "…" : ""}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // El almacén por movimientos: entregar NO es gastar. Lo que sale queda con
 // alguien hasta que se cierra: se usó (y ahí nace el costo, una vez), regresó,
 // se quedó con otra persona, o se dio de baja con su causa.
 function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
   const hoy = today();
   const quien = quienDe(session);
-  const estado = data.almacen || estadoDelAlmacen(data.eventos);
+  const estado = data.almacen || estadoDelAlmacen(data.eventos, []);
+  const plazos = { aviso_h: Number(ajusteVigente(data.eventos, "alm_aviso_h").valor), escala_h: Number(ajusteVigente(data.eventos, "alm_escala_h").valor), aviso_largo_d: Number(ajusteVigente(data.eventos, "alm_aviso_largo_d").valor), escala_largo_d: Number(ajusteVigente(data.eventos, "alm_escala_largo_d").valor) };
+  const [sigue, setSigue] = useState(null);           // { lote, proxima }
+  const [revisa, setRevisa] = useState(null);         // { item, texto } — explicar una discrepancia o decidir sobre una baja
   const articulos = data.inventario || [];
   const [tab, setTab] = useState("entregar");
-  const E0 = { articuloId: "", cantidad: "", recibe: "", otro: "", destino: "", destinoId: "", actividad: "", nota: "" };
+  const E0 = { articuloId: "", cantidad: "", recibe: "", otro: "", destino: "", destinoId: "", actividad: "", nota: "", revisarEl: "" };
   const [form, setForm] = useState(E0);
   const [dice, setDice] = useState("");
   const [listo, setListo] = useState(null);           // { texto, avisos }
@@ -8427,7 +8366,10 @@ function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
     return null;
   };
   const decirDestino = (d) => (!d ? "sin decir para qué" : d.tipo === "general" ? "uso general del rancho" : `${d.nombre}${d.actividad ? ` · ${d.actividad}` : ""}`);
-  const pendientes = porCerrar(estado, { hoy });
+  const pendientes = porCerrar(estado, { hoy, ahora: new Date().toISOString(), plazos });
+  const revisar = porRevisar(estado);
+  const bajasSinVer = estado.bajas.filter(b => !b.resuelta);
+  const NIVEL = { aviso: ["Pasó el primer plazo", "var(--gold)"], escalado: ["Pasó el segundo plazo: lo ve el administrador", "var(--red)"], en_uso: ["En uso", "var(--muted)"] };
   const consumosHoy = costoDeConsumos(estado, { desde: hoy, hasta: hoy });
   const lugares = [...new Set(articulos.flatMap(a => Object.keys(a._otrosLugares || {})))];
 
@@ -8452,7 +8394,7 @@ function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
 
   const guardarEntrega = () => {
     const ahora = new Date().toISOString();
-    const res = entregar({ articulo, cantidad: form.cantidad, recibe: quienRecibe(form.recibe, form.otro), destino: destinoDe(form.destino, form.destinoId, form.actividad), nota: form.nota, existencia: articulo?.existencia, quien, cuando: ahora, fecha: hoy, capturado: ahora });
+    const res = entregar({ articulo, cantidad: form.cantidad, recibe: quienRecibe(form.recibe, form.otro), destino: destinoDe(form.destino, form.destinoId, form.actividad), nota: form.nota, revisarEl: form.revisarEl || null, existencia: articulo?.existencia, quien, cuando: ahora, fecha: hoy, capturado: ahora });
     if (!res.ok) { setDice(res.dice); return; }
     add("eventos", res.evento);
     setListo({ texto: `Entregado: ${fmtN(res.evento.datos.cantidad)} ${res.evento.datos.unidad} de ${res.evento.datos.articulo} a ${res.evento.datos.recibe.nombre}. Queda a su cargo hasta que se cierre; todavía no cuenta como gastado.`, avisos: res.avisos });
@@ -8472,13 +8414,15 @@ function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
     const art = articulos.find(a => a.id === c.lote.articuloId);
     const res = cerrarEntrega({ lote: c.lote, articulo: art, usado: c.usado, devuelto: c.devuelto,
       pasa: Number(c.pasaCant) > 0 ? { cantidad: c.pasaCant, recibe: quienRecibe(c.pasaA, c.pasaOtro) } : null,
-      baja: Number(c.bajaCant) > 0 ? { cantidad: c.bajaCant, causa: c.bajaCausa } : null,
+      baja: Number(c.bajaCant) > 0 ? { cantidad: c.bajaCant, causa: c.bajaCausa, nota: c.bajaNota, valorUnit: c.bajaValor, evidencia: c.bajaFoto } : null,
       destino: destinoDe(c.destino, c.destinoId, c.actividad), quien, cuando: ahora, fecha: hoy, capturado: ahora });
     if (!res.ok) { setDice(res.dice); return; }
     res.eventos.forEach(e => add("eventos", e));
     setListo({ texto: `Cerrado lo de ${c.lote.recibe.nombre}.`, avisos: res.avisos }); setCierre(null); setDice("");
   };
-  const sigueConEl = (lote) => { const r = seQueda({ lote, quien, cuando: new Date().toISOString(), fecha: hoy }); if (r.ok) add("eventos", r.evento); else setDice(r.dice); };
+  const sigueConEl = () => { const r = seQueda({ lote: sigue.lote, proxima: sigue.proxima || null, quien, cuando: new Date().toISOString(), fecha: hoy }); if (!r.ok) { setDice(r.dice); return; } add("eventos", r.evento); setSigue(null); setDice(""); };
+  const guardarRevision = () => { const r = resolverAlmacen({ evId: revisa.item.ev, texto: revisa.texto, quien, cuando: new Date().toISOString(), fecha: hoy }); if (!r.ok) { setDice(r.dice); return; } add("eventos", r.evento); setRevisa(null); setDice(""); };
+  const fotoDeBaja = (e) => { const f = e.target.files?.[0]; if (!f) return; const fr = new FileReader(); fr.onload = () => setCierre(c => ({ ...c, bajaFoto: fr.result })); fr.readAsDataURL(f); };
   const cancelarEntrega = () => {
     const e = (data.eventos || []).find(x => x.id === cancela.lote.id);
     const res = cancelarEvento(e, { motivo: cancela.motivo, quien, cuando: new Date().toISOString() });
@@ -8493,13 +8437,15 @@ function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
   };
   const resta = cierre ? Math.round((cierre.lote.saldo - ["usado", "devuelto", "pasaCant", "bajaCant"].reduce((t, k) => t + (Number(cierre[k]) || 0), 0)) * 1000) / 1000 : 0;
   const tarjeta = (l, revisado) => (
-    <div key={l.id} className="card" style={!revisado && l.dias > 0 ? { borderColor: "var(--gold)" } : undefined}>
+    <div key={l.id} className="card" style={NIVEL[l.nivel] && l.nivel !== "en_uso" ? { borderColor: NIVEL[l.nivel][1] } : undefined}>
       <div className="flex-b"><span className="card-title" style={{ marginBottom: 0 }}>{l.recibe.nombre}</span><b>{fmtN(l.saldo)} {l.unidad}</b></div>
       <div className="text-sm" style={{ margin: "2px 0 4px" }}>{l.articulo}{l.herramienta ? " · herramienta" : ""} · {l.herramienta ? "prestada" : decirDestino(l.destino)}</div>
-      <div className="text-xs text-muted">{l.dias === 0 ? `Desde hoy a las ${horaCorta(l.desde)}` : `Lo trae desde hace ${l.dias} día(s) (${l.fecha})`}{l.cantidad !== l.saldo ? ` · se le entregaron ${fmtN(l.cantidad)}` : ""} · lo entregó {l.entrego}{revisado ? " · revisado hoy" : ""}</div>
+      <div className="text-xs text-muted">{l.dias === 0 ? `Desde hoy a las ${horaCorta(l.desde)}` : `Lo trae desde hace ${l.dias} día(s) (${l.fecha})`}{l.cantidad !== l.saldo ? ` · se le entregaron ${fmtN(l.cantidad)}` : ""} · lo entregó {l.entrego}{l.revisadoHoy ? " · revisado hoy" : ""}</div>
+      {NIVEL[l.nivel] && <div className="text-xs" style={{ color: NIVEL[l.nivel][1], marginTop: 4 }}>{l.nivel === "en_uso" ? `Sigue en uso: se vuelve a preguntar el ${l.proxima}` : NIVEL[l.nivel][0]}</div>}
+      {l.usadoAct > 0 && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Ya reportó en sus actividades {fmtN(l.usadoAct)} {l.unidad}: eso ya está contado, no hay que cerrarlo otra vez.</div>}
       <div className="jor-acc">
-        <button onClick={() => { setCierre({ lote: l, usado: "", devuelto: "", pasaCant: "", pasaA: "", pasaOtro: "", bajaCant: "", bajaCausa: "", destino: "", destinoId: "", actividad: "" }); setDice(""); setListo(null); }}>{l.herramienta ? "Regresó o cambió de manos" : "Cerrar: se usó o regresó"}</button>
-        {!revisado && <button onClick={() => sigueConEl(l)}>Sigue con {l.recibe.nombre.split(" ")[0]}</button>}
+        <button onClick={() => { setCierre({ lote: l, usado: "", devuelto: "", pasaCant: "", pasaA: "", pasaOtro: "", bajaCant: "", bajaCausa: "", bajaNota: "", bajaValor: "", bajaFoto: null, destino: "", destinoId: "", actividad: "" }); setDice(""); setListo(null); }}>{l.herramienta ? "Regresó o cambió de manos" : "Cerrar: se usó o regresó"}</button>
+        <button onClick={() => { setSigue({ lote: l, proxima: sumarDias(hoy, l.largo ? 7 : 1) }); setDice(""); }}>Sigue con {l.recibe.nombre.split(" ")[0]}</button>
         {l.cantidad === l.saldo && <button onClick={() => { setCancela({ lote: l, motivo: "" }); setDice(""); }}>Fue un error</button>}
       </div>
     </div>
@@ -8510,7 +8456,7 @@ function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
       <div className="top-bar"><button className="btn-ghost" onClick={onClose}>‹</button><h2 style={{ flex: 1 }}>Entregas del almacén</h2>
         <button className="btn btn-outline btn-sm" onClick={() => onNav("vales")}>Conteo</button></div>
       <div className="tabs-pill">
-        {[["entregar", "Entregar"], ["cerrar", `Por cerrar${pendientes.pendientes.length ? ` (${pendientes.pendientes.length})` : ""}`], ["directo", "Usar directo"], ["hay", "Qué hay"]].map(([v, t]) => (
+        {[["entregar", "Entregar"], ["cerrar", `Por cerrar${pendientes.pendientes.length ? ` (${pendientes.pendientes.length})` : ""}`], ["directo", "Usar directo"], ["hay", "Qué hay"], ["revisar", `Por revisar${revisar.pendientes.length + bajasSinVer.length ? ` (${revisar.pendientes.length + bajasSinVer.length})` : ""}`]].map(([v, t]) => (
           <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => { setTab(v); setDice(""); setListo(null); setForm(E0); }}>{t}</button>
         ))}
       </div>
@@ -8536,7 +8482,8 @@ function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
             {articulo?.esHerramienta
               ? <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Es una herramienta: se presta y se devuelve. No genera costo.</div>
               : camposDestino(form, pon, "")}
-            <input className="inp" aria-label="Nota" placeholder="Nota (opcional)" value={form.nota} onChange={e => pon({ nota: e.target.value })} style={{ marginBottom: 10 }} />
+            <input className="inp" aria-label="Nota" placeholder="Nota (opcional)" value={form.nota} onChange={e => pon({ nota: e.target.value })} style={{ marginBottom: 8 }} />
+            <div className="form-group"><label className="form-label" htmlFor="en-rev">Si va a tardar, ¿cuándo se revisa? (opcional)</label><input id="en-rev" type="date" className="inp" min={hoy} value={form.revisarEl} onChange={e => pon({ revisarEl: e.target.value })} /></div>
             {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
             <button className="btn btn-accent" style={{ width: "100%" }} onClick={guardarEntrega}>Entregar</button>
             <div className="text-xs text-muted" style={{ marginTop: 8 }}>Entregar no es gastar: baja la existencia del almacén y queda a cargo de quien lo recibe. El costo se carga cuando se dice cuánto se usó.</div>
@@ -8545,9 +8492,10 @@ function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
 
         {tab === "cerrar" && <>
           {pendientes.pendientes.length === 0 && pendientes.yaRevisados.length === 0 && <div className="card"><div className="text-sm text-muted">Nadie trae nada del almacén. Todo lo entregado ya se cerró.</div></div>}
-          {pendientes.deOtrosDias > 0 && <div className="text-sm" style={{ color: "var(--gold)", marginBottom: 10 }}>{pendientes.deOtrosDias} entrega(s) de días anteriores siguen sin cerrar.</div>}
+          {pendientes.escalados.length > 0 && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 6 }}>{pendientes.escalados.length} entrega(s) pasaron el segundo plazo.</div>}
+          {pendientes.avisos.length > 0 && <div className="text-sm" style={{ color: "var(--gold)", marginBottom: 10 }}>{pendientes.avisos.length} entrega(s) pasaron el primer plazo sin cerrarse.</div>}
           {pendientes.pendientes.map(l => tarjeta(l, false))}
-          {pendientes.yaRevisados.length > 0 && <div className="form-label" style={{ margin: "14px 0 8px" }}>Ya revisado hoy: siguen con ellos</div>}
+          {pendientes.yaRevisados.length > 0 && <div className="form-label" style={{ margin: "14px 0 8px" }}>Ya revisado: siguen con ellos</div>}
           {pendientes.yaRevisados.map(l => tarjeta(l, true))}
           {consumosHoy.consumos.length > 0 && (
             <div className="card">
@@ -8556,7 +8504,7 @@ function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
               {consumosHoy.sinCosto.length > 0 && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 6 }}>{consumosHoy.sinCosto.length} consumo(s) de artículos sin costo capturado: no cargaron nada. Un costo que falta no es un cero.</div>}
             </div>
           )}
-          {estado.huerfanos.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">{estado.huerfanos.length} cierre(s) no se pudieron aplicar completos: su entrega se canceló, o dos personas cerraron lo mismo. No cuentan de más; conviene revisarlos.</div></div>}
+          {revisar.pendientes.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">{revisar.pendientes.length} asunto(s) del almacén esperan revisión. <button className="acc-link" onClick={() => setTab("revisar")}>Verlos</button></div></div>}
         </>}
 
         {tab === "directo" && articulos.length > 0 && (
@@ -8575,17 +8523,77 @@ function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
           return (
             <div key={a.id} className="card">
               <div className="flex-b"><span className="card-title" style={{ marginBottom: 0 }}>{a.nombre}</span><b style={{ color: a.existencia < 0 ? "var(--red)" : undefined }}>{fmtN(a.existencia)} {a.unidad}</b></div>
-              <div className="text-xs text-muted">En el almacén{a.esHerramienta ? " · herramienta" : ""}{a.existencia < 0 ? " · en negativo: entró algo que nadie capturó, o salió más de lo anotado" : ""}</div>
+              <div className="text-xs text-muted">En el almacén principal{a.esHerramienta ? " · herramienta" : a.usoProlongado ? " · de uso prolongado" : ""}{a.existencia < 0 ? " · en negativo: hay una discrepancia pendiente de revisar" : ""}</div>
               {Object.entries(a._otrosLugares || {}).map(([lugar, n]) => <div key={lugar} className="mo-act"><span>En {lugar}</span><span /><b>{fmtN(n)} {a.unidad}</b></div>)}
               {fuera.map(l => <div key={l.id} className="mo-act"><span>Lo trae {l.recibe.nombre}</span><span className="text-muted">{l.fecha === hoy ? "hoy" : l.fecha}</span><b>{fmtN(l.saldo)} {a.unidad}</b></div>)}
               <div className="jor-acc">
                 <button onClick={() => setCodigo(a)}>Su código</button>
                 <button onClick={() => { setMueve({ articulo: a, cantidad: "", a: "" }); setDice(""); }}>Mover a otro lugar</button>
+                {quien.rol === "admin" && <button onClick={() => upd("inventario", { ...a, esHerramienta: !a.esHerramienta })}>{a.esHerramienta ? "Ya no es herramienta" : "Es herramienta"}</button>}
+                {quien.rol === "admin" && !a.esHerramienta && <button onClick={() => upd("inventario", { ...a, usoProlongado: !a.usoProlongado })}>{a.usoProlongado ? "Es de consumo inmediato" : "Es de uso prolongado"}</button>}
               </div>
             </div>
           );
         })}
+        {tab === "hay" && <ReglasDelRancho data={data} add={add} session={session} claves={["alm_aviso_h", "alm_escala_h", "alm_aviso_largo_d", "alm_escala_largo_d"]} />}
+
+        {tab === "revisar" && <>
+          {revisar.pendientes.length === 0 && bajasSinVer.length === 0 && <div className="card"><div className="text-sm text-muted">No hay nada del almacén esperando revisión.</div></div>}
+          {revisar.pendientes.map(x => (
+            <div key={`${x.clase}-${x.ev}`} className="card" style={{ borderColor: "var(--gold)" }}>
+              <div className="card-title" style={{ marginBottom: 4 }}>{x.clase === "sin_existencia" ? "Salió sin que alcanzara la existencia" : x.clase === "de_mas" ? "Dos cierres de la misma entrega" : x.clase === "conteos_distintos" ? "Dos conteos que no coinciden" : x.clase === "conteo_cambio" ? "La diferencia de un conteo cambió" : "Cierre sin su entrega"}</div>
+              <div className="text-sm">{x.dice}</div>
+              <div className="text-xs text-muted" style={{ marginTop: 4 }}>{x.fecha}{x.quien ? ` · ${x.quien}` : ""}</div>
+              {quien.rol === "admin" ? <div className="jor-acc"><button onClick={() => { setRevisa({ item: x, texto: "", titulo: "Qué se revisó" }); setDice(""); }}>Dejar escrito qué se revisó</button></div> : <div className="text-xs text-muted" style={{ marginTop: 6 }}>Lo revisa un administrador.</div>}
+            </div>
+          ))}
+          {revisar.negativos.length > 0 && <div className="card"><div className="card-title">En negativo ahorita</div>{revisar.negativos.map(n => <div key={`${n.articuloId}-${n.lugar}`} className="mo-act"><span>{articulos.find(a => a.id === n.articuloId)?.nombre || "Artículo"}</span><span className="text-muted">{n.lugar === ALMACEN_PRINCIPAL ? "Almacén principal" : n.lugar}</span><b style={{ color: "var(--red)" }}>{fmtN(n.hay)}</b></div>)}<div className="text-xs text-muted" style={{ marginTop: 6 }}>No se corrige solo ni se inventa una compra: se arregla capturando lo que faltó (la compra que nadie registró) o con un conteo.</div></div>}
+          {estado.bajas.length > 0 && <div className="form-label" style={{ margin: "14px 0 8px" }}>Herramientas y artículos dados de baja</div>}
+          {estado.bajas.slice().reverse().map(b => (
+            <div key={b.ev} className="card">
+              <div className="flex-b"><b>{fmtN(b.cantidad)} {b.unidad} de {b.articulo}</b><b>{b.valor != null ? fmt(b.valor) : "sin valor"}</b></div>
+              <div className="text-sm" style={{ margin: "2px 0" }}>{CAUSAS_BAJA[b.causa] || b.causa} · la traía {b.responsable}</div>
+              <div className="text-xs text-muted">{b.fecha} · lo anotó {b.quien}{b.nota ? ` · "${b.nota}"` : ""}</div>
+              {b.evidencia && <Foto src={b.evidencia} alt="evidencia" style={{ width: "100%", borderRadius: 10, marginTop: 8, maxHeight: 180, objectFit: "cover" }} />}
+              {b.resuelta ? <div className="text-xs" style={{ marginTop: 6 }}>Revisado por {b.resuelta.por}: "{b.resuelta.texto}"</div>
+                : quien.rol === "admin" ? <div className="jor-acc"><button onClick={() => { setRevisa({ item: b, texto: "", titulo: "Qué se decidió" }); setDice(""); }}>Dejar escrito qué se decidió</button></div>
+                : <div className="text-xs text-muted" style={{ marginTop: 6 }}>Pendiente de que lo revise un administrador.</div>}
+              <div className="text-xs text-muted" style={{ marginTop: 6 }}>La baja no descuenta nada a nadie. Si hubiera alguna responsabilidad, la revisa y autoriza una persona, conforme a la ley laboral.</div>
+            </div>
+          ))}
+          {revisar.empalmes.length > 0 && <div className="card"><div className="card-title">Capturado dos veces, contado una</div>{revisar.empalmes.slice(-10).map((x, k) => <div key={k} className="text-xs text-muted" style={{ marginBottom: 4 }}>{x.fecha} · {fmtN(x.cantidad)} {x.unidad} de {x.articulo}: {x.quien} lo reportó en su actividad y también se cerró en su entrega.</div>)}</div>}
+          {revisar.resueltas.length > 0 && <div className="card"><div className="card-title">Ya revisado</div>{revisar.resueltas.slice(-10).map(x => <div key={`${x.clase}-${x.ev}`} className="text-xs text-muted" style={{ marginBottom: 6 }}>{x.fecha} · {x.dice} — <b>{x.resuelta.por}:</b> "{x.resuelta.texto}"</div>)}</div>}
+        </>}
       </div>
+
+      {sigue && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setSigue(null); }}>
+          <div className="modal-sheet">
+            <div className="card-title">Sigue con {sigue.lote.recibe.nombre}</div>
+            <div className="text-sm text-muted" style={{ marginBottom: 10 }}>No es consumo ni devolución: sólo queda dicho que lo sigue usando y cuándo se vuelve a preguntar.</div>
+            <div className="form-group"><label className="form-label" htmlFor="sg-prox">Próxima revisión</label><input id="sg-prox" type="date" className="inp" min={hoy} value={sigue.proxima} onChange={e => setSigue(x => ({ ...x, proxima: e.target.value }))} /></div>
+            {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setSigue(null)}>No</button>
+              <button className="btn btn-accent" style={{ flex: 1 }} onClick={sigueConEl}>Sigue en uso</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {revisa && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setRevisa(null); }}>
+          <div className="modal-sheet">
+            <div className="card-title">{revisa.titulo}</div>
+            <div className="text-sm text-muted" style={{ marginBottom: 10 }}>Queda escrito con tu nombre. No mueve existencias ni dinero, y no descuenta nada a nadie.</div>
+            <textarea className="inp" rows={3} aria-label="Qué se revisó o decidió" value={revisa.texto} onChange={e => setRevisa(x => ({ ...x, texto: e.target.value }))} style={{ marginBottom: 10 }} />
+            {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setRevisa(null)}>No</button>
+              <button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarRevision}>Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {leyendo && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setLeyendo(false); }}>
@@ -8662,6 +8670,12 @@ function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
                   <option value="">¿Qué pasó?</option>{Object.entries(CAUSAS_BAJA).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
+              {Number(cierre.bajaCant) > 0 && <>
+                <input className="inp" aria-label="Qué pasó, con detalle" placeholder="Qué pasó (queda escrito)" value={cierre.bajaNota} onChange={e => setCierre(c => ({ ...c, bajaNota: e.target.value }))} style={{ marginTop: 8 }} />
+                <input className="inp" type="number" inputMode="decimal" aria-label="Valor de cada pieza" placeholder={`Valor de cada una ($)${articulos.find(a => a.id === cierre.lote.articuloId)?.costo_unit ? ` — si se deja vacío: ${fmt(articulos.find(a => a.id === cierre.lote.articuloId).costo_unit)}` : ""}`} value={cierre.bajaValor} onChange={e => setCierre(c => ({ ...c, bajaValor: e.target.value }))} style={{ marginTop: 8 }} />
+                <label className="text-xs text-muted" style={{ display: "block", marginTop: 8 }}>Foto, si hay (opcional) <input type="file" accept="image/*" capture="environment" aria-label="Foto de la baja" onChange={fotoDeBaja} /></label>
+                <div className="text-xs text-muted" style={{ marginTop: 6 }}>Esto es sólo la baja del artículo. No le descuenta nada a nadie.</div>
+              </>}
             </div>
             <div className="text-sm" style={{ marginBottom: 10, color: resta < 0 ? "var(--red)" : undefined }}>{resta < 0 ? `Sobran ${fmtN(-resta)}: es más de lo que traía.` : resta > 0 ? `Lo demás (${fmtN(resta)} ${cierre.lote.unidad}) sigue con ${cierre.lote.recibe.nombre}.` : "Con esto queda todo cerrado."}</div>
             {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
@@ -8703,6 +8717,13 @@ function ManoDeObra({ data, add, session, onClose }) {
   const consumosAlm = useMemo(() => costoDeConsumos(data.almacen || estadoDelAlmacen(data.eventos), { desde: rango.desde, hasta: rango.hasta }), [data.almacen, data.eventos, rango.desde, rango.hasta]);
   const vehiculos = useMemo(() => costoDeVehiculos({ vehiculos: data.maquinaria || [], partes: r.partes, consumos: consumosAlm.consumos, egresos: data.egresos || [], viajes: cq.propios, desde: rango.desde, hasta: rango.hasta }), [data.maquinaria, data.egresos, r.partes, consumosAlm, cq.propios, rango.desde, rango.hasta]);
   const noContado = data.noContado || { cuadrillas: [], totalCuadrillas: 0, planta: 0, totalPlanta: 0 };
+  // La otra vista del mismo dinero: a qué parcelas benefició cada vehículo.
+  const critTraslado = ajusteVigente(data.eventos, "criterio_traslado").valor, critVehiculo = ajusteVigente(data.eventos, "criterio_vehiculo").valor;
+  const repartos = useMemo(() => repartirVehiculos({ vehiculos: data.maquinaria || [], costos: vehiculos,
+    trabajo: cq.partes.filter(p => p.clase === "pago").map(p => ({ fecha: p.fecha, cuadrillaId: p.cuadrillaId, parcelaId: p.parcelaId, personas: p.personas || 1 })),
+    cuotas: vivos(data.actividades || []).filter(a => a.maquinariaId), desde: rango.desde, hasta: rango.hasta, criterioTraslado: critTraslado, criterioVehiculo: critVehiculo }), [data.maquinaria, data.actividades, vehiculos, cq.partes, rango.desde, rango.hasta, critTraslado, critVehiculo]);
+  const indirecto = useMemo(() => indirectoPorParcela(repartos), [repartos]);
+  const [verReparto, setVerReparto] = useState(null);
   const nombre = (id) => {
     if (String(id).startsWith("cq|")) { const p = partesCq.find(x => x.trabajadorId === id); return p ? (p.persona ? `${p.persona} · ${p.cuadrilla}` : `Flete externo · ${p.cuadrilla}`) : "Cuadrilla"; }
     return (data.trabajadores || []).find(t => t.id === id)?.nombre || "Sin ficha en este aparato";
@@ -8803,7 +8824,34 @@ function ManoDeObra({ data, add, session, onClose }) {
                 {v.sinCosto > 0 && <div className="text-xs" style={{ color: "var(--gold)" }}>{v.sinCosto} consumo(s) de un artículo sin costo capturado: no suman aquí.</div>}
               </div>
             ))}
-            <div className="text-xs text-muted">El operador sale de lo que ya gana (no es otro pago). Este costo todavía no se reparte a las parcelas: falta decidir con qué criterio.</div>
+            <div className="text-xs text-muted">El operador sale de lo que ya gana (no es otro pago).</div>
+          </div>
+        )}
+        {repartos.length > 0 && (
+          <div className="card">
+            <div className="card-title">A qué benefició cada vehículo</div>
+            <div className="text-xs text-muted" style={{ marginBottom: 10 }}>Es el mismo dinero de arriba, visto desde las parcelas. No es un gasto más: no se suma otra vez.</div>
+            {repartos.map(v => (
+              <div key={v.vehiculoId} style={{ marginBottom: 12 }}>
+                <div className="flex-b"><b>{v.nombre}</b><b>{fmt(v.costoReal)}</b></div>
+                {v.depreciacion > 0 && <div className="mo-act"><span>Incluye depreciación del periodo (calculada, no pagada)</span><span /><b>{fmt(v.depreciacion)}</b></div>}
+                {v.modo === "cuota" ? <div className="text-sm" style={{ marginTop: 4 }}>Ya carga cuota por hora en las actividades: <b>{fmt(v.cuota)}</b> en estas fechas. Su costo real no se reparte encima, para no cobrarlo dos veces. Costo real contra cuota: {fmt(v.costoReal - v.cuota)} de diferencia.</div> : <>
+                  <div className="mo-act"><span>Repartido a parcelas</span><span /><b>{fmt(v.repartido)}</b></div>
+                  {v.noProduccion > 0 && <div className="mo-act"><span>Usos que no fueron para una parcela</span><span /><b>{fmt(v.noProduccion)}</b></div>}
+                  {v.pendiente > 0 && <div className="mo-act"><span style={{ color: "var(--gold)" }}>Pendiente de repartir</span><span /><b>{fmt(v.pendiente)}</b></div>}
+                  {v.pendientes.map((x, k) => <div key={k} className="text-xs" style={{ color: "var(--gold)" }}>{fmt(x.monto)}: {x.porque}</div>)}
+                  {!v.cuadra && <div className="text-xs" style={{ color: "var(--red)" }}>Lo repartido no suma el costo del vehículo: hay que revisarlo.</div>}
+                </>}
+              </div>
+            ))}
+            {indirecto.length > 0 && <div className="form-label" style={{ margin: "6px 0" }}>Lo que le tocó a cada parcela (costo indirecto)</div>}
+            {indirecto.map(x => (
+              <div key={x.parcelaId}>
+                <button className="mo-act" style={{ width: "100%", background: "none", border: 0, color: "inherit", textAlign: "left", padding: "6px 0" }} onClick={() => setVerReparto(verReparto === x.parcelaId ? null : x.parcelaId)}><span>{parcela(x.parcelaId)}</span><span className="text-muted">{verReparto === x.parcelaId ? "−" : "+"}</span><b>{fmt(x.monto)}</b></button>
+                {verReparto === x.parcelaId && x.renglones.map((r, k) => <div key={k} className="text-xs text-muted" style={{ marginBottom: 4 }}>{fmt(r.monto)} · {r.vehiculo} · {r.origen === "operador" ? "operador" : "combustible, taller y depreciación"} · {r.base}</div>)}
+              </div>
+            ))}
+            <div className="text-xs text-muted" style={{ marginTop: 8 }}>El costo directo de cada parcela no cambia: esto va encima, como costo indirecto.</div>
           </div>
         )}
         {(noContado.totalCuadrillas > 0 || noContado.totalPlanta > 0) && (
@@ -8846,7 +8894,7 @@ function ManoDeObra({ data, add, session, onClose }) {
             </div>
           );
         })}
-        <ReglasDelRancho data={data} add={add} session={session} claves={["horas_jornada", "criterio_flete"]} />
+        <ReglasDelRancho data={data} add={add} session={session} claves={["horas_jornada", "criterio_flete", "criterio_traslado", "criterio_vehiculo"]} />
       </div>
 
       {rastro && (
@@ -9429,7 +9477,7 @@ function AdminInventario({ data, add, upd, del, setInv }) {
         <div className="section-pad">
           <div className="card ab">
             <div className="card-title">Nuevo Insumo</div>
-            {[["Nombre", "text", "nombre"], ["Unidad", "text", "unidad"], ["Existencia", "number", "existencia"], ["Costo unitario", "number", "costo_unit"], ["Stock mínimo", "number", "minimo"]].map(([l, t, k]) => (
+            {[["Nombre", "text", "nombre"], ["Unidad", "text", "unidad"], ["Costo unitario", "number", "costo_unit"], ["Stock mínimo", "number", "minimo"]].map(([l, t, k]) => (
               <div key={k} className="form-group"><label className="form-label">{l}</label><input type={t} className="inp" value={form[k]} onChange={e => setForm(f => ({ ...f, [k]: t === "number" ? parseFloat(e.target.value) || 0 : e.target.value }))} /></div>
             ))}
             <div className="form-group"><label className="form-label">Categoría</label>
@@ -9628,7 +9676,6 @@ function AdminInventario({ data, add, upd, del, setInv }) {
             ["emoji", "Emoji", "text"],
             ["cat", "Categoría", "text"],
             ["unidad", "Unidad", "text"],
-            ["existencia", "Existencia", "number"],
             ["costo_unit", "Costo unitario", "number"],
             ["minimo", "Stock mínimo", "number"],
           ]}
@@ -9825,7 +9872,7 @@ function AdminEquipo({ data, add, upd, del, onBack }) {
               <div className="li-right" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
                 <div className="li-val">{fmt(horas * m.costo_hora)}</div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button className="btn-ghost" style={{ padding: 2, fontSize: 13 }} onClick={() => setEditItem({ seccion: "maquinaria", registro: m, titulo: m.nombre, campos: [["nombre", "Nombre", "text"], ["emoji", "Emoji", "text"], ["tipo", "Tipo", "text"], ["costo_hora", "Costo por hora", "number"], ["cap_tanque", "Capacidad de tanque", "number"]] })}><Ic e="✏️" /></button>
+                  <button className="btn-ghost" style={{ padding: 2, fontSize: 13 }} onClick={() => setEditItem({ seccion: "maquinaria", registro: m, titulo: m.nombre, campos: [["nombre", "Nombre", "text"], ["emoji", "Emoji", "text"], ["tipo", "Tipo", "text"], ["costo_hora", "Costo por hora", "number"], ["cap_tanque", "Capacidad de tanque", "number"], ["depreciacion_mes", "Depreciación al mes ($)", "number"]] })}><Ic e="✏️" /></button>
                   <button className="btn-ghost" style={{ padding: 2, fontSize: 13, color: "var(--red)" }} onClick={() => del("maquinaria", m.id)}><Ic e="🗑" /></button>
                 </div>
               </div>
@@ -10154,7 +10201,7 @@ function TrabReg({ data, add, upd, setInv, session, online, onLogout, onNav }) {
         nota: form.observaciones, actividadId: actId,
       });
     }
-    form.insumos.forEach(i => setInv(i.id, -i.cantidad));
+    form.insumos.forEach(i => setInv(i.id, -i.cantidad, null, { parcelaId: form.parcelaId, fecha: form.fecha || today() }));
     setEnviado(true);
     setTimeout(() => { setEnviado(false); setPaso(1); setForm(FORM0); setGps(null); }, 2800);
   };
@@ -10546,7 +10593,7 @@ function CuadrillaReg({ data, add, upd, setInv, session, online, onLogout }) {
         nota: form.observaciones, actividadId: actId,
       });
     }
-    form.insumos.forEach(i => setInv(i.id, -i.cantidad));
+    form.insumos.forEach(i => setInv(i.id, -i.cantidad, null, { parcelaId: form.parcelaId, fecha: form.fecha || today() }));
     setEnviado(true);
     setTimeout(() => { setEnviado(false); setPaso(1); setForm(FORM0); setGps(null); }, 2800);
   };
@@ -11570,7 +11617,7 @@ function ExternoReg({ data, add, setInv, session, online, onLogout }) {
       hectareas_trab: parseFloat(form.hectareas_trab) || 0, extras: {},
       estado: "pendiente_aprobacion",
     });
-    form.insumos.forEach(i => setInv(i.id, -i.cantidad));
+    form.insumos.forEach(i => setInv(i.id, -i.cantidad, null, { parcelaId: form.parcelaId, fecha: form.fecha || today() }));
     setEnviado(true);
     setTimeout(() => { setEnviado(false); setPaso(1); setForm(FORM0); setGps(null); }, 2800);
   };
@@ -13188,7 +13235,7 @@ function RegistroActividadAdmin({ data, add, upd, setInv, session, onClose }) {
         siembraId: _sb?.id || "", variedadNombre: _sb?.variedadNombre || "",
       });
     }
-    form.insumos.forEach(i => setInv(i.id, -i.cantidad));
+    form.insumos.forEach(i => setInv(i.id, -i.cantidad, null, { parcelaId: form.parcelaId, fecha: form.fecha || today(), usadoPor: { tipo: _regTipo, id: form.ejecutorId, nombre: "" } }));
     setEnviado(true);
     setTimeout(() => { setEnviado(false); onClose(); }, 2200);
   };

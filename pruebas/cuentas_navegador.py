@@ -130,7 +130,12 @@ with sync_playwright() as p:
     d = pg.evaluate("() => JSON.parse(localStorage.getItem('agro_v8:localhost'))")
     urea = next(x for x in d["inventario"] if x["id"] == "i1")
     cont = [m for m in d["entradas_inv"] if m.get("conteoInicial")]
-    caso("la existencia queda en lo contado", urea["existencia"] == 40)
+    evc = pg.evaluate("""() => new Promise((ok) => { const r = indexedDB.open('agro_eventos_v8:localhost', 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore('eventos', { keyPath: 'id' }); r.result.createObjectStore('meta'); };
+      r.onsuccess = () => { const q = r.result.transaction('eventos').objectStore('eventos').getAll(); q.onsuccess = () => { r.result.close(); ok(q.result); }; q.onerror = () => ok([]); };
+      r.onerror = () => ok([]); })""")
+    cu = [e for e in evc if e["tipo"] == "alm_conteo"]
+    caso("el conteo inicial queda como movimiento ('ese día había 40'), y el número del catálogo no se sobrescribe", len(cu) == 2 and sorted(e["datos"]["contado"] for e in cu) == [0, 40] and urea["existencia"] == 0, f"{len(cu)} conteos · catálogo {urea['existencia']}")
     caso("cada conteo guarda fecha, lugar y quién contó (el cero también cuenta)", len(cont) == 2 and all(m.get("ubicacion") == "Bodega del rancho" and m.get("contadoPor") and m.get("fecha") for m in cont), f"{len(cont)} conteos")
 
     pg.get_by_role("button", name="Saldos").click()

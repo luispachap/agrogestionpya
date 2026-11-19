@@ -29,3 +29,62 @@ test("diesel_sin_costo_capturado_no_se_inventa_se_cuenta_aparte", () => {
 test("fuera_de_las_fechas_no_entra", () => {
   assert.deepEqual(costoDeVehiculos({ vehiculos: [CAMION], partes: [operador], desde: "2026-11-20", hasta: "2026-11-21" }), []);
 });
+
+// ── Repartir: dos vistas del mismo dinero ─────────────────────────────────
+import { repartirVehiculos, indirectoPorParcela } from "./vehiculos.js";
+const DESDE = "2026-11-01", HASTA = "2026-11-30";
+const trabajo = [{ fecha: D, cuadrillaId: "cq1", parcelaId: "p7", personas: 9 }, { fecha: D, cuadrillaId: "cq1", parcelaId: "p8", personas: 3 }];
+const viajeCq = { ...viaje, cuadrillaId: "cq1" };
+const base = (mas = {}) => costoDeVehiculos({ vehiculos: [CAMION], partes: [operador], consumos: [diesel], egresos: [taller], viajes: [viajeCq], ...mas });
+const rep = (mas = {}, costos = base()) => repartirVehiculos({ vehiculos: [CAMION], costos, trabajo, desde: DESDE, hasta: HASTA, ...mas })[0];
+
+test("el_traslado_se_reparte_por_las_personas_que_llevo_a_cada_parcela_y_suma_exacto_el_costo", () => {
+  const r = rep();
+  const a = indirectoPorParcela([r]); const p7 = a.find(x => x.parcelaId === "p7"), p8 = a.find(x => x.parcelaId === "p8");
+  assert.equal(r.repartido, 3770); assert.equal(r.costoReal, 3770); assert.ok(r.cuadra, "lo repartido es el mismo dinero del historial, ni un peso más");
+  assert.equal(p7.monto, 2827.5); assert.equal(p8.monto, 942.5, "9 y 3 de 12 personas");
+  assert.ok(p7.renglones.every(x => x.origen && x.base && x.vehiculo === "Camión amarillo"), "cada importe dice de dónde salió");
+  assert.equal(r.pendientes.length, 0);
+});
+
+test("otros_criterios_reparten_distinto_pero_siempre_el_mismo_total", () => {
+  const parejo = rep({ criterioTraslado: "parejo" });
+  assert.equal(parejo.partes.filter(p => p.origen === "operador").map(p => p.monto).join(), "50,50"); assert.ok(parejo.cuadra);
+  const porViaje = rep({ criterioVehiculo: "viajes" }); assert.ok(porViaje.cuadra); assert.equal(porViaje.repartido, 3770);
+});
+
+test("no_todo_gasto_del_vehiculo_es_llevar_gente_el_uso_sin_parcela_se_lleva_su_parte_y_no_va_a_produccion", () => {
+  // Además del traslado (2 h), el camión estuvo 2 h en "Mantenimiento del vehículo", sin parcela.
+  const taller2h = { ...operador, actividad: "Mantenimiento del vehículo", monto: 100, minutos: 120, evs: ["e9"] };
+  const r = rep({}, base({ partes: [operador, taller2h] }));
+  assert.equal(r.costoReal, 3870);
+  assert.equal(r.noProduccion, 1935, "su operador ($100) y la mitad de lo compartido ($1,835): por horas, 2 de 4");
+  assert.equal(r.repartido, 1935); assert.ok(r.cuadra);
+});
+
+test("un_acarreo_para_una_parcela_se_le_carga_a_esa_parcela", () => {
+  const acarreo = { ...operador, actividad: "Acarreo de cosecha", beneficiaId: "p9", monto: 150, minutos: 180, evs: ["e8"] };
+  const r = rep({}, costoDeVehiculos({ vehiculos: [CAMION], partes: [acarreo], consumos: [diesel] }));
+  assert.deepEqual(indirectoPorParcela([r]).map(x => [x.parcelaId, x.monto]), [["p9", 1620]]); assert.ok(r.cuadra);
+});
+
+test("lo_que_no_se_sabe_a_que_beneficio_queda_pendiente_no_se_inventa", () => {
+  const sinTrabajo = repartirVehiculos({ vehiculos: [CAMION], costos: base(), trabajo: [], desde: DESDE, hasta: HASTA })[0];
+  assert.equal(sinTrabajo.repartido, 0); assert.equal(sinTrabajo.pendiente, 3770); assert.ok(sinTrabajo.cuadra); assert.match(sinTrabajo.pendientes[0].porque, /no se sabe a qué parcela/);
+  const sinUso = rep({}, costoDeVehiculos({ vehiculos: [CAMION], egresos: [taller] }));
+  assert.equal(sinUso.pendiente, 2200); assert.match(sinUso.pendientes[0].porque, /ningún uso registrado/);
+  const porKm = rep({ criterioVehiculo: "km" });
+  assert.match(porKm.pendientes[0].porque, /kilometraje/); assert.equal(porKm.repartido, 100, "el operador sí se reparte; lo compartido espera el dato"); assert.ok(porKm.cuadra);
+  assert.equal(rep({ criterioVehiculo: "km" }, base({ viajes: [{ ...viajeCq, km: 40 }] })).pendientes.length, 0);
+});
+
+test("una_maquina_que_ya_carga_cuota_por_hora_no_se_reparte_encima", () => {
+  const r = rep({ cuotas: [{ maquinariaId: "m-camion", fecha: D, costoMaq: 1600 }] });
+  assert.equal(r.modo, "cuota"); assert.equal(r.repartido, 0); assert.equal(r.cuota, 1600); assert.equal(r.costoReal, 3770, "se enseña la cuota contra el costo real");
+  assert.deepEqual(indirectoPorParcela([r]), []);
+});
+
+test("la_depreciacion_se_reparte_por_el_periodo_y_no_es_un_gasto_pagado", () => {
+  const r = repartirVehiculos({ vehiculos: [{ ...CAMION, depreciacion_mes: 3040 }], costos: base(), trabajo, desde: DESDE, hasta: HASTA })[0];
+  assert.equal(r.depreciacion, 3000, "30 días de un mes de 30.4"); assert.equal(r.costoReal, 6770); assert.ok(r.cuadra);
+});

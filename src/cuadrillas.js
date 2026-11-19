@@ -53,6 +53,12 @@ const min = (a, b) => Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000
 export const AJUSTES = {
   ventana_repetida_min: { defecto: 15, minimo: 1, maximo: 120, nombre: "Minutos para tomar una segunda lectura como repetida" },
   criterio_flete: { defecto: "personas", opciones: { personas: "Entre las personas transportadas", pagado: "En proporción a lo que cobró cada grupo", parejo: "Parejo entre las parcelas donde trabajaron" }, nombre: "Cómo se reparte un flete externo de cuadrilla" },
+  alm_aviso_h: { defecto: 24, minimo: 1, maximo: 720, nombre: "Material de consumo entregado: horas para el primer aviso" },
+  alm_escala_h: { defecto: 72, minimo: 2, maximo: 2160, nombre: "Material de consumo entregado: horas para avisar al administrador" },
+  alm_aviso_largo_d: { defecto: 7, minimo: 1, maximo: 365, nombre: "Herramientas y uso prolongado: días para el primer aviso" },
+  alm_escala_largo_d: { defecto: 15, minimo: 2, maximo: 730, nombre: "Herramientas y uso prolongado: días para avisar al administrador" },
+  criterio_traslado: { defecto: "personas", opciones: { personas: "Por las personas que llevó a cada parcela", viajes: "Parejo entre los viajes", parejo: "Parejo entre las parcelas a las que llevó gente" }, nombre: "Cómo se reparte el costo de transportar trabajadores en vehículo propio" },
+  criterio_vehiculo: { defecto: "horas", opciones: { horas: "Por horas de uso", viajes: "Por viajes", km: "Por kilómetros", periodo: "Parejo entre lo que atendió en el periodo" }, nombre: "Cómo se reparten los costos compartidos de un vehículo (combustible, taller, depreciación)" },
   horas_jornada: { defecto: 8, minimo: 4, maximo: 12, nombre: "Horas del horario habitual (de ahí en adelante son horas adicionales)" },
 };
 export function ajusteVigente(eventos, clave) {
@@ -74,7 +80,7 @@ export function cambiarAjuste({ clave, valor, quien, cuando, fecha, azar }) {
 // cuadrilla, el que lleva la cosecha). Su tiempo en el vehículo se le carga al
 // vehículo con lo que YA gana: no nace un segundo pago, y sólo cuenta el rato
 // asignado, no toda su jornada.
-export function asignar({ trabajadorIds, parcelaId, vehiculoId = null, vehiculo = "", actividad, cuadrilla = "", desde, fecha, quien, capturado, azar }) {
+export function asignar({ trabajadorIds, parcelaId, vehiculoId = null, vehiculo = "", beneficiaId = null, actividad, cuadrilla = "", desde, fecha, quien, capturado, azar }) {
   const ids = unicos(trabajadorIds);
   if (!PUEDE_REPARTIR.includes(quien?.rol)) return { ok: false, dice: "Sólo un encargado o un administrador reparte a la gente." };
   if (ids.length === 0) return { ok: false, dice: "Falta escoger a quién se manda." };
@@ -83,7 +89,7 @@ export function asignar({ trabajadorIds, parcelaId, vehiculoId = null, vehiculo 
   if (!String(actividad || "").trim()) return { ok: false, dice: "Falta qué van a hacer." };
   if (capturado && new Date(desde) > new Date(capturado)) return { ok: false, dice: "No se puede asignar desde una hora que todavía no llega." };
   return { ok: true, evento: nuevoEvento({ tipo: TIPO_ASIGNACION, cuando: desde, fecha, capturado, quien, azar,
-    datos: { trabajadorIds: ids, parcelaId: parcelaId || null, ...(vehiculoId ? { vehiculoId, vehiculo: String(vehiculo || "").trim() } : {}), actividad: String(actividad).trim(), cuadrilla: String(cuadrilla || "").trim() } }) };
+    datos: { trabajadorIds: ids, parcelaId: parcelaId || null, ...(vehiculoId ? { vehiculoId, vehiculo: String(vehiculo || "").trim(), ...(beneficiaId ? { beneficiaId } : {}) } : {}), actividad: String(actividad).trim(), cuadrilla: String(cuadrilla || "").trim() } }) };
 }
 export function terminar({ trabajadorIds, desde, fecha, quien, capturado, azar }) {
   const ids = unicos(trabajadorIds);
@@ -192,7 +198,7 @@ export function tramosDeTrabajo(eventos, { desde, hasta, hoy, ahora } = {}) {
       if (!fin) {
         // Entró y no se sabe cuándo salió: no se inventan horas. Se deja dicho dónde estaba.
         const c = vigenteEn(ini) || mios[0] || null; const asig = c && c.tipo === TIPO_ASIGNACION ? c : null;
-        tramos.push({ ...base, desde: ini, hasta: null, minutos: null, parcelaId: asig?.datos.parcelaId || null, vehiculoId: asig?.datos.vehiculoId || null, vehiculo: asig?.datos.vehiculo || "", actividad: asig?.datos.actividad || null, cuadrilla: asig?.datos.cuadrilla || "", evAsignacion: asig?.id || null });
+        tramos.push({ ...base, desde: ini, hasta: null, minutos: null, parcelaId: asig?.datos.parcelaId || null, vehiculoId: asig?.datos.vehiculoId || null, vehiculo: asig?.datos.vehiculo || "", beneficiaId: asig?.datos.beneficiaId || null, actividad: asig?.datos.actividad || null, cuadrilla: asig?.datos.cuadrilla || "", evAsignacion: asig?.id || null });
         avisos.push({ clase: "sin_salida", trabajadorId: j.trabajadorId, fecha: j.fecha, ev: t.entrada.id, dice: "Entró y no checó salida: sus horas de ese tramo no se saben." });
         continue;
       }
@@ -201,7 +207,7 @@ export function tramosDeTrabajo(eventos, { desde, hasta, hoy, ahora } = {}) {
         if (cortes[i] === cortes[i + 1]) continue;
         const c = vigenteEn(cortes[i]); const asig = c && c.tipo === TIPO_ASIGNACION ? c : null;
         tramos.push({ ...base, desde: cortes[i], hasta: cortes[i + 1], minutos: min(cortes[i], cortes[i + 1]),
-          parcelaId: asig?.datos.parcelaId || null, vehiculoId: asig?.datos.vehiculoId || null, vehiculo: asig?.datos.vehiculo || "", actividad: asig?.datos.actividad || null, cuadrilla: asig?.datos.cuadrilla || "", evAsignacion: asig?.id || null });
+          parcelaId: asig?.datos.parcelaId || null, vehiculoId: asig?.datos.vehiculoId || null, vehiculo: asig?.datos.vehiculo || "", beneficiaId: asig?.datos.beneficiaId || null, actividad: asig?.datos.actividad || null, cuadrilla: asig?.datos.cuadrilla || "", evAsignacion: asig?.id || null });
       }
     }
   }
@@ -254,7 +260,7 @@ export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } =
     const provisional = mios.some(x => x.corriendo);
     const misPartes = [...dest];
     const evsDe = (x) => [x.evEntrada, x.evSalida, x.evAsignacion, x.evAclaracion].filter(Boolean);
-    const extra = (x) => ({ vehiculoId: x.vehiculoId || null, vehiculo: x.vehiculo || "", causa: (x.parcelaId && !x.aclarado) || x.vehiculoId ? undefined : x.causa ?? null, nota: x.nota || "", desde: x.desde, hasta: x.hasta, aclarado: !!x.aclarado });
+    const extra = (x) => ({ vehiculoId: x.vehiculoId || null, vehiculo: x.vehiculo || "", beneficiaId: x.beneficiaId || null, causa: (x.parcelaId && !x.aclarado) || x.vehiculoId ? undefined : x.causa ?? null, nota: x.nota || "", desde: x.desde, hasta: x.hasta, aclarado: !!x.aclarado });
     if (!t) avisos.push({ clase: "sin_ficha", trabajadorId, fecha, dice: "Checó alguien que no está en el catálogo de este aparato: no se le puede poner costo." });
     else if (modalidad !== "destajo" && mios.length > 0) {
       if (!(v.sueldo > 0)) avisos.push({ clase: "sin_sueldo", trabajadorId, fecha, dice: "No tiene sueldo capturado: su día quedó sin costo. Un dato que falta no es un cero." });

@@ -84,13 +84,13 @@ export function registrarCuadrilla({ cuadrillaId, cuadrilla, responsable = "", p
 }
 
 // Cómo llegaron. Una vez por cuadrilla y viaje.
-export function registrarTraslado({ cuadrillaId, cuadrilla, tipo, vehiculoId = null, vehiculo = "", monto, personas, fecha, cuando, quien, capturado, azar }) {
+export function registrarTraslado({ cuadrillaId, cuadrilla, tipo, vehiculoId = null, vehiculo = "", monto, personas, km = null, fecha, cuando, quien, capturado, azar }) {
   if (!PUEDE.includes(quien?.rol)) return { ok: false, dice: "Sólo un encargado o un administrador registra el transporte." };
   if (!["propio", "flete", "ninguno"].includes(tipo)) return { ok: false, dice: "Falta decir cómo llegaron." };
   const base = { cuadrillaId: cuadrillaId || `sin-catalogo:${limpio(cuadrilla).toLowerCase()}`, cuadrilla: limpio(cuadrilla), tipo, personas: Number(personas) > 0 ? Number(personas) : null };
   if (tipo === "propio") {
     if (!vehiculoId) return { ok: false, dice: "Falta decir en qué vehículo se trajeron." };
-    return { ok: true, evento: nuevoEvento({ tipo: TIPO_TRASLADO, cuando, fecha, capturado, quien, azar, datos: { ...base, vehiculoId, vehiculo: limpio(vehiculo) } }) };
+    return { ok: true, evento: nuevoEvento({ tipo: TIPO_TRASLADO, cuando, fecha, capturado, quien, azar, datos: { ...base, vehiculoId, vehiculo: limpio(vehiculo), ...(Number(km) > 0 ? { km: Number(km) } : {}) } }) };
   }
   if (tipo === "flete") {
     if (!(Number(monto) > 0)) return { ok: false, dice: "Falta cuánto se pagó de flete." };
@@ -126,7 +126,7 @@ export function costoDeCuadrillas(eventos, { desde, hasta, criterioFlete = "pers
   for (const t of traslados) {
     if (t.datos.tipo === "ninguno") continue;
     const suyos = dias.filter(d => d.datos.cuadrillaId === t.datos.cuadrillaId && d.fecha === t.fecha);
-    if (t.datos.tipo === "propio") { propios.push({ fecha: t.fecha, cuadrilla: t.datos.cuadrilla, vehiculoId: t.datos.vehiculoId, vehiculo: t.datos.vehiculo, personas: t.datos.personas, evs: [t.id] }); continue; }
+    if (t.datos.tipo === "propio") { propios.push({ fecha: t.fecha, cuadrillaId: t.datos.cuadrillaId, km: t.datos.km || null, cuadrilla: t.datos.cuadrilla, vehiculoId: t.datos.vehiculoId, vehiculo: t.datos.vehiculo, personas: t.datos.personas, evs: [t.id] }); continue; }
     if (suyos.length === 0) { pendientes.push({ fecha: t.fecha, cuadrilla: t.datos.cuadrilla, monto: t.datos.monto, ev: t.id, dice: "Hay un flete pagado y ese día no hay trabajo registrado de esa cuadrilla: no se reparte hasta saber a qué se le carga." }); continue; }
     const pesos = suyos.map(d => (criterioFlete === "pagado" ? sumarDinero(pagosDe(d).map(p => p.monto)) : criterioFlete === "parejo" ? 1 : personasDe(d)));
     const montos = repartirDinero(t.datos.monto, pesos);

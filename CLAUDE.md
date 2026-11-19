@@ -97,16 +97,39 @@ Usuarios reales de la app:
   pago ni toda su jornada. **`src/vehiculos.js`** junta operador + consumos del
   almacén con destino vehículo + gastos con `vehiculoId`. Todavía NO se reparte
   a parcelas (falta el criterio; es decisión de Luis).
-- **`src/movimientos.js`** (en pantalla: «Entregas del almacén»): sacar NO es
-  gastar. `alm_retiro` (queda a cargo de alguien), y sus cierres apuntando a él
-  con `origen`: `alm_consumo` (AQUÍ nace el costo, una vez, al costo promedio
-  del momento), `alm_devolucion`, `alm_traspaso`, `alm_baja` (con causa),
-  `alm_revision` («sigue con él»). Aparte `alm_consumo` directo (diésel al
-  tanque) y `alm_transferencia` (a otro lugar). La existencia del catálogo NO la
-  tocan los eventos: `conExistenciaReal` se la suma al enseñarla y
-  `paraGuardarArticulo` se la quita en `add`/`upd` — **nunca escribas
-  `existencia` saltándote `upd`**, o se cuenta dos veces. Entregar nunca
-  bloquea; cerrar de más sí. El conteo a ciegas y las mermas siguen en `vales`.
+- **`src/movimientos.js`** (en pantalla: «Entregas del almacén» y «Conteo y
+  mermas»): **la existencia se CALCULA, nadie la escribe.** `estadoDelAlmacen(eventos,
+  inventario)` recorre los movimientos en el orden en que pasaron (`cuando`);
+  el `existencia` del catálogo es sólo el punto de partida y `upd`/`add` no lo
+  dejan cambiar (`paraGuardarArticulo`). `setInv(id, delta, mov, contexto)` ya
+  NO muta nada: agrega un `alm_entrada` o un `alm_consumo`; y si una pantalla
+  vieja "le suma" al número por `upd`, esa diferencia se vuelve movimiento.
+  **Nunca escribas `existencia` a mano ni uses `setData` con el inventario ya
+  calculado.** Tipos: `alm_entrada`, `alm_retiro` (queda a cargo de alguien),
+  sus cierres con `origen` (`alm_consumo` —ahí nace el costo—, `alm_devolucion`,
+  `alm_traspaso`, `alm_baja` con causa/valor/evidencia, `alm_revision` «sigue
+  en uso» con `proxima`), `alm_consumo` directo, `alm_transferencia` entre
+  bodegas, `alm_ajuste` (merma con causa), `alm_conteo` y `alm_resolucion`.
+  - **El conteo es absoluto**: «a esta hora había TANTO», no «súmale la
+    diferencia». Dos conteos iguales no ajustan dos veces, y un movimiento
+    anterior que llega tarde recalcula la diferencia sola.
+  - **Una sola fuente por cantidad consumida**: el insumo anotado en una
+    actividad (`via: "actividad"`, sin costo: su costo va en la actividad) se
+    toma de lo que esa persona TRAE; si el cierre de esa entrega no lo vio
+    (`yaReportado`), lo empalmado cuenta una vez y sale en `empalmes`.
+  - **Falta de existencia**: no bloquea; deja `discrepancias` pendientes hasta
+    que un administrador las explique (`resolver`). Explicar no corrige el número.
+  - **Plazos** (`porCerrar`, reglas `alm_*` en `AJUSTES`): 24 h aviso / 72 h
+    escala para consumo; 7 y 15 días para herramientas y uso prolongado.
+    `avisosPara` decide a quién le sale. Son avisos al abrir la app, no mensajes.
+  - **Una baja no es un descuento**: lo que se decida con el trabajador es otro
+    evento (`alm_resolucion`), de una persona.
+- **`src/vehiculos.js`**: `costoDeVehiculos` (historial) y `repartirVehiculos`
+  (a qué parcelas benefició). Son dos vistas del MISMO dinero: lo repartido +
+  lo pendiente + lo que no fue a producción suma exacto el costo, y NO entra a
+  `actividadesContables` ni a los gastos otra vez. Una máquina que ya carga
+  `costo_hora` en actividades no se reparte encima. Sin dato no hay reparto:
+  queda pendiente con su porqué.
 - Reglas ya decididas por Luis (19 nov): checar salida TERMINA la asignación
   (al volver queda sin asignar; se ofrece «continuar»); el tiempo sin asignar es
   «por aclarar» y nunca se distribuye solo; las horas adicionales se registran y
