@@ -155,3 +155,17 @@ test("nadie_puede_inflar_ni_borrar_el_consumo_de_IA_desde_la_app", async () => {
   const c = (await como(db, "luis", "select consumo() as c")).filas[0].c;
   assert.deepEqual(c.ia_mes, { llamadas: 1, ahorradas: 1, centavos: 12 });
 });
+
+test("sin_sesion_no_se_puede_llamar_ninguna_funcion_y_las_internas_no_las_llama_nadie", async () => {
+  for (const f of ["consumo()", "tiene_perfil()", "puede('egresos', 'leer')", "reclamar_acceso('x')", "borrar_registro('tareas', 'x')", "sellar_espacio('x')"]) {
+    const r = await como(db, null, `select ${f}`);
+    assert.equal(r.ok, false, f); assert.match(r.error, /permission denied/, f);
+  }
+  for (const q of ["luis", "encargado", null]) {
+    const r = await como(db, q, "select preparar_arranque(repeat('a', 64), 5, 30)");
+    assert.equal(r.ok, false, String(q)); assert.match(r.error, /permission denied/);
+  }
+  // y lo que la app sí usa, sigue funcionando con sesión
+  assert.equal((await como(db, "encargado", "select tiene_perfil() as t")).filas[0].t, true);
+  assert.equal((await como(db, "encargado", `insert into tareas (id, datos) values ('tras33', '{}')`)).ok, true, "los candados internos siguen disparándose solos");
+});

@@ -27,7 +27,7 @@ VIEJO = {
   "agro_pending_v7": json.dumps([{"id": "q1", "operacion": "add", "sec": "egresos", "payload": {"id": "e_viejo", "monto": 999999}, "intentos": 0}]),
   "agro_fallidas_v1": json.dumps([{"id": "q2", "operacion": "add", "sec": "actividades", "payload": {"id": "a_viejo", "horas": 8}, "intentos": 5}]),
 }
-CORS = {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "*"}
+CORS = {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "*", "Cache-Control": "no-store"}
 escrituras = []
 def nube(route):
     r = route.request; ruta = r.url.split(NUBE)[1].split("?")[0]

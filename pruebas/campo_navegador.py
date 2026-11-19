@@ -22,7 +22,7 @@ FICHA = f"{b64({'alg': 'HS256'})}.{b64({'sub': CUENTA, 'role': 'authenticated', 
 SESION = {"access_token": FICHA, "refresh_token": "r", "token_type": "bearer", "expires_in": 36000,
           "expires_at": int(time.time()) + 36000, "user": {"id": CUENTA, "email": "encargado@prueba.invalid", "aud": "authenticated", "role": "authenticated"}}
 SEMILLA = {"trabajadores": [{"id": "t-prueba", "nombre": "TRABAJADOR DE PRUEBA", "categoria": "jornalero", "sueldo_dia": 350, "pin": "5503"}]}
-CORS = {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "*"}
+CORS = {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "*", "Cache-Control": "no-store"}
 subidas, rechazadas = [], []
 
 def nube(route):

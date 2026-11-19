@@ -82,6 +82,7 @@ import {
   abrirAlmacen, almacenListo, guardarEnTelefono, enlaceDeArchivo, contenidoDeArchivo,
   subirArchivosPendientes, archivosSinSubir,
 } from "./almacenArchivos.js";
+import { revisarConteoInicial, revisarSaldoInicial } from "./arranque.js";
 import { marcarEspacio, llavesQueSeReinician, loDeAntes, sobreDeRespaldo, revisarRespaldo, LLAVES_ANTERIORES } from "./espacio.js";
 import { mezclarConNube, planDeSubida, puedeLigarTelefono, vinculoDe, abrePantallasSola } from "./sincroniza.js";
 import { revisarHorometro, compararConsumo, consumoPorHora } from "./maquinaria.js";
@@ -4533,11 +4534,17 @@ function AlDia({ data, onClose }) {
       .sort((a, c) => String(c.periodo).localeCompare(String(a.periodo)));
     const ult = estados[0];
     const movs = ult?.movimientos || [];
+    const alCorte = movs.length ? movs[movs.length - 1].fecha : null;
+    // Sin estado de cuenta todavía, vale el saldo inicial capturado en el
+    // arranque (con su fecha de corte). En cuanto haya un estado más
+    // reciente que ese corte, manda el estado.
+    const ini = b.saldoInicial;
+    if (ini && (!ult || !alCorte || ini.fechaCorte > alCorte)) return { nombre: b.nombre, saldo: ini.monto, saldoAl: ini.fechaCorte };
     return {
       nombre: b.nombre,
       saldo: ult ? ult.saldoFinal : null,
       // La fecha del último movimiento del estado: de ahí sale el "saldo al día X".
-      saldoAl: movs.length ? movs[movs.length - 1].fecha : null,
+      saldoAl: alCorte,
     };
   });
 
@@ -6518,6 +6525,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "asistencia" && <PaseLista data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "resumen" && <ResumenSemanal data={data} onClose={() => setPage("home")} />}
               {page === "respaldo" && <RespaldoDatos data={data} setData={setData} onClose={() => setPage("home")} />}
+              {page === "arranque" && <ArranqueLimpio data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "seguridad" && <PanelSeguridad data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "panel-financiero" && <PanelFinanciero data={data} onClose={() => setPage("home")} />}
               {page === "subir-nube" && <SubirCatalogos data={data} setData={setData} session={session} onClose={() => setPage("home")} />}
@@ -6679,13 +6687,44 @@ function LoginScreen({ data, add, upd, onLogin }) {
   const [pwd, setPwd] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
+  // Crear cuenta sin pasar por ningún panel: la persona se registra con su
+  // correo y la base le da el perfil que le toca (por invitación, o con el
+  // código de arranque si es uno de los dos primeros administradores).
+  const [crear, setCrear] = useState(false);
+  const [nuevo, setNuevo] = useState({ nombre: "", correo: "", pwd: "", pwd2: "" });
+  const [codigo, setCodigo] = useState("");
+  const [pideCodigo, setPideCodigo] = useState(false);
+  const [aviso, setAviso] = useState("");
+  const crearCuenta = async () => {
+    setError(""); setAviso("");
+    if (!supabaseListo) { setError("La conexión con la nube no está configurada"); return; }
+    const correo = nuevo.correo.trim().toLowerCase();
+    if (!nuevo.nombre.trim()) { setError("Escribe tu nombre"); return; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) { setError("Ese correo no parece válido"); return; }
+    if (nuevo.pwd.length < 10) { setError("La contraseña debe tener al menos 10 caracteres"); return; }
+    if (nuevo.pwd !== nuevo.pwd2) { setError("Las dos contraseñas no coinciden"); return; }
+    setCargando(true);
+    try {
+      const { data: r, error: e } = await supabase.auth.signUp({
+        email: correo, password: nuevo.pwd,
+        options: { data: { nombre: nuevo.nombre.trim() }, emailRedirectTo: window.location.origin },
+      });
+      if (e) { setError(/registered|already/i.test(e.message) ? "Ya existe una cuenta con ese correo. Entra con ella." : `No se pudo crear la cuenta: ${e.message}`); return; }
+      setCrear(false); setRole("admin"); setBusq(correo); setPwd(""); setNuevo({ nombre: "", correo: "", pwd: "", pwd2: "" });
+      setAviso(r?.session
+        ? "Cuenta creada. Escribe tu contraseña para entrar."
+        : "Cuenta creada. Te llegó un correo: toca el enlace para confirmarlo y regresa aquí a entrar con tu correo y contraseña.");
+      if (r?.session) { try { await supabase.auth.signOut(); } catch { /* ignorar */ } }
+    } catch { setError("No se pudo conectar con la nube. Intenta de nuevo."); }
+    finally { setCargando(false); }
+  };
   // Los 5 roles que pueden tener cuenta real (correo + contraseña).
   // Los demás (trabajador, cuadrilla, externo) entran solo por PIN.
   const rolesConCuenta = ["admin", "dueno", "finanzas", "encargado", "agronomo"];
   const esCuenta = rolesConCuenta.includes(role) && busq.includes("@");
 
   const entrar = async () => {
-    setError("");
+    setError(""); setAviso("");
     // ---- Camino A: cuenta real con correo y contraseña ----
     if (esCuenta) {
       if (!supabaseListo) { setError("La conexión con la nube no está configurada"); return; }
@@ -6695,10 +6734,28 @@ function LoginScreen({ data, add, upd, onLogin }) {
         const { data: auth, error: errAuth } = await supabase.auth.signInWithPassword({
           email: busq.trim(), password: pwd,
         });
-        if (errAuth) { setError("Correo o contraseña incorrectos"); setCargando(false); return; }
+        if (errAuth) {
+          setError(/confirm/i.test(errAuth.message) ? "Falta confirmar tu correo: abre el mensaje que te llegó y toca el enlace." : "Correo o contraseña incorrectos");
+          setCargando(false); return;
+        }
         // Buscar el perfil para saber el rol real
-        const { data: perfil, error: errP } = await supabase
-          .from("perfiles").select("id, nombre, rol").eq("id", auth.user.id).maybeSingle();
+        // (La segunda lectura pide una columna más a propósito: así es una
+        // consulta distinta y ningún navegador contesta con la respuesta
+        // guardada de "todavía no tienes perfil".)
+        const leerPerfil = (cols = "id, nombre, rol") => supabase.from("perfiles").select(cols).eq("id", auth.user.id).maybeSingle();
+        let { data: perfil, error: errP } = await leerPerfil();
+        if (!errP && !perfil) {
+          // Primera vez: la base da el perfil si este correo fue invitado, o si
+          // trae el código de arranque. Nadie se da perfil por su cuenta.
+          const { error: errR } = await supabase.rpc("reclamar_acceso", { p_codigo: codigo.trim() || null });
+          if (errR) {
+            setPideCodigo(true);
+            setError(errR.message || "Tu cuenta todavía no está invitada.");
+            await supabase.auth.signOut();
+            setCargando(false); return;
+          }
+          ({ data: perfil, error: errP } = await leerPerfil("id, nombre, rol, creado_en"));
+        }
         if (errP || !sesionDeCuenta(perfil)) {
           setError("Tu cuenta entró pero no tiene un perfil asignado. Avisa al administrador.");
           await supabase.auth.signOut();
@@ -6815,8 +6872,296 @@ function LoginScreen({ data, add, upd, onLogin }) {
             {esCuenta ? "Modo cuenta real (correo y contraseña)" : role === "externo" ? "No necesitas PIN. Si es tu primera vez, escribe tu nombre y se creará tu registro automáticamente." : ["admin", "dueno", "finanzas", "encargado", "agronomo"].includes(role) ? "Escribe tu PIN — o entra con tu correo si tienes cuenta" : "Escribe tu PIN de acceso"}
           </div>
         </div>
+        {esCuenta && pideCodigo && !crear && (
+          <div className="form-group">
+            <label className="form-label">Código de arranque (sólo si te dieron uno)</label>
+            <input className="inp" value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())} placeholder="XXXXX-XXXXX-XXXXX-XXXXX" autoCapitalize="characters" />
+          </div>
+        )}
+        {crear && (
+          <div className="form-group">
+            <label className="form-label">Crear mi cuenta</label>
+            <input className="inp" placeholder="Tu nombre completo" value={nuevo.nombre} onChange={e => setNuevo(n => ({ ...n, nombre: e.target.value }))} />
+            <input className="inp mt-2" type="email" placeholder="Tu correo" value={nuevo.correo} onChange={e => setNuevo(n => ({ ...n, correo: e.target.value }))} />
+            <input className="inp mt-2" type="password" placeholder="Contraseña (10 caracteres o más)" value={nuevo.pwd} onChange={e => setNuevo(n => ({ ...n, pwd: e.target.value }))} />
+            <input className="inp mt-2" type="password" placeholder="Repite la contraseña" value={nuevo.pwd2} onChange={e => setNuevo(n => ({ ...n, pwd2: e.target.value }))} />
+            <div className="text-xs text-muted mt-2" style={{ paddingLeft: 4 }}>
+              Sólo sirve si un administrador ya te invitó con ese correo, o si tienes el código de arranque. La contraseña es tuya: no se comparte con nadie.
+            </div>
+          </div>
+        )}
+        {aviso && <div className="alert alert-green mb-3"><span className="alert-icon"><Ic e="✅" /></span><div className="alert-body"><div className="alert-desc">{aviso}</div></div></div>}
         {error && <div className="alert alert-red mb-3"><span className="alert-icon"><Ic e="❌" /></span><div className="alert-body"><div className="alert-desc">{error}</div></div></div>}
-        <button className="btn btn-accent" onClick={entrar} disabled={cargando}>{cargando ? "Entrando..." : "Entrar →"}</button>
+        {crear
+          ? <button className="btn btn-accent" onClick={crearCuenta} disabled={cargando}>{cargando ? "Creando..." : "Crear mi cuenta"}</button>
+          : <button className="btn btn-accent" onClick={entrar} disabled={cargando}>{cargando ? "Entrando..." : "Entrar →"}</button>}
+        {supabaseListo && (
+          <button className="btn-ghost text-xs mt-2" style={{ width: "100%" }} onClick={() => { setCrear(c => !c); setError(""); setAviso(""); }}>
+            {crear ? "Ya tengo cuenta: entrar" : "Es mi primera vez: crear mi cuenta"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ════════════ ARRANQUE LIMPIO ════════════ */
+// Con qué se abre la operación: cuentas nuevas, inventario por conteo físico,
+// saldos con su evidencia y la fecha oficial de inicio. Nada se copia de antes
+// y nada se inventa. Las reglas viven en arranque.js, con sus pruebas.
+function ArranqueLimpio({ data, add, upd, setInv, session, onClose }) {
+  const [tab, setTab] = useState("estado");
+  const [op, setOp] = useState(null);            // el renglón de "operacion" en la base
+  const [opFalla, setOpFalla] = useState("");
+  const [invitaciones, setInvitaciones] = useState([]);
+  const [perfiles, setPerfiles] = useState([]);
+  const [msg, setMsg] = useState(null);
+  const quien = { rol: session.role, id: session.id, nombre: session.nombre };
+  const esSuper = !!session.superadmin;
+
+  const refrescar = useCallback(async () => {
+    if (!supabaseListo) { setOpFalla("Este teléfono no está conectado a la nube."); return; }
+    try {
+      const { data: o, error } = await supabase.from("operacion").select("espacio, inicio_operaciones, declarado_el, nota").maybeSingle();
+      if (error) { setOpFalla(`No se pudo leer el estado de la operación (${error.message}).`); return; }
+      // Lo declarado aquí mismo no se pisa con una lectura anterior a declararlo.
+      setOp(prev => ({ ...(o || {}), inicio_operaciones: (o && o.inicio_operaciones) || (prev && prev.inicio_operaciones) || null })); setOpFalla("");
+      if (esSuper) {
+        const [i, p] = await Promise.all([
+          supabase.from("invitaciones").select("correo, nombre, rol, usada_el, cancelada, creada").order("creada", { ascending: false }),
+          supabase.from("perfiles").select("id, nombre, rol"),
+        ]);
+        setInvitaciones(i.data || []); setPerfiles(p.data || []);
+      }
+    } catch (e) { setOpFalla(`No se pudo leer el estado de la operación (${e?.message || "sin señal"}).`); }
+  }, [esSuper]);
+  useEffect(() => { refrescar(); }, [refrescar]);
+
+  /* ── Cuentas ── */
+  const [inv, setInv_] = useState({ correo: "", nombre: "", rol: "encargado" });
+  const invitar = async () => {
+    const correo = inv.correo.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo) || !inv.nombre.trim()) { setMsg({ tipo: "err", txt: "Falta el nombre o el correo no es válido." }); return; }
+    if (inv.rol === "superadmin" && !window.confirm(`Vas a invitar a ${inv.nombre} como SUPERADMINISTRADOR: podrá todo lo que puedes tú. ¿Seguro?`)) return;
+    const { error } = await supabase.from("invitaciones").insert({ correo, nombre: inv.nombre.trim(), rol: inv.rol, invitado_por: session.id });
+    if (error) { setMsg({ tipo: "err", txt: /duplicate/i.test(error.message) ? "Ese correo ya tiene una invitación." : `No se pudo invitar: ${error.message}` }); return; }
+    setMsg({ tipo: "ok", txt: `Listo. Dile a ${inv.nombre} que abra la app, toque "Es mi primera vez" y cree su cuenta con ${correo}.` });
+    setInvitaciones(l => [{ correo, nombre: inv.nombre.trim(), rol: inv.rol, usada_el: null, cancelada: false }, ...l]);
+    setInv_({ correo: "", nombre: "", rol: "encargado" });
+  };
+  const cancelarInvitacion = async (correo) => {
+    if (!window.confirm(`¿Cancelar la invitación de ${correo}?`)) return;
+    await supabase.from("invitaciones").update({ cancelada: true }).eq("correo", correo); refrescar();
+  };
+
+  /* ── Conteo inicial ── */
+  const articulos = (data.inventario || []).slice().sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
+  const conteosIniciales = (data.entradas_inv || []).filter(m => m.conteoInicial);
+  const yaContados = new Set(conteosIniciales.map(m => m.insumoId));
+  const [conteo, setConteo] = useState({ fecha: today(), ubicacion: "", responsable: session.nombre || "" });
+  const [contados, setContados] = useState({});
+  const guardarConteo = () => {
+    const renglones = articulos.filter(a => contados[a.id] !== undefined && contados[a.id] !== "").map(a => ({ insumoId: a.id, contado: contados[a.id] }));
+    const rev = revisarConteoInicial({ ...conteo, renglones });
+    if (!rev.ok) { setMsg({ tipo: "err", txt: rev.dice }); return; }
+    if (!window.confirm(`Se va a registrar el conteo físico de ${renglones.length} artículo(s) en "${conteo.ubicacion}", contado por ${conteo.responsable} el ${conteo.fecha}.\n\nLa existencia de cada uno quedará en lo contado. ¿Lo registro?`)) return;
+    for (const r of renglones) {
+      const a = articulos.find(x => x.id === r.insumoId);
+      const contado = Number(r.contado), antes = Number(a.existencia) || 0, delta = Math.round((contado - antes) * 1000) / 1000;
+      if (delta !== 0) setInv(a.id, delta, { fecha: conteo.fecha, concepto: `Inventario inicial por conteo físico (${conteo.ubicacion})`, registradoPor: quien });
+      add("entradas_inv", {
+        esConteo: true, conteoInicial: true, esAjuste: delta !== 0, insumoId: a.id, nombre: a.nombre,
+        contado, segunSistema: antes, cantidad: delta, causa: "inventario inicial",
+        fecha: conteo.fecha, ubicacion: conteo.ubicacion.trim(), contadoPor: conteo.responsable.trim(), registradoPor: quien,
+      });
+    }
+    setContados({}); setMsg({ tipo: "ok", txt: `Conteo registrado: ${renglones.length} artículo(s).` });
+  };
+
+  /* ── Saldos iniciales ── */
+  const bolsas = data.bolsas || [];
+  const [saldo, setSaldo] = useState({ bolsaId: "", fechaCorte: today(), monto: "", responsable: session.nombre || "", evidencia: null, evidenciaNombre: "" });
+  const tomarEvidencia = (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const fr = new FileReader();
+    fr.onload = () => setSaldo(s => ({ ...s, evidencia: fr.result, evidenciaNombre: f.name }));
+    fr.readAsDataURL(f);
+  };
+  const guardarSaldo = () => {
+    const rev = revisarSaldoInicial(saldo);
+    if (!rev.ok) { setMsg({ tipo: "err", txt: rev.dice }); return; }
+    const b = bolsas.find(x => x.id === saldo.bolsaId);
+    if (b.saldoInicial && !window.confirm(`${b.nombre} ya tiene un saldo inicial (${fmt(b.saldoInicial.monto)} al ${b.saldoInicial.fechaCorte}). ¿Lo reemplazo? El anterior queda en la bitácora.`)) return;
+    if (rev.sinEvidencia && !window.confirm(`${rev.dice}\n\n¿Lo guardo así?`)) return;
+    upd("bolsas", { ...b, saldoInicial: {
+      monto: rev.centavos / 100, fechaCorte: saldo.fechaCorte, responsable: saldo.responsable.trim(),
+      evidencia: saldo.evidencia || null, evidenciaNombre: saldo.evidenciaNombre || "", sinEvidencia: rev.sinEvidencia,
+      capturadoPor: quien, capturadoEl: new Date().toISOString(),
+    } });
+    add("auditoria", { fecha: today(), accion: "saldo inicial", tabla: "bolsas", registroId: b.id, quien: session.nombre, rol: session.role, cuando: new Date().toISOString(),
+      detalle: `${b.nombre}: ${fmt(rev.centavos / 100)} al ${saldo.fechaCorte}${rev.sinEvidencia ? " (sin evidencia)" : ""}`, anterior: b.saldoInicial ? { monto: b.saldoInicial.monto, fechaCorte: b.saldoInicial.fechaCorte } : null });
+    setSaldo(s => ({ ...s, bolsaId: "", monto: "", evidencia: null, evidenciaNombre: "" }));
+    setMsg({ tipo: "ok", txt: `Saldo inicial de ${b.nombre} guardado.` });
+  };
+
+  /* ── Inicio de operaciones ── */
+  const [inicio, setInicio] = useState({ fecha: today(), nota: "" });
+  const faltantes = [
+    articulos.length === 0 ? "No hay artículos en el almacén." : articulos.filter(a => !yaContados.has(a.id)).length > 0 ? `${articulos.filter(a => !yaContados.has(a.id)).length} artículo(s) del almacén sin conteo inicial.` : null,
+    bolsas.length === 0 ? "No hay cuentas ni cajas dadas de alta." : bolsas.filter(b => !b.saldoInicial).length > 0 ? `${bolsas.filter(b => !b.saldoInicial).length} cuenta(s) o caja(s) sin saldo inicial.` : null,
+    bolsas.some(b => b.saldoInicial?.sinEvidencia) ? `${bolsas.filter(b => b.saldoInicial?.sinEvidencia).length} saldo(s) sin evidencia.` : null,
+    (data.trabajadores || []).length === 0 ? "No hay trabajadores dados de alta." : null,
+    (data.parcelas || []).length === 0 ? "No hay parcelas dadas de alta." : null,
+  ].filter(Boolean);
+  const declarar = async () => {
+    if (!inicio.fecha) { setMsg({ tipo: "err", txt: "Falta la fecha." }); return; }
+    const aviso = faltantes.length ? `Todavía falta:\n· ${faltantes.join("\n· ")}\n\nPuedes declarar el inicio así; lo que falte se captura después y quedará con su propia fecha.\n\n` : "";
+    if (!window.confirm(`${aviso}Vas a declarar el ${inicio.fecha} como fecha oficial de inicio de operaciones.\n\nSe declara UNA sola vez y ya no se puede cambiar. ¿Continuar?`)) return;
+    if (window.prompt("Para confirmar, escribe la palabra:\n\nINICIO") !== "INICIO") { setMsg({ tipo: "err", txt: "No se declaró (no se escribió INICIO)." }); return; }
+    const { error } = await supabase.rpc("declarar_inicio", { p_fecha: inicio.fecha, p_nota: inicio.nota.trim() || null });
+    if (error) { setMsg({ tipo: "err", txt: `No se pudo declarar: ${error.message}` }); return; }
+    // Se refleja de una vez en pantalla; la relectura sólo lo confirma.
+    setOp(o => ({ ...(o || {}), inicio_operaciones: inicio.fecha, nota: inicio.nota.trim() || null }));
+    setMsg({ tipo: "ok", txt: `Inicio de operaciones declarado: ${inicio.fecha}.` }); refrescar();
+  };
+
+  const ROLES_INVITAR = [["encargado", "Encargado"], ["finanzas", "Finanzas"], ["agronomo", "Agrónomo"], ["dueno", "Dirección (sólo ve)"], ["superadmin", "Superadministrador"]];
+  const paso = (hecho, texto, sub) => (
+    <div className="list-item" style={{ cursor: "default" }}>
+      <div className="li-icon"><Ic e={hecho ? "✅" : "⏳"} /></div>
+      <div className="li-body"><div className="li-title">{texto}</div>{sub && <div className="li-sub">{sub}</div>}</div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="top-bar">
+        <button className="btn-ghost" onClick={onClose}>‹</button>
+        <h2>Arranque de la operación</h2>
+      </div>
+      <div className="section-pad">
+        <div className="tab-bar" style={{ marginBottom: 16 }}>
+          {[["estado", "Estado"], ["cuentas", "Cuentas"], ["conteo", "Conteo"], ["saldos", "Saldos"], ["inicio", "Inicio"]].map(([k, l]) => (
+            <button key={k} className={`tab-btn${tab === k ? " active" : ""}`} onClick={() => { setTab(k); setMsg(null); }}>{l}</button>
+          ))}
+        </div>
+        {msg && (
+          <div className={`alert alert-${msg.tipo === "ok" ? "green" : "red"}`}>
+            <span className="alert-icon"><Ic e={msg.tipo === "ok" ? "✅" : "⚠️"} /></span>
+            <div className="alert-body"><div className="alert-desc">{msg.txt}</div></div>
+          </div>
+        )}
+
+        {tab === "estado" && (
+          <div className="card">
+            <div className="card-title">Con qué se abre</div>
+            <div className="text-xs text-muted mb-3">La operación empieza limpia: nada se copió de las pruebas anteriores. Lo que hay aquí es lo que ustedes capturen de hoy en adelante.</div>
+            {opFalla && <div className="text-sm" style={{ color: "var(--gold)", marginBottom: 8 }}>{opFalla}</div>}
+            {paso(!!op?.espacio, "Base conectada y sellada", op?.espacio ? `Espacio ${op.espacio}` : "No se sabe todavía")}
+            {paso(perfiles.filter(p => p.rol === "superadmin").length >= 2, "Dos superadministradores con cuenta propia", esSuper ? `${perfiles.filter(p => p.rol === "superadmin").length} hasta ahora · ${perfiles.length} cuenta(s) en total` : "Sólo lo ve un superadministrador")}
+            {paso((data.trabajadores || []).length > 0 && (data.parcelas || []).length > 0, "Catálogos", `${(data.parcelas || []).length} parcela(s) · ${(data.trabajadores || []).length} trabajador(es) · ${articulos.length} artículo(s) de almacén`)}
+            {paso(articulos.length > 0 && articulos.every(a => yaContados.has(a.id)), "Inventario inicial por conteo físico", articulos.length ? `${articulos.filter(a => yaContados.has(a.id)).length} de ${articulos.length} artículos contados` : "Primero hay que dar de alta los artículos")}
+            {paso(bolsas.length > 0 && bolsas.every(b => b.saldoInicial), "Saldos iniciales", bolsas.length ? `${bolsas.filter(b => b.saldoInicial).length} de ${bolsas.length} cuentas o cajas` : "Primero hay que dar de alta las cuentas en Socios y bolsas")}
+            {paso(!!op?.inicio_operaciones, "Fecha oficial de inicio", op?.inicio_operaciones ? `Desde el ${op.inicio_operaciones}${op.nota ? ` — ${op.nota}` : ""}` : "Sin declarar")}
+          </div>
+        )}
+
+        {tab === "cuentas" && (!esSuper ? (
+          <div className="card"><div className="text-sm text-muted">Sólo un superadministrador, entrando con su correo y contraseña, puede invitar cuentas.</div></div>
+        ) : (
+          <>
+            <div className="card">
+              <div className="card-title">Invitar a alguien</div>
+              <div className="text-xs text-muted mb-3">La persona crea su propia cuenta y su propia contraseña con el correo que pongas aquí. Tú nunca ves su contraseña.</div>
+              <input className="inp" placeholder="Nombre completo" value={inv.nombre} onChange={e => setInv_(v => ({ ...v, nombre: e.target.value }))} />
+              <input className="inp mt-2" type="email" placeholder="Correo" value={inv.correo} onChange={e => setInv_(v => ({ ...v, correo: e.target.value }))} />
+              <select className="inp mt-2" value={inv.rol} onChange={e => setInv_(v => ({ ...v, rol: e.target.value }))}>
+                {ROLES_INVITAR.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+              <button className="btn btn-accent mt-3" onClick={invitar}>Invitar</button>
+            </div>
+            <div className="card">
+              <div className="card-title">Cuentas</div>
+              {perfiles.map(p => <div key={p.id} className="text-sm" style={{ padding: "6px 0", borderBottom: "1px solid var(--border)" }}><b>{p.nombre}</b> · {p.rol}</div>)}
+              {invitaciones.filter(i => !i.usada_el && !i.cancelada).map(i => (
+                <div key={i.correo} className="text-sm" style={{ padding: "6px 0", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <span>{i.nombre} · {i.rol} · <span className="text-muted">{i.correo} — invitado, aún no entra</span></span>
+                  <button className="btn-ghost text-xs" onClick={() => cancelarInvitacion(i.correo)}>Cancelar</button>
+                </div>
+              ))}
+              {perfiles.length === 0 && invitaciones.length === 0 && <div className="text-sm text-muted">Todavía no hay cuentas.</div>}
+            </div>
+          </>
+        ))}
+
+        {tab === "conteo" && (
+          <div className="card">
+            <div className="card-title">Inventario inicial: conteo físico</div>
+            <div className="text-xs text-muted mb-3">Las existencias no se copian de ningún lado: se cuentan. Escribe lo que hay en el estante; si no hay, escribe 0. Lo que dejes en blanco no se registra.</div>
+            <div className="form-group"><label className="form-label">Fecha del conteo</label><input className="inp" type="date" value={conteo.fecha} onChange={e => setConteo(c => ({ ...c, fecha: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label">Dónde se contó</label><input className="inp" placeholder="Ej: Bodega del rancho" value={conteo.ubicacion} onChange={e => setConteo(c => ({ ...c, ubicacion: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label">Quién contó</label><input className="inp" value={conteo.responsable} onChange={e => setConteo(c => ({ ...c, responsable: e.target.value }))} /></div>
+            {articulos.length === 0 && <div className="text-sm" style={{ color: "var(--gold)" }}>Todavía no hay artículos en el almacén. Dalos de alta primero (o carga el catálogo aprobado) y regresa a contarlos.</div>}
+            {articulos.map(a => (
+              <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+                <div style={{ flex: 1 }}><div className="text-sm">{a.nombre}</div><div className="text-xs text-muted">{a.unidad || ""}{yaContados.has(a.id) ? " · ya tiene conteo inicial" : ""}</div></div>
+                <input className="inp" style={{ width: 110 }} type="number" inputMode="decimal" min="0" placeholder="Contado" aria-label={`Contado de ${a.nombre}`}
+                  value={contados[a.id] ?? ""} onChange={e => setContados(c => ({ ...c, [a.id]: e.target.value }))} />
+              </div>
+            ))}
+            {articulos.length > 0 && <button className="btn btn-accent mt-3" onClick={guardarConteo}>Registrar conteo</button>}
+          </div>
+        )}
+
+        {tab === "saldos" && (
+          <>
+            <div className="card">
+              <div className="card-title">Saldo inicial de una cuenta o caja</div>
+              <div className="text-xs text-muted mb-3">Con fecha de corte, responsable y evidencia (el estado de cuenta o el arqueo). No se inventa: si no se sabe, no se captura.</div>
+              {bolsas.length === 0 ? <div className="text-sm" style={{ color: "var(--gold)" }}>Primero da de alta las cuentas, tarjetas y cajas en "Socios y bolsas".</div> : (
+                <>
+                  <select className="inp" value={saldo.bolsaId} onChange={e => setSaldo(s => ({ ...s, bolsaId: e.target.value }))} aria-label="Cuenta o caja">
+                    <option value="">¿De qué cuenta o caja?</option>
+                    {bolsas.map(b => <option key={b.id} value={b.id}>{b.nombre}{b.saldoInicial ? " (ya tiene)" : ""}</option>)}
+                  </select>
+                  <div className="form-group mt-2"><label className="form-label">Fecha de corte</label><input className="inp" type="date" value={saldo.fechaCorte} onChange={e => setSaldo(s => ({ ...s, fechaCorte: e.target.value }))} /></div>
+                  <div className="form-group"><label className="form-label">Saldo a esa fecha</label><input className="inp" type="number" inputMode="decimal" placeholder="0.00" value={saldo.monto} onChange={e => setSaldo(s => ({ ...s, monto: e.target.value }))} aria-label="Saldo a la fecha de corte" /></div>
+                  <div className="form-group"><label className="form-label">Quién lo captura</label><input className="inp" value={saldo.responsable} onChange={e => setSaldo(s => ({ ...s, responsable: e.target.value }))} /></div>
+                  <div className="form-group"><label className="form-label">Evidencia (foto o PDF)</label>
+                    <input type="file" accept="image/*,application/pdf" onChange={tomarEvidencia} aria-label="Evidencia del saldo" />
+                    {saldo.evidenciaNombre && <div className="text-xs text-muted mt-2">Adjunto: {saldo.evidenciaNombre}</div>}
+                  </div>
+                  <button className="btn btn-accent" onClick={guardarSaldo}>Guardar saldo inicial</button>
+                </>
+              )}
+            </div>
+            {bolsas.filter(b => b.saldoInicial).map(b => (
+              <div key={b.id} className="card" style={{ padding: 12 }}>
+                <div className="font-bold text-sm">{b.nombre}: {fmt(b.saldoInicial.monto)} al {b.saldoInicial.fechaCorte}</div>
+                <div className="text-xs text-muted">Capturó {b.saldoInicial.responsable}{b.saldoInicial.sinEvidencia ? " · SIN evidencia" : " · con evidencia"}</div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {tab === "inicio" && (
+          <div className="card">
+            <div className="card-title">Fecha oficial de inicio de operaciones</div>
+            {op?.inicio_operaciones ? (
+              <div className="text-sm">Declarada: <b>{op.inicio_operaciones}</b>{op.nota ? ` — ${op.nota}` : ""}. Ya no se cambia.</div>
+            ) : !esSuper ? (
+              <div className="text-sm text-muted">Sólo un superadministrador, entrando con su correo y contraseña, puede declararla.</div>
+            ) : (
+              <>
+                <div className="text-xs text-muted mb-3">Es la raya entre las pruebas y la operación real. Se declara una sola vez y queda anotado quién y cuándo.</div>
+                {faltantes.length > 0 && <div className="text-sm mb-3" style={{ color: "var(--gold)" }}>Todavía falta: {faltantes.join(" ")}</div>}
+                <div className="form-group"><label className="form-label">Fecha</label><input className="inp" type="date" value={inicio.fecha} onChange={e => setInicio(i => ({ ...i, fecha: e.target.value }))} /></div>
+                <div className="form-group"><label className="form-label">Nota (opcional)</label><input className="inp" placeholder="Ej: arranque con conteo físico del 1 de diciembre" value={inicio.nota} onChange={e => setInicio(i => ({ ...i, nota: e.target.value }))} /></div>
+                <button className="btn btn-accent" onClick={declarar}>Declarar inicio de operaciones</button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -6983,6 +7328,7 @@ function AdminHome({ data, alertas, onNav, onLogout, pending, online }) {
           <div className="option-grid" style={{ marginBottom: 0 }}>
             <div className="option-card" onClick={() => onNav("pase-lista")}><span className="oc-icon"><Ic e="✅" /></span><span className="oc-label">Pase de lista</span><span className="oc-sub">Asistencia de la semana</span></div>
             <div className="option-card" onClick={() => onNav("respaldo")}><span className="oc-icon"><Ic e="💾" /></span><span className="oc-label">Respaldo</span><span className="oc-sub">Guardar copia</span></div>
+            <div className="option-card" onClick={() => onNav("arranque")}><span className="oc-icon"><Ic e="🎯" /></span><span className="oc-label">Arranque</span><span className="oc-sub">Cuentas, conteo, saldos, inicio</span></div>
             <div className="option-card" onClick={() => onNav("seguridad")}><span className="oc-icon"><Ic e="🔐" /></span><span className="oc-label">Seguridad</span><span className="oc-sub">PINs de dirección</span></div>
             <div className="option-card" onClick={() => onNav("panel-financiero")}><span className="oc-icon"><Ic e="💰" /></span><span className="oc-label">¿Cómo vamos?</span><span className="oc-sub">Resumen del dinero</span></div>
             <div className="option-card" onClick={() => onNav("subir-nube")}><span className="oc-icon"><Ic e="☁️" /></span><span className="oc-label">Subir a la nube</span><span className="oc-sub">Migración inicial</span></div>
