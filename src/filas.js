@@ -94,7 +94,7 @@ export function objetoAFila(tabla, obj) {
   const fila = {};
   const datos = {};
   for (const [k, v] of Object.entries(obj || {})) {
-    if (k === "_actualizado" || k === "_borrado") continue; // metadatos locales, no se suben
+    if (k === "_actualizado" || k === "_borrado" || k === "_recibido") continue; // metadatos locales o del servidor, no se suben
     if (reales.includes(k)) fila[aSql(k)] = v;
     else datos[k] = v;
   }
@@ -110,7 +110,8 @@ export function filaAObjeto(fila) {
   // creado_por / subido_por los pone la base (qué cuenta lo subió): no son
   // datos del registro y no deben regresar a la nube dentro de él.
   // borrado es la lápida: alguien lo borró.
-  const { datos, actualizado, creado_por, subido_por, borrado, ...resto } = fila || {};
+  // recibido: la hora en que el servidor recibió un evento. La pone la base, no el teléfono.
+  const { datos, actualizado, creado_por, subido_por, borrado, recibido, ...resto } = fila || {};
   const obj = {};
   for (const [k, v] of Object.entries(resto)) {
     if (v === null || v === undefined) continue;
@@ -121,6 +122,7 @@ export function filaAObjeto(fila) {
   // (merge por registro: gana el más reciente). Se guarda aparte para no chocar con datos.
   if (actualizado) obj._actualizado = actualizado;
   if (borrado) obj._borrado = borrado;
+  if (recibido) obj._recibido = recibido;
   return obj;
 }
 

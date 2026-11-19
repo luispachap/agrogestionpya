@@ -296,3 +296,86 @@ test("el_qr_de_un_articulo_solo_trae_su_identificador", () => {
   assert.equal(leerArticulo("AGRO1:A:i-urea", [UREA]).articulo.nombre, "Urea");
   assert.equal(leerArticulo("AGRO1:T:t-ana:ABC", [UREA]).ok, false);
 });
+
+// ── A · El costo promedio no depende de qué teléfono subió al último ──────
+import { ajustesDeValuacion, fijarCosto, momentoDe } from "./movimientos.js";
+const SIN = { id: "i-n", nombre: "Sulfato", unidad: "bulto", existencia: 0 };
+const compra = (q, cu, hora, mas = {}) => entrada({ articulo: SIN, cantidad: q, costoUnit: cu, quien: ADMIN, cuando: c(hora), fecha: D, azar: az(), ...mas }).evento;
+const costoHoy = (evs) => conExistenciaReal([SIN], estadoDelAlmacen(evs, [SIN]))[0].costo_unit;
+
+test("dos_compras_del_mismo_articulo_en_dos_telefonos_dan_el_mismo_promedio_suban_como_suban", () => {
+  const marzo = compra(10, 580, "09:00"), agosto = compra(40, 940, "10:00");
+  for (const orden of [[marzo, agosto], [agosto, marzo], [agosto, marzo, { ...agosto }]]) assert.equal(costoHoy(orden), 868, "10 a $580 y 40 a $940 son 50 a $868");
+  assert.equal(estadoDelAlmacen([marzo, agosto], [SIN]).compras.length, 2, "cada compra conserva su cantidad, su precio y su fecha");
+  const cat = paraGuardarArticulo({ ...conExistenciaReal([SIN], estadoDelAlmacen([marzo, agosto], [SIN]))[0], minimo: 3 }, SIN);
+  assert.equal(cat.costo_unit, 0, "y el catálogo guardado no se toca: el promedio se calcula"); assert.equal(cat.minimo, 3);
+});
+
+test("una_compra_posterior_que_llega_tarde_no_toca_lo_que_ya_se_consumio", () => {
+  const marzo = compra(10, 580, "09:00");
+  const uso = consumirDirecto({ articulo: { ...SIN, costo_unit: 580 }, cantidad: 4, destino: P7, quien: ENC, cuando: c("10:00"), fecha: D, azar: az() }).evento;
+  const despues = compra(40, 940, "15:00");
+  const s = estadoDelAlmacen([despues, uso, marzo], [SIN]);
+  assert.equal(costoDeConsumos(s).total, 2320, "4 × $580: lo que costaba cuando se usó"); assert.equal(ajustesDeValuacion(s).lista.length, 0, "la compra fue después del consumo: no hay nada que ajustar");
+  assert.equal(conExistenciaReal([SIN], s)[0].costo_unit, (6 * 580 + 40 * 940) / 46, "y el promedio de ahora sale de lo que quedaba");
+});
+
+test("una_compra_anterior_capturada_tarde_no_altera_el_costo_original_y_deja_el_ajuste_a_la_vista", () => {
+  // En el almacén hay 10 a $580. A las 10 se usan 4 (se capturan a $580). Pero a las 9 había entrado una compra de 40 a $940
+  // en otro teléfono sin señal, que se capturó en la tarde.
+  const marzo = compra(10, 580, "08:00");
+  const uso = consumirDirecto({ articulo: { ...SIN, costo_unit: 580 }, cantidad: 4, destino: P7, quien: ENC, cuando: c("10:00"), fecha: D, azar: az() }).evento;
+  const tardia = compra(40, 940, "09:00", { capturado: c("17:00") });
+  for (const orden of [[marzo, uso, tardia], [tardia, uso, marzo]]) {
+    const s = estadoDelAlmacen(orden, [SIN]);
+    assert.equal(costoDeConsumos(s).total, 2320, "el costo original NO se altera: sigue en 4 × $580");
+    const a = ajustesDeValuacion(s);
+    assert.equal(a.lista.length, 1); assert.equal(a.lista[0].original, 2320); assert.equal(a.lista[0].recalculado, 3472, "con la compra de las 9, ese día costaba $868"); assert.equal(a.total, 1152);
+    assert.deepEqual(a.lista[0].compras, [tardia.id], "y dice qué compra lo causó"); assert.match(a.lista[0].porque, /compra del 2026-11-19, anterior a este consumo/);
+  }
+});
+
+test("lo_que_se_consumio_sin_costo_y_despues_se_supo_queda_como_ajuste_no_se_rellena_solo", () => {
+  const uso = consumirDirecto({ articulo: SIN, cantidad: 4, destino: P7, quien: ENC, cuando: c("10:00"), fecha: D, azar: az() }).evento;
+  const tardia = compra(40, 940, "09:00", { capturado: c("17:00") });
+  const s = estadoDelAlmacen([uso, tardia], [SIN]);
+  assert.equal(costoDeConsumos(s).total, 0); assert.equal(costoDeConsumos(s).sinCosto.length, 1, "sigue diciendo que se capturó sin costo");
+  const [a] = ajustesDeValuacion(s).lista; assert.equal(a.original, null); assert.equal(a.recalculado, 3760); assert.match(a.porque, /no tenía costo/);
+});
+
+test("corregir_el_costo_a_mano_vale_de_ahi_en_adelante", () => {
+  const marzo = compra(10, 580, "08:00");
+  const uso = consumirDirecto({ articulo: { ...SIN, costo_unit: 580 }, cantidad: 4, destino: P7, quien: ENC, cuando: c("10:00"), fecha: D, azar: az() }).evento;
+  const fijo = fijarCosto({ articulo: SIN, costoUnit: 600, motivo: "venía mal la factura", quien: ADMIN, cuando: c("12:00"), fecha: D, azar: az() }).evento;
+  const s = estadoDelAlmacen([marzo, uso, fijo], [SIN]);
+  assert.equal(costoHoy([marzo, uso, fijo]), 600); assert.equal(costoDeConsumos(s).total, 2320); assert.equal(ajustesDeValuacion(s).lista.length, 0);
+});
+
+// ── B · Un reloj mal puesto no mueve la existencia a escondidas ───────────
+test("un_telefono_con_la_hora_atrasada_no_hace_que_su_conteo_pase_antes_de_lo_que_ya_habia_pasado", () => {
+  // 9:00 (hora buena): se mueven 20 a otra bodega. 10:00 de verdad: se cuentan 28 en el almacén —pero ese teléfono trae 3 horas de atraso y dice 7:00.
+  const t = transferir({ articulo: UREA, cantidad: 20, de: NAVE, a: "Rancho 2", quien: ENC, cuando: c("09:00"), fecha: D, azar: az() }).evento;
+  const k = contar({ articulo: UREA, contado: 28, existencia: 30, causa: "merma", quien: ADMIN, cuando: c("07:00"), fecha: D, azar: az() }).evento;
+  assert.equal(nave([t, k]), 8, "sin saber del reloj, el conteo 'pasó' antes y le restan los 20: mal");
+  const conDesfase = { ...k, reloj: { desfase: 3 * 3600000 } };
+  assert.equal(nave([t, conDesfase]), 28, "con el desfase que el teléfono midió contra el servidor, el conteo queda donde fue");
+  assert.equal(momentoDe(conDesfase).nota, "atrasado");
+  const s = est([t, conDesfase]); assert.equal(porRevisar(s).relojes.length, 1, "y la corrección no es callada"); assert.equal(porRevisar(s).relojes[0].minutos, 180);
+});
+
+test("nada_pudo_pasar_despues_de_que_el_servidor_lo_recibio", () => {
+  // El teléfono trae el reloj un día adelantado y nunca cotejó la hora: dice que entregó "mañana".
+  const e = da(UREA, 10, { cuando: c("09:00", "2026-11-20"), fecha: D });
+  const recibido = { ...e, _recibido: new Date(c("09:05")).toISOString() };
+  const k = contar({ articulo: UREA, contado: 40, existencia: 40, quien: ADMIN, cuando: c("12:00"), fecha: D, azar: az(), }).evento;
+  assert.equal(nave([e, k]), 30, "sin la hora del servidor, la entrega 'pasa' después del conteo y se resta otra vez");
+  assert.equal(nave([recibido, k]), 40, "con la hora en que el servidor la recibió, queda antes del conteo");
+  assert.equal(momentoDe(recibido).nota, "adelantado");
+});
+
+test("lo_capturado_de_un_dia_anterior_no_se_corrige_con_el_desfase_y_un_conteo_sin_hora_comprobada_se_señala", () => {
+  const vieja = entrada({ articulo: UREA, cantidad: 5, quien: ADMIN, cuando: instanteDe("2026-11-17", D, c("15:00")), fecha: "2026-11-17", capturado: c("15:00"), azar: az() }).evento;
+  assert.equal(momentoDe({ ...vieja, reloj: { desfase: 3 * 3600000 } }).movido, 0);
+  const k = contar({ articulo: UREA, contado: 55, existencia: 55, quien: ADMIN, cuando: c("12:00"), fecha: D, azar: az() }).evento;
+  assert.equal(est([k]).conteosSinHora.length, 1); assert.equal(est([{ ...k, reloj: { desfase: 1200 } }]).conteosSinHora.length, 0);
+});

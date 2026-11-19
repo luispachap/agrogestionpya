@@ -119,6 +119,8 @@ export function juntarEventos(locales, deLaNube) {
     if (!n?.id) continue;
     const l = porId.get(n.id);
     if (!l || (estaVigente(l) && !estaVigente(n))) { porId.set(n.id, n); cambiaron.push(n); }
+    // Lo único que la nube le agrega a un evento que ya se tenía: la hora en que el servidor lo recibió.
+    else if (n._recibido && !l._recibido) { const con = { ...l, _recibido: n._recibido }; porId.set(n.id, con); cambiaron.push(con); }
   }
   return { eventos: [...porId.values()], cambiaron };
 }

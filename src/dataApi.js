@@ -227,6 +227,17 @@ export async function leerConsumo() {
 //  rancho: un renglón por cuenta, que sólo esa cuenta lee y escribe (hoja 34).
 //  Si no se pudo, devuelve { ok: false }: la app sigue con lo del teléfono.
 // ------------------------------------------------------------
+// La hora del servidor, para que el teléfono mida cuánto difiere la suya.
+// Devuelve también a qué hora (del teléfono) salió la pregunta y llegó la respuesta.
+export async function horaDelServidor() {
+  if (!supabaseListo) return { ok: false };
+  try {
+    const salio = Date.now();
+    const { data, error } = await supabase.rpc("hora_del_servidor");
+    const llego = Date.now();
+    return error || !data ? { ok: false } : { ok: true, servidor: data, salio, llego };
+  } catch { return { ok: false }; }
+}
 export async function leerPreferencias(cuentaId) {
   if (!supabaseListo || !cuentaId) return { ok: false };
   try {

@@ -130,6 +130,26 @@ Usuarios reales de la app:
   `actividadesContables` ni a los gastos otra vez. Una máquina que ya carga
   `costo_hora` en actividades no se reparte encima. Sin dato no hay reparto:
   queda pendiente con su porqué.
+- **El costo promedio también se calcula** (`estado.promedios`): cada compra
+  (`alm_entrada` con `costoUnit`) conserva cantidad, precio y fecha; el catálogo
+  no guarda el promedio (`costo_unit` es sólo el punto de partida, y corregirlo
+  a mano es un `alm_costo`: vale de ahí en adelante). **El consumo se queda con
+  el costo con que se capturó**; si una compra anterior llega tarde, la
+  diferencia sale en `ajustesDeValuacion` (aparte, con causa) y nunca se mezcla
+  con el original.
+- **Tres fechas, y el reloj del teléfono no manda** (`momentoDe`, `src/reloj.js`,
+  hoja 36): `cuando` (operación), `capturado` (tecleo) y `_recibido` (la pone
+  la base; también `actualizado`, que es la marca de "lo nuevo"). Cada evento
+  nace con `reloj.desfase` (hora del servidor − hora del teléfono, medida con
+  `hora_del_servidor()`). El orden usa la hora corregida, y nada puede pasar
+  después de que el servidor lo recibió. Toda corrección sale en `relojes`.
+- **`src/indirectos.js`: costo DIRECTO y costo COMPLETO.** `actividadesContables`
+  y `total` de los reportes son y siguen siendo el DIRECTO. Lo indirecto llega
+  de FUENTES (`juntarFuentes([...])` en `normalizeData`; hoy sólo
+  `fuenteVehiculos`, que reparte mes por mes) con `partes` (fecha, base,
+  `explica`), `pendientes` (con su causa) y `noProduccion`. Los reportes lo
+  enseñan con `<DosCifras>` (`r.completo`). **Una fuente nueva de indirectos se
+  agrega a esa lista; nunca se mete a `actividadesContables` ni a los gastos.**
 - Reglas ya decididas por Luis (19 nov): checar salida TERMINA la asignación
   (al volver queda sin asignar; se ofrece «continuar»); el tiempo sin asignar es
   «por aclarar» y nunca se distribuye solo; las horas adicionales se registran y
@@ -254,7 +274,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **117 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **119 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

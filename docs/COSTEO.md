@@ -84,6 +84,29 @@ cargado a parcelas y lo que queda fuera siempre suman lo mismo.
 | Prestaciones | No se provisionan | Con qué base y a qué se cargan (cultivo, parcela, periodo) |
 | Tiempo aclarado como espera, traslado, mantenimiento | Queda fuera de las parcelas | A qué centro de costo va cada causa y con qué criterio se distribuye |
 | Operador del camión | Trabajador de planta; el rato asignado al vehículo se le carga al vehículo, con lo que ya gana | — (decidido el 19 nov) |
-| Costo del vehículo propio | Historial por vehículo y reparto a parcelas: traslado de gente por personas transportadas; lo compartido por horas de uso (se cambia a viajes, km o parejo) | Decidido el 19 nov. Falta decidir si el costo indirecto debe entrar a los reportes de costo por parcela de siempre |
+| Costo del vehículo propio | Historial por vehículo y reparto a parcelas: traslado de gente por personas transportadas; lo compartido por horas de uso (se cambia a viajes, km o parejo) | Decidido el 19 nov. Entra a los reportes como costo completo, con el directo siempre a la vista (decidido el 19 nov) |
 | Material entregado y no cerrado | Aviso a las 24 h y escala a las 72 h; herramientas 7 y 15 días (los días de herramientas los puse yo: se cambian) | Los plazos de herramientas |
 | Herramienta rota o perdida | Baja con responsable, causa, valor y evidencia; la decisión con el trabajador se escribe aparte y la app nunca descuenta | — (decidido el 19 nov) |
+
+
+## Siguiente entrega: faltas y permisos, pagos y recibos
+
+**Qué se construye**
+
+1. **Faltas, permisos y descansos con causa.** Un tipo de evento (`ausencia`): trabajador, día o rango, causa (falta, permiso con o sin goce, descanso autorizado, incapacidad, abandono de la jornada) y quién lo autoriza. No calcula descuentos solo: dice qué pasó y deja la decisión a quien paga.
+2. **Lo que corresponde, lo pagado y lo pendiente.** Un evento `pago_personal` por cada pago (a quién, periodo, importe, de qué bolsa, quién pagó). Lo que corresponde sale de la mano de obra que ya se calcula; lo pendiente es la resta. Una sola fuente: el pago no vuelve a generar costo.
+3. **Recibo interno en PDF** por trabajador y periodo: conceptos, cálculo, fecha, responsable y firmas; con versiones. Dice en su encabezado que es un recibo interno, no un comprobante fiscal.
+4. **Horas adicionales reconocidas**: de las que ya se acumulan, cuáles se reconocen y a cuánto, como decisión con nombre.
+
+**Lo que necesito que decidas antes de construirlo**
+
+| Tema | Pregunta |
+|---|---|
+| Permiso con goce | ¿Un trabajador de planta con permiso autorizado cobra su día? ¿Y con descanso autorizado? |
+| Falta | ¿La falta sin aviso descuenta el día completo, o lo decide quien paga cada vez? |
+| Abandono de la jornada | Si checó entrada y se fue a media mañana: ¿día completo, medio día, o por horas? |
+| Periodo de pago | ¿Semanal de lunes a sábado para todos, o hay quien cobra por quincena? |
+| Cuadrillas | ¿El pago se le entrega al responsable de la cuadrilla o a cada persona? ¿El recibo sale a nombre de quién? |
+| Horas adicionales | ¿Se pagan, se compensan con descanso, o sólo se registran? ¿A partir de cuántas? |
+
+**Riesgo a cuidar:** el reporte de nómina de siempre ya calcula sueldos por su lado. Antes de agregar pagos por eventos hay que dejar una sola fuente, igual que se hizo con cuadrillas y con insumos.

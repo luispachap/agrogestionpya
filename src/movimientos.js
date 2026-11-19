@@ -37,7 +37,7 @@ import { multiplicarDinero, sumarDinero } from "./calculos.js";
 
 export const NAVE = "Nave";
 export const T = { entrada: "alm_entrada", retiro: "alm_retiro", consumo: "alm_consumo", devolucion: "alm_devolucion", traspaso: "alm_traspaso", transferencia: "alm_transferencia",
-  merma: "alm_ajuste", conteo: "alm_conteo", baja: "alm_baja", revision: "alm_revision", resolucion: "alm_resolucion" };
+  merma: "alm_ajuste", conteo: "alm_conteo", costo: "alm_costo", baja: "alm_baja", revision: "alm_revision", resolucion: "alm_resolucion" };
 export const CAUSAS_AJUSTE = { conteo: "Error de conteo o de captura anterior", merma: "Merma (se echó a perder, se derramó)", caducidad: "Caducó", robo: "Robo o extravío", inicial: "Inventario inicial", no_se_sabe: "No se sabe" };
 export const CAUSAS_BAJA = { desgaste: "Desgaste normal", accidente: "Accidente", perdida: "Pérdida", intencional: "Daño intencional", otro: "Otro caso" };
 export const DESTINOS = { parcela: "Parcela", vehiculo: "Vehículo o maquinaria", general: "Uso general del rancho" };
@@ -53,6 +53,29 @@ const ficha = (a) => ({ articuloId: a.id, articulo: a.nombre || "", unidad: a.un
 export const esDeUsoLargo = (a) => !!(a?.esHerramienta || a?.usoProlongado);
 // El instante en que pasó: ahorita si es de hoy; a mediodía del rancho si se captura de un día anterior.
 export const instanteDe = (fecha, hoy, ahora) => (!fecha || fecha >= hoy ? ahora : new Date(`${fecha}T12:00:00-06:00`).toISOString());
+
+// ── ¿Cuándo pasó de verdad? ────────────────────────────────────────────────
+// Un movimiento trae TRES fechas y no se confunden:
+//   cuando      la de la operación, según el reloj del teléfono
+//   capturado   cuándo se tecleó, según el mismo reloj
+//   _recibido   cuándo lo recibió el servidor — ésa no la pone el teléfono
+// y además `reloj.desfase`: cuánto difería ese teléfono de la hora del servidor
+// la última vez que la comprobó. Con eso el orden NO depende de un reloj mal puesto:
+//   · si se capturó en el momento y el teléfono traía la hora mal, se corrige con su desfase;
+//   · nada pudo pasar DESPUÉS de que el servidor lo recibió: si lo dice, el reloj iba adelantado;
+//   · lo capturado de un día anterior (a mediodía de ese día) se deja como se dijo.
+// La corrección nunca es callada: queda en `nota` y sale en lo que hay que revisar.
+export const TOLERANCIA_RELOJ_MS = 2 * 60000;
+export function momentoDe(e) {
+  const cu = Date.parse(e.cuando), cap = Date.parse(e.capturado || e.cuando);
+  const enVivo = Math.abs(cap - cu) < 60000;
+  const d = typeof e.reloj?.desfase === "number" ? e.reloj.desfase : null;
+  const rec = e._recibido ? Date.parse(e._recibido) : null;
+  let t = cu, nota = null;
+  if (enVivo && d != null && Math.abs(d) > TOLERANCIA_RELOJ_MS) { t = cu + d; nota = d > 0 ? "atrasado" : "adelantado"; }
+  if (rec != null && t > rec + TOLERANCIA_RELOJ_MS) { t = rec; nota = "adelantado"; }
+  return { t, nota, movido: t - cu, comprobado: d != null || rec != null };
+}
 
 // QR de un artículo: sólo su identificador. Sirve para escogerlo sin buscarlo.
 export const textoDeArticulo = (articulo) => (articulo?.id ? `AGRO1:A:${articulo.id}` : "");
@@ -78,7 +101,15 @@ export function movimientoDeSiempre({ articulo, delta, movimiento = {}, usadoPor
   if (!articulo?.id || !d) return null;
   if (d > 0) return entrada({ articulo, cantidad: d, costoUnit: movimiento.costoUnit, concepto: movimiento.concepto || "Entrada", ref: movimiento.ref, quien, cuando, fecha, azar }).evento;
   const destino = movimiento.vehiculoId ? { tipo: "vehiculo", id: movimiento.vehiculoId, nombre: "", actividad: "" } : movimiento.parcelaId ? { tipo: "parcela", id: movimiento.parcelaId, nombre: "", actividad: "" } : { tipo: "general", id: null, nombre: "", actividad: "" };
-  return nuevoEvento({ tipo: T.consumo, cuando, fecha, quien, azar, datos: { ...ficha(articulo), cantidad: -d, de: NAVE, destino, via: "actividad", usadoPor: persona(usadoPor || quien), concepto: String(movimiento.concepto || "").trim(), ...(movimiento.actividadId ? { actividadId: movimiento.actividadId } : {}) } });
+  return nuevoEvento({ tipo: T.consumo, cuando, fecha, quien, azar, datos: { ...ficha(articulo), cantidad: -d, de: NAVE, destino, via: "actividad", usadoPor: persona(usadoPor || quien), ...(costoDe(articulo) ? { costoVisto: costoDe(articulo) } : {}), concepto: String(movimiento.concepto || "").trim(), ...(movimiento.actividadId ? { actividadId: movimiento.actividadId } : {}) } });
+}
+
+// Fijar el costo de un artículo "de aquí en adelante" (una corrección a mano).
+// No toca lo que ya se consumió: eso se quedó con el costo que tenía.
+export function fijarCosto({ articulo, costoUnit, motivo = "", quien, cuando, fecha, azar }) {
+  const c = num(costoUnit);
+  if (!articulo?.id || !(c > 0)) return { ok: false, dice: "Falta el costo." };
+  return { ok: true, evento: nuevoEvento({ tipo: T.costo, cuando, fecha, quien, azar, datos: { ...ficha(articulo), costoUnit: c, motivo: String(motivo || "").trim() } }) };
 }
 
 // ── Entregar ───────────────────────────────────────────────────────────────
@@ -101,11 +132,19 @@ export function entregar({ articulo, cantidad, de = NAVE, recibe, destino, nota 
 // el punto de partida (lo que había antes de que existieran los movimientos).
 export function estadoDelAlmacen(eventos, inventario = []) {
   const todos = vigentes(eventos).filter(e => e.tipo.startsWith("alm_"));
-  const evs = todos.filter(e => e.tipo !== T.resolucion).sort((a, b) => a.cuando.localeCompare(b.cuando) || a.capturado.localeCompare(b.capturado) || a.id.localeCompare(b.id));
+  const mom = new Map(todos.map(e => [e.id, momentoDe(e)]));
+  const evs = todos.filter(e => e.tipo !== T.resolucion).sort((a, b) => mom.get(a.id).t - mom.get(b.id).t || a.capturado.localeCompare(b.capturado) || a.id.localeCompare(b.id));
+  const relojes = todos.filter(e => mom.get(e.id).nota).map(e => ({ ev: e.id, clase: "reloj", tipo: e.tipo, articulo: e.datos.articulo || "", fecha: e.fecha, quien: e.quien?.nombre || "", nota: mom.get(e.id).nota, minutos: Math.round(Math.abs(mom.get(e.id).movido) / 60000) }));
   const resueltas = new Map(); for (const e of todos) if (e.tipo === T.resolucion && e.origen) resueltas.set(e.origen, { texto: e.datos.texto, por: e.quien?.nombre || "", cuando: e.cuando, ev: e.id });
   const saldos = new Map();                       // articuloId → Map(lugar → cuánto hay)
   const de = (id) => { if (!saldos.has(id)) saldos.set(id, new Map()); return saldos.get(id); };
   for (const a of inventario || []) if (a?.id) de(a.id).set(NAVE, Number(a.existencia) || 0);
+  // LA VALUACIÓN. El costo promedio también se calcula: cada compra conserva su
+  // cantidad, su precio y su fecha, y el promedio sale de recorrerlas en orden.
+  // No depende de cuál teléfono subió al último.
+  const prom = new Map(); for (const a of inventario || []) if (a?.id && Number(a.costo_unit) > 0) prom.set(a.id, Number(a.costo_unit));
+  const compras = [];
+  const enInventario = (id) => { let n = 0; for (const x of de(id).values()) n += x; for (const l of lotes.values()) if (l.articuloId === id) n += l.saldo; return n; };
   const hay = (id, lugar) => de(id).get(lugar) || 0;
   const mueve = (id, lugar, d) => de(id).set(lugar, r3(hay(id, lugar) + d));
   const lotes = new Map(); const consumos = []; const huerfanos = []; const discrepancias = []; const ajustes = []; const bajas = []; const empalmes = []; const conteos = [];
@@ -114,10 +153,21 @@ export function estadoDelAlmacen(eventos, inventario = []) {
   const abre = (e, cantidad, recibe, raiz) => lotes.set(e.id, { id: e.id, raiz: raiz?.raiz || e.id, articuloId: raiz?.articuloId || e.datos.articuloId, articulo: raiz?.articulo || e.datos.articulo, unidad: raiz?.unidad || e.datos.unidad,
     herramienta: raiz ? raiz.herramienta : !!e.datos.herramienta, largo: raiz ? raiz.largo : !!(e.datos.largo || e.datos.herramienta), cantidad, saldo: cantidad, usado: 0, usadoAct: 0, empalmado: 0, devuelto: 0, traspasado: 0, baja: 0, recibe, destino: raiz ? raiz.destino : e.datos.destino,
     fecha: e.fecha, desde: e.cuando, entrego: e.quien?.nombre || "", revisado: null, proxima: e.datos.revisarEl || null, cierres: [], evs: raiz ? [...raiz.evs, e.id] : [e.id] });
-  const anota = (c) => { consumos.push(c); return c; };
+  // Cada consumo guarda el costo con que se CAPTURÓ (el original, que no se toca) y,
+  // aparte, lo que valía a esa hora con todo lo que hoy se sabe.
+  const anota = (c, e) => { c.promedioEntonces = prom.get(c.articuloId) ?? null; c.costoVisto = e.datos.costoUnit ?? e.datos.costoVisto ?? null; c.t = mom.get(e.id).t; c.capturado = e.capturado; consumos.push(c); return c; };
   for (const e of evs) {
     const d = e.datos;
-    if (e.tipo === T.entrada) { mueve(d.articuloId, d.lugar || NAVE, d.cantidad); continue; }
+    if (e.tipo === T.entrada) {
+      if (Number(d.costoUnit) > 0) {
+        const habia = Math.max(enInventario(d.articuloId), 0), antes = prom.get(d.articuloId);
+        // Sin existencia (o sin costo anterior), el costo es el de esta compra. Si no, el promedio ponderado.
+        prom.set(d.articuloId, antes == null || habia <= 0 ? d.costoUnit : (habia * antes + d.cantidad * d.costoUnit) / (habia + d.cantidad));
+        compras.push({ ev: e.id, articuloId: d.articuloId, cantidad: d.cantidad, costoUnit: d.costoUnit, fecha: e.fecha, t: mom.get(e.id).t, capturado: e.capturado, promedioDespues: prom.get(d.articuloId) });
+      }
+      mueve(d.articuloId, d.lugar || NAVE, d.cantidad); continue;
+    }
+    if (e.tipo === T.costo) { prom.set(d.articuloId, d.costoUnit); continue; }
     if (e.tipo === T.retiro) { saca(e, d.articuloId, d.de || NAVE, d.cantidad); abre(e, d.cantidad, d.recibe, null); continue; }
     if (e.tipo === T.transferencia) { saca(e, d.articuloId, d.de, d.cantidad); mueve(d.articuloId, d.a, d.cantidad); continue; }
     if (e.tipo === T.merma) { mueve(d.articuloId, d.lugar || NAVE, d.delta); ajustes.push({ ev: e.id, clase: "merma", articuloId: d.articuloId, articulo: d.articulo, unidad: d.unidad, lugar: d.lugar || NAVE, diferencia: d.delta, causa: d.causa, nota: d.nota || "", fecha: e.fecha, quien: e.quien?.nombre || "" }); continue; }
@@ -145,7 +195,7 @@ export function estadoDelAlmacen(eventos, inventario = []) {
       // 3 · Lo demás, directo del almacén.
       if (q > 0) saca(e, d.articuloId, d.de || NAVE, q);
       anota({ ev: e.id, lote: null, articuloId: d.articuloId, articulo: d.articulo, unidad: d.unidad, cantidad: d.cantidad, destino: d.destino, costoUnit: d.costoUnit ?? null, costo: d.costoUnit ? multiplicarDinero(d.costoUnit, d.cantidad) : null,
-        enActividad: d.via === "actividad", actividadId: d.actividadId || null, fecha: e.fecha, quien: d.usadoPor?.nombre || e.quien?.nombre || "", evs: evsDe });
+        enActividad: d.via === "actividad", actividadId: d.actividadId || null, fecha: e.fecha, quien: d.usadoPor?.nombre || e.quien?.nombre || "", evs: evsDe }, e);
       continue;
     }
     const l = lotes.get(e.origen);
@@ -160,7 +210,7 @@ export function estadoDelAlmacen(eventos, inventario = []) {
     const q = Math.min(pedido, l.saldo);          // nunca más de lo que le queda (dos aparatos sin señal pueden cerrar lo mismo)
     if (q < pedido) huerfanos.push({ ev: e.id, clase: "de_mas", lote: l.id, articulo: l.articulo, unidad: l.unidad, pedia: pedido, cupo: q, fecha: e.fecha, quien: e.quien?.nombre || "", resuelta: resueltas.get(e.id) || null });
     l.saldo = r3(l.saldo - q);
-    if (e.tipo === T.consumo) { l.usado = r3(l.usado + q); const c = anota({ ev: e.id, lote: l.id, articuloId: l.articuloId, articulo: l.articulo, unidad: l.unidad, cantidad: q, destino: d.destino || l.destino, costoUnit: d.costoUnit ?? null, costo: d.costoUnit ? multiplicarDinero(d.costoUnit, q) : null, enActividad: false, actividadId: null, fecha: e.fecha, quien: l.recibe.nombre, evs: [...l.evs, e.id] }); l.cierres.push(c); }
+    if (e.tipo === T.consumo) { l.usado = r3(l.usado + q); const c = anota({ ev: e.id, lote: l.id, articuloId: l.articuloId, articulo: l.articulo, unidad: l.unidad, cantidad: q, destino: d.destino || l.destino, costoUnit: d.costoUnit ?? null, costo: d.costoUnit ? multiplicarDinero(d.costoUnit, q) : null, enActividad: false, actividadId: null, fecha: e.fecha, quien: l.recibe.nombre, evs: [...l.evs, e.id] }, e); l.cierres.push(c); }
     else if (q <= 0) continue;
     else if (e.tipo === T.devolucion) { l.devuelto = r3(l.devuelto + q); mueve(l.articuloId, d.a || NAVE, q); }
     else if (e.tipo === T.traspaso) { l.traspasado = r3(l.traspasado + q); abre(e, q, d.recibe, l); }
@@ -171,7 +221,10 @@ export function estadoDelAlmacen(eventos, inventario = []) {
   const conteosDistintos = [...porDia.values()].filter(g => new Set(g.map(c => c.contado)).size > 1).map(g => ({ ev: g[g.length - 1].ev, clase: "conteos_distintos", articuloId: g[0].articuloId, lugar: g[0].lugar, fecha: g[0].fecha, dicen: g.map(c => ({ contado: c.contado, quien: c.quien })), resuelta: resueltas.get(g[g.length - 1].ev) || null }));
   // Lo que hoy está en negativo, aunque el movimiento que lo causó ya no se distinga.
   const negativos = []; for (const [id, m] of saldos) for (const [lugar, n] of m) if (n < 0) negativos.push({ articuloId: id, lugar, hay: n });
-  return { saldos, lotes: [...lotes.values()], consumos: consumos.filter(c => c.cantidad > 0 || c.enActividad), huerfanos, discrepancias, ajustes, bajas, empalmes, conteos, conteosDistintos, negativos };
+  // Conteos con la hora todavía sin comprobar (el teléfono nunca la ha cotejado y el servidor aún no lo recibe).
+  const conteosSinHora = evs.filter(e => e.tipo === T.conteo && !mom.get(e.id).comprobado).map(e => e.id);
+  return { saldos, lotes: [...lotes.values()], consumos: consumos.filter(c => c.cantidad > 0 || c.enActividad), huerfanos, discrepancias, ajustes, bajas, empalmes, conteos, conteosDistintos, negativos,
+    promedios: prom, compras, relojes, conteosSinHora };
 }
 
 // Lo que hay en cada lugar, y aparte lo que anda fuera con alguien.
@@ -310,7 +363,7 @@ export function porRevisar(estado) {
     ...estado.conteosDistintos.map(c => ({ ...c, dice: `Dos conteos del mismo día en ${c.lugar} no dicen lo mismo (${c.dicen.map(x => `${x.contado} por ${x.quien}`).join("; ")}). Vale el último.` })),
     ...estado.ajustes.filter(a => a.cambio).map(a => ({ ...a, clase: "conteo_cambio", dice: `En el conteo de ${a.articulo} (${a.lugar}) se vio una diferencia de ${a.cambio.vista} y, con movimientos que llegaron después de otro aparato, quedó en ${a.diferencia}. La causa que se puso era para la primera.` })),
   ];
-  return { pendientes: lista.filter(x => !x.resuelta), resueltas: lista.filter(x => x.resuelta), empalmes: estado.empalmes, negativos: estado.negativos };
+  return { pendientes: lista.filter(x => !x.resuelta), resueltas: lista.filter(x => x.resuelta), empalmes: estado.empalmes, negativos: estado.negativos, relojes: estado.relojes || [], conteosSinHora: estado.conteosSinHora || [] };
 }
 
 // ── El costo, una sola vez ─────────────────────────────────────────────────
@@ -322,6 +375,25 @@ export function costoDeConsumos(estado, { desde, hasta } = {}) {
   const de = (tipo) => sumarDinero(con.filter(c => c.destino?.tipo === tipo).map(c => c.costo));
   return { consumos: lista, total: sumarDinero(con.map(c => c.costo)), aParcelas: de("parcela"), aVehiculos: de("vehiculo"), general: de("general"), sinCosto: propios.filter(c => c.costo == null && c.cantidad > 0) };
 }
+// ── Lo que cambió DESPUÉS: una compra anterior que se capturó tarde ────────
+// El consumo se queda con el costo con que se capturó: ése es el original y no
+// se altera. Si hoy, con una compra que llegó después, ese mismo consumo
+// valdría otra cosa, la diferencia sale AQUÍ, con su causa, como un ajuste
+// aparte. Nunca se mezcla con el original ni se aplica a escondidas.
+export function ajustesDeValuacion(estado, { desde, hasta } = {}) {
+  const lista = [];
+  for (const c of estado.consumos) {
+    if ((desde && c.fecha < desde) || (hasta && c.fecha > hasta) || !(c.cantidad > 0) || c.promedioEntonces == null) continue;
+    const original = c.costoVisto != null ? multiplicarDinero(c.costoVisto, c.cantidad) : null, recalculado = multiplicarDinero(c.promedioEntonces, c.cantidad);
+    if (original != null && Math.abs(recalculado - original) < 0.01) continue;
+    const tardias = estado.compras.filter(k => k.articuloId === c.articuloId && k.t <= c.t && k.capturado > c.capturado);
+    lista.push({ ev: c.ev, articuloId: c.articuloId, articulo: c.articulo, unidad: c.unidad, cantidad: c.cantidad, fecha: c.fecha, destino: c.destino, enActividad: c.enActividad, actividadId: c.actividadId,
+      original, recalculado, diferencia: Math.round((recalculado - (original || 0)) * 100) / 100, compras: tardias.map(k => k.ev),
+      porque: original == null ? "Cuando se capturó, el artículo no tenía costo. Ahora ya se sabe cuánto costaba." : tardias.length ? `Después se capturó una compra del ${tardias[tardias.length - 1].fecha}, anterior a este consumo, que cambia lo que costaba ese día.` : "Se capturó con un costo distinto al que tenía el artículo ese día (se registró después, o se corrigió el costo)." });
+  }
+  return { lista, total: sumarDinero(lista.map(a => a.diferencia)) };
+}
+
 // Para los reportes de costo por parcela que ya existían. Lo de vehículos y lo general NO va aquí.
 export function actividadesDeAlmacen(consumos) {
   return consumos.filter(c => !c.enActividad && c.destino?.tipo === "parcela" && c.destino.id && c.costo != null && c.cantidad > 0).map(c => ({
@@ -350,17 +422,20 @@ export function conExistenciaReal(inventario, estado) {
   return (inventario || []).map(a => {
     const x = existenciasDe(a, estado); const movido = r3(x.lugares[NAVE] - (Number(a.existencia) || 0));
     const otros = Object.fromEntries(Object.entries(x.lugares).filter(([l]) => l !== NAVE));
-    if (movido === 0 && x.conAlguien === 0 && Object.keys(otros).length === 0) return a;
-    return { ...a, existencia: x.lugares[NAVE], _movido: movido, _conAlguien: x.conAlguien, _otrosLugares: otros };
+    const p = estado.promedios?.get(a.id); const costoCambio = p != null && p !== (Number(a.costo_unit) || 0);
+    if (movido === 0 && x.conAlguien === 0 && Object.keys(otros).length === 0 && !costoCambio) return a;
+    return { ...a, existencia: x.lugares[NAVE], ...(costoCambio ? { costo_unit: p, _costoBase: Number(a.costo_unit) || 0 } : {}), _movido: movido, _conAlguien: x.conAlguien, _otrosLugares: otros };
   });
 }
 // Al guardar un artículo desde cualquier pantalla, la existencia que queda es
 // la que ya estaba guardada: el catálogo no es por donde se mueve el inventario.
 export function paraGuardarArticulo(a, guardado) {
   if (!a) return a;
-  const { _movido, _conAlguien, _otrosLugares, ...resto } = a;
-  if (guardado) return { ...resto, existencia: Number(guardado.existencia) || 0 };
-  return _movido == null ? resto : { ...resto, existencia: r3((Number(resto.existencia) || 0) - _movido) };
+  const { _movido, _conAlguien, _otrosLugares, _costoBase, ...resto } = a;
+  // Ni la existencia ni el costo se guardan desde aquí: los dos se calculan de los movimientos.
+  if (guardado) return { ...resto, existencia: Number(guardado.existencia) || 0, costo_unit: guardado.costo_unit ?? 0 };
+  const base = _movido == null ? resto : { ...resto, existencia: r3((Number(resto.existencia) || 0) - _movido) };
+  return _costoBase == null ? base : { ...base, costo_unit: _costoBase };
 }
 
 reglasDe(T.entrada, (e) => [{ clase: "entra_al_almacen", articuloId: e.datos.articuloId, cantidad: e.datos.cantidad, lugar: e.datos.lugar || NAVE }]);
@@ -372,5 +447,6 @@ reglasDe(T.transferencia, (e) => [{ clase: "cambia_de_lugar", articuloId: e.dato
 reglasDe(T.merma, (e) => [{ clase: "merma", articuloId: e.datos.articuloId, delta: e.datos.delta, causa: e.datos.causa }]);
 reglasDe(T.conteo, (e) => [{ clase: "conteo", articuloId: e.datos.articuloId, lugar: e.datos.lugar || NAVE, contado: e.datos.contado }]);
 reglasDe(T.baja, (e) => [{ clase: "baja", cantidad: e.datos.cantidad, causa: e.datos.causa }]);
+reglasDe(T.costo, (e) => [{ clase: "costo_fijado", articuloId: e.datos.articuloId, costoUnit: e.datos.costoUnit }]);
 reglasDe(T.revision, () => []);
 reglasDe(T.resolucion, () => []);

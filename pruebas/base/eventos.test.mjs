@@ -80,3 +80,25 @@ test("un_evento_sin_la_marca_de_esta_operacion_no_entra", async () => {
   const r = await mete("encargado", "e-viejo", JSON.stringify({ trabajadorId: "t1", _espacio: "otro-proyecto" }));
   assert.equal(r.ok, false); assert.match(r.error, /no es de esta operación/);
 });
+
+// ── La hora la pone el servidor (hoja 36) ──
+test("quien_sube_un_evento_no_puede_decir_cuando_lo_recibio_el_servidor", async () => {
+  const r = await como(db, "encargado", "insert into eventos (id, tipo, fecha, estado, datos, recibido, actualizado) values ('e-hora', 'marca', '2026-11-19', 'vigente', $1::jsonb, '2020-01-01', '2020-01-01')", [E("e-hora")]);
+  assert.ok(r.ok, r.error);
+  const [f] = await verdad(db, "select recibido, actualizado, now() as ahora from eventos where id = 'e-hora'");
+  assert.ok(new Date(f.recibido).getFullYear() >= 2024, "la base puso su propia hora, no la de 2020 que mandó el teléfono");
+  assert.ok(new Date(f.actualizado).getFullYear() >= 2024, "y la marca con que los demás aparatos piden lo nuevo tampoco la pone el teléfono");
+});
+
+test("cancelar_un_evento_no_le_cambia_la_hora_en_que_se_recibio", async () => {
+  const antes = (await verdad(db, "select recibido from eventos where id = 'e-hora'"))[0].recibido;
+  const r = await como(db, "encargado", "update eventos set estado = 'cancelado', recibido = '2030-01-01', datos = datos || $1::jsonb where id = 'e-hora'", [JSON.stringify({ cancelado: { motivo: "prueba", por: { id: "x" }, cuando: "2026-11-19T13:00:00.000Z" } })]);
+  assert.ok(r.ok, r.error);
+  const [f] = await verdad(db, "select recibido, estado from eventos where id = 'e-hora'");
+  assert.equal(f.estado, "cancelado"); assert.equal(String(f.recibido), String(antes));
+});
+
+test("cualquier_cuenta_con_perfil_puede_preguntar_la_hora_del_servidor_y_un_anonimo_no", async () => {
+  assert.ok((await como(db, "encargado", "select hora_del_servidor() as h")).ok);
+  assert.equal((await como(db, null, "select hora_del_servidor() as h")).ok, false);
+});

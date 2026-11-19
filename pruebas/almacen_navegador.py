@@ -15,6 +15,8 @@ S = g["SEMILLA"]
 S["trabajadores"] = [{"id": "t-ana", "nombre": "ANA DE PRUEBA", "categoria": "jornalero", "sueldo_dia": 400, "historialSueldo": hist(400), "pin": "4821"}]
 S["ranchos"] = [{"id": "r1", "nombre": "RANCHO DE PRUEBA"}]
 S["parcelas"] = [{"id": "p1", "ranchoId": "r1", "nombre": "PARCELA UNO", "hectareas": 2, "cicloFenologico": []}]
+S["cultivos"] = [{"id": "c1", "nombre": "AJO DE PRUEBA"}]
+S["siembras"] = [{"id": "s1", "parcelaId": "p1", "cultivoId": "c1", "cultivoNombre": "AJO DE PRUEBA", "fechaSiembra": "2026-10-01", "fechaCosechaEstimada": "2027-03-01", "superficie": 2, "estado": "activa"}]
 S["maquinaria"] = [{"id": "m-camion", "nombre": "CAMION AMARILLO DE PRUEBA"}]
 S["inventario"] = [
     {"id": "i-urea", "nombre": "UREA DE PRUEBA", "unidad": "bulto", "existencia": 50, "costo_unit": 868},
@@ -175,7 +177,23 @@ with sync_playwright() as p:
     caso("y aparece el viaje de la cuadrilla, sin importe propio", "1 viaje(s) con cuadrilla" in v)
     lo = pg.locator(".card", has_text="Lo que se ganó el personal").inner_text()
     caso("Ana sigue ganando su día ($400): manejar no fue un segundo pago", "Trabajadores de planta $400" in lo and "Operando vehículos" in lo, lo[:200])
-    ir(pg, "panel-parcelas"); ir(pg, "reportes"); ir(pg, "vales")
+    rv = pg.locator(".card", has_text="A qué benefició cada vehículo").inner_text()
+    caso("ese costo del camión aparece repartido a la parcela donde trabajó la cuadrilla, como costo indirecto", "Repartido a parcelas" in rv and "$1,570" in rv and "PARCELA UNO" in rv, rv[:220].replace("\n", " | "))
+    # ══ Los reportes de siempre: costo directo y costo completo ══
+    ir(pg, "reportes"); pg.locator(".list-item", has_text="AJO DE PRUEBA 2027").first.click(); pg.wait_for_timeout(400)
+    cuerpo = pg.locator("body").inner_text()
+    dc = pg.locator(".card", has_text="Costo directo y costo completo")
+    caso("el reporte de la temporada pone el costo completo como cifra principal y conserva el directo", cuerpo.count("$8,878") >= 2 and "$7,308" in pg.locator(".stat-card.wide").first.inner_text() and dc.count() == 1 and "Costo directo" in dc.inner_text() and "Indirecto: Vehículos y maquinaria" in dc.inner_text() and "$1,570" in dc.inner_text(), dc.inner_text()[:260].replace("\n", " | ") if dc.count() else cuerpo[:200])
+    import re
+    num = lambda t: float(re.sub(r"[^0-9.]", "", t))
+    filas = {f.locator("span").first.inner_text().split("\n")[0]: num(f.locator("b").last.inner_text()) for f in dc.locator(".mo-act").all()}
+    caso("costo completo = costo directo + lo indirecto, ni un peso más", abs(filas.get("Costo completo", 0) - filas.get("Costo directo", 0) - 1570) < 0.01 and filas.get("Costo directo", 0) > 0, json.dumps(filas, ensure_ascii=False))
+    dc.get_by_role("button", name="Ver de dónde sale cada importe").click(); pg.wait_for_timeout(200)
+    dc.locator("button.mo-act").first.click(); pg.wait_for_timeout(200)
+    caso("cada importe indirecto se puede abrir: de qué vehículo, por qué criterio, y que no es un gasto más", "CAMION AMARILLO" in dc.inner_text() and "no es un gasto más" in dc.inner_text() and ("por horas de uso" in dc.inner_text() or "operador" in dc.inner_text()), dc.inner_text()[-260:].replace("\n", " | "))
+    egr = json.loads(pg.evaluate("() => localStorage.getItem('agro_v8:local')")).get("egresos", [])
+    caso("repartir no creó ningún gasto nuevo", len(egr) == 0)
+    ir(pg, "panel-parcelas"); ir(pg, "vales")
     caso("la pantalla de conteo ya no ofrece el vale de salida viejo", pg.get_by_text("Vale de salida").count() == 0 and pg.get_by_text("Conteo y mermas").count() >= 1)
 
     # ══ El insumo anotado en una actividad sale de lo que el trabajador trae: una sola fuente ══

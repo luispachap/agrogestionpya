@@ -16,17 +16,20 @@ import {
 import { registrarCuadrilla, registrarTraslado, costoDeCuadrillas, actividadesDeCuadrillas, integrantesConocidos, yaTieneTraslado, pagosDe, CRITERIOS_FLETE, unaSolaFuente, yaEstaEnCuadrillas, capturasAnterioresDe } from "./eventuales.js";
 // El almacén por movimientos: entregar no es gastar. Y lo que cuesta cada vehículo.
 import {
-  entregar, cerrar as cerrarEntrega, seQueda, consumirDirecto, transferir, merma as registrarMerma, contar as registrarConteo, resolver as resolverAlmacen, movimientoDeSiempre, instanteDe,
+  entregar, cerrar as cerrarEntrega, seQueda, consumirDirecto, transferir, merma as registrarMerma, contar as registrarConteo, resolver as resolverAlmacen, movimientoDeSiempre, instanteDe, fijarCosto, ajustesDeValuacion,
   estadoDelAlmacen, porCerrar, avisosPara, porRevisar, costoDeConsumos, actividadesDeAlmacen, resumenDeAjustes, salidasParaPrediccion,
   conExistenciaReal, paraGuardarArticulo, textoDeArticulo, leerArticulo, CAUSAS_BAJA, CAUSAS_AJUSTE, PLAZOS, NAVE as ALMACEN_PRINCIPAL,
 } from "./movimientos.js";
-import { costoDeVehiculos, repartirVehiculos, indirectoPorParcela } from "./vehiculos.js";
+import { costoDeVehiculos, indirectoPorParcela, vehiculosPorMes, fuenteVehiculos } from "./vehiculos.js";
+// Costo directo y costo completo: la estructura general para cualquier costo indirecto.
+import { juntarFuentes, indirectoDe, costoCompleto, capturadoDespues } from "./indirectos.js";
 // Encontrar las cosas: grupos, lo de cada perfil, lo anclado y lo que más se usa.
 import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarraDe, barraDe, necesitaMenu, alternarInicio, alternarBarra, moverEnInicio, volverALoDeFabrica, anotarUso, masUsadas, ancladasConDatos, TOPE_BARRA, ENFOQUES, PERFILES_CON_ENFOQUE, faltaEnfoque, elegirEnfoque, alternarGrupo, mezclarPrefs, sellarAcomodo, mismoAcomodo } from "./menu.js";
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
 import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo } from "./acceso.js";
-import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde } from "./dataApi";
+import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde, horaDelServidor } from "./dataApi";
+import { desfaseDe, selloDeReloj, estadoDelReloj } from "./reloj.js";
 import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, generarSQLCuentas, exportarPolizas, HOJAS } from "./excelLoader";
 // El estado de cuenta del banco: se valida solo antes de entrar.
 import {
@@ -1108,6 +1111,8 @@ function reporteParcela(data, parcelaId) {
     porInsumo: Object.values(porInsumo).sort((a, b) => b.costo - a.costo),
     egresos: egresosP, compras: comprasP, ingresos: ingresosP, ingresoTotal,
     utilidad: ingresoTotal - total,
+    // `total` es y sigue siendo el costo DIRECTO. El completo va aparte, con su desglose.
+    completo: costoCompleto({ directo: total, ajustes: (data.ajustesValuacion?.lista || []).filter(a => a.destino?.tipo === "parcela" && a.destino.id === parcelaId), indirecto: indirectoDe(data.indirectos, { parcelaIds: [parcelaId] }) }),
   };
 }
 
@@ -1722,6 +1727,7 @@ function reporteTemporada(data, cultivoNombre, anio) {
   const semb = (data.siembras || []).filter(s => s.cultivoNombre === cultivoNombre && anioSiembra(s) === anio);
   const reps = semb.map(s => ({ s, r: reporteSiembra(data, s.id) }));
   const total = reps.reduce((sum, x) => sum + (x.r.total || 0), 0);
+  const completo = costoCompleto({ directo: total, ajustes: reps.flatMap(x => x.r.completo?.ajustesLista || []), indirecto: { renglones: reps.flatMap(x => x.r.completo?.renglones || []), total: sumarDinero(reps.map(x => x.r.completo?.indirecto || 0)) } });
   const mo = reps.reduce((sum, x) => sum + (x.r.mo || 0), 0);
   const ins = reps.reduce((sum, x) => sum + (x.r.ins || 0), 0);
   const maq = reps.reduce((sum, x) => sum + (x.r.maq || 0), 0);
@@ -1757,7 +1763,7 @@ function reporteTemporada(data, cultivoNombre, anio) {
       siembraId: s.id,
       parcelaNombre: p?.nombre || "—",
       hectareas: p?.hectareas || 0,
-      costo: r.total || 0,
+      costo: r.total || 0, costoCompleto: r.completo?.completo ?? (r.total || 0),
       ingreso: r.ingresoTotal || 0,
       utilidad: (r.ingresoTotal || 0) - (r.total || 0),
       cosecha: r.cosechaTotal || 0,
@@ -1766,6 +1772,7 @@ function reporteTemporada(data, cultivoNombre, anio) {
   }).sort((a, b) => b.costo - a.costo);
 
   return {
+    completo,
     cultivoNombre, anio, siembras: semb, parcelas, reps,
     total, mo, ins, maq, ingresoTotal, presupuesto, utilidad,
     hectareas, cosechaTotal, cosechaUnidad, rendimientoHa, costoPorUnidad,
@@ -1967,6 +1974,10 @@ function reporteSiembra(data, siembraId) {
   const superficie = parseFloat(si.superficie) || (p ? p.hectareas : 0) || 0;
   return {
     si, p, total: totalConReparto, mo: mo + moRep, ins: ins + insRep, maq: maq + maqRep,
+    superficie,
+    completo: costoCompleto({ directo: totalConReparto,
+      ajustes: (data.ajustesValuacion?.lista || []).filter(a => a.destino?.tipo === "parcela" && a.destino.id === si.parcelaId && enRango(a.fecha)),
+      indirecto: indirectoDe(data.indirectos, { parcelaIds: [si.parcelaId], desde: ini, hasta: fin, fraccion: (x) => fraccionReparto(data, { parcelaId: si.parcelaId, fecha: x.fecha }, si.id) }) }),
     costoActs, costoEgr, costoComp, ingresoTotal,
     utilidad: ingresoTotal - totalConReparto,
     porHa: superficie ? totalConReparto / superficie : 0,
@@ -2429,6 +2440,16 @@ function normalizeData(d) {
   fix.inventario = conExistenciaReal(fix.inventario, __alm);
   fix.salidasInv = (fix.entradas_inv || []).concat(salidasParaPrediccion(__alm));
   fix.actividadesContables = fix.actividadesContables.concat(actividadesDeAlmacen(__alm.consumos));
+  // COSTOS INDIRECTOS. No entran a `actividadesContables` (eso es el costo DIRECTO,
+  // que se queda como estaba): viven aparte y los reportes los enseñan encima.
+  // Hoy la única fuente son los vehículos; una fuente nueva se agrega a esta lista.
+  fix.repartosVehiculos = vehiculosPorMes({ vehiculos: fix.maquinaria || [], partes: __moEv.partes, consumos: __alm.consumos.filter(c => !c.enActividad), egresos: fix.egresos || [], viajes: __cq.propios,
+    trabajo: __cq.partes.filter(p => p.clase === "pago").map(p => ({ fecha: p.fecha, cuadrillaId: p.cuadrillaId, parcelaId: p.parcelaId, personas: p.personas || 1 })),
+    cuotas: vivos(fix.actividades || []).filter(a => a.maquinariaId), hoy: today(),
+    criterioTraslado: ajusteVigente(fix.eventos, "criterio_traslado").valor, criterioVehiculo: ajusteVigente(fix.eventos, "criterio_vehiculo").valor });
+  fix.indirectos = juntarFuentes([fuenteVehiculos(fix.repartosVehiculos)]);
+  // Lo que cambió después por una compra capturada tarde: aparte, sin tocar el costo original.
+  fix.ajustesValuacion = ajustesDeValuacion(__alm);
   return fix;
 }
 
@@ -5717,14 +5738,14 @@ function BuzonPapeles({ data, add, upd, setInv, session, onClose }) {
         // $940 no son dos costos, son uno solo que se mueve.
         const it = (data.inventario || []).find(x => x.id === id);
         if (it) {
+          // El promedio ya no se escribe en el catálogo: se calcula de las compras. Aquí sólo se avisa si queda incompleto.
           const prom = costoPromedio({ existencia: it.existencia, costoActual: it.costo_unit, entra: cant, costoEntrada: f.costoUnit });
-          if (prom.costo !== null) upd("inventario", { ...it, costo_unit: prom.costo });
           if (!prom.completo) avisos.push(`${it.nombre}: ${prom.porque}`);
         }
       }
       setInv(id, cant, {
         fecha: alAlmacen.fecha || today(),
-        concepto: `Compra a ${alAlmacen.proveedor || "proveedor"} (del buzón de papeles)`,
+        concepto: `Compra a ${alAlmacen.proveedor || "proveedor"} (del buzón de papeles)`, costoUnit: f.costoUnit,
         registradoPor: { rol: session.role, id: session.id, nombre: session.nombre },
       });
       cargados++;
@@ -6155,10 +6176,15 @@ function AppInner() {
   // tableta del checador se entere de quien llegó directo a campo (y al revés).
   const bajarEventosRef = useRef(null);
   const bajandoEventos = useRef(false);
+  // Cuánto difiere el reloj de este teléfono de la hora del servidor (la última vez que se pudo cotejar).
+  const [reloj, setReloj] = useState(() => { try { return JSON.parse(localStorage.getItem(LLAVES.reloj) || "null"); } catch { return null; } });
+  const relojRef = useRef(reloj);
   bajarEventosRef.current = async () => {
     if (!supabaseListo || !online || !session || !eventosListos || bajandoEventos.current) return null;
     bajandoEventos.current = true;
     try {
+      // De paso, el teléfono coteja su hora con la del servidor y guarda la diferencia.
+      horaDelServidor().then(h => { if (!h.ok) return; const d = desfaseDe(h); if (d == null) return; const m = { desfase: d, cuando: Date.now() }; relojRef.current = m; setReloj(m); try { localStorage.setItem(LLAVES.reloj, JSON.stringify(m)); } catch { /* sin espacio: se queda en memoria */ } });
       const a = cajonEventos.almacen.current;
       const desde = a ? await a.meta("marca_nube").catch(() => null) : null;
       const r = await leerEventosDesde(desde || null);
@@ -6268,6 +6294,9 @@ function AppInner() {
       const visto = inventarioVistoRef.current.find(a => a.id === item.id);
       const dif = visto ? Math.round(((Number(item.existencia) || 0) - (Number(visto.existencia) || 0)) * 1000) / 1000 : 0;
       if (dif !== 0 && moverInvRef.current) moverInvRef.current(item.id, dif);
+      // Y si le corrigieron el costo a mano: vale de aquí en adelante, como movimiento. Lo ya consumido no se toca.
+      const costoN = Number(item.costo_unit) || 0;
+      if (visto && dif === 0 && costoN > 0 && costoN !== (Number(visto.costo_unit) || 0) && fijarCostoRef.current) fijarCostoRef.current(visto, costoN);
       item = paraGuardarArticulo(item, inventarioRef.current.find(a => a.id === item.id));
     }
     const it = marcarTocado(apartarArchivosRef.current ? apartarArchivosRef.current(sec, item) : item);
@@ -6288,6 +6317,7 @@ function AppInner() {
   const inventarioVistoRef = useRef([]);          // el mismo catálogo, como se ve en pantalla (con los movimientos sumados)
   inventarioVistoRef.current = data.inventario || [];
   const moverInvRef = useRef(null);
+  const fijarCostoRef = useRef(null);
   const apartarArchivosRef = useRef(null);
   // Las fotos y los PDF salen del registro antes de guardarlo: el archivo se
   // queda en el teléfono (y sube aparte) y el registro sólo lleva la referencia.
@@ -6315,6 +6345,8 @@ function AppInner() {
     if (sec === "actividades") item = sellarSueldoDelDia(item, trabajadoresRef.current);
     if (sec === "inventario") item = paraGuardarArticulo(item);
     item = apartarArchivos(sec, item);
+    // Cada evento nace diciendo cuánto difería el reloj de este teléfono del servidor (o que no se ha podido cotejar).
+    if (sec === "eventos" && !item.reloj) item = { ...item, reloj: selloDeReloj(relojRef.current, Date.now()) };
     const ni = marcarTocado({ ...item, id: item.id || `${sec[0]}${Date.now()}${Math.floor(Math.random() * 1000)}` });
     // Un evento con el mismo identificador es el MISMO evento: un doble toque no lo mete dos veces.
     setData(d => { const lista = Array.isArray(d[sec]) ? d[sec] : []; return sec === "eventos" && lista.some(x => x.id === ni.id) ? d : { ...d, [sec]: [...lista, ni] }; });
@@ -6450,7 +6482,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
   // El renglón de `entradas_inv` se sigue escribiendo: es el papel de la compra
   // o de la salida para finanzas, no la existencia.
   const setInv = useCallback((id, delta, movimiento, contexto) => {
-    const item = inventarioRef.current.find(i => i.id === id);
+    const item = inventarioVistoRef.current.find(i => i.id === id) || inventarioRef.current.find(i => i.id === id);
     if (!item || !Number(delta)) return;
     // `contexto`: para qué parcela fue y quién lo usó, cuando la pantalla lo sabe. Con eso se empata con lo que esa persona trae del almacén.
     const ahora = new Date().toISOString(); const fecha = (movimiento && movimiento.fecha) || contexto?.fecha || today();
@@ -6465,6 +6497,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
     });
   }, [add, session]);
   moverInvRef.current = setInv;
+  fijarCostoRef.current = (articulo, costoUnit) => { const r = fijarCosto({ articulo, costoUnit, motivo: "Corregido en la ficha del artículo", quien: quienDe(session), cuando: new Date().toISOString(), fecha: today() }); if (r.ok) add("eventos", r.evento); };
 
   // Memoizado: genAlertas escanea actividades, asistencia, embarques y créditos.
   // Sin esto se recalcularía en cada render de App (cada navegación lo pagaría).
@@ -6682,6 +6715,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
           </div>
         )}
         <div className="screen">
+          {session && estadoDelReloj(reloj, Date.now()).clase === "mal" && <div className="section-pad" style={{ paddingBottom: 0 }}><div className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">{estadoDelReloj(reloj, Date.now()).dice}</div></div></div>}
           {session && page === "home" && <AvisoEntregas data={data} session={session} onNav={setPage} />}
           <MenuCtx.Provider value={ctxMenu}>
           <ErrorBoundary key={`${session.role}-${page}`} onReset={() => { setSession(null); setPage("home"); setNavParam(null); }}>
@@ -8299,6 +8333,42 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
   );
 }
 
+// LAS DOS CIFRAS. El costo directo (lo de siempre) y el costo completo (directo
+// + lo indirecto que le tocó). Se puede abrir para ver de dónde salió cada peso
+// indirecto y cómo se calculó. Si no hay nada indirecto, no estorba.
+function DosCifras({ c, data, ingreso, superficie, hasta }) {
+  const [abierto, setAbierto] = useState(false);
+  const [cual, setCual] = useState(null);
+  const pend = data.indirectos || { pendiente: 0, pendientes: [], fuera: 0 };
+  if (!c || (!c.hayMas && !(pend.pendiente > 0))) return null;
+  const parcela = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "";
+  // En un periodo que ya terminó: lo indirecto que se capturó después de que terminó.
+  const tarde = hasta && hasta < today() ? capturadoDespues(c.renglones.map(r => ({ monto: r.monto, fecha: r.fecha, capturado: r.capturado })), hasta) : null;
+  return (
+    <div className="card">
+      <div className="card-title">Costo directo y costo completo</div>
+      <div className="mo-act"><span>Costo directo<div className="text-xs text-muted">Lo que se le cargó derecho: es la cifra que siempre ha enseñado este reporte</div></span><span /><b>{fmt(c.directo)}</b></div>
+      {c.ajustes !== 0 && <div className="mo-act"><span>Ajustes posteriores<div className="text-xs text-muted">Compras capturadas después que cambian lo que costaba un insumo ese día</div></span><span /><b>{c.ajustes > 0 ? "+" : ""}{fmt(c.ajustes)}</b></div>}
+      {Object.entries(c.porFuente).map(([f, m]) => <div key={f} className="mo-act"><span>Indirecto: {f}</span><span /><b>{fmt(m)}</b></div>)}
+      <div className="mo-act" style={{ borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 4 }}><span><b>Costo completo</b></span><span /><b>{fmt(c.completo)}</b></div>
+      {superficie > 0 && <div className="text-xs text-muted">Por hectárea: {fmt(c.directo / superficie)} directo · {fmt(c.completo / superficie)} completo</div>}
+      {ingreso != null && <div className="text-xs text-muted">Utilidad: {fmt(ingreso - c.directo)} con costo directo · {fmt(ingreso - c.completo)} con costo completo</div>}
+      {tarde && tarde.total !== 0 && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 6 }}>{fmt(tarde.total)} de lo indirecto se capturó después de que terminó el periodo. Cuando terminó, lo indirecto decía {fmt(tarde.original)}.</div>}
+      {c.hayMas && <button className="acc-link" style={{ marginTop: 8 }} onClick={() => setAbierto(x => !x)}>{abierto ? "Ocultar" : "Ver de dónde sale cada importe"}</button>}
+      {abierto && <>
+        {c.ajustesLista.map(a => <div key={a.ev} className="text-xs" style={{ marginTop: 8 }}><b>{a.diferencia > 0 ? "+" : ""}{fmt(a.diferencia)}</b> · {fmtN(a.cantidad)} {a.unidad} de {a.articulo} del {a.fecha}: se capturó en {a.original == null ? "sin costo" : fmt(a.original)} y hoy se sabe que eran {fmt(a.recalculado)}. {a.porque} <span className="text-muted">La cifra original no se cambió.</span></div>)}
+        {c.renglones.map((r, k) => (
+          <div key={k} style={{ marginTop: 8 }}>
+            <button className="mo-act" style={{ width: "100%", background: "none", border: 0, color: "inherit", textAlign: "left", padding: 0 }} onClick={() => setCual(cual === k ? null : k)}><span className="text-sm">{r.fecha} · {r.vehiculo || r.nombreFuente}<div className="text-xs text-muted">{r.base}</div></span><span className="text-muted">{cual === k ? "−" : "?"}</span><b>{fmt(r.monto)}</b></button>
+            {cual === k && <div className="text-xs text-muted" style={{ marginTop: 4 }}>{r.explica}{r.deUnTotalDe ? ` A la parcela ${parcela(r.parcelaId)} le tocaron ${fmt(r.deUnTotalDe)}; a esta siembra, su parte.` : ""} Es el mismo dinero que ya está en el historial de su origen: no es un gasto más.</div>}
+          </div>
+        ))}
+      </>}
+      {pend.pendiente > 0 && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 8 }}>Hay {fmt(pend.pendiente)} de costos indirectos del rancho sin repartir (no están en ninguna parcela). Las causas se ven en Mano de obra → A qué benefició cada vehículo.</div>}
+    </div>
+  );
+}
+
 // El aviso de lo entregado que nadie ha cerrado. Le sale al que lo trae y al
 // encargado desde el primer plazo, y al administrador cuando pasa el segundo.
 // (Es un aviso dentro de la app, al abrirla: no manda mensajes al teléfono.)
@@ -8561,6 +8631,21 @@ function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
               <div className="text-xs text-muted" style={{ marginTop: 6 }}>La baja no descuenta nada a nadie. Si hubiera alguna responsabilidad, la revisa y autoriza una persona, conforme a la ley laboral.</div>
             </div>
           ))}
+          {(data.ajustesValuacion?.lista || []).length > 0 && (
+            <div className="card">
+              <div className="flex-b"><span className="card-title" style={{ marginBottom: 0 }}>Costos que cambiaron después</span><b>{data.ajustesValuacion.total > 0 ? "+" : ""}{fmt(data.ajustesValuacion.total)}</b></div>
+              <div className="text-xs text-muted" style={{ margin: "4px 0 8px" }}>El costo con que se capturó cada consumo no se toca. Esto es la diferencia contra lo que hoy se sabe, y en los reportes sale aparte como "ajustes posteriores".</div>
+              {data.ajustesValuacion.lista.slice(-15).map(a => <div key={a.ev} className="text-xs" style={{ marginBottom: 6 }}><b>{a.diferencia > 0 ? "+" : ""}{fmt(a.diferencia)}</b> · {a.fecha} · {fmtN(a.cantidad)} {a.unidad} de {a.articulo}: {a.original == null ? "sin costo" : fmt(a.original)} → {fmt(a.recalculado)}. {a.porque}</div>)}
+            </div>
+          )}
+          {(revisar.relojes.length > 0 || revisar.conteosSinHora.length > 0) && (
+            <div className="card">
+              <div className="card-title">La hora de los teléfonos</div>
+              {revisar.relojes.length > 0 && <div className="text-sm" style={{ marginBottom: 6 }}>{revisar.relojes.length} movimiento(s) se capturaron en un teléfono con la hora mal puesta. Se acomodaron con la hora del servidor, no con la del teléfono.</div>}
+              {revisar.relojes.slice(-8).map(x => <div key={x.ev} className="text-xs text-muted" style={{ marginBottom: 4 }}>{x.fecha} · {x.quien}{x.articulo ? ` · ${x.articulo}` : ""}: su teléfono iba {x.nota} {x.minutos >= 120 ? `${Math.round(x.minutos / 60)} horas` : `${x.minutos} minutos`}.</div>)}
+              {revisar.conteosSinHora.length > 0 && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 6 }}>{revisar.conteosSinHora.length} conteo(s) todavía no tienen la hora comprobada: se hicieron sin señal en un teléfono que no había cotejado su hora. Se confirma solo cuando ese teléfono tenga señal.</div>}
+            </div>
+          )}
           {revisar.empalmes.length > 0 && <div className="card"><div className="card-title">Capturado dos veces, contado una</div>{revisar.empalmes.slice(-10).map((x, k) => <div key={k} className="text-xs text-muted" style={{ marginBottom: 4 }}>{x.fecha} · {fmtN(x.cantidad)} {x.unidad} de {x.articulo}: {x.quien} lo reportó en su actividad y también se cerró en su entrega.</div>)}</div>}
           {revisar.resueltas.length > 0 && <div className="card"><div className="card-title">Ya revisado</div>{revisar.resueltas.slice(-10).map(x => <div key={`${x.clase}-${x.ev}`} className="text-xs text-muted" style={{ marginBottom: 6 }}>{x.fecha} · {x.dice} — <b>{x.resuelta.por}:</b> "{x.resuelta.texto}"</div>)}</div>}
         </>}
@@ -8718,10 +8803,8 @@ function ManoDeObra({ data, add, session, onClose }) {
   const vehiculos = useMemo(() => costoDeVehiculos({ vehiculos: data.maquinaria || [], partes: r.partes, consumos: consumosAlm.consumos, egresos: data.egresos || [], viajes: cq.propios, desde: rango.desde, hasta: rango.hasta }), [data.maquinaria, data.egresos, r.partes, consumosAlm, cq.propios, rango.desde, rango.hasta]);
   const noContado = data.noContado || { cuadrillas: [], totalCuadrillas: 0, planta: 0, totalPlanta: 0 };
   // La otra vista del mismo dinero: a qué parcelas benefició cada vehículo.
-  const critTraslado = ajusteVigente(data.eventos, "criterio_traslado").valor, critVehiculo = ajusteVigente(data.eventos, "criterio_vehiculo").valor;
-  const repartos = useMemo(() => repartirVehiculos({ vehiculos: data.maquinaria || [], costos: vehiculos,
-    trabajo: cq.partes.filter(p => p.clase === "pago").map(p => ({ fecha: p.fecha, cuadrillaId: p.cuadrillaId, parcelaId: p.parcelaId, personas: p.personas || 1 })),
-    cuotas: vivos(data.actividades || []).filter(a => a.maquinariaId), desde: rango.desde, hasta: rango.hasta, criterioTraslado: critTraslado, criterioVehiculo: critVehiculo }), [data.maquinaria, data.actividades, vehiculos, cq.partes, rango.desde, rango.hasta, critTraslado, critVehiculo]);
+  // El reparto se hace MES POR MES (lo de cada mes entre los usos de ese mes) y es el mismo que ven los reportes de costo.
+  const repartos = useMemo(() => (data.repartosVehiculos || []).filter(v => v.mes >= rango.desde.slice(0, 7) && v.mes <= rango.hasta.slice(0, 7)), [data.repartosVehiculos, rango.desde, rango.hasta]);
   const indirecto = useMemo(() => indirectoPorParcela(repartos), [repartos]);
   const [verReparto, setVerReparto] = useState(null);
   const nombre = (id) => {
@@ -8830,10 +8913,10 @@ function ManoDeObra({ data, add, session, onClose }) {
         {repartos.length > 0 && (
           <div className="card">
             <div className="card-title">A qué benefició cada vehículo</div>
-            <div className="text-xs text-muted" style={{ marginBottom: 10 }}>Es el mismo dinero de arriba, visto desde las parcelas. No es un gasto más: no se suma otra vez.</div>
+            <div className="text-xs text-muted" style={{ marginBottom: 10 }}>Es el mismo dinero del historial del vehículo, visto desde las parcelas: no es un gasto más. Se reparte por mes completo (lo de cada mes entre los usos de ese mes), así que aquí sale todo el mes aunque arriba estés viendo un día.</div>
             {repartos.map(v => (
-              <div key={v.vehiculoId} style={{ marginBottom: 12 }}>
-                <div className="flex-b"><b>{v.nombre}</b><b>{fmt(v.costoReal)}</b></div>
+              <div key={`${v.vehiculoId}-${v.mes}`} style={{ marginBottom: 12 }}>
+                <div className="flex-b"><b>{v.nombre} · {v.mes}</b><b>{fmt(v.costoReal)}</b></div>
                 {v.depreciacion > 0 && <div className="mo-act"><span>Incluye depreciación del periodo (calculada, no pagada)</span><span /><b>{fmt(v.depreciacion)}</b></div>}
                 {v.modo === "cuota" ? <div className="text-sm" style={{ marginTop: 4 }}>Ya carga cuota por hora en las actividades: <b>{fmt(v.cuota)}</b> en estas fechas. Su costo real no se reparte encima, para no cobrarlo dos veces. Costo real contra cuota: {fmt(v.costoReal - v.cuota)} de diferencia.</div> : <>
                   <div className="mo-act"><span>Repartido a parcelas</span><span /><b>{fmt(v.repartido)}</b></div>
@@ -8851,7 +8934,7 @@ function ManoDeObra({ data, add, session, onClose }) {
                 {verReparto === x.parcelaId && x.renglones.map((r, k) => <div key={k} className="text-xs text-muted" style={{ marginBottom: 4 }}>{fmt(r.monto)} · {r.vehiculo} · {r.origen === "operador" ? "operador" : "combustible, taller y depreciación"} · {r.base}</div>)}
               </div>
             ))}
-            <div className="text-xs text-muted" style={{ marginTop: 8 }}>El costo directo de cada parcela no cambia: esto va encima, como costo indirecto.</div>
+            <div className="text-xs text-muted" style={{ marginTop: 8 }}>El costo directo de cada parcela no cambia: esto va encima, y es lo que los reportes de costo enseñan como costo completo.</div>
           </div>
         )}
         {(noContado.totalCuadrillas > 0 || noContado.totalPlanta > 0) && (
@@ -9538,7 +9621,7 @@ function AdminInventario({ data, add, upd, del, setInv }) {
             ))}
             <button className="btn btn-accent" onClick={() => {
               if (!ent.insumoId || !ent.cantidad) return;
-              setInv(ent.insumoId, parseFloat(ent.cantidad) || 0);
+              setInv(ent.insumoId, parseFloat(ent.cantidad) || 0, null, { fecha: ent.fecha, concepto: `Entrada${ent.proveedor ? ` de ${ent.proveedor}` : ""}`, costoUnit: (parseFloat(ent.costo_total) || 0) > 0 ? (parseFloat(ent.costo_total) || 0) / (parseFloat(ent.cantidad) || 1) : null });
               add("entradas_inv", { ...ent, id: `ei${Date.now()}`, cantidad: parseFloat(ent.cantidad) || 0, costo_total: parseFloat(ent.costo_total) || 0 });
               setShowE(false); setEnt({ insumoId: "", cantidad: "", proveedor: "", costo_total: "", factura: "", fecha: today() });
             }}>Registrar Entrada</button>
@@ -10866,8 +10949,9 @@ function AdminReportes({ data, navParam, setNavParam }) {
         <div className="section-pad">
           <div className="stat-row">
             <div className="stat-card wide">
-              <div className="stat-label">Costo total del ciclo</div>
-              <div className="stat-val" style={{ fontSize: 26 }}>{fmt(r.total)}</div>
+              <div className="stat-label">{r.completo?.hayMas ? "Costo completo del ciclo" : "Costo total del ciclo"}</div>
+              <div className="stat-val" style={{ fontSize: 26 }}>{fmt(r.completo?.hayMas ? r.completo.completo : r.total)}</div>
+              {r.completo?.hayMas && <div className="stat-sub">Costo directo {fmt(r.total)} · el desglose está abajo</div>}
               <div className="stat-sub">{r.p?.nombre} · {si.cultivoNombre} · {si.fechaSiembra} → {si.fechaCosechaReal || si.fechaCosechaEstimada}</div>
             </div>
           </div>
@@ -10879,8 +10963,10 @@ function AdminReportes({ data, navParam, setNavParam }) {
             <div className="stat-card wide">
               <div className="stat-label">Utilidad del ciclo</div>
               <div className="stat-val" style={{ fontSize: 22, color: r.utilidad >= 0 ? "var(--safe)" : "var(--red)" }}>{fmt(r.utilidad)}</div>
+              {r.completo?.hayMas && <div className="stat-sub">Con costo directo. Con costo completo: {fmt(r.ingresoTotal - r.completo.completo)}</div>}
             </div>
           </div>
+          <DosCifras c={r.completo} data={data} ingreso={r.ingresoTotal} superficie={r.superficie} hasta={si.fechaCosechaReal || null} />
 
           {r.presupuesto > 0 && (
             <div className="card">
@@ -10957,8 +11043,9 @@ function AdminReportes({ data, navParam, setNavParam }) {
         <div className="section-pad">
           <div className="stat-row">
             <div className="stat-card wide">
-              <div className="stat-label">Costo total de la temporada</div>
-              <div className="stat-val" style={{ fontSize: 26 }}>{fmt(t.total)}</div>
+              <div className="stat-label">{t.completo?.hayMas ? "Costo completo de la temporada" : "Costo total de la temporada"}</div>
+              <div className="stat-val" style={{ fontSize: 26 }}>{fmt(t.completo?.hayMas ? t.completo.completo : t.total)}</div>
+              {t.completo?.hayMas && <div className="stat-sub">Costo directo {fmt(t.total)} · el desglose está abajo</div>}
               <div className="stat-sub">{t.parcelas.length} {t.parcelas.length === 1 ? "parcela" : "parcelas"} · {fmtN(t.hectareas)} ha · {t.siembras.length} {t.siembras.length === 1 ? "siembra" : "siembras"}</div>
             </div>
           </div>
@@ -10970,8 +11057,10 @@ function AdminReportes({ data, navParam, setNavParam }) {
             <div className="stat-card wide">
               <div className="stat-label">Utilidad de la temporada</div>
               <div className="stat-val" style={{ fontSize: 22, color: t.utilidad >= 0 ? "var(--safe)" : "var(--red)" }}>{fmt(t.utilidad)}</div>
+              {t.completo?.hayMas && <div className="stat-sub">Con costo directo. Con costo completo: {fmt(t.ingresoTotal - t.completo.completo)}</div>}
             </div>
           </div>
+          <DosCifras c={t.completo} data={data} ingreso={t.ingresoTotal} superficie={t.hectareas} />
 
           {t.presupuesto > 0 && (
             <div className="card">
@@ -11554,7 +11643,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
                     <div className="gap-row">
                       <button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={() => {
                         upd("compras", { ...c, estado: "aprobada" });
-                        if (c.afectaInventario && c.items) c.items.forEach(it => { if (it.insumoId) setInv(it.insumoId, it.cantidad); });
+                        if (c.afectaInventario && c.items) c.items.forEach(it => { if (it.insumoId) setInv(it.insumoId, it.cantidad, null, { fecha: c.fecha, concepto: `Compra${c.proveedor ? ` a ${c.proveedor}` : ""}`, costoUnit: Number(it.costo_unit) > 0 ? Number(it.costo_unit) : Number(it.costo) > 0 && Number(it.cantidad) > 0 ? Number(it.costo) / Number(it.cantidad) : null }); });
                       }}>✓ Aprobar</button>
                       <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={() => upd("compras", { ...c, estado: "rechazada" })}>✕ Rechazar</button>
                     </div>
@@ -15750,9 +15839,8 @@ function AgronomoCompras({ data, add, upd, del, setInv, session, onClose }) {
       const inv = data.inventario.find(i => i.id === insumoId);
       if (!inv) { alert("Elige un insumo o crea uno nuevo"); return; }
       nombreInsumo = inv.nombre;
-      const nuevaExist = (inv.existencia || 0) + cant;
-      const nuevoCostoProm = ((inv.existencia || 0) * (inv.costo_unit || 0) + costo) / nuevaExist;
-      upd("inventario", { ...inv, existencia: nuevaExist, costo_unit: nuevoCostoProm });
+      // La compra entra como movimiento, con su cantidad y su precio. El promedio se calcula de ahí.
+      setInv(inv.id, cant, null, { fecha: compraForm.fecha || today(), concepto: "Compra", costoUnit: cant > 0 ? costo / cant : null });
     }
     // Egreso en finanzas
     add("egresos", {

@@ -13,7 +13,7 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 
 ## Operación integral (etapa abierta el 19 nov) — modelo y orden en `EVENTOS.md`
 
-**Próxima entrega operativa:** validar el almacén en el rancho con `docs/RECORRIDO-ALMACEN-RANCHO.md`; después, faltas y permisos con causa, y pagos con recibos.
+**Próxima entrega operativa:** faltas, permisos y descansos con causa; pagos, pendientes y recibos internos en PDF (el plan está en `docs/COSTEO.md`, "Siguiente entrega"). Antes: validar el almacén en el rancho con `docs/RECORRIDO-ALMACEN-RANCHO.md`.
 
 | Asunto | En rama | Probado | Publicado | Validado en el rancho |
 |---|---|---|---|---|
@@ -49,6 +49,9 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | Plazos de lo entregado (24 h / 72 h; herramientas 7 y 15 días), "sigue en uso" con fecha | Sí | Sí | Sí | Falta. Son avisos al abrir la app, no mensajes al teléfono |
 | Baja de herramienta con causa, valor y evidencia; la decisión con el trabajador va aparte | Sí | Sí | Sí | Falta |
 | El aviso de "cuándo se acaba" y las alertas de mínimo ven los movimientos nuevos | Sí | Sí | Sí | Falta |
+| Costo promedio calculado de las compras (no depende de qué teléfono subió al último); compra tardía = ajuste posterior a la vista, sin tocar el costo original | Sí | Sí (reglas, en dos órdenes) | Sí | **Falta: una compra real capturada tarde** |
+| Tres fechas por movimiento; la hora de recepción la pone el servidor; el desfase de cada teléfono se mide y se corrige a la vista | Sí | Sí (reglas y base aislada) | Sí; hoja 36 instalada | **Falta: un teléfono real con la hora mal puesta** |
+| Costo directo y costo completo en los reportes de siembra y de temporada, con desglose, explicación de cada importe y pendientes | Sí | Sí | Sí | **Falta: que Luis y Migue lean un reporte real** |
 | Almacén: entregar no es gastar; queda a cargo de quien lo recibe | Sí | Sí | Sí | **Falta: una semana de entregas reales** |
 | Cierre de lo entregado: se usó (ahí nace el costo), regresó, se quedó con otro, se rompió o perdió | Sí | Sí | Sí | Falta |
 | Herramientas prestadas: quién la trae, devolución y baja con causa | Sí | Sí | Sí | Falta |
@@ -70,8 +73,9 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 **Problemas y riesgos abiertos**
 
 - **El cálculo recorre todos los eventos cada vez.** Con unos meses de marcas va bien; con años habrá que cerrar periodos y guardar su resumen. No urge, pero está anotado.
-- **El costo promedio de un artículo sigue siendo un número guardado.** La existencia ya no se pisa entre aparatos, pero si dos aparatos sin señal capturan una compra del mismo artículo, el costo promedio que queda es el del último que subió. Falta calcularlo también de los movimientos.
-- **El orden de los movimientos depende del reloj de cada aparato.** Un teléfono con la hora mal puesta puede hacer que un conteo "pase" antes de un movimiento que en realidad fue anterior. Los teléfonos toman la hora de la red; si alguno no, hay que corregirlo.
+- **Un teléfono que NUNCA ha tenido señal desde que se instaló no sabe cuánto difiere su hora.** Sus movimientos entran con la hora que diga hasta que el servidor los recibe; ahí se acota (no pudo pasar después de recibido), pero un reloj ATRASADO en un teléfono así no se puede detectar. Se señalan como "hora sin comprobar".
+- **Las dos cifras están en el reporte de cada siembra y de cada temporada.** Las listas y tarjetas chicas (inicio, panel de parcelas, alertas de costo por hectárea) siguen enseñando el costo directo.
+- **"Ajustes posteriores" cubre hoy la valuación de insumos y lo indirecto capturado tarde.** Todavía no hay cierre de mes que congele una copia de cada reporte: lo "original" se reconstruye de las fechas de captura.
 - **Los avisos de entregas vencidas no llegan como mensaje**: salen al abrir la app, al que lo trae, al encargado y (al segundo plazo) al administrador.
 - **El reparto del costo de vehículos es una vista, no entra todavía a los reportes de costo por parcela de siempre** (ésos siguen enseñando el costo directo). El costo completo por parcela se ve en Mano de obra.
 - **La tableta cerrada no impide salirse del navegador**: eso lo cierra el propio aparato (en Android, "fijar pantalla"). La app ya no deja ir a otras pantallas.

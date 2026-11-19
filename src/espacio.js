@@ -38,7 +38,7 @@ export function llavesDe(espacio) {
     menu: `agro_menu_v8:${e}`,
     // El almacén grande (IndexedDB) donde viven los eventos, y el candado del
     // checador cuando la tableta se deja cerrada en esa pantalla.
-    eventos: `agro_eventos_v8:${e}`, checador: `agro_checador_v8:${e}`,
+    eventos: `agro_eventos_v8:${e}`, checador: `agro_checador_v8:${e}`, reloj: `agro_reloj_v8:${e}`,
   };
 }
 // Lo que se puede borrar al "reiniciar este teléfono": SÓLO lo de este espacio.
