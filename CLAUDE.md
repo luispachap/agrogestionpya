@@ -83,6 +83,30 @@ Usuarios reales de la app:
   ponerlo aquí lo duplica o lo inventa) o sin transporte. La pantalla vieja
   donde la cuadrilla entra con PIN sigue existiendo; no usar las dos para el
   mismo día.
+- **UNA SOLA FUENTE por día** (`unaSolaFuente`, `unaSolaManoDeObra`, en
+  `normalizeData`): si un día de una cuadrilla tiene `cuadrilla_dia`, o un
+  trabajador tiene mano de obra del checador, lo tecleado antes para ese mismo
+  día NO cuenta su mano de obra (sigue guardado; sale en `data.noContado`). No
+  es aviso: es la cuenta, y sale igual con dos aparatos sin señal. Las
+  cuadrillas ya sólo se registran en «Cuadrillas» (`CUADRILLAS_SOLO_EN_SU_PANTALLA`);
+  la entrada de la cuadrilla con PIN sigue, pero no guarda un día ya registrado.
+  `cuadrilla_dia` tiene tres modalidades: `dia`, `destajo` y `precio` (precio
+  por el trabajo: UN pago al grupo, no se le inventa a cada persona).
+- **El operador**: `asignar` acepta `vehiculoId` en vez de `parcelaId` (nunca
+  los dos). Ese rato se le carga al vehículo con lo que ya gana; no es otro
+  pago ni toda su jornada. **`src/vehiculos.js`** junta operador + consumos del
+  almacén con destino vehículo + gastos con `vehiculoId`. Todavía NO se reparte
+  a parcelas (falta el criterio; es decisión de Luis).
+- **`src/movimientos.js`** (en pantalla: «Entregas del almacén»): sacar NO es
+  gastar. `alm_retiro` (queda a cargo de alguien), y sus cierres apuntando a él
+  con `origen`: `alm_consumo` (AQUÍ nace el costo, una vez, al costo promedio
+  del momento), `alm_devolucion`, `alm_traspaso`, `alm_baja` (con causa),
+  `alm_revision` («sigue con él»). Aparte `alm_consumo` directo (diésel al
+  tanque) y `alm_transferencia` (a otro lugar). La existencia del catálogo NO la
+  tocan los eventos: `conExistenciaReal` se la suma al enseñarla y
+  `paraGuardarArticulo` se la quita en `add`/`upd` — **nunca escribas
+  `existencia` saltándote `upd`**, o se cuenta dos veces. Entregar nunca
+  bloquea; cerrar de más sí. El conteo a ciegas y las mermas siguen en `vales`.
 - Reglas ya decididas por Luis (19 nov): checar salida TERMINA la asignación
   (al volver queda sin asignar; se ofrece «continuar»); el tiempo sin asignar es
   «por aclarar» y nunca se distribuye solo; las horas adicionales se registran y
@@ -207,7 +231,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **115 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **117 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

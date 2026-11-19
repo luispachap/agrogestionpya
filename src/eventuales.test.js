@@ -96,3 +96,49 @@ test("la_siguiente_vez_la_app_se_acuerda_de_quienes_vinieron_y_cuanto_cobraban",
   assert.deepEqual(integrantesConocidos([a], "cq1"), [{ nombre: "Juan", pagoDia: 300 }, { nombre: "Pedro", pagoDia: 320 }]);
   assert.deepEqual(integrantesConocidos([a], "otra"), []);
 });
+
+// ── Una sola fuente: el flujo anterior y el nuevo no generan dos costos ──
+import { unaSolaFuente, yaEstaEnCuadrillas, capturasAnterioresDe } from "./eventuales.js";
+const vieja = (mas = {}) => ({ id: "a1", fecha: D, parcelaId: "p7", tipo: "Corte", registradoPor: { tipo: "cuadrilla", id: "cq1" }, costoMO: 1500, flete: 300, costoInsumos: 868, costoTotal: 2368, modalidadPago: "jornal", cuadrilla_personas: 4, hectareas_trab: 2, ...mas });
+
+test("la_misma_cuadrilla_el_mismo_dia_en_las_dos_capturas_cuesta_una_sola_vez", () => {
+  const ev = dia([{ nombre: "Ana", pagoDia: 350 }, { nombre: "Beto", pagoDia: 350 }]);
+  const r = unaSolaFuente([vieja()], [ev]);
+  const [a] = r.actividades;
+  assert.equal(a.costoMO, 0); assert.equal(a.flete, 0);
+  assert.equal(a.costoTotal, 868, "sus insumos siguen contando: eso no está en el registro nuevo");
+  assert.equal(a.hectareas_trab, 2, "y lo demás que decía se conserva");
+  assert.deepEqual(a._noCuenta.evs, [ev.id], "y dice qué registro manda");
+  assert.equal(r.total, 1500);
+  const todo = [...r.actividades, ...actividadesDeCuadrillas(costo([ev]).partes)];
+  assert.equal(sumarDinero(todo.map(x => x.costoMO)), 700, "700 del registro nuevo, no 2,200");
+});
+
+test("si_el_registro_nuevo_se_cancela_la_captura_anterior_vuelve_a_contar", () => {
+  const ev = dia([{ nombre: "Ana", pagoDia: 350 }]);
+  const can = cancelarEvento(ev, { motivo: "no era esa cuadrilla", quien: ENC, cuando: c }).evento;
+  const r = unaSolaFuente([vieja()], [can]);
+  assert.equal(r.actividades[0].costoMO, 1500); assert.equal(r.sustituidas.length, 0);
+});
+
+test("otra_cuadrilla_otro_dia_o_un_trabajador_de_planta_no_se_tocan", () => {
+  const ev = dia([{ nombre: "Ana", pagoDia: 350 }]);
+  const otras = [vieja({ id: "a2", registradoPor: { tipo: "cuadrilla", id: "cq2" } }), vieja({ id: "a3", fecha: "2026-11-18" }), vieja({ id: "a4", registradoPor: { tipo: "planta", id: "cq1" } })];
+  const r = unaSolaFuente(otras, [ev]);
+  assert.deepEqual(r.actividades.map(a => a.costoMO), [1500, 1500, 1500]);
+  assert.ok(yaEstaEnCuadrillas([ev], "cq1", D)); assert.equal(yaEstaEnCuadrillas([ev], "cq2", D), false);
+  assert.equal(capturasAnterioresDe([vieja()], "cq1", D).length, 1);
+});
+
+test("un_precio_por_el_trabajo_es_un_pago_al_grupo_y_no_se_le_inventa_a_cada_quien", () => {
+  const r = registrarCuadrilla({ ...base, modalidad: "precio", precio: { monto: 4000, personas: 6 }, hectareas: 3, nota: "terminaron el lote", azar: 0.5 });
+  assert.ok(r.ok, r.dice);
+  const k = costo([r.evento]);
+  assert.equal(k.totalPagos, 4000); assert.equal(k.partes.length, 1); assert.match(k.partes[0].persona, /Don Chuy \(por el grupo\)/);
+  const [fila] = actividadesDeCuadrillas(k.partes);
+  assert.equal(fila.costoMO, 4000); assert.equal(fila.cuadrilla_personas, 6); assert.equal(fila.hectareas_trab, 3); assert.equal(fila.modalidadPago, "tarea");
+  assert.equal(registrarCuadrilla({ ...base, modalidad: "precio", precio: { monto: 4000 } }).ok, false, "por lo menos cuántos vinieron");
+  assert.equal(registrarCuadrilla({ ...base, modalidad: "precio", precio: { personas: 6 } }).ok, false);
+  const f = flete(600); const conFlete = costo([r.evento, f]);
+  assert.equal(conFlete.totalFlete, 600, "y el flete se le reparte por sus 6 personas");
+});

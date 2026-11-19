@@ -33,7 +33,7 @@ with sync_playwright() as p:
     g["sembrar"](pg); g["entrar"](pg, "Encargado", "5501"); pg.wait_for_timeout(400)
 
     # ── 1 · Por día, cada quien con su pago, y flete externo ──
-    ir(pg, "cuadrillas-dia"); pg.get_by_role("button", name="Registrar una cuadrilla de hoy").click()
+    ir(pg, "cuadrillas-dia"); pg.get_by_role("button", name="Registrar una cuadrilla").click()
     pg.get_by_label("Cuadrilla", exact=True).select_option("cq-prueba"); pg.get_by_label("Responsable").fill("RESPONSABLE DE PRUEBA")
     pg.get_by_label("Parcela").select_option("p1"); pg.get_by_label("Qué hicieron").select_option("Cosecha")
     pg.get_by_label("Pago por día de cada persona ($)").fill("300")
@@ -49,7 +49,7 @@ with sync_playwright() as p:
     caso("la lista del día enseña a cada persona con lo suyo", "$1,050" in pg.locator(".card", has_text="CUADRILLA DE PRUEBA").inner_text() and "$450" in pg.locator(".mo-act", has_text="TRES").inner_text())
 
     # ── 2 · La misma cuadrilla en otra parcela, a destajo con lo que hizo cada quien ──
-    pg.get_by_role("button", name="Registrar una cuadrilla de hoy").click()
+    pg.get_by_role("button", name="Registrar una cuadrilla").click()
     pg.get_by_label("Cuadrilla", exact=True).select_option("cq-prueba")
     caso("la app se acuerda de quiénes vinieron", pg.get_by_role("button", name="Los de la vez pasada (3)").count() == 1)
     caso("y no vuelve a pedir el transporte de hoy", pg.get_by_text("ya está registrado").count() == 1)
@@ -61,7 +61,7 @@ with sync_playwright() as p:
     caso("el destajo guarda la producción de cada persona", len(de(pg, "cuadrilla_dia")) == 2 and de(pg, "cuadrilla_dia")[1]["datos"]["destajo"]["produccion"] == [{"nombre": "CUATRO", "cantidad": 40}] and len(de(pg, "traslado_cuadrilla")) == 1)
 
     # ── 3 · Sólo el total del grupo: parejo únicamente si alguien lo autoriza; vehículo propio sin importe ──
-    pg.get_by_role("button", name="Registrar una cuadrilla de hoy").click()
+    pg.get_by_role("button", name="Registrar una cuadrilla").click()
     pg.get_by_label("Cuadrilla", exact=True).select_option("__otra__"); pg.get_by_label("Nombre de la cuadrilla").fill("LOS DE PRUEBA")
     pg.get_by_label("Parcela").select_option("p1"); pg.get_by_label("Qué hicieron").select_option("Cosecha")
     pg.get_by_role("button", name="Destajo").click(); pg.get_by_label("A cómo cada una ($)").fill("10")

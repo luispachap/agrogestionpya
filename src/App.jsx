@@ -9,11 +9,17 @@ import {
 } from "./checador.js";
 // Cuadrillas: a dónde se mandó a cada quien, y la mano de obra que sale de ahí.
 import {
-  asignar, terminar, anotarTareas, aclararTiempo, CAUSAS_SIN_ASIGNAR, repartoActual, manoDeObra, agrupar, actividadesDeManoDeObra, capturasDobles,
+  asignar, terminar, anotarTareas, aclararTiempo, CAUSAS_SIN_ASIGNAR, repartoActual, manoDeObra, agrupar, actividadesDeManoDeObra, capturasDobles, unaSolaManoDeObra,
   ajusteVigente, cambiarAjuste, AJUSTES, horasDe, acumular,
 } from "./cuadrillas.js";
 // Cuadrillas: los grupos eventuales que llegan juntos, con su responsable y su transporte.
-import { registrarCuadrilla, registrarTraslado, costoDeCuadrillas, actividadesDeCuadrillas, integrantesConocidos, yaTieneTraslado, pagosDe, CRITERIOS_FLETE } from "./eventuales.js";
+import { registrarCuadrilla, registrarTraslado, costoDeCuadrillas, actividadesDeCuadrillas, integrantesConocidos, yaTieneTraslado, pagosDe, CRITERIOS_FLETE, unaSolaFuente, yaEstaEnCuadrillas, capturasAnterioresDe } from "./eventuales.js";
+// El almacén por movimientos: entregar no es gastar. Y lo que cuesta cada vehículo.
+import {
+  entregar, cerrar as cerrarEntrega, seQueda, consumirDirecto, transferir, estadoDelAlmacen, porCerrar, costoDeConsumos, actividadesDeAlmacen,
+  conExistenciaReal, paraGuardarArticulo, textoDeArticulo, leerArticulo, CAUSAS_BAJA, NAVE as ALMACEN_PRINCIPAL,
+} from "./movimientos.js";
+import { costoDeVehiculos } from "./vehiculos.js";
 // Encontrar las cosas: grupos, lo de cada perfil, lo anclado y lo que más se usa.
 import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarraDe, barraDe, necesitaMenu, alternarInicio, alternarBarra, moverEnInicio, volverALoDeFabrica, anotarUso, masUsadas, ancladasConDatos, TOPE_BARRA, ENFOQUES, PERFILES_CON_ENFOQUE, faltaEnfoque, elegirEnfoque, alternarGrupo, mezclarPrefs, sellarAcomodo, mismoAcomodo } from "./menu.js";
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
@@ -2402,10 +2408,24 @@ function normalizeData(d) {
   if (!Array.isArray(fix.eventos)) fix.eventos = [];
   const __moEv = manoDeObra(fix.eventos, fix.trabajadores || [], { hoy: fechaLocal(), ahora: new Date().toISOString() });
   fix.manoDeObraEventos = __moEv;
-  fix.actividadesContables = fix.actividadesContables.concat(actividadesDeManoDeObra(__moEv.partes, fix.trabajadores || []));
+  // UNA SOLA FUENTE. Mientras existan las capturas de antes (la cuadrilla con su
+  // PIN, la actividad tecleada a mano), el dinero de un día sale de un solo
+  // lado: si ese día ya está en los eventos, lo tecleado NO cuenta su mano de
+  // obra. No es un aviso, es la cuenta — y sale igual aunque las dos capturas
+  // se hayan hecho sin señal en aparatos distintos.
+  const __unaCq = unaSolaFuente(fix.actividadesContables, fix.eventos);
+  const __unaMo = unaSolaManoDeObra(__unaCq.actividades, __moEv.partes);
+  fix.noContado = { cuadrillas: __unaCq.sustituidas, totalCuadrillas: __unaCq.total, planta: __unaMo.cuantas, totalPlanta: __unaMo.total };
+  fix.actividadesContables = __unaMo.actividades.concat(actividadesDeManoDeObra(__moEv.partes, fix.trabajadores || []));
   // Y lo de las cuadrillas eventuales: lo que cobró cada persona y el flete externo ya repartido.
   const __cq = costoDeCuadrillas(fix.eventos, { criterioFlete: ajusteVigente(fix.eventos, "criterio_flete").valor });
   fix.actividadesContables = fix.actividadesContables.concat(actividadesDeCuadrillas(__cq.partes));
+  // El almacén: lo que movieron los eventos se le suma a la existencia al
+  // enseñarla (no se guarda dos veces), y el costo nace en el CONSUMO, no al sacar.
+  const __alm = estadoDelAlmacen(fix.eventos);
+  fix.almacen = __alm;
+  fix.inventario = conExistenciaReal(fix.inventario, __alm);
+  fix.actividadesContables = fix.actividadesContables.concat(actividadesDeAlmacen(__alm.consumos));
   return fix;
 }
 
@@ -4090,7 +4110,8 @@ function Dictado({ data, add, session, onClose }) {
      saldo no es un conteo, es una copia. */
 
 function AlmacenVales({ data, add, upd, setInv, session, onClose }) {
-  const [tab, setTab] = useState("salida");
+  // Las salidas ya no van aquí: van en Entregas del almacén (sacar no es gastar).
+  const [tab, setTab] = useState("conteo");
   const [sel, setSel] = useState("");
   const [cant, setCant] = useState("");
   const [destino, setDestino] = useState("parcela");
@@ -4170,10 +4191,10 @@ function AlmacenVales({ data, add, upd, setInv, session, onClose }) {
     <div>
       <div className="top-bar">
         <button className="btn-ghost" onClick={onClose}>‹</button>
-        <h2 style={{ flex: 1 }}>Vales y conteo</h2>
+        <h2 style={{ flex: 1 }}>Conteo y mermas</h2>
       </div>
       <div className="tabs-pill">
-        {[["salida", "Vale de salida"], ["conteo", `Conteo${faltaContar.tocan.length ? ` (${faltaContar.tocan.length})` : ""}`], ["mermas", "Mermas"]].map(([v, lb]) => (
+        {[["conteo", `Conteo${faltaContar.tocan.length ? ` (${faltaContar.tocan.length})` : ""}`], ["mermas", "Mermas"]].map(([v, lb]) => (
           <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => { setTab(v); setResultado(null); setContado(""); }}>{lb}</button>
         ))}
       </div>
@@ -6334,6 +6355,7 @@ function AppInner() {
     // Un cambio de sueldo se ANOTA (desde cuándo y cuánto ganaba antes): así
     // el costo de los meses pasados no se recalcula con el sueldo nuevo.
     if (sec === "trabajadores") item = anotarCambioDeSueldo(trabajadoresRef.current.find(t => t.id === item.id), item, today());
+    if (sec === "inventario") item = paraGuardarArticulo(item);   // lo que movieron los eventos no se guarda otra vez en el catálogo
     const it = marcarTocado(apartarArchivosRef.current ? apartarArchivosRef.current(sec, item) : item);
     setData(d => {
       const col = Array.isArray(d[sec]) ? d[sec] : [];
@@ -6371,6 +6393,7 @@ function AppInner() {
 
   const add = useCallback((sec, item) => {
     if (sec === "actividades") item = sellarSueldoDelDia(item, trabajadoresRef.current);
+    if (sec === "inventario") item = paraGuardarArticulo(item);
     item = apartarArchivos(sec, item);
     const ni = marcarTocado({ ...item, id: item.id || `${sec[0]}${Date.now()}${Math.floor(Math.random() * 1000)}` });
     // Un evento con el mismo identificador es el MISMO evento: un doble toque no lo mete dos veces.
@@ -6778,6 +6801,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "ganado" && <Ganado data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "bitacora" && <Bitacora data={data} onClose={() => setPage("home")} />}
               {page === "vales" && <AlmacenVales data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
+              {page === "entregas" && <EntregasAlmacen data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "dictado" && <Dictado data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "fito" && <HojaDeFito data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
@@ -6853,6 +6877,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "ganado" && <Ganado data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "bitacora" && <Bitacora data={data} onClose={() => setPage("home")} />}
               {page === "vales" && <AlmacenVales data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
+              {page === "entregas" && <EntregasAlmacen data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "dictado" && <Dictado data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "fito" && <HojaDeFito data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
@@ -7988,6 +8013,12 @@ function ReglasDelRancho({ data, add, session, claves }) {
 }
 
 const ACTIVIDADES_DE_CAMPO = ["Preparación de suelo", "Siembra", "Fertilización", "Riego", "Control de plagas", "Deshierbe", "Cosecha", "Limpieza"];
+// Las cuadrillas se registran en UNA sola pantalla (Cuadrillas). En el registro
+// de actividades del administrador y en el registro masivo ya no se ofrecen: lo
+// que se capturó ahí antes se conserva y se sigue leyendo.
+const CUADRILLAS_SOLO_EN_SU_PANTALLA = true;
+const AVISO_CUADRILLAS = "Las cuadrillas se registran en la pantalla Cuadrillas (menú, grupo Gente): ahí se anota quién vino, cómo cobran y cómo llegaron, una sola vez.";
+const ACTIVIDADES_DE_VEHICULO = ["Traslado de personal", "Acarreo de cosecha", "Acarreo de insumos", "Mantenimiento del vehículo"];
 
 // A dónde va cada quien hoy. Se escoge a la gente que ya checó, se dice parcela
 // y labor, y con UNA captura queda toda la cuadrilla. Cambiar de parcela o de
@@ -8009,12 +8040,13 @@ function Reparto({ data, add, session, onNav, onClose }) {
   const elegidos = Object.keys(sel).filter(id => sel[id] && adentro.has(id));
   const tocar = (id) => setSel(x => ({ ...x, [id]: !x[id] }));
   const marcarVarios = (ids, si) => setSel(x => ({ ...x, ...Object.fromEntries(ids.map(id => [id, si])) }));
-  const actividades = [...new Set([...ACTIVIDADES_DE_CAMPO, ...(data.eventos || []).filter(e => e.tipo === "asignacion").map(e => e.datos.actividad)])].sort((a, b) => a.localeCompare(b));
+  const actividades = [...new Set([...ACTIVIDADES_DE_CAMPO, ...ACTIVIDADES_DE_VEHICULO, ...(data.eventos || []).filter(e => e.tipo === "asignacion").map(e => e.datos.actividad)])].sort((a, b) => a.localeCompare(b));
   const aIso = (hhmm) => new Date(`${hoy}T${hhmm}:00`).toISOString();
   const quien = quienDe(session);
 
   const mandar = () => {
-    const res = asignar({ trabajadorIds: elegidos, parcelaId: form.parcelaId, actividad: form.actividad === "__otra__" ? form.otra : form.actividad, cuadrilla: form.cuadrilla,
+    const veh = form.parcelaId.startsWith("v:") ? (data.maquinaria || []).find(m => m.id === form.parcelaId.slice(2)) : null;
+    const res = asignar({ trabajadorIds: elegidos, parcelaId: veh ? null : form.parcelaId, vehiculoId: veh?.id || null, vehiculo: veh?.nombre || "", actividad: form.actividad === "__otra__" ? form.otra : form.actividad, cuadrilla: form.cuadrilla,
       desde: form.hora ? aIso(form.hora) : ahora, fecha: hoy, quien, capturado: ahora });
     if (!res.ok) { setDice(res.dice); return; }
     add("eventos", res.evento); setSel({}); setForm(f => ({ ...F0, parcelaId: f.parcelaId, actividad: f.actividad })); setDice("");
@@ -8061,7 +8093,7 @@ function Reparto({ data, add, session, onNav, onClose }) {
               <button key={"c" + x.trabajadorId} className="acc-todo" style={{ marginTop: 8 }} onClick={() => {
                 const res = asignar({ trabajadorIds: [x.trabajadorId], ...x.anterior, desde: ahora, fecha: hoy, quien, capturado: ahora });
                 if (res.ok) add("eventos", res.evento); else setDice(res.dice);
-              }}>{nombre(x.trabajadorId)}: continuar en {parcela(x.anterior.parcelaId)?.nombre || "su parcela"} · {x.anterior.actividad}</button>
+              }}>{nombre(x.trabajadorId)}: continuar en {x.anterior.vehiculoId ? (x.anterior.vehiculo || "su vehículo") : parcela(x.anterior.parcelaId)?.nombre || "su parcela"} · {x.anterior.actividad}</button>
             ))}
             <div className="text-xs text-muted" style={{ marginTop: 8 }}>Están en el rancho pero su tiempo no se le carga a ninguna parcela.</div>
           </div>
@@ -8069,15 +8101,15 @@ function Reparto({ data, add, session, onNav, onClose }) {
         {r.grupos.map(g => (
           <div key={g.clave} className="card">
             <div className="flex-b" style={{ marginBottom: 2 }}>
-              <span className="card-title" style={{ marginBottom: 0 }}>{parcela(g.parcelaId)?.nombre || "Parcela que no está en este aparato"}</span>
-              <span className="text-sm text-muted">{g.miembros.length}</span>
+              <span className="card-title" style={{ marginBottom: 0 }}>{g.vehiculoId ? (g.vehiculo || "Vehículo") : parcela(g.parcelaId)?.nombre || "Parcela que no está en este aparato"}</span>
+              <span className="text-sm text-muted">{g.vehiculoId ? "en vehículo · " : ""}{g.miembros.length}</span>
             </div>
             <div className="text-sm" style={{ marginBottom: 10 }}>{g.actividad}{g.cuadrilla ? ` · ${g.cuadrilla}` : ""}</div>
             <div className="rep-fichas">{g.miembros.map(m => ficha(m.trabajadorId, m.desde))}</div>
             <div className="jor-acc">
               <button onClick={() => { const ids = g.miembros.map(m => m.trabajadorId); marcarVarios(ids, !ids.every(id => sel[id])); }}>Marcar a todos para moverlos</button>
               <button onClick={() => acabaron(g.miembros.map(m => m.trabajadorId))}>Ya acabaron</button>
-              <button onClick={() => { setDestajo({ grupo: g, porPersona: {}, soloTotal: false, cantidad: "", parejo: false, unidad: "caja", tarifa: "" }); setDice(""); }}>Anotar destajo</button>
+              {!g.vehiculoId && <button onClick={() => { setDestajo({ grupo: g, porPersona: {}, soloTotal: false, cantidad: "", parejo: false, unidad: "caja", tarifa: "" }); setDice(""); }}>Anotar destajo</button>}
             </div>
           </div>
         ))}
@@ -8130,10 +8162,12 @@ function Reparto({ data, add, session, onNav, onClose }) {
             <b>Asignar a {elegidos.length}</b>
             <button className="acc-link" onClick={() => setSel({})}>Soltar</button>
           </div>
-          <select className="inp" aria-label="Parcela" value={form.parcelaId} onChange={e => setForm(f => ({ ...f, parcelaId: e.target.value }))} style={{ marginBottom: 8 }}>
-            <option value="">¿A qué parcela?</option>
-            {(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          <select className="inp" aria-label="Parcela o vehículo" value={form.parcelaId} onChange={e => setForm(f => ({ ...f, parcelaId: e.target.value, actividad: e.target.value.startsWith("v:") && !f.actividad ? "Traslado de personal" : f.actividad }))} style={{ marginBottom: 8 }}>
+            <option value="">¿A qué parcela o vehículo?</option>
+            <optgroup label="Parcelas">{(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</optgroup>
+            {(data.maquinaria || []).length > 0 && <optgroup label="Vehículos y maquinaria (operador)">{(data.maquinaria || []).map(m => <option key={m.id} value={`v:${m.id}`}>{m.nombre}</option>)}</optgroup>}
           </select>
+          {form.parcelaId.startsWith("v:") && <div className="text-xs text-muted" style={{ margin: "-2px 0 8px" }}>Su tiempo se le carga al vehículo con lo que ya gana, sólo mientras esté asignado. Al terminar el traslado se le asigna a lo que siga.</div>}
           <select className="inp" aria-label="Qué van a hacer" value={form.actividad} onChange={e => setForm(f => ({ ...f, actividad: e.target.value }))} style={{ marginBottom: 8 }}>
             <option value="">¿A hacer qué?</option>
             {actividades.map(a => <option key={a} value={a}>{a}</option>)}
@@ -8157,30 +8191,39 @@ function Reparto({ data, add, session, onNav, onClose }) {
 // cómo cobran y cómo llegaron. Una captura por cuadrilla y actividad.
 function CuadrillasDelDia({ data, add, upd, session, onClose }) {
   const hoy = today();
-  const F0 = { cuadrillaId: "", otra: "", responsable: "", parcelaId: "", actividad: "", otraAct: "", modalidad: "dia", pagoTodos: "", gente: [{ nombre: "", valor: "" }], unidad: "caja", tarifa: "", soloTotal: false, total: "", parejo: false, transporte: "", vehiculoId: "", flete: "" };
+  const F0 = { cuadrillaId: "", otra: "", responsable: "", parcelaId: "", actividad: "", otraAct: "", modalidad: "dia", pagoTodos: "", gente: [{ nombre: "", valor: "" }], unidad: "caja", tarifa: "", soloTotal: false, total: "", parejo: false, transporte: "", vehiculoId: "", flete: "", fecha: hoy, precio: "", cuantos: "", hectareas: "", nota: "" };
   const [form, setForm] = useState(null);
+  const [dia, setDia] = useState(hoy);
   const [dice, setDice] = useState("");
   const [cancelando, setCancelando] = useState(null);     // { evento, motivo }
   const quien = quienDe(session);
   const catalogo = data.cuadrillas || [];
   const parcela = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "Parcela que no está en este aparato";
-  const deHoy = (data.eventos || []).filter(e => e.tipo === "cuadrilla_dia" && e.fecha === hoy).sort((a, b) => a.capturado.localeCompare(b.capturado));
-  const trasladosHoy = (data.eventos || []).filter(e => e.tipo === "traslado_cuadrilla" && e.fecha === hoy && estaVigente(e));
+  const deHoy = (data.eventos || []).filter(e => e.tipo === "cuadrilla_dia" && e.fecha === dia).sort((a, b) => a.capturado.localeCompare(b.capturado));
+  const trasladosHoy = (data.eventos || []).filter(e => e.tipo === "traslado_cuadrilla" && e.fecha === dia && estaVigente(e));
   const actividades = [...new Set([...ACTIVIDADES_DE_CAMPO, ...(data.eventos || []).filter(e => e.tipo === "cuadrilla_dia").map(e => e.datos.actividad)])].sort((a, b) => a.localeCompare(b));
   const elegida = form && catalogo.find(c => c.id === form.cuadrillaId);
   const idCq = form ? (form.cuadrillaId === "__otra__" ? `sin-catalogo:${form.otra.trim().toLowerCase()}` : form.cuadrillaId) : "";
   const nombreCq = form ? (form.cuadrillaId === "__otra__" ? form.otra : elegida?.nombre || "") : "";
   const conocidos = form && idCq ? integrantesConocidos(data.eventos, idCq) : [];
-  const yaLlegaron = form && idCq ? yaTieneTraslado(data.eventos, idCq, hoy) : false;
+  const fechaReg = form?.fecha || hoy;
+  const yaLlegaron = form && idCq ? yaTieneTraslado(data.eventos, idCq, fechaReg) : false;
+  // Lo que ese día ya se capturó de esta cuadrilla por la pantalla anterior: al guardar aquí, deja de contar.
+  const anteriores = form && idCq ? capturasAnterioresDe(data.actividades, idCq, fechaReg) : [];
   const pon = (cambios) => setForm(f => ({ ...f, ...cambios }));
   const ponGente = (i, cambios) => setForm(f => ({ ...f, gente: f.gente.map((g, k) => (k === i ? { ...g, ...cambios } : g)) }));
   const gente = form ? form.gente.filter(g => g.nombre.trim()) : [];
 
   const guardar = () => {
     const ahora = new Date().toISOString();
+    if (fechaReg > hoy) { setDice("No se registra un día que todavía no llega."); return; }
+    // De otro día: pasó ese día (a mediodía del rancho), y se capturó hoy.
+    const paso = fechaReg === hoy ? ahora : new Date(`${fechaReg}T12:00:00`).toISOString();
     const comun = { cuadrillaId: form.cuadrillaId === "__otra__" ? null : form.cuadrillaId, cuadrilla: nombreCq, responsable: form.responsable, parcelaId: form.parcelaId,
-      actividad: form.actividad === "__otra__" ? form.otraAct : form.actividad, fecha: hoy, cuando: ahora, capturado: ahora, quien };
-    const res = form.modalidad === "dia"
+      actividad: form.actividad === "__otra__" ? form.otraAct : form.actividad, hectareas: form.hectareas, nota: form.nota, fecha: fechaReg, cuando: paso, capturado: ahora, quien };
+    const res = form.modalidad === "precio"
+      ? registrarCuadrilla({ ...comun, modalidad: "precio", precio: { monto: form.precio, nombres: gente.map(g => g.nombre), personas: form.cuantos } })
+      : form.modalidad === "dia"
       ? registrarCuadrilla({ ...comun, modalidad: "dia", integrantes: gente.map(g => ({ nombre: g.nombre, pagoDia: g.valor || form.pagoTodos })) })
       : registrarCuadrilla({ ...comun, modalidad: "destajo", destajo: { unidad: form.unidad, tarifa: form.tarifa, produccion: gente.map(g => ({ nombre: g.nombre, cantidad: form.soloTotal ? "" : g.valor })), total: form.soloTotal ? form.total : "", autorizoParejo: form.soloTotal && form.parejo ? session.nombre : "" } });
     if (!res.ok) { setDice(res.dice); return; }
@@ -8188,12 +8231,12 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
     if (!yaLlegaron) {
       if (!form.transporte) { setDice("Falta decir cómo llegaron (si no se sabe, escoge \"Sin transporte registrado\")."); return; }
       const v = (data.maquinaria || []).find(m => m.id === form.vehiculoId);
-      const t = registrarTraslado({ cuadrillaId: comun.cuadrillaId, cuadrilla: nombreCq, tipo: form.transporte, vehiculoId: form.vehiculoId, vehiculo: v?.nombre || "", monto: form.flete, personas: gente.length, fecha: hoy, cuando: ahora, capturado: ahora, quien });
+      const t = registrarTraslado({ cuadrillaId: comun.cuadrillaId, cuadrilla: nombreCq, tipo: form.transporte, vehiculoId: form.vehiculoId, vehiculo: v?.nombre || "", monto: form.flete, personas: gente.length || Number(form.cuantos) || 0, fecha: fechaReg, cuando: paso, capturado: ahora, quien });
       if (!t.ok) { setDice(t.dice); return; }
       traslado = t.evento;
     }
     add("eventos", res.evento); if (traslado) add("eventos", traslado);
-    setForm(null); setDice("");
+    setDia(fechaReg); setForm(null); setDice("");
   };
   const cancelarRegistro = () => {
     const res = cancelarEvento(cancelando.evento, { motivo: cancelando.motivo, quien, cuando: new Date().toISOString() });
@@ -8210,6 +8253,7 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
         <div className="top-bar"><button className="btn-ghost" onClick={() => { setForm(null); setDice(""); }}>‹</button><h2>Registrar cuadrilla</h2></div>
         <div className="section-pad">
           <div className="card">
+            <div className="form-group"><label className="form-label" htmlFor="cq-fecha">Día en que trabajaron</label><input id="cq-fecha" type="date" className="inp" max={hoy} value={form.fecha} onChange={e => pon({ fecha: e.target.value || hoy })} /></div>
             <div className="form-group"><label className="form-label" htmlFor="cq-cual">Cuadrilla</label>
               <select id="cq-cual" className="inp" value={form.cuadrillaId} onChange={e => { const c = catalogo.find(x => x.id === e.target.value); pon({ cuadrillaId: e.target.value, responsable: c?.responsable || form.responsable }); }}>
                 <option value="">¿Cuál vino?</option>
@@ -8225,14 +8269,30 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
               <option value="">¿Haciendo qué?</option>{actividades.map(a => <option key={a} value={a}>{a}</option>)}<option value="__otra__">Otra cosa…</option>
             </select>
             {form.actividad === "__otra__" && <input className="inp" aria-label="Otra actividad" placeholder="¿Qué hicieron?" value={form.otraAct} onChange={e => pon({ otraAct: e.target.value })} style={{ marginTop: 8 }} />}
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <input className="inp" type="number" inputMode="decimal" aria-label="Hectáreas trabajadas" placeholder="Hectáreas (opcional)" value={form.hectareas} onChange={e => pon({ hectareas: e.target.value })} style={{ flex: 1 }} />
+              <input className="inp" aria-label="Nota" placeholder="Nota (opcional)" value={form.nota} onChange={e => pon({ nota: e.target.value })} style={{ flex: 2 }} />
+            </div>
           </div>
+          {anteriores.length > 0 && (
+            <div className="card" style={{ borderColor: "var(--gold)" }}>
+              <div className="card-title" style={{ color: "var(--gold)" }}>Ese día ya está capturado por la pantalla anterior</div>
+              <div className="text-sm">{anteriores.length} registro(s) por {fmt(anteriores.reduce((t, a) => t + (Number(a.costoMO) || 0), 0))}. Si guardas éste, <b>el pago de ese día sale de aquí</b> y lo anterior deja de contar (no se borra). Nunca se suman los dos.</div>
+            </div>
+          )}
 
           <div className="card">
             <div className="card-title">Cómo cobran</div>
             <div className="tabs-pill" style={{ padding: "0 0 12px" }}>
               <button className={`tab-pill${form.modalidad === "dia" ? " active" : ""}`} onClick={() => pon({ modalidad: "dia", gente: form.gente.map(g => ({ ...g, valor: "" })) })}>Por día</button>
               <button className={`tab-pill${form.modalidad === "destajo" ? " active" : ""}`} onClick={() => pon({ modalidad: "destajo", gente: form.gente.map(g => ({ ...g, valor: "" })) })}>Destajo</button>
+              <button className={`tab-pill${form.modalidad === "precio" ? " active" : ""}`} onClick={() => pon({ modalidad: "precio", soloTotal: false, gente: form.gente.map(g => ({ ...g, valor: "" })) })}>Precio por el trabajo</button>
             </div>
+            {form.modalidad === "precio" && <>
+              <div className="form-group"><label className="form-label" htmlFor="cq-precio">En cuánto se acordó todo el trabajo ($)</label><input id="cq-precio" className="inp" type="number" inputMode="decimal" value={form.precio} onChange={e => pon({ precio: e.target.value })} /></div>
+              <div className="form-group"><label className="form-label" htmlFor="cq-cuantos">Cuántos vinieron (si no se anotan los nombres)</label><input id="cq-cuantos" className="inp" type="number" inputMode="numeric" value={form.cuantos} onChange={e => pon({ cuantos: e.target.value })} /></div>
+              <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Es un pago al grupo: no se le calcula a cada persona cuánto le tocó.</div>
+            </>}
             {form.modalidad === "dia" && <div className="form-group"><label className="form-label" htmlFor="cq-todos">Pago por día de cada persona ($)</label><input id="cq-todos" className="inp" type="number" inputMode="decimal" placeholder="Lo mismo para todos, salvo quien tenga otro" value={form.pagoTodos} onChange={e => pon({ pagoTodos: e.target.value })} /></div>}
             {form.modalidad === "destajo" && (
               <div style={{ display: "flex", gap: 8 }}>
@@ -8245,9 +8305,9 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
               {conocidos.length > 0 && gente.length === 0 && <button className="acc-link" onClick={() => pon({ gente: conocidos.map(c => ({ nombre: c.nombre, valor: form.modalidad === "dia" && c.pagoDia ? String(c.pagoDia) : "" })) })}>Los de la vez pasada ({conocidos.length})</button>}
             </div>
             {form.gente.map((g, i) => (
-              <div key={i} className="dj-fila" style={{ gridTemplateColumns: form.soloTotal ? "1fr 34px" : "1fr 96px 34px" }}>
+              <div key={i} className="dj-fila" style={{ gridTemplateColumns: form.soloTotal || form.modalidad === "precio" ? "1fr 34px" : "1fr 96px 34px" }}>
                 <input className="inp" aria-label={`Nombre ${i + 1}`} placeholder="Nombre" value={g.nombre} onChange={e => ponGente(i, { nombre: e.target.value })} />
-                {!form.soloTotal && <input className="inp" type="number" inputMode="decimal" aria-label={form.modalidad === "dia" ? `Pago de ${g.nombre || i + 1}` : `Cuánto hizo ${g.nombre || i + 1}`} placeholder={form.modalidad === "dia" ? (form.pagoTodos || "$") : form.unidad} value={g.valor} onChange={e => ponGente(i, { valor: e.target.value })} />}
+                {!form.soloTotal && form.modalidad !== "precio" && <input className="inp" type="number" inputMode="decimal" aria-label={form.modalidad === "dia" ? `Pago de ${g.nombre || i + 1}` : `Cuánto hizo ${g.nombre || i + 1}`} placeholder={form.modalidad === "dia" ? (form.pagoTodos || "$") : form.unidad} value={g.valor} onChange={e => ponGente(i, { valor: e.target.value })} />}
                 <button className="btn-ghost" title="Quitar" onClick={() => pon({ gente: form.gente.length > 1 ? form.gente.filter((_, k) => k !== i) : [{ nombre: "", valor: "" }] })}>×</button>
               </div>
             ))}
@@ -8265,7 +8325,7 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
 
           <div className="card">
             <div className="card-title">Cómo llegaron</div>
-            {yaLlegaron ? <div className="text-sm text-muted">Su transporte de hoy ya está registrado. No se vuelve a capturar.</div> : <>
+            {yaLlegaron ? <div className="text-sm text-muted">Su transporte de ese día ya está registrado. No se vuelve a capturar.</div> : <>
               <select className="inp" aria-label="Transporte" value={form.transporte} onChange={e => pon({ transporte: e.target.value })} style={{ marginBottom: 8 }}>
                 <option value="">Escoge…</option>
                 <option value="propio">En un vehículo del rancho</option>
@@ -8295,14 +8355,16 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
     <div>
       <div className="top-bar"><button className="btn-ghost" onClick={onClose}>‹</button><h2>Cuadrillas</h2></div>
       <div className="section-pad">
-        <button className="btn btn-accent" style={{ width: "100%", marginBottom: 14 }} onClick={() => { setForm(F0); setDice(""); }}>Registrar una cuadrilla de hoy</button>
-        {deHoy.length === 0 && <div className="card"><div className="text-sm text-muted">Hoy no se ha registrado ninguna cuadrilla. Aquí van los grupos eventuales que llegan juntos; los trabajadores de planta checan con su credencial y se asignan en Equipos de trabajo.</div></div>}
+        <button className="btn btn-accent" style={{ width: "100%", marginBottom: 10 }} onClick={() => { setForm({ ...F0, fecha: dia }); setDice(""); }}>Registrar una cuadrilla</button>
+        <div className="form-group"><label className="form-label" htmlFor="cq-dia">Ver el día</label><input id="cq-dia" type="date" className="inp" max={hoy} value={dia} onChange={e => setDia(e.target.value || hoy)} /></div>
+        {deHoy.length === 0 && <div className="card"><div className="text-sm text-muted">{dia === hoy ? "Hoy" : "Ese día"} no se ha registrado ninguna cuadrilla. Aquí van los grupos eventuales que llegan juntos; los trabajadores de planta checan con su credencial y se asignan en Equipos de trabajo.</div></div>}
         {deHoy.map(e => {
           const vive = estaVigente(e); const pagos = pagosDe(e); const t = trasladosHoy.find(x => x.datos.cuadrillaId === e.datos.cuadrillaId);
           return (
             <div key={e.id} className="card" style={{ opacity: vive ? 1 : 0.55 }}>
               <div className="flex-b"><span className="card-title" style={{ marginBottom: 0, textDecoration: vive ? "none" : "line-through" }}>{e.datos.cuadrilla}</span><b>{fmt(pagos.reduce((s, p) => s + p.monto, 0))}</b></div>
-              <div className="text-sm" style={{ margin: "2px 0 8px" }}>{parcela(e.datos.parcelaId)} · {e.datos.actividad} · {pagos.length} persona(s) · {e.datos.modalidad === "dia" ? "pago por día" : `destajo a ${fmt(e.datos.destajo.tarifa)} por ${e.datos.destajo.unidad}`}</div>
+              <div className="text-sm" style={{ margin: "2px 0 8px" }}>{parcela(e.datos.parcelaId)} · {e.datos.actividad} · {e.datos.modalidad === "precio" ? e.datos.precio.personas : pagos.length} persona(s) · {e.datos.modalidad === "dia" ? "pago por día" : e.datos.modalidad === "precio" ? "precio por el trabajo" : `destajo a ${fmt(e.datos.destajo.tarifa)} por ${e.datos.destajo.unidad}`}{e.datos.hectareas ? ` · ${fmtN(e.datos.hectareas)} ha` : ""}</div>
+              {e.datos.nota && <div className="text-xs text-muted" style={{ marginBottom: 6 }}>"{e.datos.nota}"</div>}
               {pagos.map(p => <div key={p.persona} className="mo-act"><span>{p.persona}</span><span className="text-muted">{p.unidades != null ? `${fmtN(p.unidades)} ${e.datos.destajo.unidad}${p.parejo ? " (parejo)" : ""}` : ""}</span><b>{fmt(p.monto)}</b></div>)}
               <div className="text-xs text-muted" style={{ marginTop: 8 }}>
                 {e.datos.responsable ? `Responsable: ${e.datos.responsable} · ` : ""}{t ? (t.datos.tipo === "flete" ? `Flete externo de ${fmt(t.datos.monto)}` : t.datos.tipo === "propio" ? `Llegaron en ${t.datos.vehiculo || "vehículo del rancho"}` : "Sin transporte registrado") : "Transporte sin registrar"} · Lo registró {e.quien?.nombre}
@@ -8323,6 +8385,289 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setCancelando(null)}>No</button>
               <button className="btn btn-accent" style={{ flex: 1 }} onClick={cancelarRegistro}>Cancelar registro</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// El almacén por movimientos: entregar NO es gastar. Lo que sale queda con
+// alguien hasta que se cierra: se usó (y ahí nace el costo, una vez), regresó,
+// se quedó con otra persona, o se dio de baja con su causa.
+function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
+  const hoy = today();
+  const quien = quienDe(session);
+  const estado = data.almacen || estadoDelAlmacen(data.eventos);
+  const articulos = data.inventario || [];
+  const [tab, setTab] = useState("entregar");
+  const E0 = { articuloId: "", cantidad: "", recibe: "", otro: "", destino: "", destinoId: "", actividad: "", nota: "" };
+  const [form, setForm] = useState(E0);
+  const [dice, setDice] = useState("");
+  const [listo, setListo] = useState(null);           // { texto, avisos }
+  const [leyendo, setLeyendo] = useState(false);
+  const [cierre, setCierre] = useState(null);         // { lote, usado, devuelto, pasaCant, pasaA, pasaOtro, bajaCant, bajaCausa, destino, destinoId, actividad }
+  const [cancela, setCancela] = useState(null);       // { lote, motivo }
+  const [codigo, setCodigo] = useState(null);         // artículo del que se enseña el código
+  const [mueve, setMueve] = useState(null);           // { articulo, cantidad, a }
+  const pon = (c) => setForm(f => ({ ...f, ...c }));
+  const articulo = articulos.find(a => a.id === form.articuloId);
+  const parcelaN = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "Parcela";
+  const gente = [
+    ...(data.trabajadores || []).filter(t => t.activo !== false).map(t => ({ v: `trabajador|${t.id}`, tipo: "trabajador", id: t.id, nombre: t.nombre })),
+    ...(data.encargados || []).map(t => ({ v: `encargado|${t.id}`, tipo: "encargado", id: t.id, nombre: t.nombre })),
+    ...(data.cuadrillas || []).map(t => ({ v: `cuadrilla|${t.id}`, tipo: "cuadrilla", id: t.id, nombre: t.nombre })),
+  ];
+  const quienRecibe = (v, otro) => (v === "__otro__" ? (otro.trim() ? { tipo: "otro", id: null, nombre: otro } : null) : gente.find(g => g.v === v) || null);
+  const destinoDe = (tipo, id, actividad) => {
+    if (tipo === "parcela") return id ? { tipo, id, nombre: parcelaN(id), actividad } : null;
+    if (tipo === "vehiculo") return id ? { tipo, id, nombre: (data.maquinaria || []).find(m => m.id === id)?.nombre || "Vehículo", actividad } : null;
+    if (tipo === "general") return { tipo, actividad };
+    return null;
+  };
+  const decirDestino = (d) => (!d ? "sin decir para qué" : d.tipo === "general" ? "uso general del rancho" : `${d.nombre}${d.actividad ? ` · ${d.actividad}` : ""}`);
+  const pendientes = porCerrar(estado, { hoy });
+  const consumosHoy = costoDeConsumos(estado, { desde: hoy, hasta: hoy });
+  const lugares = [...new Set(articulos.flatMap(a => Object.keys(a._otrosLugares || {})))];
+
+  const camposDestino = (v, cambia, pref) => (<>
+    <select className="inp" aria-label={`${pref}Para qué es`} value={v.destino} onChange={e => cambia({ destino: e.target.value, destinoId: "" })} style={{ marginBottom: 8 }}>
+      <option value="">¿Para qué es?</option><option value="parcela">Para una parcela</option><option value="vehiculo">Para un vehículo o maquinaria</option><option value="general">Uso general del rancho</option>
+    </select>
+    {v.destino === "parcela" && <select className="inp" aria-label={`${pref}Parcela`} value={v.destinoId} onChange={e => cambia({ destinoId: e.target.value })} style={{ marginBottom: 8 }}><option value="">¿Cuál parcela?</option>{(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select>}
+    {v.destino === "vehiculo" && <select className="inp" aria-label={`${pref}Vehículo`} value={v.destinoId} onChange={e => cambia({ destinoId: e.target.value })} style={{ marginBottom: 8 }}><option value="">¿Cuál?</option>{(data.maquinaria || []).map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}</select>}
+    {v.destino === "parcela" && <select className="inp" aria-label={`${pref}Actividad`} value={v.actividad} onChange={e => cambia({ actividad: e.target.value })} style={{ marginBottom: 8 }}><option value="">¿En qué actividad? (opcional)</option>{ACTIVIDADES_DE_CAMPO.map(a => <option key={a} value={a}>{a}</option>)}</select>}
+  </>);
+  const elegirArticulo = () => (<>
+    <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+      <select className="inp" aria-label="Artículo" value={form.articuloId} onChange={e => pon({ articuloId: e.target.value })} style={{ flex: 1 }}>
+        <option value="">¿Qué artículo?</option>
+        {articulos.map(a => <option key={a.id} value={a.id}>{a.nombre} · hay {fmtN(a.existencia)} {a.unidad}</option>)}
+      </select>
+      <button className="btn btn-outline btn-sm" onClick={() => { setLeyendo(true); setDice(""); }}>Leer código</button>
+    </div>
+    <input className="inp" type="number" inputMode="decimal" aria-label="Cantidad" placeholder={articulo ? `¿Cuánto? (${articulo.unidad})` : "¿Cuánto?"} value={form.cantidad} onChange={e => pon({ cantidad: e.target.value })} style={{ marginBottom: 8 }} />
+  </>);
+
+  const guardarEntrega = () => {
+    const ahora = new Date().toISOString();
+    const res = entregar({ articulo, cantidad: form.cantidad, recibe: quienRecibe(form.recibe, form.otro), destino: destinoDe(form.destino, form.destinoId, form.actividad), nota: form.nota, existencia: articulo?.existencia, quien, cuando: ahora, fecha: hoy, capturado: ahora });
+    if (!res.ok) { setDice(res.dice); return; }
+    add("eventos", res.evento);
+    setListo({ texto: `Entregado: ${fmtN(res.evento.datos.cantidad)} ${res.evento.datos.unidad} de ${res.evento.datos.articulo} a ${res.evento.datos.recibe.nombre}. Queda a su cargo hasta que se cierre; todavía no cuenta como gastado.`, avisos: res.avisos });
+    setForm(E0); setDice("");
+  };
+  const guardarDirecto = () => {
+    const ahora = new Date().toISOString();
+    const res = consumirDirecto({ articulo, cantidad: form.cantidad, destino: destinoDe(form.destino, form.destinoId, form.actividad), quien, cuando: ahora, fecha: hoy, capturado: ahora });
+    if (!res.ok) { setDice(res.dice); return; }
+    add("eventos", res.evento);
+    const d = res.evento.datos;
+    setListo({ texto: `Usado: ${fmtN(d.cantidad)} ${d.unidad} de ${d.articulo} en ${decirDestino(d.destino)}${d.costoUnit ? `. Se le cargan ${fmt(d.costoUnit * d.cantidad)}, al costo promedio.` : "."}`, avisos: res.avisos });
+    setForm(E0); setDice("");
+  };
+  const guardarCierre = () => {
+    const ahora = new Date().toISOString(); const c = cierre;
+    const art = articulos.find(a => a.id === c.lote.articuloId);
+    const res = cerrarEntrega({ lote: c.lote, articulo: art, usado: c.usado, devuelto: c.devuelto,
+      pasa: Number(c.pasaCant) > 0 ? { cantidad: c.pasaCant, recibe: quienRecibe(c.pasaA, c.pasaOtro) } : null,
+      baja: Number(c.bajaCant) > 0 ? { cantidad: c.bajaCant, causa: c.bajaCausa } : null,
+      destino: destinoDe(c.destino, c.destinoId, c.actividad), quien, cuando: ahora, fecha: hoy, capturado: ahora });
+    if (!res.ok) { setDice(res.dice); return; }
+    res.eventos.forEach(e => add("eventos", e));
+    setListo({ texto: `Cerrado lo de ${c.lote.recibe.nombre}.`, avisos: res.avisos }); setCierre(null); setDice("");
+  };
+  const sigueConEl = (lote) => { const r = seQueda({ lote, quien, cuando: new Date().toISOString(), fecha: hoy }); if (r.ok) add("eventos", r.evento); else setDice(r.dice); };
+  const cancelarEntrega = () => {
+    const e = (data.eventos || []).find(x => x.id === cancela.lote.id);
+    const res = cancelarEvento(e, { motivo: cancela.motivo, quien, cuando: new Date().toISOString() });
+    if (!res.ok) { setDice(res.dice); return; }
+    if (cambioPermitido(e, res.evento)) upd("eventos", res.evento);
+    setCancela(null); setDice("");
+  };
+  const guardarMovida = () => {
+    const res = transferir({ articulo: mueve.articulo, cantidad: mueve.cantidad, de: ALMACEN_PRINCIPAL, a: mueve.a.trim(), quien, cuando: new Date().toISOString(), fecha: hoy });
+    if (!res.ok) { setDice(res.dice); return; }
+    add("eventos", res.evento); setMueve(null); setDice("");
+  };
+  const resta = cierre ? Math.round((cierre.lote.saldo - ["usado", "devuelto", "pasaCant", "bajaCant"].reduce((t, k) => t + (Number(cierre[k]) || 0), 0)) * 1000) / 1000 : 0;
+  const tarjeta = (l, revisado) => (
+    <div key={l.id} className="card" style={!revisado && l.dias > 0 ? { borderColor: "var(--gold)" } : undefined}>
+      <div className="flex-b"><span className="card-title" style={{ marginBottom: 0 }}>{l.recibe.nombre}</span><b>{fmtN(l.saldo)} {l.unidad}</b></div>
+      <div className="text-sm" style={{ margin: "2px 0 4px" }}>{l.articulo}{l.herramienta ? " · herramienta" : ""} · {l.herramienta ? "prestada" : decirDestino(l.destino)}</div>
+      <div className="text-xs text-muted">{l.dias === 0 ? `Desde hoy a las ${horaCorta(l.desde)}` : `Lo trae desde hace ${l.dias} día(s) (${l.fecha})`}{l.cantidad !== l.saldo ? ` · se le entregaron ${fmtN(l.cantidad)}` : ""} · lo entregó {l.entrego}{revisado ? " · revisado hoy" : ""}</div>
+      <div className="jor-acc">
+        <button onClick={() => { setCierre({ lote: l, usado: "", devuelto: "", pasaCant: "", pasaA: "", pasaOtro: "", bajaCant: "", bajaCausa: "", destino: "", destinoId: "", actividad: "" }); setDice(""); setListo(null); }}>{l.herramienta ? "Regresó o cambió de manos" : "Cerrar: se usó o regresó"}</button>
+        {!revisado && <button onClick={() => sigueConEl(l)}>Sigue con {l.recibe.nombre.split(" ")[0]}</button>}
+        {l.cantidad === l.saldo && <button onClick={() => { setCancela({ lote: l, motivo: "" }); setDice(""); }}>Fue un error</button>}
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="top-bar"><button className="btn-ghost" onClick={onClose}>‹</button><h2 style={{ flex: 1 }}>Entregas del almacén</h2>
+        <button className="btn btn-outline btn-sm" onClick={() => onNav("vales")}>Conteo</button></div>
+      <div className="tabs-pill">
+        {[["entregar", "Entregar"], ["cerrar", `Por cerrar${pendientes.pendientes.length ? ` (${pendientes.pendientes.length})` : ""}`], ["directo", "Usar directo"], ["hay", "Qué hay"]].map(([v, t]) => (
+          <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => { setTab(v); setDice(""); setListo(null); setForm(E0); }}>{t}</button>
+        ))}
+      </div>
+      <div className="section-pad">
+        {listo && (
+          <div className="card" style={{ borderColor: "var(--green)" }}>
+            <div className="text-sm">{listo.texto}</div>
+            {listo.avisos.map((a, i) => <div key={i} className="text-xs" style={{ color: "var(--gold)", marginTop: 6 }}>{a}</div>)}
+          </div>
+        )}
+        {articulos.length === 0 && <div className="card"><div className="text-sm text-muted">Todavía no hay artículos en el inventario. Se dan de alta en Inventario, con su conteo inicial.</div></div>}
+
+        {tab === "entregar" && articulos.length > 0 && (
+          <div className="card">
+            <div className="card-title">Sale del almacén y lo trae alguien</div>
+            {elegirArticulo()}
+            <select className="inp" aria-label="Quién lo recibe" value={form.recibe} onChange={e => pon({ recibe: e.target.value })} style={{ marginBottom: 8 }}>
+              <option value="">¿Quién lo recibe?</option>
+              {gente.map(g => <option key={g.v} value={g.v}>{g.nombre}{g.tipo === "cuadrilla" ? " (cuadrilla)" : ""}</option>)}
+              <option value="__otro__">Otra persona…</option>
+            </select>
+            {form.recibe === "__otro__" && <input className="inp" aria-label="Nombre de quien recibe" placeholder="¿Quién?" value={form.otro} onChange={e => pon({ otro: e.target.value })} style={{ marginBottom: 8 }} />}
+            {articulo?.esHerramienta
+              ? <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Es una herramienta: se presta y se devuelve. No genera costo.</div>
+              : camposDestino(form, pon, "")}
+            <input className="inp" aria-label="Nota" placeholder="Nota (opcional)" value={form.nota} onChange={e => pon({ nota: e.target.value })} style={{ marginBottom: 10 }} />
+            {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+            <button className="btn btn-accent" style={{ width: "100%" }} onClick={guardarEntrega}>Entregar</button>
+            <div className="text-xs text-muted" style={{ marginTop: 8 }}>Entregar no es gastar: baja la existencia del almacén y queda a cargo de quien lo recibe. El costo se carga cuando se dice cuánto se usó.</div>
+          </div>
+        )}
+
+        {tab === "cerrar" && <>
+          {pendientes.pendientes.length === 0 && pendientes.yaRevisados.length === 0 && <div className="card"><div className="text-sm text-muted">Nadie trae nada del almacén. Todo lo entregado ya se cerró.</div></div>}
+          {pendientes.deOtrosDias > 0 && <div className="text-sm" style={{ color: "var(--gold)", marginBottom: 10 }}>{pendientes.deOtrosDias} entrega(s) de días anteriores siguen sin cerrar.</div>}
+          {pendientes.pendientes.map(l => tarjeta(l, false))}
+          {pendientes.yaRevisados.length > 0 && <div className="form-label" style={{ margin: "14px 0 8px" }}>Ya revisado hoy: siguen con ellos</div>}
+          {pendientes.yaRevisados.map(l => tarjeta(l, true))}
+          {consumosHoy.consumos.length > 0 && (
+            <div className="card">
+              <div className="flex-b"><span className="card-title" style={{ marginBottom: 0 }}>Lo que se usó hoy</span><b>{fmt(consumosHoy.total)}</b></div>
+              {consumosHoy.consumos.map(c => <div key={c.ev} className="mo-act"><span>{fmtN(c.cantidad)} {c.unidad} de {c.articulo}<div className="text-xs text-muted">{decirDestino(c.destino)} · {c.quien}</div></span><span /><b>{c.costo != null ? fmt(c.costo) : "sin costo"}</b></div>)}
+              {consumosHoy.sinCosto.length > 0 && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 6 }}>{consumosHoy.sinCosto.length} consumo(s) de artículos sin costo capturado: no cargaron nada. Un costo que falta no es un cero.</div>}
+            </div>
+          )}
+          {estado.huerfanos.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">{estado.huerfanos.length} cierre(s) no se pudieron aplicar completos: su entrega se canceló, o dos personas cerraron lo mismo. No cuentan de más; conviene revisarlos.</div></div>}
+        </>}
+
+        {tab === "directo" && articulos.length > 0 && (
+          <div className="card">
+            <div className="card-title">Sale y se usa en el momento</div>
+            <div className="text-xs text-muted" style={{ marginBottom: 10 }}>Para lo que no queda a cargo de nadie: el diésel que va directo al tanque, el aceite que se le pone a la bomba.</div>
+            {elegirArticulo()}
+            {camposDestino(form, pon, "")}
+            {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+            <button className="btn btn-accent" style={{ width: "100%" }} onClick={guardarDirecto}>Registrar el uso</button>
+          </div>
+        )}
+
+        {tab === "hay" && articulos.map(a => {
+          const fuera = estado.lotes.filter(l => l.articuloId === a.id && l.saldo > 0);
+          return (
+            <div key={a.id} className="card">
+              <div className="flex-b"><span className="card-title" style={{ marginBottom: 0 }}>{a.nombre}</span><b style={{ color: a.existencia < 0 ? "var(--red)" : undefined }}>{fmtN(a.existencia)} {a.unidad}</b></div>
+              <div className="text-xs text-muted">En el almacén{a.esHerramienta ? " · herramienta" : ""}{a.existencia < 0 ? " · en negativo: entró algo que nadie capturó, o salió más de lo anotado" : ""}</div>
+              {Object.entries(a._otrosLugares || {}).map(([lugar, n]) => <div key={lugar} className="mo-act"><span>En {lugar}</span><span /><b>{fmtN(n)} {a.unidad}</b></div>)}
+              {fuera.map(l => <div key={l.id} className="mo-act"><span>Lo trae {l.recibe.nombre}</span><span className="text-muted">{l.fecha === hoy ? "hoy" : l.fecha}</span><b>{fmtN(l.saldo)} {a.unidad}</b></div>)}
+              <div className="jor-acc">
+                <button onClick={() => setCodigo(a)}>Su código</button>
+                <button onClick={() => { setMueve({ articulo: a, cantidad: "", a: "" }); setDice(""); }}>Mover a otro lugar</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {leyendo && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setLeyendo(false); }}>
+          <div className="modal-sheet">
+            <div className="flex-b" style={{ marginBottom: 8 }}><span className="card-title" style={{ marginBottom: 0 }}>Código del artículo</span><button className="acc-link" onClick={() => setLeyendo(false)}>Cerrar</button></div>
+            <LectorQR pausado={false} onLeer={(texto) => { const r = leerArticulo(texto, articulos); if (r.ok) { pon({ articuloId: r.articulo.id }); setLeyendo(false); setDice(""); } else setDice(r.dice); }} />
+            {dice && <div className="text-sm" style={{ color: "var(--red)", marginTop: 8 }}>{dice}</div>}
+          </div>
+        </div>
+      )}
+      {codigo && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setCodigo(null); }}>
+          <div className="modal-sheet" style={{ textAlign: "center" }}>
+            <div className="card-title">{codigo.nombre}</div>
+            <DibujoQR texto={textoDeArticulo(codigo)} lado={200} />
+            <div className="text-xs text-muted" style={{ margin: "10px 0" }}>Se pega en el estante o en el envase. Sólo dice cuál artículo es: ni cuánto hay ni cuánto cuesta.</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setCodigo(null)}>Cerrar</button>
+              <button className="btn btn-accent" style={{ flex: 1 }} onClick={() => window.print()}>Imprimir</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {mueve && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setMueve(null); }}>
+          <div className="modal-sheet">
+            <div className="card-title">Mover {mueve.articulo.nombre} a otro lugar</div>
+            <div className="text-sm text-muted" style={{ marginBottom: 10 }}>Sale del almacén principal y queda guardado en otro lado (otra bodega, la caseta del pozo). No es un gasto ni queda a cargo de una persona.</div>
+            <input className="inp" type="number" inputMode="decimal" aria-label="Cuánto se mueve" placeholder={`¿Cuánto? (${mueve.articulo.unidad})`} value={mueve.cantidad} onChange={e => setMueve(m => ({ ...m, cantidad: e.target.value }))} style={{ marginBottom: 8 }} />
+            <input className="inp" list="alm-lugares" aria-label="A qué lugar" placeholder="¿A dónde?" value={mueve.a} onChange={e => setMueve(m => ({ ...m, a: e.target.value }))} style={{ marginBottom: 10 }} />
+            <datalist id="alm-lugares">{lugares.map(l => <option key={l} value={l} />)}</datalist>
+            {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setMueve(null)}>No</button>
+              <button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarMovida}>Mover</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {cancela && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setCancela(null); }}>
+          <div className="modal-sheet">
+            <div className="card-title">Cancelar la entrega a {cancela.lote.recibe.nombre}</div>
+            <div className="text-sm text-muted" style={{ marginBottom: 10 }}>No se borra: queda tachada, con quién la canceló y por qué, y la existencia regresa al almacén.</div>
+            <input className="inp" aria-label="Por qué se cancela" placeholder="Por qué (queda escrito)" value={cancela.motivo} onChange={e => setCancela(c => ({ ...c, motivo: e.target.value }))} style={{ marginBottom: 10 }} />
+            {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setCancela(null)}>No</button>
+              <button className="btn btn-accent" style={{ flex: 1 }} onClick={cancelarEntrega}>Cancelar entrega</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {cierre && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setCierre(null); }}>
+          <div className="modal-sheet">
+            <div className="card-title">{cierre.lote.recibe.nombre} trae {fmtN(cierre.lote.saldo)} {cierre.lote.unidad} de {cierre.lote.articulo}</div>
+            {!cierre.lote.herramienta && <div className="form-group"><label className="form-label" htmlFor="ci-uso">Se usó</label><input id="ci-uso" className="inp" type="number" inputMode="decimal" placeholder="0" value={cierre.usado} onChange={e => setCierre(c => ({ ...c, usado: e.target.value }))} /></div>}
+            {!cierre.lote.herramienta && Number(cierre.usado) > 0 && !cierre.lote.destino && camposDestino(cierre, (c) => setCierre(x => ({ ...x, ...c })), "Cierre: ")}
+            <div className="form-group"><label className="form-label" htmlFor="ci-dev">Regresó al almacén</label><input id="ci-dev" className="inp" type="number" inputMode="decimal" placeholder="0" value={cierre.devuelto} onChange={e => setCierre(c => ({ ...c, devuelto: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label" htmlFor="ci-pasa">Se quedó con otra persona</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input id="ci-pasa" className="inp" type="number" inputMode="decimal" placeholder="0" value={cierre.pasaCant} onChange={e => setCierre(c => ({ ...c, pasaCant: e.target.value }))} style={{ flex: 1 }} />
+                <select className="inp" aria-label="Con quién se queda" value={cierre.pasaA} onChange={e => setCierre(c => ({ ...c, pasaA: e.target.value }))} style={{ flex: 2 }}>
+                  <option value="">¿Con quién?</option>{gente.map(g => <option key={g.v} value={g.v}>{g.nombre}</option>)}<option value="__otro__">Otra persona…</option>
+                </select>
+              </div>
+              {cierre.pasaA === "__otro__" && <input className="inp" aria-label="Nombre de quien se lo queda" placeholder="¿Quién?" value={cierre.pasaOtro} onChange={e => setCierre(c => ({ ...c, pasaOtro: e.target.value }))} style={{ marginTop: 8 }} />}
+            </div>
+            <div className="form-group"><label className="form-label" htmlFor="ci-baja">Se rompió, se perdió o se acabó</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input id="ci-baja" className="inp" type="number" inputMode="decimal" placeholder="0" value={cierre.bajaCant} onChange={e => setCierre(c => ({ ...c, bajaCant: e.target.value }))} style={{ flex: 1 }} />
+                <select className="inp" aria-label="Por qué se da de baja" value={cierre.bajaCausa} onChange={e => setCierre(c => ({ ...c, bajaCausa: e.target.value }))} style={{ flex: 2 }}>
+                  <option value="">¿Qué pasó?</option>{Object.entries(CAUSAS_BAJA).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="text-sm" style={{ marginBottom: 10, color: resta < 0 ? "var(--red)" : undefined }}>{resta < 0 ? `Sobran ${fmtN(-resta)}: es más de lo que traía.` : resta > 0 ? `Lo demás (${fmtN(resta)} ${cierre.lote.unidad}) sigue con ${cierre.lote.recibe.nombre}.` : "Con esto queda todo cerrado."}</div>
+            {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setCierre(null)}>No</button>
+              <button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarCierre}>Guardar</button>
             </div>
           </div>
         </div>
@@ -8353,25 +8698,29 @@ function ManoDeObra({ data, add, session, onClose }) {
   // Las cuadrillas eventuales entran al mismo reporte: lo que cobró cada persona y el flete externo repartido.
   const cq = useMemo(() => costoDeCuadrillas(data.eventos, { desde: rango.desde, hasta: rango.hasta, criterioFlete: ajusteVigente(data.eventos, "criterio_flete").valor }), [data.eventos, rango.desde, rango.hasta]);
   const partesCq = cq.partes.map(p => ({ ...p, trabajadorId: `cq|${p.cuadrillaId}|${p.persona || "~flete"}`, minutos: null, deCuadrilla: true }));
-  const todas = [...r.partes, ...partesCq];
+  // Para agrupar: el tiempo de un operador va con su vehículo, no en "fuera de parcelas".
+  const todas = [...r.partes.map(p => (p.vehiculoId && !p.parcelaId ? { ...p, parcelaId: `v:${p.vehiculoId}` } : p)), ...partesCq];
+  const consumosAlm = useMemo(() => costoDeConsumos(data.almacen || estadoDelAlmacen(data.eventos), { desde: rango.desde, hasta: rango.hasta }), [data.almacen, data.eventos, rango.desde, rango.hasta]);
+  const vehiculos = useMemo(() => costoDeVehiculos({ vehiculos: data.maquinaria || [], partes: r.partes, consumos: consumosAlm.consumos, egresos: data.egresos || [], viajes: cq.propios, desde: rango.desde, hasta: rango.hasta }), [data.maquinaria, data.egresos, r.partes, consumosAlm, cq.propios, rango.desde, rango.hasta]);
+  const noContado = data.noContado || { cuadrillas: [], totalCuadrillas: 0, planta: 0, totalPlanta: 0 };
   const nombre = (id) => {
     if (String(id).startsWith("cq|")) { const p = partesCq.find(x => x.trabajadorId === id); return p ? (p.persona ? `${p.persona} · ${p.cuadrilla}` : `Flete externo · ${p.cuadrilla}`) : "Cuadrilla"; }
     return (data.trabajadores || []).find(t => t.id === id)?.nombre || "Sin ficha en este aparato";
   };
-  const parcela = (id) => (id ? (data.parcelas || []).find(p => p.id === id)?.nombre || "Parcela que no está en este aparato" : "Fuera de parcelas");
+  const parcela = (id) => (!id ? "Fuera de parcelas" : String(id).startsWith("v:") ? `${(data.maquinaria || []).find(m => m.id === String(id).slice(2))?.nombre || "Vehículo"} (operador)` : (data.parcelas || []).find(p => p.id === id)?.nombre || "Parcela que no está en este aparato");
   const grupos = vista === "parcela" ? agrupar(todas, ["parcelaId"]) : agrupar(todas, ["trabajadorId"]);
   const adicionales = acumular(r.horasAdicionales, "trabajadorId");
   const etiquetas = (g) => <>{g.provisional && <span className="jor-etq">sigue adentro</span>}{g.estimado && <span className="jor-etq">sueldo estimado</span>}</>;
-  const modalidad = { dia: "pago por día", hora: "pago por hora", destajo: "destajo", flete: "flete externo" };
+  const modalidad = { dia: "pago por día", hora: "pago por hora", destajo: "destajo", flete: "flete externo", precio: "precio por el trabajo" };
   const decir = (id) => {
     const e = (data.eventos || []).find(x => x.id === id);
     if (!e) return { titulo: "Un evento que este aparato todavía no ha bajado", linea: id };
     const base = `${fechaLocal(new Date(e.cuando))} · ${horaCorta(e.cuando)}`;
     const quienFue = `Lo registró ${e.quien?.nombre || "—"}${e.relacion === "corrige" ? " (corrección)" : ""}`;
     if (e.tipo === "marca") return { titulo: `${base} · ${e.datos.sentido}`, linea: `${e.datos.via === "qr" ? "Con credencial" : e.datos.via === "pin" ? "Con PIN" : e.datos.via === "remoto" ? `Directo a ${e.datos.lugar?.nombre || "campo"}` : `A mano: "${e.datos.motivo || ""}"`} · ${quienFue}` };
-    if (e.tipo === "asignacion") return { titulo: `${base} · asignado a ${parcela(e.datos.parcelaId)}`, linea: `${e.datos.actividad}${e.datos.cuadrilla ? ` · ${e.datos.cuadrilla}` : ""} · junto con ${e.datos.trabajadorIds.length - 1} más · ${quienFue}` };
+    if (e.tipo === "asignacion") return { titulo: `${base} · asignado a ${e.datos.vehiculoId ? (e.datos.vehiculo || "un vehículo") : parcela(e.datos.parcelaId)}`, linea: `${e.datos.actividad}${e.datos.cuadrilla ? ` · ${e.datos.cuadrilla}` : ""} · junto con ${e.datos.trabajadorIds.length - 1} más · ${quienFue}` };
     if (e.tipo === "destajo") return { titulo: `${base} · destajo`, linea: `${e.datos.produccion ? "Con lo que hizo cada quien" : `${fmtN(e.datos.cantidad)} ${e.datos.unidad} entre ${e.datos.trabajadorIds.length}${e.datos.parejo ? ", repartido parejo" : ""}`} · a ${fmt(e.datos.tarifa)} por ${e.datos.unidad} · ${quienFue}` };
-    if (e.tipo === "cuadrilla_dia") return { titulo: `${e.fecha} · ${e.datos.cuadrilla} en ${parcela(e.datos.parcelaId)}`, linea: `${e.datos.actividad} · ${pagosDe(e).length} persona(s) · ${e.datos.modalidad === "dia" ? "pago por día" : `destajo a ${fmt(e.datos.destajo.tarifa)} por ${e.datos.destajo.unidad}${e.datos.destajo.parejo ? `, repartido parejo (lo autorizó ${e.datos.destajo.autorizoParejo})` : ""}`}${e.datos.responsable ? ` · responsable: ${e.datos.responsable}` : ""} · ${quienFue}` };
+    if (e.tipo === "cuadrilla_dia") return { titulo: `${e.fecha} · ${e.datos.cuadrilla} en ${parcela(e.datos.parcelaId)}`, linea: `${e.datos.actividad} · ${e.datos.modalidad === "precio" ? e.datos.precio.personas : pagosDe(e).length} persona(s) · ${e.datos.modalidad === "dia" ? "pago por día" : e.datos.modalidad === "precio" ? `precio por el trabajo: ${fmt(e.datos.precio.monto)}` : `destajo a ${fmt(e.datos.destajo.tarifa)} por ${e.datos.destajo.unidad}${e.datos.destajo.parejo ? `, repartido parejo (lo autorizó ${e.datos.destajo.autorizoParejo})` : ""}`}${e.datos.responsable ? ` · responsable: ${e.datos.responsable}` : ""} · ${quienFue}` };
     if (e.tipo === "traslado_cuadrilla") return { titulo: `${e.fecha} · transporte de ${e.datos.cuadrilla}`, linea: `${e.datos.tipo === "flete" ? `Flete externo de ${fmt(e.datos.monto)}` : e.datos.tipo === "propio" ? `Vehículo propio: ${e.datos.vehiculo}` : "Sin transporte"} · ${quienFue}` };
     if (e.tipo === "aclaracion") return { titulo: `Aclarado: ${CAUSAS_SIN_ASIGNAR[e.datos.causa] || e.datos.causa}`, linea: `${e.datos.nota ? `"${e.datos.nota}" · ` : ""}${quienFue}` };
     return { titulo: `${base} · ${e.tipo}`, linea: quienFue };
@@ -8406,7 +8755,7 @@ function ManoDeObra({ data, add, session, onClose }) {
           <div className="stat-val" style={{ fontSize: 30 }}>{fmt(sumarDinero(r.total, cq.totalPagos))}</div>
           {cq.total > 0 && <div className="text-xs text-muted">Trabajadores de planta {fmt(r.total)} · cuadrillas {fmt(cq.totalPagos)}{cq.totalFlete > 0 ? ` · más ${fmt(cq.totalFlete)} de flete externo` : ""}</div>}
           <div className="mo-dos">
-            <div><div className="stat-label">Cargado a parcelas</div><b>{fmt(sumarDinero(r.totalAsignado, cq.total))}</b><div className="text-xs text-muted">{horasDe(r.minutosAsignados)} de planta</div></div>
+            <div><div className="stat-label">Cargado a parcelas</div><b>{fmt(sumarDinero(r.totalAParcelas, cq.total))}</b><div className="text-xs text-muted">{horasDe(r.minutosAsignados - r.porVehiculo.reduce((n, v) => n + v.minutos, 0))} de planta</div></div>
             <div><div className="stat-label">Fuera de parcelas</div><b>{fmt(r.totalSinAsignar)}</b><div className="text-xs text-muted">{horasDe(r.minutosSinAsignar)}</div></div>
           </div>
           {r.totalSinAsignar > 0 && (
@@ -8415,7 +8764,8 @@ function ManoDeObra({ data, add, session, onClose }) {
               {r.porCausa.map(c => <div key={c.causa} className="mo-act"><span>{CAUSAS_SIN_ASIGNAR[c.causa]}</span><span className="text-muted">{horasDe(c.minutos)}</span><b>{fmt(c.monto)}</b></div>)}
             </div>
           )}
-          <div className="text-xs text-muted" style={{ marginTop: 8 }}>Las dos partes suman exacto lo pagado. Tiempo sin asignar no quiere decir tiempo perdido: quiere decir que falta aclararlo. No se reparte entre las parcelas para que cuadre.</div>
+          {r.totalAVehiculos > 0 && <div className="mo-act" style={{ marginTop: 10 }}><span>Operando vehículos</span><span className="text-muted">{horasDe(r.porVehiculo.reduce((n, v) => n + v.minutos, 0))}</span><b>{fmt(r.totalAVehiculos)}</b></div>}
+          <div className="text-xs text-muted" style={{ marginTop: 8 }}>Las partes suman exacto lo pagado. Tiempo sin asignar no quiere decir tiempo perdido: quiere decir que falta aclararlo. No se reparte entre las parcelas para que cuadre.</div>
         </div>
 
         <div className="card">
@@ -8440,11 +8790,35 @@ function ManoDeObra({ data, add, session, onClose }) {
             {cq.propios.map((x, i) => <div key={"v" + i} className="jor-marca"><b>{x.cuadrilla}</b> · {x.fecha} · {x.vehiculo || "vehículo propio"}{x.personas ? ` · ${x.personas} personas` : ""}<div className="text-xs text-muted">No lleva importe aquí: su costo sale del combustible, mantenimiento y operador de ese vehículo.</div></div>)}
           </div>
         )}
+        {vehiculos.length > 0 && (
+          <div className="card">
+            <div className="card-title">Lo que costaron los vehículos</div>
+            {vehiculos.map(v => (
+              <div key={v.vehiculoId} style={{ marginBottom: 12 }}>
+                <div className="flex-b"><b>{v.nombre}</b><b>{fmt(v.total)}</b></div>
+                <div className="mo-act"><span>Operador</span><span className="text-muted">{v.minutos ? horasDe(v.minutos) : ""}</span><b>{fmt(v.operador)}</b></div>
+                <div className="mo-act"><span>Combustible y materiales del almacén</span><span /><b>{fmt(v.almacen)}</b></div>
+                <div className="mo-act"><span>Taller y otros gastos pagados</span><span /><b>{fmt(v.gastos)}</b></div>
+                {v.viajes.length > 0 && <div className="text-xs text-muted">{v.viajes.length} viaje(s) con cuadrilla{v.viajesSinOperador > 0 ? ` · en ${v.viajesSinOperador} no hay operador asignado ese día: el tiempo de quien manejó no está en esta cuenta` : ""}</div>}
+                {v.sinCosto > 0 && <div className="text-xs" style={{ color: "var(--gold)" }}>{v.sinCosto} consumo(s) de un artículo sin costo capturado: no suman aquí.</div>}
+              </div>
+            ))}
+            <div className="text-xs text-muted">El operador sale de lo que ya gana (no es otro pago). Este costo todavía no se reparte a las parcelas: falta decidir con qué criterio.</div>
+          </div>
+        )}
+        {(noContado.totalCuadrillas > 0 || noContado.totalPlanta > 0) && (
+          <div className="card">
+            <div className="card-title">Capturas anteriores que ya no cuentan</div>
+            {noContado.totalCuadrillas > 0 && <div className="mo-act"><span>Cuadrillas capturadas también por la pantalla anterior</span><span className="text-muted">{noContado.cuadrillas.length}</span><b>{fmt(noContado.totalCuadrillas)}</b></div>}
+            {noContado.totalPlanta > 0 && <div className="mo-act"><span>Actividades tecleadas de quien ya checó ese día</span><span className="text-muted">{noContado.planta}</span><b>{fmt(noContado.totalPlanta)}</b></div>}
+            <div className="text-xs text-muted" style={{ marginTop: 8 }}>Ese dinero estaba capturado dos veces. Cuenta una sola: la que sale del checador y de Cuadrillas. La captura anterior sigue ahí, sin borrar, pero su mano de obra no entra a los costos. En todo el historial, no sólo en estas fechas.</div>
+          </div>
+        )}
         {(r.avisos.length > 0 || dobles.length > 0) && (
           <div className="card">
             <div className="card-title" style={{ color: "var(--gold)" }}>Por revisar ({r.avisos.length + dobles.length})</div>
             {r.avisos.map((a, i) => <div key={i} className="jor-marca"><b>{nombre(a.trabajadorId)}</b> · {a.fecha}<div className="text-xs text-muted">{a.dice}</div></div>)}
-            {dobles.map((d, i) => <div key={"d" + i} className="jor-marca"><b>{nombre(d.trabajadorId)}</b> · {d.fecha}<div className="text-xs text-muted">Ese día también tiene una actividad tecleada a mano en {parcela(d.parcelaId)}: su costo puede estar contado dos veces. Hay que cancelar una de las dos.</div></div>)}
+            {dobles.map((d, i) => <div key={"d" + i} className="jor-marca"><b>{nombre(d.trabajadorId)}</b> · {d.fecha}<div className="text-xs text-muted">Ese día también tiene una actividad tecleada a mano en {parcela(d.parcelaId)}. No se cuenta dos veces: manda lo del checador. Conviene cancelar la tecleada para que no confunda.</div></div>)}
           </div>
         )}
 
@@ -8482,7 +8856,7 @@ function ManoDeObra({ data, add, session, onClose }) {
             <div className="text-sm" style={{ marginBottom: 10 }}>{nombre(rastro.trabajadorId)} · {parcela(rastro.parcelaId)} · {rastro.fecha}</div>
             {rastro.evs.map(id => { const d = decir(id); return <div key={id} className="jor-marca"><b>{d.titulo}</b><div className="text-xs text-muted">{d.linea}</div></div>; })}
             <div className="text-xs text-muted" style={{ marginTop: 10 }}>
-              {rastro.deCuadrilla && rastro.modalidad === "dia" ? "Cuadrilla, pago por día: lo que se acordó con esta persona por ese día." : rastro.modalidad === "dia" ? "Cobra por día: su día se reparte entre lo que hizo, según el tiempo en cada cosa." : rastro.modalidad === "hora" ? `Cobra por hora: sólo el tiempo que se sabe, sobre un día de ${ajusteVigente(data.eventos, "horas_jornada").valor} horas.` : rastro.parejo ? "Destajo: sólo se sabía el total del grupo y se repartió parejo." : rastro.modalidad === "flete" ? `Flete externo repartido: ${CRITERIOS_FLETE[rastro.criterio] || ""}.` : "Destajo: lo que hizo esta persona por el precio de cada unidad."}
+              {rastro.modalidad === "precio" ? "Cuadrilla, precio por el trabajo: una cantidad acordada por todo, pagada al grupo. No se le reparte a cada persona." : rastro.vehiculoId ? "Tiempo operando el vehículo: la parte de su día que le toca a ese rato. Sale de lo que ya gana." : rastro.deCuadrilla && rastro.modalidad === "dia" ? "Cuadrilla, pago por día: lo que se acordó con esta persona por ese día." : rastro.modalidad === "dia" ? "Cobra por día: su día se reparte entre lo que hizo, según el tiempo en cada cosa." : rastro.modalidad === "hora" ? `Cobra por hora: sólo el tiempo que se sabe, sobre un día de ${ajusteVigente(data.eventos, "horas_jornada").valor} horas.` : rastro.parejo ? "Destajo: sólo se sabía el total del grupo y se repartió parejo." : rastro.modalidad === "flete" ? `Flete externo repartido: ${CRITERIOS_FLETE[rastro.criterio] || ""}.` : "Destajo: lo que hizo esta persona por el precio de cada unidad."}
               {rastro.estimado ? " El sueldo de ese día no consta en su historial: se usó el de hoy, como estimado." : ""}
               {rastro.provisional ? " Sigue adentro: el reparto puede cambiar cuando cheque su salida." : ""}
             </div>
@@ -10145,7 +10519,12 @@ function CuadrillaReg({ data, add, upd, setInv, session, online, onLogout }) {
   };
   const parcOrd = gps ? [...data.parcelas].sort((a, b) => distKm(gps.lat, gps.lng, a.lat, a.lng) - distKm(gps.lat, gps.lng, b.lat, b.lng)) : data.parcelas;
 
+  const yaRegistrado = yaEstaEnCuadrillas(data.eventos, session.id, form.fecha || today());
   const enviar = () => {
+    // Una sola fuente por día: si el encargado ya los registró en Cuadrillas,
+    // aquí no se captura otra vez. (Y si aun así llegaran dos, por capturarse
+    // sin señal en aparatos distintos, la cuenta toma sólo el de Cuadrillas.)
+    if (yaRegistrado) { alert("El trabajo de ese día ya está registrado por el encargado. No se registra dos veces: su pago sale de ese registro."); return; }
     const mo = calcMO();
     const costoIns = form.insumos.reduce((s, i) => s + i.costo, 0);
     const actId = `a${Date.now()}`;
@@ -10186,6 +10565,7 @@ function CuadrillaReg({ data, add, upd, setInv, session, online, onLogout }) {
       </div>
       <div className="reg-step">
         <div className="step-indicator">{[1, 2, 3, 4].map(i => <div key={i} className={`step-dot${i <= paso ? " done" : ""}`} />)}</div>
+        {yaRegistrado && <div className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm"><b>Su trabajo de ese día ya está registrado por el encargado.</b> No hace falta capturarlo aquí, y no se guarda dos veces.</div></div>}
 
         {paso === 1 && (
           <>
@@ -10836,7 +11216,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
   };
   const guardarEgreso = () => {
     if (!egForm.concepto || !egForm.monto) { alert("Completa concepto y monto"); return; }
-    add("egresos", { ...egForm, id: `eg${Date.now()}`, monto: parseFloat(egForm.monto) || 0, parcelaId: egForm.parcelaId || null });
+    add("egresos", { ...egForm, id: `eg${Date.now()}`, monto: parseFloat(egForm.monto) || 0, parcelaId: egForm.parcelaId || null, vehiculoId: egForm.parcelaId ? null : egForm.vehiculoId || null });
     setEgForm(FORM_EG); setShowForm(null);
   };
   // Disponible de cosecha de la parcela elegida en el form de ingreso
@@ -10936,6 +11316,15 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
                 {data.parcelas.map(p => <option key={p.id} value={p.id}>{p.emoji} {p.nombre} — {p.cultivo}</option>)}
               </select>
             </div>
+            {(data.maquinaria || []).length > 0 && !egForm.parcelaId && (
+              <div className="form-group"><label className="form-label" htmlFor="eg-veh">¿Fue para un vehículo o una máquina? (opcional)</label>
+                <select id="eg-veh" className="inp" value={egForm.vehiculoId || ""} onChange={e => setEgForm(f => ({ ...f, vehiculoId: e.target.value }))}>
+                  <option value="">No</option>
+                  {(data.maquinaria || []).map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                </select>
+                <div className="text-xs text-muted mt-1">Sólo lo que se pagó directo para él: taller, refacción, diésel en la gasolinera. Lo que entra al almacén se le carga cuando se usa, no aquí.</div>
+              </div>
+            )}
             <div className="form-group"><label className="form-label">Monto ($)</label><input type="number" className="inp" value={egForm.monto || ""} onChange={e => setEgForm(f => ({ ...f, monto: e.target.value }))} /></div>
             <div className="form-group"><label className="form-label">Proveedor</label><input className="inp" value={egForm.proveedor} onChange={e => setEgForm(f => ({ ...f, proveedor: e.target.value }))} /></div>
             <div className="form-group"><label className="form-label">Fecha</label><input type="date" className="inp" value={egForm.fecha} onChange={e => setEgForm(f => ({ ...f, fecha: e.target.value }))} /></div>
@@ -12740,6 +13129,7 @@ function RegistroActividadAdmin({ data, add, upd, setInv, session, onClose }) {
 
   const enviar = () => {
     if (!form.parcelaId || !form.tipo || !form.ejecutorId) { alert("Faltan datos por completar"); return; }
+    if (esCuadrilla && CUADRILLAS_SOLO_EN_SU_PANTALLA) { alert(AVISO_CUADRILLAS); return; }
     const esBodega = form.parcelaId === "__bodega__";
     if (esBodega && !form.cultivoBodega) { alert("Elige a qué cultivo aplica el trabajo de bodega"); return; }
     const actId = `a${Date.now()}`;
@@ -12855,14 +13245,15 @@ function RegistroActividadAdmin({ data, add, upd, setInv, session, onClose }) {
               </>
             )}
             <div className="card-title mb-2 mt-3">Cuadrillas</div>
-            {data.cuadrillas.map(c => (
+            {CUADRILLAS_SOLO_EN_SU_PANTALLA && <div className="text-muted text-sm">{AVISO_CUADRILLAS}</div>}
+            {!CUADRILLAS_SOLO_EN_SU_PANTALLA && data.cuadrillas.map(c => (
               <div key={c.id} className={`parcela-card${form.ejecutorTipo === "cuadrilla" && form.ejecutorId === c.id ? " active" : ""}`}
                 onClick={() => { setForm(f => ({ ...f, ejecutorTipo: "cuadrilla", ejecutorId: c.id, personas: c.miembros || 1, flete: c.flete_dia || 0 })); setPaso(2); }}>
                 <div className="parcela-thumb-ph"><Ic e="👥" /></div>
                 <div className="parcela-body"><div className="pc-name">{c.nombre}</div><div className="pc-sub">{c.miembros} personas · {c.responsable || "—"}</div></div>
               </div>
             ))}
-            {data.cuadrillas.length === 0 && <div className="text-muted text-sm">Sin cuadrillas registradas</div>}
+            {!CUADRILLAS_SOLO_EN_SU_PANTALLA && data.cuadrillas.length === 0 && <div className="text-muted text-sm">Sin cuadrillas registradas</div>}
           </>
         )}
 
@@ -14576,7 +14967,7 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
       idxGlobal++;
     });
     // Cuadrillas (por modalidad de pago)
-    cuadrillasSel.forEach((c) => {
+    (CUADRILLAS_SOLO_EN_SU_PANTALLA ? [] : cuadrillasSel).forEach((c) => {
       const cfg = selCuad[c.id];
       const costoMO = calcCostoCuad(cfg);
       add("actividades", {
@@ -14729,7 +15120,8 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
                 </div>
               );
             })}
-            {(data.cuadrillas || []).length > 0 && (
+            {CUADRILLAS_SOLO_EN_SU_PANTALLA && <div className="text-xs text-muted" style={{ marginTop: 18, paddingLeft: 4 }}>{AVISO_CUADRILLAS}</div>}
+            {!CUADRILLAS_SOLO_EN_SU_PANTALLA && (data.cuadrillas || []).length > 0 && (
               <div style={{ marginTop: 18 }}>
                 <div className="text-sm font-bold mb-2" style={{ paddingLeft: 4 }}>Cuadrillas</div>
                 <div className="text-xs text-muted mb-2" style={{ paddingLeft: 4 }}>Las cuadrillas se pagan por día, por monto fijo o por destajo (no por horas).</div>

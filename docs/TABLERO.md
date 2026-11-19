@@ -13,7 +13,7 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 
 ## Operación integral (etapa abierta el 19 nov) — modelo y orden en `EVENTOS.md`
 
-**Próxima entrega operativa:** almacén por movimientos (retiro ≠ consumo, herramientas, combustible, conciliación del día).
+**Próxima entrega operativa:** que el insumo que hoy se teclea dentro de una actividad pase a ser un consumo del almacén (una sola puerta), existencias por lugar con su conteo, y faltas y permisos con causa.
 
 | Asunto | En rama | Probado | Publicado | Validado en el rancho |
 |---|---|---|---|---|
@@ -36,7 +36,18 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | Salida termina la asignación; "continuar actividad anterior" | Sí | Sí | Sí | Falta |
 | Tiempo: trabajado, por aclarar e improductivo como cuentas separadas | Sí | Sí | Sí | Falta |
 | Horas adicionales registradas y acumuladas (sin cambiar el pago) | Sí | Sí | Sí | Falta; reconocerlas para pago no está hecho |
-| Costo real del vehículo propio ligado a los viajes de cuadrilla | No | — | — | Depende del almacén (combustible) |
+| Una sola fuente por día: la cuadrilla (o el trabajador) capturada por la pantalla anterior Y por la nueva cuesta una vez | Sí | Sí (reglas + navegador) | Sí | Falta |
+| Cuadrillas sólo en su pantalla: retiradas del registro de actividades del administrador y del registro masivo | Sí | Sí | Sí | **Falta: que el encargado diga si le falta algo** |
+| Cuadrilla: precio por el trabajo, hectáreas, nota y registrar un día anterior | Sí | Sí | Sí | Falta |
+| Operador: su rato en el camión se le carga al vehículo con lo que ya gana | Sí | Sí | Sí | **Falta: un día real con traslado** |
+| Lo que costó cada vehículo: operador + combustible y materiales del almacén + taller pagado | Sí | Sí | Sí | Falta. No se reparte a parcelas todavía (falta el criterio) |
+| Almacén: entregar no es gastar; queda a cargo de quien lo recibe | Sí | Sí | Sí | **Falta: una semana de entregas reales** |
+| Cierre de lo entregado: se usó (ahí nace el costo), regresó, se quedó con otro, se rompió o perdió | Sí | Sí | Sí | Falta |
+| Herramientas prestadas: quién la trae, devolución y baja con causa | Sí | Sí | Sí | Falta |
+| Combustible directo a un vehículo, al costo promedio | Sí | Sí | Sí | Falta |
+| Conciliación del día: sólo lo que sigue fuera; "sigue con él" | Sí | Sí | Sí | Falta |
+| Código QR por artículo para escogerlo sin buscar | Sí | Sí el código y su lectura como texto; **la cámara sobre una etiqueta impresa, no** | Sí | **Falta: imprimir y leer una** |
+| Mover a otro lugar (otra bodega) sin que sea gasto | Sí | Sí | Sí | Falta. El conteo a ciegas todavía es sólo del almacén principal |
 | Faltas y permisos con causa; horas extraordinarias reconocidas, bonos, aguinaldo, vacaciones | No | — | — | Hay políticas por definir (`COSTEO.md`) |
 | Pagos, pendientes por trabajador y recibos internos en PDF | No | — | — | — |
 | Provisiones de prestaciones e indirectos distribuidos | No | — | — | Hay políticas por definir |
@@ -46,16 +57,17 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | Los eventos viven fuera del cajón de 5 MB y se baja sólo lo nuevo | Sí | Sí (local); **la bajada por partes sólo simulada** | Sí | **Falta: con semanas de marcas reales** |
 | Medio día, horas extra, séptimo día y otras reglas de pago | No | — | — | Hay que definirlas |
 | Capturar la modalidad de pago en la ficha del trabajador (hoy sólo por día, salvo que se cargue de otra forma) | No | — | — | — |
-| Almacén por movimientos, herramientas, combustible, conciliación del día | No | — | — | — |
 | Costos reales por parcela, cultivo, actividad y temporada | No | — | — | — |
 
 **Problemas y riesgos abiertos**
 
 - **El cálculo recorre todos los eventos cada vez.** Con unos meses de marcas va bien; con años habrá que cerrar periodos y guardar su resumen. No urge, pero está anotado.
-- **Las existencias del almacén se pisan entre aparatos** (número guardado, no suma de movimientos). Se corrige en la entrega del almacén.
+- **Las existencias del almacén:** las entregas, consumos y devoluciones ya son movimientos que se suman (no se pisan entre aparatos). Las ENTRADAS (compras) y el conteo todavía mueven el número guardado en el catálogo: dos aparatos que capturen una compra del mismo artículo sin señal se pueden pisar. Falta pasarlas al mismo modelo.
+- **El insumo tecleado dentro de una actividad** (el trabajador que anota "usé 3 bultos") sigue restando del inventario y cargando su costo por su lado. Si además se entrega y se cierra en Entregas, ese insumo se cuenta dos veces. Mientras tanto: los insumos, por Entregas. Es lo siguiente a unificar.
+- **La predicción de "cuándo se acaba"** todavía lee las salidas de antes; no ve los consumos nuevos.
 - **La tableta cerrada no impide salirse del navegador**: eso lo cierra el propio aparato (en Android, "fijar pantalla"). La app ya no deja ir a otras pantallas.
-- **La pantalla anterior de cuadrillas (la cuadrilla entra con su PIN) sigue existiendo.** Si se usa esa y la nueva para el mismo día, el costo se duplica. Hay que escoger una; propongo retirar la anterior cuando validen la nueva.
-- **Si alguien teclea una actividad a mano para quien ya fue mandado con su cuadrilla, el costo se duplica.** La app lo avisa en Mano de obra, pero no lo impide.
+- **La entrada de la cuadrilla con su PIN sigue existiendo** (es la única captura que hace la propia cuadrilla). Ya no puede duplicar: no guarda un día que el encargado ya registró, y si aun así llegan dos (sin señal, en aparatos distintos) la cuenta toma sólo el de Cuadrillas. Se retira cuando el encargado confirme que la pantalla nueva le basta. Lo único que la anterior hace y la nueva no: que la cuadrilla se registre sola, y anotar la cosecha en la misma captura (la cosecha va en Cosechas).
+- **Actividad tecleada a mano para quien ya checó ese día:** ya no duplica; manda el checador y lo tecleado no cuenta su mano de obra.
 - **Dos personas con el mismo PIN** no pueden checar con PIN (el checador lo dice). Hay que revisar los PIN al dar de alta a la gente.
 - Una prueba de la base falló dos veces de forma intermitente y no se ha podido repetir; la corrida completa ya guarda el detalle.
 

@@ -59,9 +59,8 @@ cargado a parcelas y lo que queda fuera siempre suman lo mismo.
 
 ## Lo que sigue, en este orden
 
-1. **Costo real del vehículo propio**: ligar los viajes de cuadrilla (ya quedan
-   registrados con su vehículo) al combustible, mantenimiento y operador.
-   Depende del almacén (combustible con destino) y de un registro de viajes.
+1. **Repartir el costo del vehículo** (ya se arma: operador + almacén + taller)
+   a lo que transportó. Falta el criterio: por viaje, por persona, por hora.
 2. **Faltas, permisos y salidas antes de tiempo, con su causa**, y quién decide
    el tratamiento. La app no descuenta sola.
 3. **Horas extraordinarias reconocidas**: de las adicionales registradas, cuáles
@@ -86,4 +85,7 @@ cargado a parcelas y lo que queda fuera siempre suman lo mismo.
 | Horas extraordinarias | Sólo se registran las adicionales | Cuáles se reconocen, a cómo y quién autoriza |
 | Prestaciones | No se provisionan | Con qué base y a qué se cargan (cultivo, parcela, periodo) |
 | Tiempo aclarado como espera, traslado, mantenimiento | Queda fuera de las parcelas | A qué centro de costo va cada causa y con qué criterio se distribuye |
-| Operador del camión | No está en el modelo | Si es un trabajador de planta más (y su tiempo va al vehículo) |
+| Operador del camión | Trabajador de planta; el rato asignado al vehículo se le carga al vehículo, con lo que ya gana | — (decidido el 19 nov) |
+| Costo del vehículo propio | Se junta por vehículo y se queda ahí | Con qué criterio se reparte a parcelas o cuadrillas (por viaje, por persona, por hora), o si no se reparte |
+| Material entregado y no cerrado | Sigue a cargo de quien lo recibió, sin límite de días | Si después de N días debe pedir explicación a alguien, y a quién |
+| Herramienta rota o perdida | Baja con causa, sin importe | Si lleva algún tratamiento con el trabajador (la app no descuenta sola) |

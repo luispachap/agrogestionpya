@@ -303,3 +303,38 @@ test("las_horas_adicionales_salen_solas_de_las_marcas_y_no_cambian_el_pago", () 
   assert.equal(semanaDe("2026-11-19"), "2026-11-16"); assert.equal(r.horasAdicionales[0].mes, "2026-11");
   assert.deepEqual(acumular([...r.horasAdicionales, { ...r.horasAdicionales[0], fecha: "2026-11-20" }], "semana"), [{ trabajadorId: "t-ana", semana: "2026-11-16", minutos: 300, dias: 2 }]);
 });
+
+// ── El operador del camión: su tiempo va al vehículo, con lo que ya gana ──
+import { unaSolaManoDeObra, repartoActual as repartoAhora } from "./cuadrillas.js";
+const CAMION = { vehiculoId: "m-camion", vehiculo: "Camión amarillo" };
+
+test("el_operador_se_asigna_al_camion_solo_el_rato_del_traslado_y_no_toda_su_jornada", () => {
+  let evs = checa([], ANA, "07:00");
+  evs = manda(evs, [ANA], null, "Traslado de personal", "07:00", CAMION);
+  evs = manda(evs, [ANA], "p7", "Riego", "09:00");
+  evs = checa(evs, ANA, "15:00");
+  const r = mo(evs);
+  assert.equal(r.totalAVehiculos, 100, "2 de 8 horas de un día de $400");
+  assert.equal(costoEn(r, "p7"), 300);
+  assert.equal(r.total, 400, "sigue ganando su día: no nació un segundo pago");
+  assert.equal(r.totalSinAsignar, 0, "manejar no es tiempo por aclarar");
+  assert.equal(r.porVehiculo[0].vehiculoId, "m-camion"); assert.equal(r.porVehiculo[0].minutos, 120); assert.equal(r.porVehiculo[0].vehiculo, "Camión amarillo");
+  assert.equal(actividadesDeManoDeObra(r.partes, GENTE).reduce((s, x) => s + x.costoMO, 0), 300, "a la parcela sólo le llega lo de la parcela");
+});
+
+test("no_se_asigna_a_una_parcela_y_a_un_vehiculo_a_la_vez", () => {
+  assert.equal(asignar({ trabajadorIds: ["t-ana"], parcelaId: "p7", ...CAMION, actividad: "Traslado", desde: a("07:00"), fecha: D, quien: ENC }).ok, false);
+  assert.equal(asignar({ trabajadorIds: ["t-ana"], actividad: "Traslado", desde: a("07:00"), fecha: D, quien: ENC }).ok, false);
+  let evs = checa([], ANA, "07:00"); evs = manda(evs, [ANA], null, "Traslado de personal", "07:00", CAMION);
+  const g = repartoAhora(evs, { fecha: D, hoy: D, ahora: a("08:00") }).grupos[0];
+  assert.equal(g.vehiculoId, "m-camion"); assert.equal(g.parcelaId, null);
+});
+
+test("lo_tecleado_a_mano_no_cuenta_su_mano_de_obra_si_ese_dia_ya_salio_del_checador", () => {
+  let evs = checa([], ANA, "07:00"); evs = manda(evs, [ANA], "p7", "Riego", "07:00"); evs = checa(evs, ANA, "15:00");
+  const r = mo(evs);
+  const tecleadas = [{ id: "a1", fecha: D, parcelaId: "p7", trabajadorId: "t-ana", horas_trab: 8, costoMO: 400, costoMaq: 900, costoTotal: 1300 }, { id: "a2", fecha: "2026-11-18", parcelaId: "p7", trabajadorId: "t-ana", horas_trab: 8, costoMO: 400, costoTotal: 400 }];
+  const u = unaSolaManoDeObra(tecleadas, r.partes);
+  assert.equal(u.actividades[0].costoMO, 0); assert.equal(u.actividades[0].costoTotal, 900, "la maquinaria que traía sigue contando");
+  assert.equal(u.actividades[1].costoMO, 400, "otro día no se toca"); assert.equal(u.total, 400);
+});

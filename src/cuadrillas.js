@@ -70,14 +70,20 @@ export function cambiarAjuste({ clave, valor, quien, cuando, fecha, azar }) {
 }
 
 // ── Mandar gente a una parcela ─────────────────────────────────────────────
-export function asignar({ trabajadorIds, parcelaId, actividad, cuadrilla = "", desde, fecha, quien, capturado, azar }) {
+// El destino es una parcela O un vehículo (el operador del camión que trae a la
+// cuadrilla, el que lleva la cosecha). Su tiempo en el vehículo se le carga al
+// vehículo con lo que YA gana: no nace un segundo pago, y sólo cuenta el rato
+// asignado, no toda su jornada.
+export function asignar({ trabajadorIds, parcelaId, vehiculoId = null, vehiculo = "", actividad, cuadrilla = "", desde, fecha, quien, capturado, azar }) {
   const ids = unicos(trabajadorIds);
   if (!PUEDE_REPARTIR.includes(quien?.rol)) return { ok: false, dice: "Sólo un encargado o un administrador reparte a la gente." };
   if (ids.length === 0) return { ok: false, dice: "Falta escoger a quién se manda." };
-  if (!parcelaId) return { ok: false, dice: "Falta la parcela." };
+  if (parcelaId && vehiculoId) return { ok: false, dice: "Se asigna a una parcela o a un vehículo, no a los dos a la vez. Si manejó y luego trabajó en la parcela, son dos asignaciones." };
+  if (!parcelaId && !vehiculoId) return { ok: false, dice: "Falta la parcela o el vehículo." };
   if (!String(actividad || "").trim()) return { ok: false, dice: "Falta qué van a hacer." };
   if (capturado && new Date(desde) > new Date(capturado)) return { ok: false, dice: "No se puede asignar desde una hora que todavía no llega." };
-  return { ok: true, evento: nuevoEvento({ tipo: TIPO_ASIGNACION, cuando: desde, fecha, capturado, quien, azar, datos: { trabajadorIds: ids, parcelaId, actividad: String(actividad).trim(), cuadrilla: String(cuadrilla || "").trim() } }) };
+  return { ok: true, evento: nuevoEvento({ tipo: TIPO_ASIGNACION, cuando: desde, fecha, capturado, quien, azar,
+    datos: { trabajadorIds: ids, parcelaId: parcelaId || null, ...(vehiculoId ? { vehiculoId, vehiculo: String(vehiculo || "").trim() } : {}), actividad: String(actividad).trim(), cuadrilla: String(cuadrilla || "").trim() } }) };
 }
 export function terminar({ trabajadorIds, desde, fecha, quien, capturado, azar }) {
   const ids = unicos(trabajadorIds);
@@ -147,11 +153,11 @@ export function repartoActual(eventos, { fecha, hoy, ahora }) {
       const previa = salidaPrevia ? mios.filter(x => x.cuando < salidaPrevia && x.tipo === TIPO_ASIGNACION).pop() : null;
       const seguia = previa && mios.filter(x => x.cuando < salidaPrevia).pop() === previa;     // no le habían dicho "ya acabaron"
       sinAsignar.push({ trabajadorId: j.trabajadorId, desde: c?.cuando > entro ? c.cuando : entro,
-        anterior: seguia ? { parcelaId: previa.datos.parcelaId, actividad: previa.datos.actividad, cuadrilla: previa.datos.cuadrilla } : null });
+        anterior: seguia ? { parcelaId: previa.datos.parcelaId, ...(previa.datos.vehiculoId ? { vehiculoId: previa.datos.vehiculoId, vehiculo: previa.datos.vehiculo || "" } : {}), actividad: previa.datos.actividad, cuadrilla: previa.datos.cuadrilla } : null });
       continue;
     }
-    const k = `${c.datos.parcelaId}|${c.datos.actividad}|${c.datos.cuadrilla}`;
-    if (!grupos.has(k)) grupos.set(k, { clave: k, parcelaId: c.datos.parcelaId, actividad: c.datos.actividad, cuadrilla: c.datos.cuadrilla, miembros: [] });
+    const k = `${c.datos.parcelaId || ""}|${c.datos.vehiculoId || ""}|${c.datos.actividad}|${c.datos.cuadrilla}`;
+    if (!grupos.has(k)) grupos.set(k, { clave: k, parcelaId: c.datos.parcelaId, vehiculoId: c.datos.vehiculoId || null, vehiculo: c.datos.vehiculo || "", actividad: c.datos.actividad, cuadrilla: c.datos.cuadrilla, miembros: [] });
     grupos.get(k).miembros.push({ trabajadorId: j.trabajadorId, desde: c.cuando > entro ? c.cuando : entro, evento: c.id });
   }
   // A quién se asignó sin que haya checado: no cuenta horas, y se dice.
@@ -186,7 +192,7 @@ export function tramosDeTrabajo(eventos, { desde, hasta, hoy, ahora } = {}) {
       if (!fin) {
         // Entró y no se sabe cuándo salió: no se inventan horas. Se deja dicho dónde estaba.
         const c = vigenteEn(ini) || mios[0] || null; const asig = c && c.tipo === TIPO_ASIGNACION ? c : null;
-        tramos.push({ ...base, desde: ini, hasta: null, minutos: null, parcelaId: asig?.datos.parcelaId || null, actividad: asig?.datos.actividad || null, cuadrilla: asig?.datos.cuadrilla || "", evAsignacion: asig?.id || null });
+        tramos.push({ ...base, desde: ini, hasta: null, minutos: null, parcelaId: asig?.datos.parcelaId || null, vehiculoId: asig?.datos.vehiculoId || null, vehiculo: asig?.datos.vehiculo || "", actividad: asig?.datos.actividad || null, cuadrilla: asig?.datos.cuadrilla || "", evAsignacion: asig?.id || null });
         avisos.push({ clase: "sin_salida", trabajadorId: j.trabajadorId, fecha: j.fecha, ev: t.entrada.id, dice: "Entró y no checó salida: sus horas de ese tramo no se saben." });
         continue;
       }
@@ -195,14 +201,14 @@ export function tramosDeTrabajo(eventos, { desde, hasta, hoy, ahora } = {}) {
         if (cortes[i] === cortes[i + 1]) continue;
         const c = vigenteEn(cortes[i]); const asig = c && c.tipo === TIPO_ASIGNACION ? c : null;
         tramos.push({ ...base, desde: cortes[i], hasta: cortes[i + 1], minutos: min(cortes[i], cortes[i + 1]),
-          parcelaId: asig?.datos.parcelaId || null, actividad: asig?.datos.actividad || null, cuadrilla: asig?.datos.cuadrilla || "", evAsignacion: asig?.id || null });
+          parcelaId: asig?.datos.parcelaId || null, vehiculoId: asig?.datos.vehiculoId || null, vehiculo: asig?.datos.vehiculo || "", actividad: asig?.datos.actividad || null, cuadrilla: asig?.datos.cuadrilla || "", evAsignacion: asig?.id || null });
       }
     }
   }
   // Las aclaraciones: a cada rato sin asignar se le pone su causa (la más reciente que lo cubra).
   const aclaraciones = vigentes(eventos).filter(e => e.tipo === TIPO_ACLARACION).sort((a, b) => a.capturado.localeCompare(b.capturado));
   for (const t of tramos) {
-    if (t.parcelaId || !t.hasta) continue;
+    if (t.parcelaId || t.vehiculoId || !t.hasta) continue;
     const a = aclaraciones.filter(x => x.datos.trabajadorId === t.trabajadorId && x.fecha === t.fecha && x.datos.desde < t.hasta && x.datos.hasta > t.desde).pop();
     if (!a) { t.causa = null; continue; }
     t.causa = a.datos.causa; t.nota = a.datos.nota; t.evAclaracion = a.id;
@@ -248,7 +254,7 @@ export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } =
     const provisional = mios.some(x => x.corriendo);
     const misPartes = [...dest];
     const evsDe = (x) => [x.evEntrada, x.evSalida, x.evAsignacion, x.evAclaracion].filter(Boolean);
-    const extra = (x) => ({ causa: x.parcelaId && !x.aclarado ? undefined : x.causa ?? null, nota: x.nota || "", desde: x.desde, hasta: x.hasta, aclarado: !!x.aclarado });
+    const extra = (x) => ({ vehiculoId: x.vehiculoId || null, vehiculo: x.vehiculo || "", causa: (x.parcelaId && !x.aclarado) || x.vehiculoId ? undefined : x.causa ?? null, nota: x.nota || "", desde: x.desde, hasta: x.hasta, aclarado: !!x.aclarado });
     if (!t) avisos.push({ clase: "sin_ficha", trabajadorId, fecha, dice: "Checó alguien que no está en el catálogo de este aparato: no se le puede poner costo." });
     else if (modalidad !== "destajo" && mios.length > 0) {
       if (!(v.sueldo > 0)) avisos.push({ clase: "sin_sueldo", trabajadorId, fecha, dice: "No tiene sueldo capturado: su día quedó sin costo. Un dato que falta no es un cero." });
@@ -272,9 +278,13 @@ export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } =
     devengado.push({ trabajadorId, nombre: t?.nombre || "(no está en el catálogo)", fecha, modalidad, monto: sumarDinero(misPartes.map(p => p.monto)),
       minutos: sabidos.reduce((s, x) => s + x.minutos, 0), origenSueldo: v.origen, estimado: misPartes.some(p => p.estimado), provisional, partes: misPartes });
   }
-  const asignado = partes.filter(p => p.parcelaId); const suelto = partes.filter(p => !p.parcelaId);
+  const asignado = partes.filter(p => p.parcelaId || p.vehiculoId); const suelto = partes.filter(p => !p.parcelaId && !p.vehiculoId);
+  const enVehiculos = partes.filter(p => p.vehiculoId);
   return {
     tramos, partes, devengado, avisos,
+    // El tiempo de los operadores, por vehículo: sale de lo que ya ganan, no es otro pago.
+    totalAParcelas: sumarDinero(partes.filter(p => p.parcelaId).map(p => p.monto)), totalAVehiculos: sumarDinero(enVehiculos.map(p => p.monto)),
+    porVehiculo: agrupar(enVehiculos, ["vehiculoId"]).map(g => ({ ...g, vehiculo: g.partes.find(p => p.vehiculo)?.vehiculo || "" })),
     total: sumarDinero(partes.map(p => p.monto)), totalAsignado: sumarDinero(asignado.map(p => p.monto)), totalSinAsignar: sumarDinero(suelto.map(p => p.monto)),
     minutosAsignados: asignado.reduce((s, p) => s + (p.minutos || 0), 0), minutosSinAsignar: suelto.reduce((s, p) => s + (p.minutos || 0), 0),
     // Del tiempo sin asignar: cuánto sigue sin aclarar y cuánto ya tiene causa.
@@ -339,8 +349,23 @@ export function actividadesDeManoDeObra(partes, trabajadores) {
 
 // La misma jornada capturada por los dos caminos: el checador y una actividad
 // tecleada a mano. No se resuelve sola: se enseña, porque duplica el costo.
+// Y no basta con enseñarlo: mientras exista la captura a mano, el dinero de un
+// día de un trabajador sale de UNA fuente. Si ese día tiene mano de obra que
+// salió del checador, ésa manda y la tecleada no cuenta su mano de obra (lo
+// demás que dice —maquinaria, insumos— no se toca).
+export function unaSolaManoDeObra(actividades, partes) {
+  const dobles = new Set(capturasDobles(actividades, partes).map(d => d.actividadId));
+  let total = 0;
+  const salen = (actividades || []).map(a => {
+    const era = Number(a?.costoMO) || 0;
+    if (!dobles.has(a?.id) || era === 0) return a;
+    total = sumarDinero(total, era);
+    return { ...a, costoMO: 0, costoTotal: (Number(a.costoTotal) || 0) - era, _noCuenta: { monto: era, dice: "Ese día su mano de obra ya salió del checador: lo tecleado aquí no se cuenta otra vez." } };
+  });
+  return { actividades: salen, total, cuantas: dobles.size };
+}
 export function capturasDobles(actividades, partes) {
-  const deEventos = new Set(partes.filter(p => p.parcelaId && p.modalidad !== "destajo").map(p => `${p.trabajadorId}|${p.fecha}`));
+  const deEventos = new Set(partes.filter(p => (p.parcelaId || p.vehiculoId) && p.modalidad !== "destajo").map(p => `${p.trabajadorId}|${p.fecha}`));
   return (actividades || []).filter(a => {
     if (!a || a._deEventos || a.cancelado) return false;
     const id = a.trabajadorId || a.registradoPor?.id; const horas = parseFloat(a.horas) || parseFloat(a.horas_trab) || 0;
