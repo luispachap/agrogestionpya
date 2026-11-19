@@ -6010,6 +6010,9 @@ function AppInner() {
   }, [session?.id, session?.cuenta]);
 
   const setPage = useCallback(p => { setPageRaw(p); setNavParam(null); }, []);
+  // Sólo al desarrollar: deja que la prueba de recorrido abra cada pantalla.
+  // Vite quita este bloque entero de la versión que se publica.
+  useEffect(() => { if (import.meta.env.DEV) window.__agroIr = setPage; }, [setPage]);
 
   // Botón "atrás" del navegador/teléfono: retrocede dentro de la app en vez de salir.
   // Cuando se entra a una página que no es "home", se agrega una entrada al historial;
@@ -7502,7 +7505,7 @@ function AdminEquipo({ data, add, upd, del, onBack }) {
                     if (!t.cabo && !window.confirm(`¿Nombrar cabo a ${t.nombre}? Desde su propio acceso podrá pasar lista y registrar los días de sus compañeros.`)) return;
                     upd("trabajadores", { ...t, cabo: !t.cabo });
                   }}><Ic e="📋" /></button>
-                  <button className="btn-ghost" style={{ padding: 2, fontSize: 13, color: "var(--red)" }} onClick={() => { if (window.confirm(`¿Borrar a ${t.nombre}?\n\nSus días ya registrados dejarán de contar en los costos y la nómina. Si sólo ya no trabaja aquí, mejor no lo borres.\n\nQueda anotado en la bitácora.`)) del("trabajadores", t.id); }}><Ic e="🗑" /></button>
+                  <button className="btn-ghost" aria-label={`Borrar a ${t.nombre}`} style={{ padding: 2, fontSize: 13, color: "var(--red)" }} onClick={() => { if (window.confirm(`¿Borrar a ${t.nombre}?\n\nSus días ya registrados dejarán de contar en los costos y la nómina. Si sólo ya no trabaja aquí, mejor no lo borres.\n\nQueda anotado en la bitácora.`)) del("trabajadores", t.id); }}><Ic e="🗑" /></button>
                 </div>
               </div>
             </div>
