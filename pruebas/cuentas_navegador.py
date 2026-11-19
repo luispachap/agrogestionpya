@@ -171,7 +171,7 @@ with sync_playwright() as p:
         pg2.wait_for_timeout(300)
         if pg2.locator(".login-bg").count() == 0: break
     pg2.wait_for_timeout(1500)
-    caso("en otro aparato, la misma cuenta abre con su acomodo sin volver a preguntar", pg2.locator(".bn-label").all_inner_texts() == ["Inicio", "Registrar", "Lista", "Papeles", "Menú"] and pg2.get_by_text("¿A qué te dedicas más aquí?").count() == 0, str(pg2.locator(".bn-label").all_inner_texts()))
+    caso("en otro aparato, la misma cuenta abre con su acomodo sin volver a preguntar", pg2.locator(".bn-label").all_inner_texts() == ["Inicio", "Checador", "Registrar", "Papeles", "Menú"] and pg2.get_by_text("¿A qué te dedicas más aquí?").count() == 0, str(pg2.locator(".bn-label").all_inner_texts()))
     caso("ninguna pantalla tronó", not errores, "; ".join(errores)[:200])
     b.close()
 print(f"\n{sum(res)}/{len(res)} pasan"); sys.exit(0 if all(res) else 1)

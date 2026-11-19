@@ -28,7 +28,7 @@ with necesarias(tabla) as (
     ('lecturas'), ('patrones_lectura'), ('estados_cuenta'), ('titulares'), ('bolsas'),
     ('aportaciones'), ('animales'), ('pesajes'), ('tratamientos'), ('potreros'),
     ('indicaciones'), ('chat'), ('vuelos'), ('auditoria'),
-    ('archivos'), ('permisos_rol'), ('limites'), ('uso_ia'), ('operacion'), ('invitaciones'),
+    ('archivos'), ('permisos_rol'), ('limites'), ('uso_ia'), ('operacion'), ('invitaciones'), ('preferencias'), ('eventos'),
     ('perfiles')
 )
 select
@@ -70,7 +70,7 @@ with necesarias(tabla) as (
     ('lecturas'), ('patrones_lectura'), ('estados_cuenta'), ('titulares'), ('bolsas'),
     ('aportaciones'), ('animales'), ('pesajes'), ('tratamientos'), ('potreros'),
     ('indicaciones'), ('chat'), ('vuelos'), ('auditoria'),
-    ('archivos'), ('permisos_rol'), ('limites'), ('uso_ia'), ('operacion'), ('invitaciones'),
+    ('archivos'), ('permisos_rol'), ('limites'), ('uso_ia'), ('operacion'), ('invitaciones'), ('preferencias'), ('eventos'),
     ('perfiles')
 )
 select

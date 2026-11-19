@@ -28,7 +28,7 @@ export const TABLAS = [
   "lecturas", "patrones_lectura", "estados_cuenta",
   "titulares", "bolsas", "aportaciones",
   "animales", "pesajes", "tratamientos", "potreros",
-  "indicaciones", "chat", "vuelos",
+  "indicaciones", "chat", "vuelos", "eventos",
   "auditoria",
   "archivos",
 ];

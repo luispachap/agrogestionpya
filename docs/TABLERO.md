@@ -11,11 +11,38 @@ Actualizado: 19 nov 2026 · Rama de trabajo: `produccion/base-vigente` · Rama d
 
 En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.com". En el sitio nuevo está todo lo que dice "En rama: Sí".
 
+## Operación integral (etapa abierta el 19 nov) — modelo y orden en `EVENTOS.md`
+
+**Próxima entrega operativa:** cuadrillas y horas por parcela (de ahí sale el costo de mano de obra).
+
+| Asunto | En rama | Probado | Publicado | Validado en el rancho |
+|---|---|---|---|---|
+| Modelo de eventos: una operación, múltiples consecuencias | Sí | Sí (9 reglas + 9 ataques a la base) | **No: falta instalar la hoja 35** | No |
+| Credencial con QR por trabajador, imprimible; reemitir invalida la anterior | Sí | Sí | No | **Falta: imprimir y leer una de verdad** |
+| Checador: entrada y salida con QR o PIN, sin repetir | Sí | Sí, con cámara simulada | No | **Falta: en la tableta de la nave, con fila de gente** |
+| Llegada directa a campo, autorizada por encargado | Sí | Sí | No | Falta |
+| Checar sin internet | Sí | Sí (simulado) | No | **Falta: en la nave sin señal y que suba después** |
+| Jornada del día y correcciones con motivo (cancelar, cambiar hora, era salida, marca que faltó) | Sí | Sí | No | Falta |
+| El pase de lista toma la presencia del checador sin capturarla otra vez | Sí | Sí | No | Falta |
+| Menú por grupos, accesos anclados, enfoque por administrador | Sí | Sí | Sí | Falta la opinión de Migue |
+| El acomodo sigue a la persona entre aparatos | Sí | Sí | Sí | Falta con dos aparatos reales |
+| Cuadrillas, asignación a parcela, horas / jornal / destajo, historial de sueldos | No | — | — | — |
+| Almacén por movimientos, herramientas, combustible, conciliación del día | No | — | — | — |
+| Costos reales por parcela, cultivo, actividad y temporada | No | — | — | — |
+
+**Problemas y riesgos abiertos**
+
+- **El guardado del teléfono se va a llenar.** Todo vive en un cajón de unos 5 MB. Con cien personas checando dos veces al día son meses, no años. Hay que mudarlo antes de operar a diario.
+- **Las existencias del almacén se pisan entre aparatos** (número guardado, no suma de movimientos). Se corrige en la entrega del almacén.
+- **El checador no bloquea la tableta**: quien la tenga en la mano puede salirse a otras pantallas del encargado. Falta un modo cerrado.
+- **Dos personas con el mismo PIN** no pueden checar con PIN (el checador lo dice). Hay que revisar los PIN al dar de alta a la gente.
+- Una prueba de la base falló dos veces de forma intermitente y no se ha podido repetir; la corrida completa ya guarda el detalle.
+
 ## Instalación en la infraestructura nueva
 
 | Asunto | Hecho | Comprobado en el proyecto real |
 |---|---|---|
-| Base montada (28 hojas, 61 tablas), sellada y vacía | Sí | Sí |
+| Base montada (28 hojas, 61 tablas; la hoja 35 está escrita y probada, falta instalarla), sellada y vacía | Sí | Sí |
 | 6 ataques sin sesión + 34 con sesión | Sí | Sí, sin dejar rastro |
 | Sitio publicado y conectado | Sí | Sí (18 de 18 en navegador real) |
 | Alta de cuentas sin consola (código de arranque de un uso + invitación) | Sí | El procedimiento completo, sí (sin dejar rastro). **Falta: que entren ustedes** |

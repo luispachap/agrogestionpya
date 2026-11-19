@@ -1,4 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component, createContext, useContext } from "react";
+// Una operación, múltiples consecuencias: el evento se captura una vez.
+import { estaVigente, cambioPermitido } from "./eventos.js";
+// El checador: credenciales, marcas de entrada y salida, y la jornada que sale de ellas.
+import {
+  NAVE, emitirCredencial, textoDeCredencial, quienEsPorQR, quienEsPorPin, marcar, marcaQueFalto, cancelarMarca, cambiarHoraDeMarca, voltearMarca,
+  resumenDelDia as resumenDeAsistencia, presenciasDe, horasYMinutos,
+} from "./checador.js";
 // Encontrar las cosas: grupos, lo de cada perfil, lo anclado y lo que más se usa.
 import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarraDe, barraDe, necesitaMenu, alternarInicio, alternarBarra, moverEnInicio, volverALoDeFabrica, anotarUso, masUsadas, ancladasConDatos, TOPE_BARRA, ENFOQUES, PERFILES_CON_ENFOQUE, faltaEnfoque, elegirEnfoque, alternarGrupo, mezclarPrefs, sellarAcomodo, mismoAcomodo } from "./menu.js";
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
@@ -212,6 +219,49 @@ textarea.inp{min-height:90px;resize:none;}
 .li-right{text-align:right;flex-shrink:0;}
 .li-val{font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:700;color:var(--money);}
 .li-val-sub{font-size:11px;color:var(--muted);}
+/* ── Checador, credenciales y jornadas ── */
+.chk-lugar{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+.chk-cam{position:relative;width:100%;aspect-ratio:4/3;max-height:42vh;background:#000;border-radius:16px;overflow:hidden;border:1px solid var(--border);}
+.chk-cam video{width:100%;height:100%;object-fit:cover;}
+.chk-cam-falla{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;text-align:center;color:#ddd;font-size:14px;}
+.chk-voltear{position:absolute;right:10px;bottom:10px;padding:8px 12px;border-radius:50px;border:none;background:rgba(0,0,0,.6);color:#fff;font-family:'Nunito',sans-serif;font-size:12px;font-weight:700;cursor:pointer;}
+.chk-aviso{margin:12px 0;padding:16px;border-radius:16px;text-align:center;border:2px solid var(--border);background:var(--card2);min-height:92px;display:flex;flex-direction:column;justify-content:center;}
+.chk-aviso-t{font-family:'Plus Jakarta Sans',sans-serif;font-size:22px;font-weight:800;line-height:1.15;}
+.chk-aviso-l{font-size:16px;font-weight:700;margin-top:4px;}
+.chk-aviso.espera .chk-aviso-t{font-size:18px;color:var(--muted);}
+.chk-aviso.espera .chk-aviso-l{font-size:13px;color:var(--muted);font-weight:600;}
+.chk-aviso.entrada{border-color:var(--safe);background:rgba(132,192,1,.14);}
+.chk-aviso.entrada .chk-aviso-l{color:var(--safe);}
+.chk-aviso.salida{border-color:var(--blue);background:rgba(111,180,226,.14);}
+.chk-aviso.salida .chk-aviso-l{color:var(--blue);}
+.chk-aviso.aviso{border-color:var(--gold);background:rgba(228,178,63,.12);}
+.chk-aviso.mal{border-color:var(--red);background:rgba(227,100,100,.12);}
+.chk-pin-caja{height:48px;border:1.5px solid var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px;letter-spacing:8px;margin-bottom:8px;background:var(--card2);}
+.chk-teclas{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.chk-teclas button{height:58px;border-radius:14px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:24px;font-weight:700;cursor:pointer;}
+.chk-teclas button:active{transform:scale(.97);}
+.chk-teclas button.sec{font-size:14px;color:var(--muted);}
+.chk-teclas button.ok{font-size:16px;background:var(--accent);border-color:var(--accent);color:#0a1405;}
+.chk-teclas button.ok:disabled{opacity:.4;}
+.stat-row.chk-tres{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.stat-row.chk-tres .stat-card{min-width:0;padding:12px 10px;}
+.qr svg{width:100%;height:100%;display:block;}
+.cred-hoja{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:6px;}
+.cred{background:#fff;color:#1a1a1a;border:2px solid #1f3a1e;border-radius:10px;padding:12px 8px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px;page-break-inside:avoid;break-inside:avoid;}
+.cred img{width:34px;height:34px;object-fit:contain;}
+.cred-emp{font-size:10px;letter-spacing:1.5px;color:#555;font-weight:700;}
+.cred-nom{font-size:15px;font-weight:800;color:#1f3a1e;line-height:1.15;margin-top:4px;}
+.cred-cat{font-size:11px;color:#666;text-transform:capitalize;}
+@media print{.cred-hoja{grid-template-columns:repeat(3,1fr);gap:6mm;padding:8mm;}.cred{border-width:1.5px;}}
+.jor-fila{width:100%;display:flex;align-items:center;gap:12px;padding:11px 2px;background:transparent;border:none;border-top:1px solid var(--border-soft);color:var(--text);font-family:'Nunito',sans-serif;text-align:left;cursor:pointer;}
+.card-title + .jor-fila,.text-xs + .jor-fila{border-top:none;}
+.jor-punto{width:10px;height:10px;border-radius:50%;flex-shrink:0;background:var(--muted);}
+.jor-punto.verde{background:var(--safe);}.jor-punto.ambar{background:var(--gold);}.jor-punto.vacio{background:transparent;border:1.5px solid var(--muted);}
+.jor-etq{font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--gold);border:1px solid var(--gold);border-radius:50px;padding:2px 7px;flex-shrink:0;}
+.jor-marca{padding:10px 0;border-top:1px solid var(--border-soft);font-size:14px;}
+.card-title + .jor-marca{border-top:none;}
+.jor-acc{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.jor-acc button{padding:7px 12px;border-radius:50px;border:1.5px solid var(--border);background:transparent;color:var(--text);font-family:'Nunito',sans-serif;font-size:12px;font-weight:700;cursor:pointer;}
 /* ── Menú y accesos del inicio ── */
 .acc-link{background:transparent;border:none;color:var(--accent);font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;cursor:pointer;padding:6px 4px;}
 .acc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
@@ -591,6 +641,7 @@ const INITIAL = {
   indicaciones: [],      // lo que Fito y Gera mandan hacer, y quien lo confirmo
   chat: [],              // el chat del rancho: fotos, audios y texto, ya clasificados
   vuelos: [],            // el recorrido del dron: fotos fechadas y ubicadas por parcela
+  eventos: [],           // UNA operación, múltiples consecuencias: lo que pasó, una sola vez (src/eventos.js)
 };
 
 /* ════════════ UTILIDADES ════════════ */
@@ -2039,7 +2090,7 @@ const TABLAS_NUBE = [
   "lecturas","patrones_lectura","estados_cuenta",
   "titulares","bolsas","aportaciones",
   "animales","pesajes","tratamientos","potreros",
-  "indicaciones","chat","vuelos",
+  "indicaciones","chat","vuelos","eventos",
   "auditoria",
   "archivos",
 ];
@@ -6422,6 +6473,14 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
     });
   }, [quienMenu]);
   useEffect(() => { if (quienMenu && FUNCIONES[page]) cambiarPrefsMenu(p => anotarUso(p, page, new Date().toISOString()), false); }, [page, quienMenu, cambiarPrefsMenu]);
+  // El checador tiene que servir sin señal. En los aparatos que no traen lector
+  // de códigos (iPhone, iPad) el nuestro se baja aparte: se baja de una vez, con
+  // señal, para que ya esté guardado cuando la tableta se quede sin internet.
+  useEffect(() => {
+    if (!["admin", "encargado"].includes(session?.role) || !online) return;
+    if (!("BarcodeDetector" in window)) import("jsqr").catch(() => {});
+    import("qrcode-generator").catch(() => {});
+  }, [session?.role, online]);
   // Que el acomodo siga a la persona: al entrar con cuenta se junta lo del
   // teléfono con lo guardado en la nube, y cada cambio de acomodo se sube.
   // Quien entra con PIN no tiene cuenta: su acomodo se queda en el teléfono.
@@ -6621,6 +6680,9 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "asistencia" && <PaseLista data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "resumen" && <ResumenSemanal data={data} onClose={() => setPage("home")} />}
               {page === "respaldo" && <RespaldoDatos data={data} setData={setData} onClose={() => setPage("home")} />}
+              {page === "checador" && <Checador data={data} add={add} session={session} onNav={setPage} onClose={() => setPage("home")} />}
+              {page === "credenciales" && <Credenciales data={data} upd={upd} session={session} onClose={() => setPage("home")} />}
+              {page === "jornadas" && <Jornadas data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "arranque" && <ArranqueLimpio data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "seguridad" && <PanelSeguridad data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "panel-financiero" && <PanelFinanciero data={data} onClose={() => setPage("home")} />}
@@ -6656,6 +6718,9 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
             </>}
             {isEncargado && <>
               {page === "home" && <EncargadoHome data={data} session={session} onNav={setPage} onLogout={cerrarSesion} online={online} />}
+              {page === "checador" && <Checador data={data} add={add} session={session} onNav={setPage} onClose={() => setPage("home")} />}
+              {page === "credenciales" && <Credenciales data={data} upd={upd} session={session} onClose={() => setPage("home")} />}
+              {page === "jornadas" && <Jornadas data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "tareas" && <EncargadoTareas data={data} add={add} upd={upd} del={del} session={session} />}
               {page === "personal" && <EncargadoPersonal data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} session={session} />}
               {page === "caja" && <EncargadoCaja data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} session={session} />}
@@ -6723,6 +6788,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "operacion" && <PanelOperacion data={data} onClose={() => setPage("home")} />}
             </>}
             {isFinanzas && <>
+              {page === "jornadas" && <Jornadas data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "home" && <FinanzasHome data={data} session={session} onNav={setPage} onLogout={cerrarSesion} />}
               {page === "proyeccion" && <ProyeccionSemanal data={data} onClose={() => setPage("home")} />}
               {page === "deudas" && <GestionDeudas data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} session={session} onClose={() => setPage("home")} />}
@@ -6765,7 +6831,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
             le hablaba a la IA sin llave y sólo devolvía "Hubo un error de
             conexión" — código muerto que ocupaba el mejor lugar de la
             pantalla. */}
-        {page !== "dictado" && (
+        {page !== "dictado" && page !== "checador" && (
           <button className="ai-fab" title="Dile a la app lo que pasó" onClick={() => setPage("dictado")}>
             <Ic e="💬" />
           </button>
@@ -7386,6 +7452,344 @@ function AprobacionExternos({ data, upd, onBack }) {
 }
 
 /* ════════════ ADMIN HOME ════════════ */
+
+// ════════════════════════════════════════════════════════════════════════
+//  EL CHECADOR, LAS CREDENCIALES Y LAS JORNADAS
+//  Las reglas viven en checador.js y eventos.js. Aquí sólo se pinta.
+// ════════════════════════════════════════════════════════════════════════
+const horaCorta = (iso) => new Date(iso).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit" });
+const quienDe = (session) => ({ id: session.id, nombre: session.nombre, rol: session.role });
+
+// La cámara leyendo códigos sin parar. Usa el lector que trae el aparato y, si
+// no trae (iPhone, iPad), uno propio que se baja sólo en ese caso.
+function LectorQR({ onLeer, pausado }) {
+  const video = useRef(null);
+  const [falla, setFalla] = useState("");
+  const [frente, setFrente] = useState(false);
+  const leer = useRef(onLeer); leer.current = onLeer;
+  const quieto = useRef(pausado); quieto.current = pausado;
+  useEffect(() => {
+    let vivo = true, flujo = null, reloj = null, detector = null, jsqr = null, ultimo = { t: "", cuando: 0 };
+    const lienzo = document.createElement("canvas");
+    const mirar = async () => {
+      const v = video.current;
+      if (!vivo || !v || v.readyState < 2 || quieto.current) return;
+      let texto = "";
+      try {
+        if (detector) { const c = await detector.detect(v); texto = c?.[0]?.rawValue || ""; }
+        else if (jsqr) {
+          const w = v.videoWidth, h = v.videoHeight; if (!w) return;
+          const e = Math.min(1, 480 / w); lienzo.width = Math.round(w * e); lienzo.height = Math.round(h * e);
+          const ctx = lienzo.getContext("2d", { willReadFrequently: true }); ctx.drawImage(v, 0, 0, lienzo.width, lienzo.height);
+          const img = ctx.getImageData(0, 0, lienzo.width, lienzo.height);
+          texto = jsqr(img.data, img.width, img.height)?.data || "";
+        }
+      } catch { /* un cuadro que no se pudo leer: se intenta con el siguiente */ }
+      const ahora = Date.now();
+      // La misma credencial frente a la cámara no dispara diez veces: una cada 4 segundos.
+      if (texto && !(texto === ultimo.t && ahora - ultimo.cuando < 4000)) { ultimo = { t: texto, cuando: ahora }; leer.current(texto); }
+    };
+    (async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error("sin cámara");
+        flujo = await navigator.mediaDevices.getUserMedia({ video: { facingMode: frente ? "user" : "environment" }, audio: false });
+        if (!vivo) { flujo.getTracks().forEach(t => t.stop()); return; }
+        video.current.srcObject = flujo; await video.current.play().catch(() => {});
+        if ("BarcodeDetector" in window) { try { detector = new window.BarcodeDetector({ formats: ["qr_code"] }); } catch { detector = null; } }
+        if (!detector) jsqr = (await import("jsqr")).default;
+        reloj = setInterval(mirar, 220);
+      } catch (e) {
+        if (vivo) setFalla(e?.name === "NotAllowedError" ? "No hay permiso para usar la cámara. Se puede checar con PIN." : "Este aparato no dio cámara. Se puede checar con PIN.");
+      }
+    })();
+    return () => { vivo = false; clearInterval(reloj); flujo?.getTracks().forEach(t => t.stop()); };
+  }, [frente]);
+  return (
+    <div className="chk-cam">
+      {falla ? <div className="chk-cam-falla">{falla}</div> : <video ref={video} playsInline muted />}
+      {!falla && <button className="chk-voltear" onClick={() => setFrente(f => !f)}>Cambiar cámara</button>}
+    </div>
+  );
+}
+
+// Entrada y salida desde la tableta de la nave (o desde el teléfono del
+// encargado cuando alguien llega directo a campo). Una lectura = una marca.
+function Checador({ data, add, session, onNav, onClose }) {
+  const trabajadores = data.trabajadores || [];
+  const [lugarId, setLugarId] = useState("nave");
+  const [pin, setPin] = useState("");
+  const [aviso, setAviso] = useState(null);     // { tono, titulo, linea }
+  const limpiar = useRef(null);
+  const eventosRef = useRef(data.eventos || []); eventosRef.current = data.eventos || [];
+  const lugar = lugarId === "nave" ? NAVE : (() => { const r = (data.ranchos || []).find(x => x.id === lugarId); return { tipo: "rancho", id: lugarId, nombre: r?.nombre || "Rancho" }; })();
+  const decir = (a) => { setAviso(a); clearTimeout(limpiar.current); limpiar.current = setTimeout(() => setAviso(null), 4500); };
+  useEffect(() => () => clearTimeout(limpiar.current), []);
+
+  const registrar = (quienEs) => {
+    if (!quienEs.ok) { decir({ tono: "mal", titulo: "No se registró", linea: quienEs.dice }); return; }
+    const ahora = new Date();
+    const r = marcar({ eventos: eventosRef.current, trabajador: quienEs.trabajador, via: quienEs.via, ahora: ahora.toISOString(), fecha: fechaLocal(ahora), quien: quienDe(session), lugar });
+    if (!r.ok) { decir({ tono: r.repetida ? "aviso" : "mal", titulo: quienEs.trabajador.nombre, linea: r.dice }); return; }
+    const guardado = add("eventos", r.evento);
+    eventosRef.current = [...eventosRef.current, guardado];   // la siguiente lectura ya la ve, aunque React no haya pintado
+    decir({ tono: r.sentido, titulo: quienEs.trabajador.nombre, linea: `${r.sentido === "entrada" ? "ENTRADA" : "SALIDA"} · ${horaCorta(r.evento.cuando)}${lugar.tipo !== "nave" ? ` · ${lugar.nombre}` : ""}` });
+  };
+  const conPin = () => { if (pin) { registrar(quienEsPorPin(pin, trabajadores)); setPin(""); } };
+  const hoy = today();
+  const r = resumenDeAsistencia(data.eventos, trabajadores, { fecha: hoy, hoy, ahora: new Date().toISOString() });
+  const sinCredencial = trabajadores.filter(t => t.activo !== false && !t.credencial?.codigo).length;
+
+  return (
+    <div>
+      <div className="top-bar">
+        <button className="btn-ghost" onClick={onClose}>‹</button>
+        <h2 style={{ flex: 1 }}>Checador</h2>
+        <button className="btn btn-outline btn-sm" onClick={() => onNav("jornadas")}>Ver el día</button>
+      </div>
+      <div className="section-pad">
+        <div className="chk-lugar">
+          <span className="text-sm text-muted">Estás registrando en</span>
+          <select className="inp" value={lugarId} onChange={e => setLugarId(e.target.value)} aria-label="Dónde se registra">
+            <option value="nave">La nave</option>
+            {(data.ranchos || []).map(x => <option key={x.id} value={x.id}>Llegó directo a: {x.nombre}</option>)}
+          </select>
+        </div>
+        {lugar.tipo !== "nave" && <div className="text-xs" style={{ color: "var(--gold)", margin: "-4px 2px 10px" }}>Llegada directa a campo: queda registrado que la autorizó {session.nombre}.</div>}
+
+        <LectorQR onLeer={(texto) => registrar(quienEsPorQR(texto, trabajadores))} pausado={false} />
+
+        <div className={`chk-aviso ${aviso ? aviso.tono : "espera"}`} role="status" aria-live="polite">
+          {aviso ? <><div className="chk-aviso-t">{aviso.titulo}</div><div className="chk-aviso-l">{aviso.linea}</div></>
+            : <><div className="chk-aviso-t">Acerca tu credencial</div><div className="chk-aviso-l">o escribe tu PIN</div></>}
+        </div>
+
+        <div className="chk-pin">
+          <div className="chk-pin-caja" aria-label="PIN">{pin ? "•".repeat(pin.length) : <span className="text-muted">PIN</span>}</div>
+          <div className="chk-teclas">
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map(n => <button key={n} onClick={() => setPin(p => (p + n).slice(0, 8))}>{n}</button>)}
+            <button className="sec" onClick={() => setPin(p => p.slice(0, -1))}>Borrar</button>
+            <button onClick={() => setPin(p => (p + "0").slice(0, 8))}>0</button>
+            <button className="ok" onClick={conPin} disabled={pin.length < 4}>Checar</button>
+          </div>
+        </div>
+
+        <div className="stat-row chk-tres" style={{ marginTop: 14 }}>
+          <div className="stat-card"><div className="stat-label">Adentro</div><div className="stat-val">{r.adentro.length}</div></div>
+          <div className="stat-card"><div className="stat-label">Ya salieron</div><div className="stat-val">{r.salieron.length}</div></div>
+          <div className="stat-card"><div className="stat-label">Sin llegar</div><div className="stat-val">{r.sinLlegar.length}</div></div>
+        </div>
+        {sinCredencial > 0 && <div className="text-xs text-muted" style={{ marginTop: 8 }}>{sinCredencial} trabajador(es) todavía no tienen credencial: checan con PIN.</div>}
+      </div>
+    </div>
+  );
+}
+
+// El QR dibujado en la app, sin internet. La librería se baja sólo al abrir esta pantalla.
+function DibujoQR({ texto, lado = 132 }) {
+  const [svg, setSvg] = useState("");
+  useEffect(() => {
+    let vivo = true;
+    import("qrcode-generator").then(m => {
+      const q = (m.default || m)(0, "M"); q.addData(texto); q.make();
+      if (vivo) setSvg(q.createSvgTag({ cellSize: 4, margin: 2, scalable: true }));
+    }).catch(() => { if (vivo) setSvg(""); });
+    return () => { vivo = false; };
+  }, [texto]);
+  return <div className="qr" style={{ width: lado, height: lado }} dangerouslySetInnerHTML={{ __html: svg }} />;
+}
+
+// Una credencial por trabajador, con su QR, para imprimir y enmicar.
+function Credenciales({ data, upd, session, onClose }) {
+  const activos = (data.trabajadores || []).filter(t => t.activo !== false).sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
+  const con = activos.filter(t => t.credencial?.codigo), sin = activos.filter(t => !t.credencial?.codigo);
+  const [sel, setSel] = useState({});       // a quién imprimir; vacío = a todos los que tienen
+  const emitir = (t) => upd("trabajadores", emitirCredencial(t, { cuando: new Date().toISOString(), quien: quienDe(session) }));
+  const emitirFaltantes = () => sin.forEach(emitir);
+  const otra = (t) => { if (window.confirm(`Se va a emitir OTRA credencial para ${t.nombre}. La que trae ahora deja de servir en cuanto este aparato y el checador sincronicen. ¿Seguro?`)) emitir(t); };
+  const elegidos = con.filter(t => sel[t.id]);
+  const aImprimir = elegidos.length ? elegidos : con;
+  return (
+    <div>
+      <div className="top-bar"><button className="btn-ghost" onClick={onClose}>‹</button><h2>Credenciales</h2></div>
+      <div className="section-pad">
+        <div className="card">
+          <div className="text-sm text-muted" style={{ marginBottom: 10 }}>Cada credencial trae un código propio. No lleva el PIN, el sueldo ni ningún dato de la persona: si se pierde, se emite otra y la vieja deja de servir.</div>
+          {activos.length === 0 && <div className="text-sm">Todavía no hay trabajadores dados de alta. Se dan de alta en Equipo.</div>}
+          {sin.length > 0 && <button className="btn btn-accent" style={{ width: "100%", marginBottom: 10 }} onClick={emitirFaltantes}>Emitir credencial a los {sin.length} que no tienen</button>}
+          {con.length > 0 && <button className="btn btn-outline" style={{ width: "100%" }} onClick={() => window.print()}><Ic e="🖨️" /> Imprimir {elegidos.length ? `las ${elegidos.length} marcadas` : `las ${con.length}`}</button>}
+        </div>
+        {activos.length > 0 && (
+          <div className="card">
+            {activos.map(t => (
+              <div key={t.id} className="mn-fila" style={{ borderTop: "1px solid var(--border-soft)", padding: "8px 0" }}>
+                <label style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                  <input type="checkbox" disabled={!t.credencial?.codigo} checked={!!sel[t.id]} onChange={e => setSel(x => ({ ...x, [t.id]: e.target.checked }))} />
+                  <span className="mn-tx"><span className="mn-n">{t.nombre}</span>
+                    <span className="mn-s">{t.credencial?.codigo ? `Emitida el ${fechaLocal(new Date(t.credencial.emitida))}${(t.credencialesAnteriores || []).length ? ` · van ${(t.credencialesAnteriores || []).length + 1}` : ""}` : "Sin credencial: checa con PIN"}</span></span>
+                </label>
+                <button className="btn btn-outline btn-sm" onClick={() => (t.credencial?.codigo ? otra(t) : emitir(t))}>{t.credencial?.codigo ? "Emitir otra" : "Emitir"}</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="printable cred-hoja">
+          {aImprimir.map(t => (
+            <div key={t.id} className="cred">
+              <img src={LOGO_AGRO} alt="" />
+              <div className="cred-emp">AGROSELECTOS P&A</div>
+              <DibujoQR texto={textoDeCredencial(t)} />
+              <div className="cred-nom">{t.nombre}</div>
+              {t.categoria && <div className="cred-cat">{t.categoria}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// El día de un vistazo, y el lugar donde se corrige una marca — siempre con motivo.
+function Jornadas({ data, add, upd, session, onNav, onClose }) {
+  const hoy = today();
+  const [fecha, setFecha] = useState(hoy);
+  const [abierto, setAbierto] = useState(null);         // trabajadorId
+  const [form, setForm] = useState(null);               // { que, marca?, sentido, hora, motivo }
+  const [dice, setDice] = useState("");
+  const puedeCorregir = ["admin", "encargado"].includes(session.role);
+  const trabajadores = data.trabajadores || [];
+  const nombre = (id) => trabajadores.find(t => t.id === id)?.nombre || "Trabajador que no está en este aparato";
+  const r = resumenDeAsistencia(data.eventos, trabajadores, { fecha, hoy, ahora: new Date().toISOString() });
+  const todasLasMarcas = (tid) => (data.eventos || []).filter(e => e.tipo === "marca" && e.fecha === fecha && e.datos?.trabajadorId === tid).sort((a, b) => a.cuando.localeCompare(b.cuando));
+  const aIso = (hhmm) => new Date(`${fecha}T${hhmm}:00`).toISOString();
+
+  const aplicar = () => {
+    const op = { motivo: form.motivo, quien: quienDe(session), cuando: new Date().toISOString() };
+    let res;
+    if (form.que === "falto") {
+      res = marcaQueFalto({ trabajadorId: abierto, sentido: form.sentido, cuando: aIso(form.hora), fecha, motivo: form.motivo, quien: op.quien, capturado: op.cuando });
+      if (res.ok) add("eventos", res.evento);
+    } else if (form.que === "cancelar") {
+      res = cancelarMarca(form.marca, op);
+      if (res.ok && cambioPermitido(form.marca, res.evento)) upd("eventos", res.evento);
+    } else {
+      res = form.que === "voltear" ? voltearMarca(form.marca, op) : cambiarHoraDeMarca(form.marca, aIso(form.hora), op);
+      if (res.ok) { add("eventos", res.nuevo); upd("eventos", res.anterior); }
+    }
+    if (!res.ok) { setDice(res.dice); return; }
+    setForm(null); setDice("");
+  };
+
+  const fila = (j, linea, tono) => (
+    <button key={j.trabajadorId} className="jor-fila" onClick={() => { setAbierto(j.trabajadorId); setForm(null); setDice(""); }}>
+      <span className={`jor-punto ${tono}`} />
+      <span className="mn-tx" style={{ flex: 1 }}><span className="mn-n">{nombre(j.trabajadorId)}</span><span className="mn-s">{linea}</span></span>
+      {j.aMano && <span className="jor-etq">a mano</span>}
+      <span className="mn-fl">›</span>
+    </button>
+  );
+  const lineaDe = (j) => {
+    const e = j.tramos[0]?.entrada, lug = j.lugar?.tipo !== "nave" ? ` · ${j.lugar.nombre}` : "";
+    if (j.adentro) return `Entró ${e ? horaCorta(e.cuando) : "?"} · lleva ${horasYMinutos(j.minutos + j.minutosCorriendo)}${lug}`;
+    if (j.avisos.length) return j.avisos[0];
+    return `${horasYMinutos(j.minutos)} en el rancho${lug}`;
+  };
+
+  if (abierto) {
+    const j = r.jornadas.find(x => x.trabajadorId === abierto);
+    const marcas = todasLasMarcas(abierto);
+    return (
+      <div>
+        <div className="top-bar"><button className="btn-ghost" onClick={() => setAbierto(null)}>‹</button><h2>{nombre(abierto)}</h2></div>
+        <div className="section-pad">
+          <div className="card">
+            <div className="card-title" style={{ marginBottom: 4 }}>{fechaLarga(new Date(fecha + "T12:00:00"))}</div>
+            <div className="text-sm" style={{ marginBottom: 6 }}>{j ? (j.adentro ? `Está adentro. Lleva ${horasYMinutos(j.minutos + j.minutosCorriendo)}.` : `Horas que se saben: ${horasYMinutos(j.minutos)}.`) : "No tiene marcas vigentes este día."}</div>
+            {j?.avisos.map((a, i) => <div key={i} className="text-sm" style={{ color: "var(--gold)" }}>{a}</div>)}
+            <div className="text-xs text-muted" style={{ marginTop: 8 }}>Estas son horas en el rancho. A qué parcela se cargan lo dice la asignación de cuadrilla, no esta pantalla.</div>
+          </div>
+          <div className="card">
+            <div className="card-title">Sus marcas</div>
+            {marcas.length === 0 && <div className="text-sm text-muted">Ninguna.</div>}
+            {marcas.map(m => {
+              const vive = estaVigente(m);
+              return (
+                <div key={m.id} className="jor-marca" style={{ opacity: vive ? 1 : 0.55 }}>
+                  <div style={{ textDecoration: vive ? "none" : "line-through" }}>
+                    <b>{horaCorta(m.cuando)}</b> · {m.datos.sentido} · {m.datos.via === "qr" ? "credencial" : m.datos.via === "pin" ? "PIN" : m.datos.via === "remoto" ? `directo a ${m.datos.lugar?.nombre || "campo"}` : "puesta a mano"}
+                  </div>
+                  <div className="text-xs text-muted">
+                    La registró {m.quien?.nombre || "—"}
+                    {m.datos.motivo ? ` · "${m.datos.motivo}"` : ""}{m.datos.motivoCorreccion ? ` · corrección: "${m.datos.motivoCorreccion}"` : ""}
+                    {m.estado === "cancelado" ? ` · CANCELADA por ${m.cancelado?.por?.nombre || "—"}: "${m.cancelado?.motivo || ""}"` : ""}
+                    {m.estado === "corregido" ? " · se corrigió (ver la siguiente)" : ""}
+                  </div>
+                  {vive && puedeCorregir && (
+                    <div className="jor-acc">
+                      <button onClick={() => setForm({ que: "hora", marca: m, hora: new Date(m.cuando).toTimeString().slice(0, 5), motivo: "" })}>Cambiar hora</button>
+                      <button onClick={() => setForm({ que: "voltear", marca: m, motivo: "" })}>Era {m.datos.sentido === "entrada" ? "salida" : "entrada"}</button>
+                      <button onClick={() => setForm({ que: "cancelar", marca: m, motivo: "" })}>Cancelar</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {puedeCorregir && !form && <button className="acc-todo" onClick={() => setForm({ que: "falto", sentido: j?.tramos.some(t => t.entrada && !t.salida) ? "salida" : "entrada", hora: "", motivo: "" })}>Poner una marca que faltó</button>}
+          </div>
+          {form && (
+            <div className="card">
+              <div className="card-title">{form.que === "falto" ? "Marca que faltó" : form.que === "cancelar" ? `Cancelar la marca de las ${horaCorta(form.marca.cuando)}` : form.que === "voltear" ? `La de las ${horaCorta(form.marca.cuando)} era ${form.marca.datos.sentido === "entrada" ? "salida" : "entrada"}` : `Cambiar la hora de las ${horaCorta(form.marca.cuando)}`}</div>
+              {form.que === "falto" && (
+                <div className="form-group"><label className="form-label">Qué faltó</label>
+                  <select className="inp" value={form.sentido} onChange={e => setForm(f => ({ ...f, sentido: e.target.value }))}><option value="entrada">Entrada</option><option value="salida">Salida</option></select></div>
+              )}
+              {(form.que === "falto" || form.que === "hora") && (
+                <div className="form-group"><label className="form-label" htmlFor="jor-hora">Hora que vale</label>
+                  <input id="jor-hora" type="time" className="inp" value={form.hora} onChange={e => setForm(f => ({ ...f, hora: e.target.value }))} /></div>
+              )}
+              <div className="form-group"><label className="form-label" htmlFor="jor-motivo">Por qué (queda escrito)</label>
+                <input id="jor-motivo" className="inp" placeholder="Ej: se le olvidó checar al salir" value={form.motivo} onChange={e => setForm(f => ({ ...f, motivo: e.target.value }))} /></div>
+              {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => { setForm(null); setDice(""); }}>No</button>
+                <button className="btn btn-accent" style={{ flex: 1 }} disabled={(form.que === "falto" || form.que === "hora") && !form.hora} onClick={aplicar}>Guardar</button>
+              </div>
+              <div className="text-xs text-muted" style={{ marginTop: 8 }}>Nada se borra: la marca original queda en el historial con quién la cambió y por qué.</div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="top-bar">
+        <button className="btn-ghost" onClick={onClose}>‹</button><h2 style={{ flex: 1 }}>Jornadas</h2>
+        {puedeCorregir && <button className="btn btn-outline btn-sm" onClick={() => onNav("checador")}>Checador</button>}
+      </div>
+      <div className="section-pad">
+        <input type="date" className="inp" value={fecha} max={hoy} onChange={e => setFecha(e.target.value || hoy)} aria-label="Día" style={{ marginBottom: 12 }} />
+        <div className="stat-row chk-tres">
+          <div className="stat-card"><div className="stat-label">{fecha === hoy ? "Adentro" : "Sin cerrar"}</div><div className="stat-val">{fecha === hoy ? r.adentro.length : r.porRevisar.length}</div></div>
+          <div className="stat-card"><div className="stat-label">Vinieron</div><div className="stat-val">{r.jornadas.length}</div></div>
+          <div className="stat-card"><div className="stat-label">Sin marca</div><div className="stat-val">{r.sinLlegar.length}</div></div>
+        </div>
+        {r.porRevisar.length > 0 && <div className="card"><div className="card-title" style={{ color: "var(--gold)" }}>Por revisar ({r.porRevisar.length})</div>{r.porRevisar.map(j => fila(j, lineaDe(j), "ambar"))}</div>}
+        {r.adentro.length > 0 && <div className="card"><div className="card-title">Adentro ({r.adentro.length})</div>{r.adentro.map(j => fila(j, lineaDe(j), "verde"))}</div>}
+        {r.salieron.length > 0 && <div className="card"><div className="card-title">Ya salieron ({r.salieron.length})</div>{r.salieron.map(j => fila(j, lineaDe(j), "gris"))}</div>}
+        {r.sinLlegar.length > 0 && (
+          <div className="card"><div className="card-title">Sin marca este día ({r.sinLlegar.length})</div>
+            <div className="text-xs text-muted" style={{ marginBottom: 6 }}>No quiere decir que faltaron: quiere decir que no checaron.</div>
+            {r.sinLlegar.map(t => (
+              <button key={t.id} className="jor-fila" onClick={() => { setAbierto(t.id); setForm(null); }}><span className="jor-punto vacio" /><span className="mn-tx" style={{ flex: 1 }}><span className="mn-n">{t.nombre}</span></span><span className="mn-fl">›</span></button>
+            ))}
+          </div>
+        )}
+        {r.jornadas.length === 0 && r.sinLlegar.length === 0 && <div className="card"><div className="text-sm text-muted">Todavía no hay trabajadores dados de alta ni marcas este día.</div></div>}
+      </div>
+    </div>
+  );
+}
 
 // ════════════════════════════════════════════════════════════════════════
 //  EL MENÚ Y LOS ACCESOS DEL INICIO
@@ -18870,6 +19274,11 @@ function PaseLista({ data, add, upd, session, onClose }) {
   // Índices rápidos: asistencia por persona|fecha y actividades por persona|fecha
   const asisIdx = {};
   (data.asistencia || []).forEach(a => { asisIdx[`${a.trabajadorId}|${a.fecha}`] = a; });
+  // Quien checó entrada ya está presente: no se vuelve a capturar aquí. Sale del
+  // mismo evento del checador; si hay que corregirlo, se corrige allá (Jornadas).
+  presenciasDe(data.eventos).forEach((eventoId, k) => {
+    if (!asisIdx[k]) { const [trabajadorId, fecha] = k.split("|"); asisIdx[k] = { trabajadorId, fecha, presente: true, delChecador: eventoId }; }
+  });
   const actIdx = new Set();
   (data.actividades || []).forEach(a => { if (a.registradoPor?.id && a.fecha) actIdx.add(`${a.registradoPor.id}|${a.fecha}`); });
 
@@ -18882,6 +19291,7 @@ function PaseLista({ data, add, upd, session, onClose }) {
   const togglePresente = (tid, f) => {
     if (f > hoy) return; // no se pasa lista al futuro
     const ya = asisIdx[`${tid}|${f}`];
+    if (ya?.delChecador) { alert("Esa asistencia viene del checador (checó su entrada). Si está mal, se corrige en Jornadas, con su motivo."); return; }
     if (ya) upd("asistencia", { ...ya, presente: !ya.presente });
     else add("asistencia", { id: `as${Date.now()}${Math.floor(Math.random() * 999)}`, fecha: f, trabajadorId: tid, presente: true, registradoPor: session.id });
   };

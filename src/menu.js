@@ -80,6 +80,9 @@ export const FUNCIONES = {
   // Gente
   equipo: f("gente", "👷", "Equipo", "Personal y maquinaria"),
   personal: f("gente", "👷", "Personal", "Actividades y préstamos"),
+  checador: f("gente", "📲", "Checador", "Entrada y salida con QR o PIN"),
+  jornadas: f("gente", "⏱", "Jornadas", "Quién está, horas y correcciones"),
+  credenciales: f("gente", "🏷️", "Credenciales", "El QR de cada trabajador"),
   "pase-lista": f("gente", "✅", "Pase de lista", "Asistencia de la semana"),
   asistencia: f("gente", "✅", "Asistencia", "Quién vino hoy"),
   nomina: f("gente", "🧾", "Nómina semanal", "Pago por trabajador"),
@@ -96,20 +99,20 @@ export const FUNCIONES = {
 // Qué puede abrir cada perfil. Tiene que coincidir con lo que App.jsx sabe
 // pintarle a ese perfil: una prueba lo compara contra el propio App.jsx.
 export const PANTALLAS_DE = {
-  admin: ["aldia", "aplicaciones", "aprobacion-externos", "arranque", "asistencia", "banco", "bitacora", "caja", "calendario", "chat", "ciclos", "comercializacion", "compras", "compras-insumos", "consignaciones", "contabilidad", "contpaqi", "corrida", "cosechas", "deudas", "dictado", "dron", "eldia", "embarque", "equipo", "estibas", "fito", "ganado", "indicaciones", "inventario", "mis", "movimientos", "nomina", "operacion", "panel-financiero", "panel-parcelas", "papeles", "parcelas", "pase-lista", "personal", "proveedores", "proyeccion", "registrar-actividad", "registro-masivo", "rendimiento-parcelas", "reporte", "reporte-variedades", "reportes", "respaldo", "resumen", "seguridad", "socios", "solicitudes", "subir-nube", "tareas", "terminados", "vales", "variedades"],
-  encargado: ["aldia", "aprobacion-externos", "asistencia", "banco", "bitacora", "caja", "chat", "corrida", "cosechas", "dictado", "dron", "eldia", "estibas", "fito", "ganado", "operacion", "papeles", "pase-lista", "personal", "registrar-actividad", "registro-masivo", "socios", "solicitudes", "tareas", "vales"],
+  admin: ["checador", "jornadas", "credenciales", "aldia", "aplicaciones", "aprobacion-externos", "arranque", "asistencia", "banco", "bitacora", "caja", "calendario", "chat", "ciclos", "comercializacion", "compras", "compras-insumos", "consignaciones", "contabilidad", "contpaqi", "corrida", "cosechas", "deudas", "dictado", "dron", "eldia", "embarque", "equipo", "estibas", "fito", "ganado", "indicaciones", "inventario", "mis", "movimientos", "nomina", "operacion", "panel-financiero", "panel-parcelas", "papeles", "parcelas", "pase-lista", "personal", "proveedores", "proyeccion", "registrar-actividad", "registro-masivo", "rendimiento-parcelas", "reporte", "reporte-variedades", "reportes", "respaldo", "resumen", "seguridad", "socios", "solicitudes", "subir-nube", "tareas", "terminados", "vales", "variedades"],
+  encargado: ["checador", "jornadas", "credenciales", "aldia", "aprobacion-externos", "asistencia", "banco", "bitacora", "caja", "chat", "corrida", "cosechas", "dictado", "dron", "eldia", "estibas", "fito", "ganado", "operacion", "papeles", "pase-lista", "personal", "registrar-actividad", "registro-masivo", "socios", "solicitudes", "tareas", "vales"],
   trabajador: ["compras", "mis", "pase-lista", "reporte", "solicitudes"],
   cuadrilla: ["compras", "mis", "reporte"],
   externo: ["mis", "reporte"],
   agronomo: ["aplicaciones", "compras-insumos", "indicaciones", "operacion", "panel-parcelas", "rendimiento-parcelas", "reporte", "reporte-variedades", "solicitudes", "variedades"],
   dueno: ["operacion", "panel-financiero", "panel-parcelas", "reportes", "resumen"],
-  finanzas: ["comercializacion", "consignaciones", "contabilidad", "contpaqi", "corrida", "deudas", "embarque", "estibas", "nomina", "operacion", "pase-lista", "proyeccion", "rendimiento-parcelas", "solicitudes", "terminados"],
+  finanzas: ["jornadas", "comercializacion", "consignaciones", "contabilidad", "contpaqi", "corrida", "deudas", "embarque", "estibas", "nomina", "operacion", "pase-lista", "proyeccion", "rendimiento-parcelas", "solicitudes", "terminados"],
 };
 
 // Con qué abre cada perfil antes de que la persona acomode nada.
 export const DE_FABRICA = {
   admin: { barra: ["movimientos", "contabilidad", "inventario"], inicio: ["arranque", "papeles", "registrar-actividad", "aldia", "corrida", "pase-lista"] },
-  encargado: { barra: ["tareas", "personal", "caja"], inicio: ["registrar-actividad", "registro-masivo", "pase-lista", "vales", "solicitudes", "corrida"] },
+  encargado: { barra: ["checador", "tareas", "personal"], inicio: ["checador", "jornadas", "registrar-actividad", "registro-masivo", "pase-lista", "vales", "solicitudes", "corrida"] },
   trabajador: { barra: ["mis", "compras", "reporte"], inicio: [] },
   cuadrilla: { barra: ["mis", "compras", "reporte"], inicio: [] },
   externo: { barra: ["mis", "reporte"], inicio: [] },
@@ -127,8 +130,8 @@ export const ENFOQUES = [
     inicio: ["arranque", "papeles", "banco", "contpaqi", "socios", "aldia", "deudas", "nomina", "reportes"],
     orden: ["dinero", "almacen", "gente", "ajo", "campo", "control"] },
   { id: "campo", nombre: "El rancho", sub: "Actividades, gente, comprobantes",
-    barra: ["registrar-actividad", "pase-lista", "papeles"],
-    inicio: ["arranque", "registrar-actividad", "registro-masivo", "pase-lista", "papeles", "vales", "tareas", "operacion", "eldia"],
+    barra: ["checador", "registrar-actividad", "papeles"],
+    inicio: ["arranque", "checador", "jornadas", "registrar-actividad", "registro-masivo", "pase-lista", "papeles", "vales", "tareas", "operacion", "eldia"],
     orden: ["campo", "gente", "almacen", "ajo", "dinero", "control"] },
   { id: "bodega", nombre: "La bodega", sub: "Corrida, estibas, embarques",
     barra: ["corrida", "estibas", "terminados"],
@@ -211,7 +214,7 @@ export const enBarraDe = (rol, prefs) => limpiar(prefs?.barra ?? fabricaDe(rol, 
 const CORTOS = {
   "registrar-actividad": "Registrar", "registro-masivo": "Varios", "panel-parcelas": "Parcelas", "rendimiento-parcelas": "Rendimiento",
   "reporte-variedades": "Comparar", solicitudes: "Compras", compras: "Compras", "compras-insumos": "Compra", "aprobacion-externos": "Externos",
-  "panel-financiero": "Dinero", "pase-lista": "Lista", dictado: "Dictar", corrida: "Corrida", terminados: "Terminado", embarque: "Camión",
+  "panel-financiero": "Dinero", "pase-lista": "Lista", credenciales: "Credencial", dictado: "Dictar", corrida: "Corrida", terminados: "Terminado", embarque: "Camión",
   comercializacion: "Ventas", nomina: "Nómina", "subir-nube": "Subir", consignaciones: "Consigna", proveedores: "Proveed.",
   mis: "Mis días", fito: "Fito", caja: "Caja", indicaciones: "Indicar",
 };

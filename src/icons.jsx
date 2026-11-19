@@ -205,8 +205,8 @@ export function saludoHora() {
   const h = new Date().getHours();
   return h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches";
 }
-export function fechaLarga() {
-  const s = new Date().toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" });
+export function fechaLarga(d = new Date()) {
+  const s = d.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" });
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 

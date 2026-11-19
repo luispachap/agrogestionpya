@@ -38,6 +38,18 @@ Usuarios reales de la app:
 - **`src/ganado.js`**: el padrón, la báscula, la jeringa y los potreros.
 - **`src/vigilancia.js`**: que el dueño se entere a tiempo.
 - **`src/almacen.js`**: vales de salida, mermas con causa y conteo a ciegas.
+- **`src/eventos.js`**: EL PRINCIPIO CENTRAL — una operación, múltiples
+  consecuencias. Lo que pasa en el rancho se captura UNA vez, como un evento
+  (colección `eventos`, hoja 35), y sus consecuencias se CALCULAN con
+  `efectosDe(eventos)`: no se guardan aparte, así que no se pueden duplicar ni
+  contradecir. Un evento no se edita ni se borra (la base lo impide hasta a un
+  superadministrador): se cancela con motivo o se corrige con un evento nuevo
+  que apunta al anterior. **Todo módulo nuevo nace como un tipo de evento con
+  su regla (`reglasDe`)**; nada de guardar el mismo hecho en dos colecciones.
+  El modelo y el orden de las entregas están en `docs/EVENTOS.md`.
+- **`src/checador.js`**: credenciales con QR, marcas de entrada y salida, y la
+  jornada que sale de ellas. Entrar al rancho NO es trabajar en una parcela; una
+  entrada sin salida no vale 8 horas, vale "no se sabe".
 - **`src/menu.js`**: encontrar las cosas. Cada pantalla tiene UN nombre y UN
   grupo (`FUNCIONES`, `GRUPOS`), cada perfil ve sólo las suyas (`PANTALLAS_DE`),
   y cada persona ancla su inicio y escoge su barra de abajo. Se guarda por
@@ -88,7 +100,7 @@ Usuarios reales de la app:
 - **Columnas**: las tablas de Supabase tienen columnas fijas; todo campo extra
   viaja dentro de la columna JSON `datos`. Por eso se pueden agregar campos nuevos
   sin migración (ej. la ficha de agroquímicos de Fito).
-- **54 colecciones que sincronizan** (60 tablas con las de reglas). Si agregas una colección nueva: regístrala en `INITIAL`,
+- **55 colecciones que sincronizan** (62 tablas con las de reglas). Si agregas una colección nueva: regístrala en `INITIAL`,
   `TABLAS_NUBE`, `dataApi.TABLAS` y `COLUMNAS_REALES`, **y escribe su SQL**
   en `supabase/` siguiendo el patrón de `17-tabla-config-contpaqi.sql`
   (id/datos/actualizado), pero con las reglas de acceso de la hoja 24
@@ -155,7 +167,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **107 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **112 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

@@ -22,7 +22,7 @@ begin
   for t in
     select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind = 'r'
-      and c.relname not in ('perfiles', 'permisos_rol', 'auditoria', 'limites', 'uso_ia', 'operacion', 'invitaciones', 'preferencias')
+      and c.relname not in ('perfiles', 'permisos_rol', 'auditoria', 'limites', 'uso_ia', 'operacion', 'invitaciones', 'preferencias', 'eventos')
   loop
     execute format('alter table %I add column if not exists borrado timestamptz', t);
     for p in select policyname from pg_policies where schemaname = 'public' and tablename = t and cmd = 'DELETE' loop
@@ -41,7 +41,7 @@ begin
     raise exception 'Esto no se borra: se cancela';
   end if;
   if to_regclass('public.' || quote_ident(p_tabla)) is null
-     or p_tabla in ('perfiles', 'permisos_rol', 'limites', 'uso_ia', 'operacion', 'invitaciones', 'preferencias') then
+     or p_tabla in ('perfiles', 'permisos_rol', 'limites', 'uso_ia', 'operacion', 'invitaciones', 'preferencias', 'eventos') then
     raise exception 'Tabla desconocida';
   end if;
   if not puede(p_tabla, 'borrar') then
@@ -87,7 +87,7 @@ begin
   for t in
     select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind = 'r'
-      and c.relname not in ('perfiles', 'permisos_rol', 'auditoria', 'limites', 'uso_ia', 'operacion', 'invitaciones', 'preferencias')
+      and c.relname not in ('perfiles', 'permisos_rol', 'auditoria', 'limites', 'uso_ia', 'operacion', 'invitaciones', 'preferencias', 'eventos')
   loop
     execute format('drop trigger if exists %I on %I', t || '_lapida', t);
     execute format('create trigger %I before update on %I for each row execute function cuidar_lapida()', t || '_lapida', t);

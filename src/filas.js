@@ -65,6 +65,8 @@ export const COLUMNAS_REALES = {
   chat:            ["id", "fecha", "tipo", "estado", "deQuien"],
   // Los vuelos del dron, por parcela y por fecha: asi se arma la linea del tiempo.
   vuelos:          ["id", "fecha", "parcelaId"],
+  // Lo que pasó, una sola vez. El resto del evento (quién, cuándo, datos) va en el JSON.
+  eventos:         ["id", "tipo", "fecha", "estado"],
   config_emisor: ["id"],
   control_corrida: ["id"],
 };

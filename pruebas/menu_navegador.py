@@ -42,7 +42,7 @@ with sync_playwright() as p:
     # ── A qué se dedica cada administrador ──
     caso("al administrador se le pregunta a qué se dedica más", pg.get_by_text("¿A qué te dedicas más aquí?").count() == 1)
     pg.locator(".enf", has_text="El rancho").click(); pg.wait_for_timeout(300)
-    caso("al escoger 'El rancho' la barra y el inicio son los del capataz", pg.locator(".bn-label").all_inner_texts() == ["Inicio", "Registrar", "Lista", "Papeles", "Menú"] and "Registrar actividad" in pg.locator(".acc-n").all_inner_texts(), pg.locator(".bn-label").all_inner_texts())
+    caso("al escoger 'El rancho' la barra y el inicio son los del capataz", pg.locator(".bn-label").all_inner_texts() == ["Inicio", "Checador", "Registrar", "Papeles", "Menú"] and "Registrar actividad" in pg.locator(".acc-n").all_inner_texts(), pg.locator(".bn-label").all_inner_texts())
     caso("y ya no se le vuelve a preguntar", pg.get_by_text("¿A qué te dedicas más aquí?").count() == 0)
     pg.locator(".bn-item", has_text="Menú").click(); pg.wait_for_timeout(300)
     caso("su menú empieza por Campo", pg.locator(".mn-gn").first.inner_text() == "Campo")
@@ -57,7 +57,7 @@ with sync_playwright() as p:
     pg.locator(".acc-link", has_text="Cerrar").click(); pg.wait_for_timeout(200)
     pg.get_by_role("button", name="Salir").click(); pg.wait_for_timeout(500)
     g["entrar"](pg, "Encargado", "5501"); pg.wait_for_timeout(400)
-    caso("otra persona en el mismo teléfono ve SU acomodo, no el del administrador", "Banco" not in pg.locator(".bn-label").all_inner_texts() and pg.locator(".bn-label").all_inner_texts()[1] == "Tareas", pg.locator(".bn-label").all_inner_texts())
+    caso("otra persona en el mismo teléfono ve SU acomodo, no el del administrador", "Banco" not in pg.locator(".bn-label").all_inner_texts() and pg.locator(".bn-label").all_inner_texts()[1] == "Checador", pg.locator(".bn-label").all_inner_texts())
     pg.locator(".bn-item", has_text="Menú").click(); pg.wait_for_timeout(300)
     for c in pg.locator(".mn-cab").all(): 
         if "−" not in c.inner_text(): c.click()
