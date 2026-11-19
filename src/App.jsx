@@ -179,6 +179,7 @@ textarea.inp{min-height:90px;resize:none;}
 .option-card:active{transform:scale(.96);}
 .option-card .oc-icon{font-size:30px;display:block;margin-bottom:8px;}
 .option-card .oc-label{font-size:13px;font-weight:700;color:var(--text);}
+.option-card .oc-label,.option-card .oc-sub{display:block;}
 .option-card .oc-sub{font-size:11px;color:var(--muted);margin-top:3px;}
 .badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:50px;font-size:11px;font-weight:700;}
 .badge-green{background:rgba(132,192,1,.12);color:var(--safe);border:1px solid rgba(132,192,1,.25);}
@@ -7069,9 +7070,9 @@ function ArranqueLimpio({ data, add, upd, setInv, session, onClose }) {
         <h2>Arranque de la operación</h2>
       </div>
       <div className="section-pad">
-        <div className="tab-bar" style={{ marginBottom: 16 }}>
+        <div className="tabs-pill" style={{ padding: "0 0 12px" }}>
           {[["estado", "Estado"], ["cuentas", "Cuentas"], ["conteo", "Conteo"], ["saldos", "Saldos"], ["inicio", "Inicio"]].map(([k, l]) => (
-            <button key={k} className={`tab-btn${tab === k ? " active" : ""}`} onClick={() => { setTab(k); setMsg(null); }}>{l}</button>
+            <button key={k} className={`tab-pill${tab === k ? " active" : ""}`} onClick={() => { setTab(k); setMsg(null); }}>{l}</button>
           ))}
         </div>
         {msg && (
@@ -7260,11 +7261,11 @@ function AprobacionExternos({ data, upd, onBack }) {
         <h2 style={{ flex: 1 }}>Aprobación de Externos</h2>
       </div>
       <div className="section-pad">
-        <div className="tab-bar" style={{ marginBottom: 16 }}>
-          <button className={`tab-btn${tab === "pendientes" ? " active" : ""}`} onClick={() => setTab("pendientes")}>
+        <div className="tabs-pill" style={{ padding: "0 0 12px" }}>
+          <button className={`tab-pill${tab === "pendientes" ? " active" : ""}`} onClick={() => setTab("pendientes")}>
             Pendientes {pendientes.length > 0 && <span className="badge badge-gold" style={{ marginLeft: 4 }}>{pendientes.length}</span>}
           </button>
-          <button className={`tab-btn${tab === "revisados" ? " active" : ""}`} onClick={() => setTab("revisados")}>Revisados</button>
+          <button className={`tab-pill${tab === "revisados" ? " active" : ""}`} onClick={() => setTab("revisados")}>Revisados</button>
         </div>
         {tab === "pendientes" && (
           pendientes.length === 0
@@ -7330,6 +7331,7 @@ function AdminHome({ data, alertas, onNav, onLogout, pending, online }) {
         <div className="card">
           <div className="card-title">Accesos rápidos</div>
           <div className="option-grid" style={{ marginBottom: 12 }}>
+            <div className="option-card" onClick={() => onNav("arranque")}><span className="oc-icon"><Ic e="🎯" /></span><span className="oc-label">Arranque</span><span className="oc-sub">Cuentas, conteo, saldos, inicio</span></div>
             <div className="option-card" onClick={() => onNav("papeles")}><span className="oc-icon"><Ic e="📷" /></span><span className="oc-label">Papeles</span><span className="oc-sub">Foto de ticket o factura</span></div>
             <div className="option-card" onClick={() => onNav("banco")}><span className="oc-icon"><Ic e="🏦" /></span><span className="oc-label">Banco</span><span className="oc-sub">Estado de cuenta</span></div>
             <div className="option-card" onClick={() => onNav("socios")}><span className="oc-icon"><Ic e="👥" /></span><span className="oc-label">Socios</span><span className="oc-sub">Quién puso y quién sacó</span></div>
@@ -7357,7 +7359,6 @@ function AdminHome({ data, alertas, onNav, onLogout, pending, online }) {
           <div className="option-grid" style={{ marginBottom: 0 }}>
             <div className="option-card" onClick={() => onNav("pase-lista")}><span className="oc-icon"><Ic e="✅" /></span><span className="oc-label">Pase de lista</span><span className="oc-sub">Asistencia de la semana</span></div>
             <div className="option-card" onClick={() => onNav("respaldo")}><span className="oc-icon"><Ic e="💾" /></span><span className="oc-label">Respaldo</span><span className="oc-sub">Guardar copia</span></div>
-            <div className="option-card" onClick={() => onNav("arranque")}><span className="oc-icon"><Ic e="🎯" /></span><span className="oc-label">Arranque</span><span className="oc-sub">Cuentas, conteo, saldos, inicio</span></div>
             <div className="option-card" onClick={() => onNav("seguridad")}><span className="oc-icon"><Ic e="🔐" /></span><span className="oc-label">Seguridad</span><span className="oc-sub">PINs de dirección</span></div>
             <div className="option-card" onClick={() => onNav("panel-financiero")}><span className="oc-icon"><Ic e="💰" /></span><span className="oc-label">¿Cómo vamos?</span><span className="oc-sub">Resumen del dinero</span></div>
             <div className="option-card" onClick={() => onNav("subir-nube")}><span className="oc-icon"><Ic e="☁️" /></span><span className="oc-label">Subir a la nube</span><span className="oc-sub">Migración inicial</span></div>
