@@ -12,7 +12,7 @@ def pedir(metodo, ruta, cuerpo=None, extra=None):
         with urllib.request.urlopen(req, timeout=30) as r: return r.status, r.read().decode()
     except urllib.error.HTTPError as e: return e.code, e.read().decode()
 
-TABLAS = ["egresos", "ingresos", "trabajadores", "perfiles", "config_seguridad", "auditoria", "permisos_rol", "operacion", "invitaciones",
+TABLAS = ["egresos", "ingresos", "trabajadores", "perfiles", "config_seguridad", "auditoria", "permisos_rol", "operacion", "invitaciones", "preferencias",
           "limites", "uso_ia", "archivos", "actividades", "inventario", "bolsas", "prestamos", "cajachica", "creditos", "estados_cuenta", "parcelas"]
 fugas = []
 for t in TABLAS:
