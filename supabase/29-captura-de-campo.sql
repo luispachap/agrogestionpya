@@ -39,7 +39,7 @@ begin
   for t in
     select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind = 'r'
-      and c.relname not in ('perfiles', 'permisos_rol', 'auditoria', 'limites', 'uso_ia', 'operacion', 'invitaciones')
+      and c.relname not in ('perfiles', 'permisos_rol', 'auditoria', 'limites', 'uso_ia', 'operacion', 'invitaciones', 'preferencias')
   loop
     execute format('alter table %I add column if not exists creado_por uuid', t);
     execute format('alter table %I add column if not exists subido_por uuid', t);

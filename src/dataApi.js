@@ -193,6 +193,26 @@ export async function leerConsumo() {
   } catch { return null; }
 }
 
+// ------------------------------------------------------------
+//  El acomodo de cada quien (inicio, barra, menú). Es de la persona, no del
+//  rancho: un renglón por cuenta, que sólo esa cuenta lee y escribe (hoja 34).
+//  Si no se pudo, devuelve { ok: false }: la app sigue con lo del teléfono.
+// ------------------------------------------------------------
+export async function leerPreferencias(cuentaId) {
+  if (!supabaseListo || !cuentaId) return { ok: false };
+  try {
+    const { data, error } = await supabase.from("preferencias").select("datos").eq("id", cuentaId).maybeSingle();
+    return error ? { ok: false } : { ok: true, datos: data?.datos || null };
+  } catch { return { ok: false }; }
+}
+export async function guardarPreferencias(cuentaId, datos) {
+  if (!supabaseListo || !cuentaId) return false;
+  try {
+    const { error } = await supabase.from("preferencias").upsert({ id: cuentaId, datos, actualizado: new Date().toISOString() }, { onConflict: "id" });
+    return !error;
+  } catch { return false; }
+}
+
 // ¿Hay una cuenta con sesión en este teléfono? Sin ella la base rechaza todo.
 export async function hayCuentaLigada() {
   if (!supabaseListo) return false;

@@ -40,8 +40,14 @@ Usuarios reales de la app:
 - **`src/almacen.js`**: vales de salida, mermas con causa y conteo a ciegas.
 - **`src/menu.js`**: encontrar las cosas. Cada pantalla tiene UN nombre y UN
   grupo (`FUNCIONES`, `GRUPOS`), cada perfil ve sólo las suyas (`PANTALLAS_DE`),
-  y cada persona ancla su inicio y escoge su barra de abajo (se guarda por
-  persona en `LLAVES.menu`, sólo en ese teléfono). El inicio ya NO lleva una
+  y cada persona ancla su inicio y escoge su barra de abajo. Se guarda por
+  persona en `LLAVES.menu` y, si entró con cuenta, en su renglón de la tabla
+  `preferencias` (hoja 34: cada quien lee y escribe sólo el suyo); entre dos
+  aparatos gana el acomodo más reciente (`mezclarPrefs`). No hay grupo "Hoy":
+  lo de hoy no es lo mismo para el contador que para el capataz. Cada
+  administrador dice a qué se dedica más (`ENFOQUES`) y eso cambia con qué abre
+  y el orden de su menú — **nunca lo que puede hacer**. Esconder un grupo
+  tampoco quita permiso. El inicio ya NO lleva una
   cuadrícula de tarjetas: lleva `<AccesosInicio/>`. **Una pantalla nueva se da
   de alta en `menu.js`** o nadie la encuentra; la prueba compara contra `App.jsx`.
   La app acomoda, no decide: lo que la persona ancló no lo mueve el uso.

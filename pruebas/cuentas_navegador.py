@@ -42,6 +42,9 @@ def nube(route):
     if ruta == "/rest/v1/perfiles" and DEPURA: print("   [perfiles]", r.method, r.headers.get("accept"), estado["perfil"], estado["reclamos"])
     if ruta == "/rest/v1/perfiles": return J([estado["perfil"]] if estado["perfil"] else [])
     if ruta == "/rest/v1/operacion": return J({"espacio": "localhost", "inicio_operaciones": (estado["inicio"] or {}).get("p_fecha"), "declarado_el": None, "nota": (estado["inicio"] or {}).get("p_nota")})
+    if ruta == "/rest/v1/preferencias":      # el acomodo de cada quien: un renglón por cuenta
+        if r.method == "GET": return J([{"datos": estado["prefs"]}] if estado.get("prefs") else [])
+        estado["prefs"] = cuerpo.get("datos"); estado["prefs_de"] = cuerpo.get("id"); return J([], 201)
     if ruta == "/rest/v1/invitaciones":
         if r.method == "GET": return J(estado["invitaciones"])
         estado["invitaciones"].append({**cuerpo, "usada_el": None, "cancelada": False, "creada": "2026-11-19T00:00:00Z"}); return J([], 201)
@@ -151,6 +154,24 @@ with sync_playwright() as p:
     caso("todo lo que subió lleva la marca de este espacio", len(estado["escrituras"]) > 0 and not marcados, f"{len(estado['escrituras'])} escrituras")
     pg.wait_for_timeout(4000)
     caso("la evidencia subió al almacén privado con la sesión de la cuenta", estado.get("subidos", 0) == 1, f"{estado.get('subidos', 0)} archivo(s)")
+    # ── El acomodo del menú sigue a la persona a otro aparato ──
+    pg.locator(".bn-item").first.click(); pg.wait_for_timeout(400)
+    pg.locator(".enf", has_text="El rancho").click(); pg.wait_for_timeout(2600)
+    caso("el acomodo sube a la nube en el renglón de esa cuenta", (estado.get("prefs") or {}).get("enfoque") == "campo" and estado.get("prefs_de") == CUENTA, str(estado.get("prefs_de")))
+    ctx2 = b.new_context(viewport={"width": 390, "height": 800})
+    ctx2.route("**/*", lambda r: r.continue_() if "localhost" in r.request.url else r.abort())
+    ctx2.route(NUBE + "/**", nube)
+    pg2 = ctx2.new_page(); pg2.on("pageerror", lambda e: errores.append(str(e))); pg2.on("dialog", lambda d: d.accept())
+    pg2.goto(URL); pg2.wait_for_timeout(1200)
+    pg2.locator(".role-card", has_text="Admin").first.click()
+    pg2.get_by_placeholder("Tu correo o tu PIN").fill("uno@prueba.invalid")
+    pg2.get_by_placeholder("Contraseña", exact=True).fill("contrasena-larga-1")
+    pg2.get_by_role("button", name="Entrar").click()
+    for _ in range(20):
+        pg2.wait_for_timeout(300)
+        if pg2.locator(".login-bg").count() == 0: break
+    pg2.wait_for_timeout(1500)
+    caso("en otro aparato, la misma cuenta abre con su acomodo sin volver a preguntar", pg2.locator(".bn-label").all_inner_texts() == ["Inicio", "Registrar", "Lista", "Papeles", "Menú"] and pg2.get_by_text("¿A qué te dedicas más aquí?").count() == 0, str(pg2.locator(".bn-label").all_inner_texts()))
     caso("ninguna pantalla tronó", not errores, "; ".join(errores)[:200])
     b.close()
 print(f"\n{sum(res)}/{len(res)} pasan"); sys.exit(0 if all(res) else 1)

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component, createContext, useContext } from "react";
 // Encontrar las cosas: grupos, lo de cada perfil, lo anclado y lo que más se usa.
-import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarraDe, barraDe, necesitaMenu, alternarInicio, alternarBarra, moverEnInicio, volverALoDeFabrica, anotarUso, masUsadas, ancladasConDatos, TOPE_BARRA } from "./menu.js";
+import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarraDe, barraDe, necesitaMenu, alternarInicio, alternarBarra, moverEnInicio, volverALoDeFabrica, anotarUso, masUsadas, ancladasConDatos, TOPE_BARRA, ENFOQUES, PERFILES_CON_ENFOQUE, faltaEnfoque, elegirEnfoque, alternarGrupo, mezclarPrefs, sellarAcomodo, mismoAcomodo } from "./menu.js";
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
 import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo } from "./acceso.js";
-import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada } from "./dataApi";
+import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias } from "./dataApi";
 import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, generarSQLCuentas, exportarPolizas, HOJAS } from "./excelLoader";
 // El estado de cuenta del banco: se valida solo antes de entrar.
 import {
@@ -225,6 +225,14 @@ textarea.inp{min-height:90px;resize:none;}
 .mn-ayuda{font-size:12px;color:var(--muted);line-height:1.45;margin:0 2px 12px;}
 .mn-grupo{border:1px solid var(--border);border-radius:14px;margin-bottom:8px;overflow:hidden;background:var(--card2);}
 .mn-cab{width:100%;display:flex;align-items:center;gap:12px;padding:14px;background:transparent;border:none;color:var(--text);font-family:'Nunito',sans-serif;cursor:pointer;text-align:left;}
+.mn-cab-fila{display:flex;align-items:center;}
+.mn-cab-fila .mn-cab{flex:1;min-width:0;}
+.mn-grupo.escondido{opacity:.55;border-style:dashed;}
+.enf-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.enf{display:flex;flex-direction:column;gap:3px;text-align:left;padding:12px;background:var(--card2);border:1.5px solid var(--border);border-radius:12px;color:var(--text);font-family:'Nunito',sans-serif;cursor:pointer;}
+.enf.on{border-color:var(--accent);background:rgba(228,178,63,.08);}
+.enf-n{font-size:14px;font-weight:800;}
+.enf-s{font-size:11px;color:var(--muted);line-height:1.3;}
 .mn-gn{flex:1;font-size:15px;font-weight:800;}
 .mn-cu{font-size:12px;color:var(--muted);font-weight:700;}
 .mn-fl{width:18px;text-align:center;font-size:18px;color:var(--muted);line-height:1;}
@@ -6402,20 +6410,48 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
   const [menuTodas, setMenuTodas] = useState(() => { try { return JSON.parse(localStorage.getItem(LLAVES.menu) || "{}") || {}; } catch { return {}; } });
   const [menuAbierto, setMenuAbierto] = useState(null);   // null · "ver" · "acomodar"
   const prefsMenu = useMemo(() => prefsDe(menuTodas, quienMenu), [menuTodas, quienMenu]);
-  const cambiarPrefsMenu = useCallback((fn) => {
+  const cambiarPrefsMenu = useCallback((fn, esAcomodo = true) => {
     if (!quienMenu) return;
     setMenuTodas(t => {
-      const n = conPrefs(t, quienMenu, fn(prefsDe(t, quienMenu)));
+      const antes = prefsDe(t, quienMenu); let sale = fn(antes);
+      // Cambiar el acomodo le pone la hora, para saber cuál gana entre dos aparatos.
+      if (esAcomodo && sale !== antes) sale = sellarAcomodo(sale, new Date().toISOString());
+      const n = conPrefs(t, quienMenu, sale);
       try { localStorage.setItem(LLAVES.menu, JSON.stringify(n)); } catch { /* si no cabe, se pierde el acomodo, no un dato */ }
       return n;
     });
   }, [quienMenu]);
-  useEffect(() => { if (quienMenu && FUNCIONES[page]) cambiarPrefsMenu(p => anotarUso(p, page, new Date().toISOString())); }, [page, quienMenu, cambiarPrefsMenu]);
+  useEffect(() => { if (quienMenu && FUNCIONES[page]) cambiarPrefsMenu(p => anotarUso(p, page, new Date().toISOString()), false); }, [page, quienMenu, cambiarPrefsMenu]);
+  // Que el acomodo siga a la persona: al entrar con cuenta se junta lo del
+  // teléfono con lo guardado en la nube, y cada cambio de acomodo se sube.
+  // Quien entra con PIN no tiene cuenta: su acomodo se queda en el teléfono.
+  const cuentaMenu = session?.cuenta && supabaseListo ? session.id : null;
+  const menuSubido = useRef(null);      // lo último que se sabe que está en la nube
+  useEffect(() => {
+    if (!cuentaMenu || !online) return;
+    let vivo = true; menuSubido.current = null;
+    leerPreferencias(cuentaMenu).then(r => {
+      if (!vivo || !r.ok) return;
+      menuSubido.current = { datos: r.datos, usos: 0 };
+      if (r.datos) cambiarPrefsMenu(local => mezclarPrefs(local, r.datos), false);
+    });
+    return () => { vivo = false; };
+  }, [cuentaMenu, online, cambiarPrefsMenu]);
+  useEffect(() => {
+    if (!cuentaMenu || !online || !menuSubido.current) return;   // todavía no se sabe qué hay en la nube: no se pisa
+    const usos = Object.values(prefsMenu.uso || {}).reduce((n, u) => n + (u?.n || 0), 0);
+    const cambioAcomodo = !mismoAcomodo(prefsMenu, menuSubido.current.datos) && !!prefsMenu.cuando;
+    if (!cambioAcomodo && usos - menuSubido.current.usos < 15) return;
+    const t = setTimeout(async () => {
+      if (await guardarPreferencias(cuentaMenu, prefsMenu)) menuSubido.current = { datos: prefsMenu, usos };
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [cuentaMenu, online, prefsMenu]);
   const ctxMenu = useMemo(() => ({
-    rol: rolMenu, prefs: prefsMenu, cambiar: cambiarPrefsMenu, pagina: page,
+    rol: rolMenu, prefs: prefsMenu, cambiar: cambiarPrefsMenu, pagina: page, conCuenta: !!(session?.cuenta && supabaseListo),
     ir: (id) => { setMenuAbierto(null); setPage(id); },
     abrir: (acomodar) => setMenuAbierto(acomodar ? "acomodar" : "ver"), cerrar: () => setMenuAbierto(null),
-  }), [rolMenu, prefsMenu, cambiarPrefsMenu, page]);
+  }), [rolMenu, prefsMenu, cambiarPrefsMenu, page, session]);
 
   if (!session) return <div className="agro-root"><style>{CSS}</style><LoginScreen data={data} add={add} upd={upd} onLogin={setSession} /></div>;
 
@@ -7363,7 +7399,14 @@ function AccesosInicio() {
   if (!m) return null;
   const ancladas = ancladasConDatos(m.rol, m.prefs);
   const usadas = masUsadas(m.rol, m.prefs);
-  return (
+  return (<>
+    {faltaEnfoque(m.rol, m.prefs) && (
+      <div className="card">
+        <div className="card-title" style={{ marginBottom: 4 }}>¿A qué te dedicas más aquí?</div>
+        <div className="text-sm text-muted" style={{ marginBottom: 12 }}>Para abrirte con lo tuyo primero. Puedes lo mismo de siempre, y lo cambias cuando quieras en "Acomodar".</div>
+        <Enfoques m={m} />
+      </div>
+    )}
     <div className="card">
       <div className="flex-b" style={{ marginBottom: 12 }}>
         <span className="card-title" style={{ marginBottom: 0 }}>Tus accesos</span>
@@ -7392,18 +7435,33 @@ function AccesosInicio() {
       </>}
       <button className="acc-todo" onClick={() => m.abrir(false)}><Ic name="menu" /> Ver todo el menú</button>
     </div>
+  </>);
+}
+
+// A qué se dedica más: cambia con qué abre y el orden del menú, no lo que puede hacer.
+function Enfoques({ m }) {
+  return (
+    <div className="enf-grid">
+      {ENFOQUES.map(e => (
+        <button key={e.id} className={`enf${m.prefs.enfoque === e.id ? " on" : ""}`} onClick={() => m.cambiar(p => elegirEnfoque(p, e.id))}>
+          <span className="enf-n">{e.nombre}</span><span className="enf-s">{e.sub}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
 // El menú completo: buscador arriba, y los grupos se abren y se cierran.
 function MenuTodo({ acomodar: empiezaAcomodando }) {
   const m = useContext(MenuCtx);
-  const grupos = useMemo(() => menuDe(m.rol), [m.rol]);
+  const grupos = useMemo(() => menuDe(m.rol, m.prefs), [m.rol, m.prefs]);
+  const [verEscondidos, setVerEscondidos] = useState(false);
+  const escondidos = grupos.filter(g => g.oculto).length;
   const [q, setQ] = useState("");
   const [acomodar, setAcomodar] = useState(!!empiezaAcomodando);
   const [dice, setDice] = useState("");
   const [abiertos, setAbiertos] = useState(() => {
-    const g = FUNCIONES[m.pagina]?.grupo || grupos[0]?.id;
+    const g = FUNCIONES[m.pagina]?.grupo || grupos.find(x => !x.oculto)?.id;
     return g ? { [g]: true } : {};
   });
   const enInicio = ancladasDe(m.rol, m.prefs);
@@ -7437,7 +7495,14 @@ function MenuTodo({ acomodar: empiezaAcomodando }) {
         <input className="inp" placeholder="Buscar: nómina, banco, corrida…" value={q} onChange={e => setQ(e.target.value)} style={{ marginBottom: 12 }} />
         {acomodar && (
           <div className="mn-ayuda">
-            La <b>estrella</b> lo pone en tu inicio. <b>Barra</b> lo pone abajo (caben {TOPE_BARRA}, además de Inicio y Menú). Es sólo tuyo y de este teléfono.
+            La <b>estrella</b> lo pone en tu inicio. <b>Barra</b> lo pone abajo (caben {TOPE_BARRA}, además de Inicio y Menú). <b>Esconder</b> quita de tu vista un grupo que no usas; buscando sigue saliendo. Es sólo tuyo{m.conCuenta ? " y te sigue a cualquier aparato donde entres con tu cuenta" : " y de este teléfono"}.
+          </div>
+        )}
+        {acomodar && !hallados && PERFILES_CON_ENFOQUE.includes(m.rol) && (
+          <div style={{ marginBottom: 12 }}>
+            <div className="acc-tit" style={{ marginTop: 0, marginBottom: 8 }}>A qué te dedicas más</div>
+            <Enfoques m={m} />
+            <div className="mn-ayuda" style={{ marginTop: 8, marginBottom: 0 }}>Escoger uno vuelve a acomodar tu inicio y tu barra con lo de ese trabajo.</div>
           </div>
         )}
         {dice && <div className="mn-ayuda" style={{ color: "var(--gold)" }}>{dice}</div>}
@@ -7463,22 +7528,30 @@ function MenuTodo({ acomodar: empiezaAcomodando }) {
           ? <div className="text-sm text-muted" style={{ padding: "8px 4px" }}>No hay nada con ese nombre en tu menú.</div>
           : <div className="mn-grupo abierto">{hallados.map(fila)}</div>)}
 
-        {!hallados && grupos.map(g => {
+        {!hallados && grupos.filter(g => acomodar || verEscondidos || !g.oculto).map(g => {
           const abierto = !!abiertos[g.id];
           return (
-            <div key={g.id} className={`mn-grupo${abierto ? " abierto" : ""}`}>
-              <button className="mn-cab" onClick={() => setAbiertos(a => ({ ...a, [g.id]: !a[g.id] }))}>
-                <span className="mn-ic"><Ic e={g.icono} /></span>
-                <span className="mn-gn">{g.nombre}</span>
-                <span className="mn-cu">{g.funciones.length}</span>
-                <span className="mn-fl">{abierto ? "−" : "+"}</span>
-              </button>
+            <div key={g.id} className={`mn-grupo${abierto ? " abierto" : ""}${g.oculto ? " escondido" : ""}`}>
+              <div className="mn-cab-fila">
+                <button className="mn-cab" onClick={() => setAbiertos(a => ({ ...a, [g.id]: !a[g.id] }))}>
+                  <span className="mn-ic"><Ic e={g.icono} /></span>
+                  <span className="mn-gn">{g.nombre}</span>
+                  <span className="mn-cu">{g.funciones.length}</span>
+                  <span className="mn-fl">{abierto ? "−" : "+"}</span>
+                </button>
+                {acomodar && <button className={`mn-chip${g.oculto ? " on" : ""}`} style={{ marginRight: 10 }} onClick={() => tocar(alternarGrupo, g.id)}>{g.oculto ? "Mostrar" : "Esconder"}</button>}
+              </div>
               {abierto && g.funciones.map(fila)}
             </div>
           );
         })}
+        {!hallados && !acomodar && escondidos > 0 && (
+          <button className="acc-link" style={{ display: "block", margin: "4px auto 0" }} onClick={() => setVerEscondidos(v => !v)}>
+            {verEscondidos ? "Volver a esconderlos" : `Tienes ${escondidos} grupo(s) escondido(s) · Ver`}
+          </button>
+        )}
 
-        {acomodar && (m.prefs.inicio || m.prefs.barra) && (
+        {acomodar && (m.prefs.inicio || m.prefs.barra || m.prefs.ocultos.length > 0) && (
           <button className="acc-todo" onClick={() => { m.cambiar(volverALoDeFabrica); setDice(""); }}>Dejarlo como venía</button>
         )}
       </div>

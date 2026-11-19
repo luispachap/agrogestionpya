@@ -6,13 +6,15 @@
 //    · cada pantalla tiene UN nombre y vive en UN grupo;
 //    · cada perfil ve sólo las suyas;
 //    · cada persona ancla al inicio lo que usa, y escoge qué va en la barra de
-//      abajo; lo que más abre sube solo a "Lo que más usas".
+//      abajo; lo que más abre sube solo a "Lo que más usas";
+//    · dos administradores no hacen el mismo trabajo: cada uno dice a qué se
+//      dedica más y la app le abre con eso, en su orden, y puede esconder los
+//      grupos que no le tocan. Esconder NO quita permiso: es sólo no estorbar.
 //  La app ACOMODA, no decide: lo anclado por la persona nunca lo mueve el uso.
 //  Todo es puro: quién guarda y dónde lo decide App.jsx (LLAVES.menu).
 // ════════════════════════════════════════════════════════════════════════
 
 export const GRUPOS = [
-  { id: "hoy", nombre: "Hoy", icono: "🌦" },
   { id: "campo", nombre: "Campo", icono: "🌾" },
   { id: "ajo", nombre: "Bodega y ajo", icono: "🏭" },
   { id: "dinero", nombre: "Dinero", icono: "💵" },
@@ -23,14 +25,15 @@ export const GRUPOS = [
 
 const f = (grupo, icono, nombre, sub) => ({ grupo, icono, nombre, sub });
 export const FUNCIONES = {
-  // Hoy
-  operacion: f("hoy", "🎯", "Operación", "Qué pasa ahora en campo"),
-  eldia: f("hoy", "🌦", "El día", "Clima, reparto y qué se acaba"),
-  aldia: f("hoy", "🎯", "¿Alcanza?", "Y qué dejó de aparecer"),
-  resumen: f("hoy", "📰", "Resumen", "Cómo va la semana"),
-  "panel-financiero": f("hoy", "💰", "¿Cómo vamos?", "Resumen del dinero"),
-  chat: f("hoy", "💬", "Chat", "Lo del grupo, ya clasificado"),
-  dictado: f("hoy", "💬", "Dile a la app", "Habla y ella lo registra"),
+  // (No hay grupo "Hoy": lo de hoy no es lo mismo para el contador que para
+  // el capataz. Lo de cada quien es lo que ancló, y sale primero en SU menú.)
+  operacion: f("campo", "🎯", "Operación", "Qué pasa ahora en campo"),
+  eldia: f("campo", "🌦", "El día", "Clima, reparto y qué se acaba"),
+  aldia: f("dinero", "🎯", "¿Alcanza?", "Y qué dejó de aparecer"),
+  resumen: f("dinero", "📰", "Resumen", "Cómo va la semana"),
+  "panel-financiero": f("dinero", "💰", "¿Cómo vamos?", "Resumen del dinero"),
+  chat: f("gente", "💬", "Chat", "Lo del grupo, ya clasificado"),
+  dictado: f("campo", "💬", "Dile a la app", "Habla y ella lo registra"),
   // Campo
   "registrar-actividad": f("campo", "✏️", "Registrar actividad", "Una labor de campo"),
   "registro-masivo": f("campo", "👥", "Registro de varios", "Varios trabajadores a la vez"),
@@ -115,6 +118,37 @@ export const DE_FABRICA = {
   finanzas: { barra: ["solicitudes", "deudas", "contabilidad"], inicio: ["contabilidad", "corrida", "nomina", "proyeccion", "embarque", "terminados"] },
 };
 
+// A qué se dedica más cada administrador. Los dos superadministradores pueden
+// lo mismo, pero no hacen lo mismo: uno lleva los números y el otro el rancho.
+// Escoger uno cambia con qué abre y en qué orden salen los grupos. Nada más.
+export const ENFOQUES = [
+  { id: "dinero", nombre: "Los números", sub: "Pólizas, movimientos, conciliar",
+    barra: ["movimientos", "contabilidad", "banco"],
+    inicio: ["arranque", "papeles", "banco", "contpaqi", "socios", "aldia", "deudas", "nomina", "reportes"],
+    orden: ["dinero", "almacen", "gente", "ajo", "campo", "control"] },
+  { id: "campo", nombre: "El rancho", sub: "Actividades, gente, comprobantes",
+    barra: ["registrar-actividad", "pase-lista", "papeles"],
+    inicio: ["arranque", "registrar-actividad", "registro-masivo", "pase-lista", "papeles", "vales", "tareas", "operacion", "eldia"],
+    orden: ["campo", "gente", "almacen", "ajo", "dinero", "control"] },
+  { id: "bodega", nombre: "La bodega", sub: "Corrida, estibas, embarques",
+    barra: ["corrida", "estibas", "terminados"],
+    inicio: ["arranque", "corrida", "estibas", "terminados", "embarque", "consignaciones", "comercializacion", "pase-lista"],
+    orden: ["ajo", "almacen", "gente", "dinero", "campo", "control"] },
+  { id: "todo", nombre: "De todo un poco", sub: "Lo dejo como viene",
+    barra: null, inicio: null, orden: null },
+];
+export const PERFILES_CON_ENFOQUE = ["admin"];
+const enfoqueDe = (rol, prefs) => (PERFILES_CON_ENFOQUE.includes(rol) && ENFOQUES.find(e => e.id === prefs?.enfoque)) || null;
+// ¿Hay que preguntarle a qué se dedica? Sólo a quien aplica y todavía no contesta.
+export const faltaEnfoque = (rol, prefs) => PERFILES_CON_ENFOQUE.includes(rol) && !ENFOQUES.some(e => e.id === prefs?.enfoque);
+// Con qué abre esta persona si no ha acomodado nada: lo de su enfoque, o lo de su perfil.
+const fabricaDe = (rol, prefs) => {
+  const e = enfoqueDe(rol, prefs), d = DE_FABRICA[rol] || { barra: [], inicio: [] };
+  return { barra: e?.barra || d.barra, inicio: e?.inicio || d.inicio };
+};
+// Escoger enfoque acomoda de nuevo el inicio y la barra con lo de ese trabajo.
+export const elegirEnfoque = (prefs, id) => (ENFOQUES.some(e => e.id === id) ? { ...prefs, enfoque: id, barra: null, inicio: null } : prefs);
+
 export const TOPE_BARRA = 3;     // más Inicio y Menú: cinco botones, lo que cabe en un teléfono
 export const TOPE_INICIO = 12;
 
@@ -128,12 +162,25 @@ const limpiar = (lista, rol, tope) => {
 };
 const conDatos = (ids) => ids.map(id => ({ id, ...FUNCIONES[id] }));
 
-// El menú completo de un perfil: grupos en orden, sin grupos vacíos.
-export function menuDe(rol) {
+// El menú completo de una persona: los grupos en SU orden, sin grupos vacíos,
+// y cada uno dice si la persona lo escondió.
+export function menuDe(rol, prefs) {
   const ok = new Set(permitidas(rol));
-  return GRUPOS
-    .map(g => ({ ...g, funciones: Object.keys(FUNCIONES).filter(id => FUNCIONES[id].grupo === g.id && ok.has(id)).map(id => ({ id, ...FUNCIONES[id] })) }))
+  const orden = enfoqueDe(rol, prefs)?.orden;
+  const escondidos = new Set(Array.isArray(prefs?.ocultos) ? prefs.ocultos : []);
+  const grupos = orden ? [...GRUPOS].sort((a, b) => orden.indexOf(a.id) - orden.indexOf(b.id)) : GRUPOS;
+  return grupos
+    .map(g => ({ ...g, oculto: escondidos.has(g.id), funciones: Object.keys(FUNCIONES).filter(id => FUNCIONES[id].grupo === g.id && ok.has(id)).map(id => ({ id, ...FUNCIONES[id] })) }))
     .filter(g => g.funciones.length > 0);
+}
+// Esconder o volver a enseñar un grupo. Nunca se pueden esconder todos.
+export function alternarGrupo(rol, prefs, grupo) {
+  const todos = menuDe(rol, prefs).map(g => g.id);
+  if (!todos.includes(grupo)) return { prefs, dice: "" };
+  const ya = (Array.isArray(prefs?.ocultos) ? prefs.ocultos : []).filter(g => todos.includes(g));
+  if (ya.includes(grupo)) return { prefs: { ...prefs, ocultos: ya.filter(g => g !== grupo) }, dice: "" };
+  if (ya.length >= todos.length - 1) return { prefs, dice: "Tiene que quedar al menos un grupo a la vista." };
+  return { prefs: { ...prefs, ocultos: [...ya, grupo] }, dice: "" };
 }
 
 // Buscar sin acentos ni mayúsculas, en el nombre y en la descripción.
@@ -146,15 +193,19 @@ export function buscarEnMenu(rol, texto) {
 
 // Las preferencias de UNA persona. `null` en barra/inicio = todavía no acomoda
 // nada y se le enseña lo de fábrica de su perfil; una lista vacía es SU decisión.
-export const prefsVacias = () => ({ barra: null, inicio: null, uso: {} });
+export const prefsVacias = () => ({ barra: null, inicio: null, enfoque: null, ocultos: [], cuando: null, uso: {} });
 export function prefsDe(todas, quien) {
   const p = (todas && quien && todas[quien]) || {};
-  return { barra: Array.isArray(p.barra) ? p.barra : null, inicio: Array.isArray(p.inicio) ? p.inicio : null, uso: p.uso && typeof p.uso === "object" ? p.uso : {} };
+  return {
+    barra: Array.isArray(p.barra) ? p.barra : null, inicio: Array.isArray(p.inicio) ? p.inicio : null,
+    enfoque: typeof p.enfoque === "string" ? p.enfoque : null, ocultos: Array.isArray(p.ocultos) ? p.ocultos : [],
+    cuando: typeof p.cuando === "string" ? p.cuando : null, uso: p.uso && typeof p.uso === "object" ? p.uso : {},
+  };
 }
 export const conPrefs = (todas, quien, prefs) => (quien ? { ...(todas || {}), [quien]: prefs } : (todas || {}));
 
-export const ancladasDe = (rol, prefs) => limpiar(prefs?.inicio ?? DE_FABRICA[rol]?.inicio, rol, TOPE_INICIO);
-export const enBarraDe = (rol, prefs) => limpiar(prefs?.barra ?? DE_FABRICA[rol]?.barra, rol, TOPE_BARRA);
+export const ancladasDe = (rol, prefs) => limpiar(prefs?.inicio ?? fabricaDe(rol, prefs).inicio, rol, TOPE_INICIO);
+export const enBarraDe = (rol, prefs) => limpiar(prefs?.barra ?? fabricaDe(rol, prefs).barra, rol, TOPE_BARRA);
 
 // En la barra de abajo el nombre va corto: caben unas diez letras.
 const CORTOS = {
@@ -193,7 +244,7 @@ export function moverEnInicio(rol, prefs, id, dir) {
   const n = [...ya]; [n[i], n[j]] = [n[j], n[i]];
   return { ...prefs, inicio: n };
 }
-export const volverALoDeFabrica = (prefs) => ({ ...prefs, barra: null, inicio: null });
+export const volverALoDeFabrica = (prefs) => ({ ...prefs, barra: null, inicio: null, ocultos: [] });
 
 // Cada vez que se abre una pantalla del menú, se cuenta. Sólo eso: cuántas
 // veces y cuándo fue la última. No se guarda qué se hizo adentro.
@@ -216,3 +267,23 @@ export function masUsadas(rol, prefs, cuantas = 4) {
 }
 
 export const ancladasConDatos = (rol, prefs) => conDatos(ancladasDe(rol, prefs));
+
+// ── Que el acomodo siga a la persona de un aparato a otro ──────────────────
+// El acomodo (inicio, barra, enfoque, grupos escondidos) lleva la hora en que
+// se cambió: gana el más reciente, entero, no una mezcla de los dos. El uso sí
+// se junta: de cada pantalla se queda la cuenta más alta.
+export const sellarAcomodo = (prefs, cuando) => ({ ...prefs, cuando });
+const acomodoDe = (p) => ({ barra: p.barra, inicio: p.inicio, enfoque: p.enfoque, ocultos: p.ocultos, cuando: p.cuando });
+export function mezclarPrefs(local, nube) {
+  const l = prefsDe({ x: local }, "x"), n = prefsDe({ x: nube }, "x");
+  const ganaNube = !!n.cuando && (!l.cuando || n.cuando > l.cuando);
+  const uso = { ...n.uso };
+  for (const [id, u] of Object.entries(l.uso)) {
+    const o = uso[id];
+    uso[id] = !o || (u?.n || 0) >= (o?.n || 0) ? u : o;
+  }
+  return { ...acomodoDe(ganaNube ? n : l), uso };
+}
+// ¿Hay algo que valga la pena subir? El puro uso no: se sube cuando cambie el acomodo
+// o cuando ya se juntó suficiente.
+export const mismoAcomodo = (a, b) => JSON.stringify(acomodoDe(prefsDe({ x: a }, "x"))) === JSON.stringify(acomodoDe(prefsDe({ x: b }, "x")));

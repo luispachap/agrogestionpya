@@ -15,7 +15,7 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 
 | Asunto | Hecho | Comprobado en el proyecto real |
 |---|---|---|
-| Base montada (27 hojas, 60 tablas), sellada y vacía | Sí | Sí |
+| Base montada (27 hojas, 60 tablas; la hoja 34 —el acomodo de cada quien— está escrita y probada, falta instalarla), sellada y vacía | Sí | Sí |
 | 6 ataques sin sesión + 34 con sesión | Sí | Sí, sin dejar rastro |
 | Sitio publicado y conectado | Sí | Sí (18 de 18 en navegador real) |
 | Alta de cuentas sin consola (código de arranque de un uso + invitación) | Sí | El procedimiento completo, sí (sin dejar rastro). **Falta: que entren ustedes** |

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   GRUPOS, FUNCIONES, PANTALLAS_DE, DE_FABRICA, TOPE_BARRA, TOPE_INICIO, menuDe, buscarEnMenu, prefsVacias, prefsDe, conPrefs,
-  ancladasDe, enBarraDe, alternarInicio, alternarBarra, moverEnInicio, volverALoDeFabrica, anotarUso, masUsadas,
+  ancladasDe, enBarraDe, barraDe, ENFOQUES, faltaEnfoque, elegirEnfoque, alternarGrupo, mezclarPrefs, sellarAcomodo, mismoAcomodo, alternarInicio, alternarBarra, moverEnInicio, volverALoDeFabrica, anotarUso, masUsadas,
 } from "./menu.js";
 
 const APP = readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
@@ -74,7 +74,7 @@ test("anclar_y_soltar_del_inicio_y_de_la_barra_con_su_tope", () => {
 
 test("nadie_ancla_una_pantalla_que_no_es_de_su_perfil_aunque_venga_guardada", () => {
   assert.deepEqual(alternarInicio("trabajador", prefsVacias(), "contabilidad").prefs, prefsVacias());
-  assert.deepEqual(ancladasDe("trabajador", { inicio: ["contabilidad", "mis", "no-existe", "mis"], uso: {} }), ["mis"]);
+  assert.deepEqual(ancladasDe("trabajador", { ...prefsVacias(), inicio: ["contabilidad", "mis", "no-existe", "mis"] }), ["mis"]);
 });
 
 test("mover_un_acceso_lo_sube_o_lo_baja_y_en_la_orilla_no_hace_nada", () => {
@@ -101,4 +101,56 @@ test("las_preferencias_son_de_cada_persona_en_el_mismo_telefono", () => {
   assert.deepEqual(prefsDe(todas, "migue").inicio, ["corrida"]);
   assert.deepEqual(prefsDe(todas, "otro"), prefsVacias());
   assert.deepEqual(prefsDe(null, "luis"), prefsVacias());
+});
+
+test("el_contador_y_el_capataz_abren_con_cosas_distintas_aunque_los_dos_puedan_todo", () => {
+  const contador = elegirEnfoque(prefsVacias(), "dinero"), capataz = elegirEnfoque(prefsVacias(), "campo");
+  assert.ok(faltaEnfoque("admin", prefsVacias()) && !faltaEnfoque("admin", contador) && !faltaEnfoque("agronomo", prefsVacias()));
+  assert.deepEqual(barraDe("admin", contador).map(x => x.id), ["movimientos", "contabilidad", "banco"]);
+  assert.deepEqual(barraDe("admin", capataz).map(x => x.id), ["registrar-actividad", "pase-lista", "papeles"]);
+  assert.equal(menuDe("admin", contador)[0].id, "dinero");
+  assert.equal(menuDe("admin", capataz)[0].id, "campo");
+  assert.ok(ancladasDe("admin", capataz).includes("registrar-actividad") && !ancladasDe("admin", capataz).includes("contpaqi"));
+  // el enfoque no le quita ni le da pantallas a nadie
+  const cuenta = (p) => menuDe("admin", p).reduce((n, g) => n + g.funciones.length, 0);
+  assert.equal(cuenta(contador), cuenta(capataz));
+  assert.equal(cuenta(contador), PANTALLAS_DE.admin.length);
+});
+
+test("lo_de_cada_enfoque_son_pantallas_del_administrador_y_cabe", () => {
+  const grupos = GRUPOS.map(g => g.id).sort();
+  for (const e of ENFOQUES) {
+    for (const id of [...(e.barra || []), ...(e.inicio || [])]) assert.ok(PANTALLAS_DE.admin.includes(id), `${e.id}: ${id}`);
+    assert.ok((e.barra || []).length <= TOPE_BARRA && (e.inicio || []).length <= TOPE_INICIO);
+    if (e.orden) assert.deepEqual([...e.orden].sort(), grupos, `${e.id}: el orden trae todos los grupos`);
+  }
+});
+
+test("el_enfoque_de_administrador_no_le_abre_nada_a_otro_perfil", () => {
+  const p = elegirEnfoque(prefsVacias(), "dinero");
+  assert.deepEqual(ancladasDe("agronomo", p), DE_FABRICA.agronomo.inicio);
+  assert.equal(menuDe("agronomo", p)[0].id, "campo");
+});
+
+test("esconder_un_grupo_no_quita_el_permiso_y_nunca_se_esconden_todos", () => {
+  let p = prefsVacias();
+  p = alternarGrupo("agronomo", p, "campo").prefs;
+  assert.ok(menuDe("agronomo", p).find(g => g.id === "campo").oculto);
+  assert.equal(buscarEnMenu("agronomo", "aplicaciones")[0].id, "aplicaciones", "buscando sigue saliendo");
+  const visibles = () => menuDe("agronomo", p).filter(g => !g.oculto).length;
+  for (const g of menuDe("agronomo", p)) p = alternarGrupo("agronomo", p, g.id).prefs;
+  assert.ok(visibles() >= 1);
+  assert.ok(alternarGrupo("externo", prefsVacias(), "gente").dice.includes("al menos un grupo") || menuDe("externo", prefsVacias()).length > 1);
+});
+
+test("entre_dos_aparatos_gana_el_acomodo_mas_reciente_y_el_uso_se_junta", () => {
+  const tel = sellarAcomodo({ ...prefsVacias(), inicio: ["banco"], uso: { nomina: { n: 5, ult: "b" }, banco: { n: 1, ult: "a" } } }, "2026-11-19T10:00:00Z");
+  const compu = sellarAcomodo({ ...prefsVacias(), inicio: ["corrida"], enfoque: "campo", uso: { nomina: { n: 2, ult: "a" }, dron: { n: 4, ult: "c" } } }, "2026-11-19T12:00:00Z");
+  const m = mezclarPrefs(tel, compu);
+  assert.deepEqual(m.inicio, ["corrida"]); assert.equal(m.enfoque, "campo");
+  assert.deepEqual(m.uso, { nomina: { n: 5, ult: "b" }, banco: { n: 1, ult: "a" }, dron: { n: 4, ult: "c" } });
+  assert.deepEqual(mezclarPrefs(compu, tel).inicio, ["corrida"], "sin importar de qué lado se mezcle");
+  assert.deepEqual(mezclarPrefs(tel, null).inicio, ["banco"], "si en la nube no hay nada, se queda lo del teléfono");
+  assert.deepEqual(mezclarPrefs(prefsVacias(), compu).inicio, ["corrida"], "un teléfono nuevo toma lo de la nube");
+  assert.ok(mismoAcomodo(m, compu) && !mismoAcomodo(m, tel));
 });

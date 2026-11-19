@@ -90,7 +90,7 @@ begin
   for t in
     select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind = 'r'
-      and c.relname not in ('perfiles', 'permisos_rol', 'limites', 'uso_ia', 'operacion', 'invitaciones')
+      and c.relname not in ('perfiles', 'permisos_rol', 'limites', 'uso_ia', 'operacion', 'invitaciones', 'preferencias')
   loop
     execute format('drop trigger if exists %I on %I', t || '_espacio', t);
     execute format('create trigger %I before insert on %I for each row execute function exigir_espacio()', t || '_espacio', t);
