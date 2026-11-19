@@ -30,7 +30,7 @@ export async function armarBase({ con24 = true } = {}) {
   // Lo que Supabase ya trae puesto: las cuentas, auth.uid() y los dos papeles.
   await db.exec(`
     create schema auth;
-    create table auth.users (id uuid primary key, email text);
+    create table auth.users (id uuid primary key, email text, email_confirmed_at timestamptz default now(), raw_user_meta_data jsonb);
     create function auth.uid() returns uuid language sql stable as
       $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     create role anon nologin; create role authenticated nologin;
@@ -48,7 +48,7 @@ export async function armarBase({ con24 = true } = {}) {
   `);
   for (const h of HOJAS_VIEJAS) await db.exec(leerHoja(h));
   for (const [nombre, id] of Object.entries(CUENTAS))
-    await db.query("insert into auth.users values ($1, $2)", [id, nombre + "@prueba.invalid"]);
+    await db.query("insert into auth.users (id, email) values ($1, $2)", [id, nombre + "@prueba.invalid"]);
   // Perfiles puestos por el dueño de la base (como desde el panel).
   const rolViejo = { luis: "admin", migue: "admin" };
   for (const n of ["luis", "migue", "encargado", "agronomo", "finanzas", "dueno"])

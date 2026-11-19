@@ -13,7 +13,7 @@ const con = (o) => JSON.stringify({ _espacio: "proyectonuevo", ...o });
 test("las_hojas_no_siembran_ni_un_solo_registro_de_operacion", async () => {
   // Una base recién armada, sin las cuentas ni los datos de mentira del resto de las pruebas.
   const limpia = new PGlite();
-  await limpia.exec(`create schema auth; create table auth.users (id uuid primary key, email text);
+  await limpia.exec(`create schema auth; create table auth.users (id uuid primary key, email text, email_confirmed_at timestamptz, raw_user_meta_data jsonb);
     create function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;
     create role anon nologin; create role authenticated nologin;
     create schema storage;
