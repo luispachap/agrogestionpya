@@ -277,8 +277,8 @@ function comoSeLlamaElDia(fecha, dia) {
 // del nombre y entre paréntesis, como lo capturó quien hizo la nómina —
 // "NOMBRE APELLIDO (APODO)", "NOMBRE APELLIDO (APODO)".
 //
-// Y Gera nombra a la gente por el apodo, siempre. Sin esto, "el Venao se va a
-// la 53" no reconocía a nadie: la última palabra del nombre era "(VENAO)" con
+// Y Gera nombra a la gente por el apodo, siempre. Sin esto, "el Zurdo se va a
+// la 53" no reconocía a nadie: la última palabra del nombre era "(ZURDO)" con
 // paréntesis y nunca casaba. El dictado entero se iba a la columna roja.
 export function conElApodoAparte(personas) {
   return (personas || []).map(p => {
