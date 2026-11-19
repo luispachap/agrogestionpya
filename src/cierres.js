@@ -11,15 +11,16 @@
 //  sigue entrando, y se enseña como DIFERENCIA contra la foto del cierre.
 //  Para volver a trabajar la semana se reabre (`reapertura_semana`) con motivo;
 //  al cerrar otra vez nace una versión nueva y la anterior se queda.
-//  Sólo cierra un administrador o alguien a quien se autorizó expresamente.
+//  Sólo cierra quien tiene ESE permiso (lo asigna un administrador a una cuenta, y lo comprueba la base).
 // ════════════════════════════════════════════════════════════════════════
-import { nuevoEvento, vigentes } from "./eventos.js";
+import { nuevoEvento, vigentes, negado } from "./eventos.js";
 import { sumarDinero } from "./calculos.js";
 
 export const T_CIERRE = "cierre_semana", T_REAPERTURA = "reapertura_semana", T_CONFIRMACION = "confirmacion_pagos";
 const limpio = (s) => String(s || "").trim();
-// `autorizados`: ids de quienes tienen permiso expreso (lo da un administrador en la ficha).
-export const puedeCerrar = (quien, autorizados = []) => quien?.rol === "admin" || (!!quien?.id && autorizados.includes(quien.id));
+// `permitido`: lo que la base dijo de la cuenta de este aparato para «cerrar_semana». No basta el perfil:
+// es un permiso que un administrador le asigna a una cuenta. Sin servidor, manda el perfil con que se entró.
+export const puedeCerrar = (quien, permitido) => !negado(quien, permitido, "no");
 const deLaSemana = (eventos, tipo, desde, hasta) => vigentes(eventos).filter(e => e.tipo === tipo && e.datos.desde === desde && e.datos.hasta === hasta).sort((a, b) => a.cuando.localeCompare(b.cuando));
 export const cierresDe = (eventos, desde, hasta) => deLaSemana(eventos, T_CIERRE, desde, hasta).map((e, i) => ({ ...e, version: i + 1 }));
 export const reaperturasDe = (eventos, desde, hasta) => deLaSemana(eventos, T_REAPERTURA, desde, hasta);
@@ -35,8 +36,8 @@ export function estadoDeSemana(eventos, desde, hasta) {
 }
 
 // `renglones`: [{ a: {tipo,id,nombre}, corresponde, descuentos, neto }] — lo calculado en ese momento.
-export function cerrarSemana({ eventos, desde, hasta, renglones, motivo = "", quien, autorizados, cuando, fecha, azar }) {
-  if (!puedeCerrar(quien, autorizados)) return { ok: false, dice: "La semana la cierra un administrador o alguien autorizado para eso." };
+export function cerrarSemana({ eventos, desde, hasta, renglones, motivo = "", quien, permitido, cuando, fecha, azar }) {
+  { const no = negado(quien, permitido, "La semana la cierra un administrador o alguien autorizado para eso."); if (no) return { ok: false, dice: no }; }
   if (!desde || !hasta) return { ok: false, dice: "Falta la semana." };
   const s = estadoDeSemana(eventos, desde, hasta);
   if (s.estado === "cerrada") return { ok: false, dice: "Esa semana ya está cerrada. Para cambiarla hay que reabrirla y decir por qué." };
@@ -45,8 +46,8 @@ export function cerrarSemana({ eventos, desde, hasta, renglones, motivo = "", qu
   return { ok: true, evento: nuevoEvento({ tipo: T_CIERRE, cuando, fecha, quien, azar, origen: s.cierre?.id || null, relacion: s.cierre ? "sustituye" : null,
     datos: { desde, hasta, motivo: limpio(motivo), renglones: foto, total: sumarDinero(foto.map(r => r.corresponde)), totalNeto: sumarDinero(foto.map(r => r.neto)) } }) };
 }
-export function reabrirSemana({ eventos, desde, hasta, motivo, quien, autorizados, cuando, fecha, azar }) {
-  if (!puedeCerrar(quien, autorizados)) return { ok: false, dice: "La semana la reabre un administrador o alguien autorizado para eso." };
+export function reabrirSemana({ eventos, desde, hasta, motivo, quien, permitido, cuando, fecha, azar }) {
+  { const no = negado(quien, permitido, "La semana la reabre un administrador o alguien autorizado para eso."); if (no) return { ok: false, dice: no }; }
   const s = estadoDeSemana(eventos, desde, hasta);
   if (s.estado !== "cerrada") return { ok: false, dice: "Esa semana no está cerrada." };
   if (!limpio(motivo)) return { ok: false, dice: "Para reabrir hay que decir por qué." };
@@ -67,8 +68,8 @@ export function diferenciasDelCierre(cierre, renglonesHoy) {
 
 // Confirmar los pagos de una semana YA cerrada: una foto de lo entregado contra lo cerrado.
 // `renglones`: [{ a, neto, entregado, pendiente }]. Confirmar con pendientes se puede: queda dicho cuánto falta.
-export function confirmarPagos({ eventos, desde, hasta, renglones, nota = "", quien, autorizados, cuando, fecha, azar }) {
-  if (!puedeCerrar(quien, autorizados)) return { ok: false, dice: "Los pagos los confirma un administrador o alguien autorizado para eso." };
+export function confirmarPagos({ eventos, desde, hasta, renglones, nota = "", quien, permitido, cuando, fecha, azar }) {
+  { const no = negado(quien, permitido, "Los pagos los confirma un administrador o alguien autorizado para eso."); if (no) return { ok: false, dice: no }; }
   const s = estadoDeSemana(eventos, desde, hasta);
   if (s.estado !== "cerrada") return { ok: false, dice: "Primero se cierra el cálculo de la semana; los pagos se confirman después, aparte." };
   const foto = (renglones || []).map(r => ({ a: { tipo: r.a.tipo, id: r.a.id, nombre: r.a.nombre }, neto: r.neto, entregado: r.entregado, pendiente: r.pendiente }));

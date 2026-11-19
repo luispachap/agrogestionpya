@@ -142,9 +142,40 @@ export async function leerEventosDesde(desde) {
 export async function guardarRegistro(tabla, obj) {
   if (!supabaseListo) throw new Error("Supabase no está configurado");
   const fila = objetoAFila(tabla, obj);
+  if (tabla === "eventos") {
+    // De un evento se pide de regreso lo que la base le selló (cuándo lo recibió y, si es sensible, si lo autorizó).
+    const { data, error } = await supabase.from(tabla).upsert(fila, { onConflict: "id" }).select();
+    if (error) throw error;
+    const sellado = data && data[0] ? filaAObjeto(data[0]) : null;
+    if (sellado) { try { alSellar?.(sellado); } catch { /* el sello llega igual en la siguiente bajada */ } }
+    return true;
+  }
   const { error } = await supabase.from(tabla).upsert(fila, { onConflict: "id" });
   if (error) throw error;
   return true;
+}
+// La app deja aquí a quién avisarle cuando la base devuelve un evento ya sellado.
+let alSellar = null;
+export const cuandoSelle = (f) => { alSellar = f; };
+
+// ── Permisos de operación (hoja 37): lo que puede ESTA cuenta, y quién puede qué ──
+export async function misPermisos() {
+  if (!supabaseListo) return { ok: false };
+  try {
+    const { data, error } = await supabase.rpc("mis_permisos");
+    if (error) return { ok: false, mensaje: error.message };
+    return { ok: true, rol: data?.rol || null, operaciones: Array.isArray(data?.operaciones) ? data.operaciones : [] };
+  } catch (e) { return { ok: false, mensaje: e?.message }; }
+}
+export async function permisosDeTodos() {
+  if (!supabaseListo) return { ok: false, permisos: [] };
+  const { data, error } = await supabase.from("permisos_operacion").select("usuario, operacion, otorgado, otorgado_por, revocado, revocado_por").order("otorgado", { ascending: true });
+  return error ? { ok: false, permisos: [], mensaje: error.message } : { ok: true, permisos: data || [] };
+}
+export async function cambiarPermiso(usuario, operacion, dar) {
+  if (!supabaseListo) return { ok: false, mensaje: "Este teléfono no está conectado a la nube." };
+  const { error } = await supabase.rpc(dar ? "otorgar_permiso" : "revocar_permiso", { p_usuario: usuario, p_operacion: operacion });
+  return error ? { ok: false, mensaje: error.message } : { ok: true };
 }
 
 // ------------------------------------------------------------

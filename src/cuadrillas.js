@@ -23,7 +23,7 @@
 //  · Un sueldo que no consta para esa fecha se marca estimado; una jornada sin
 //    salida no inventa horas.
 // ════════════════════════════════════════════════════════════════════════
-import { nuevoEvento, vigentes, reglasDe } from "./eventos.js";
+import { nuevoEvento, vigentes, reglasDe, negado } from "./eventos.js";
 import { jornadasDe } from "./checador.js";
 import { sueldoVigente, repartirDinero, multiplicarDinero, sumarDinero } from "./calculos.js";
 
@@ -71,6 +71,8 @@ export const AJUSTES = {
   ind_otra: { defecto: "pendiente", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Tiempo pagado por otra causa: qué se hace con ese importe" },
   ind_encargado: { defecto: "actividades", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Días de un encargado sin actividad registrada: qué se hace con ese importe" },
   ind_prestaciones: { defecto: "actividades", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Prestaciones (aguinaldo, vacaciones y prima): qué se hace con ese importe" },
+  prest_corte: { tipo: "fecha", defecto: null, nombre: "Prestaciones · fecha de corte: desde qué día AgroGestión lleva su costo (lo de antes se captura como saldo inicial)" },
+  prest_dias_promedio: { defecto: 30, minimo: 5, maximo: 365, nombre: "Prestaciones · días trabajados que se promedian para quien cobra por destajo o por hora" },
   prest_aguinaldo_dias: { defecto: 15, minimo: 15, maximo: 120, nombre: "Prestaciones · días de aguinaldo por año (la ley pide 15 como mínimo)" },
   prest_prima_pct: { defecto: 25, minimo: 25, maximo: 100, nombre: "Prestaciones · prima vacacional, en % (la ley pide 25 como mínimo)" },
   prest_vac_extra: { defecto: 0, minimo: 0, maximo: 30, nombre: "Prestaciones · días de vacaciones adicionales a los de la ley" },
@@ -81,10 +83,11 @@ export function ajusteVigente(eventos, clave) {
   const ultimo = vigentes(eventos).filter(e => e.tipo === TIPO_AJUSTE && e.datos.clave === clave).sort((a, b) => a.cuando.localeCompare(b.cuando)).pop();
   return ultimo ? { valor: ultimo.datos.valor, evento: ultimo.id, por: ultimo.quien?.nombre || "", desde: ultimo.cuando } : { valor: def?.defecto, evento: null, por: "", desde: null };
 }
-export function cambiarAjuste({ clave, valor, quien, cuando, fecha, azar }) {
-  const def = AJUSTES[clave]; const v = def?.opciones ? String(valor) : Number(valor);
+export function cambiarAjuste({ permitido, clave, valor, quien, cuando, fecha, azar }) {
+  const def = AJUSTES[clave]; const v = def?.opciones || def?.tipo === "fecha" ? String(valor) : Number(valor);
   if (!def) return { ok: false, dice: "Esa regla no existe." };
-  if (quien?.rol !== "admin") return { ok: false, dice: "Las reglas del rancho sólo las cambia un administrador." };
+  { const no = negado(quien, permitido, "Las reglas del rancho sólo las cambia un administrador."); if (no) return { ok: false, dice: no }; }
+  if (def.tipo === "fecha") return /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v + "T12:00:00Z").getTime()) ? { ok: true, evento: nuevoEvento({ tipo: TIPO_AJUSTE, cuando, fecha, quien, azar, datos: { clave, valor: v } }) } : { ok: false, dice: "Falta la fecha." };
   if (def.opciones) return def.opciones[v] ? { ok: true, evento: nuevoEvento({ tipo: TIPO_AJUSTE, cuando, fecha, quien, azar, datos: { clave, valor: v } }) } : { ok: false, dice: "Esa opción no existe." };
   if (!Number.isFinite(v) || v < def.minimo || v > def.maximo) return { ok: false, dice: `Tiene que ser un número entre ${def.minimo} y ${def.maximo}.` };
   return { ok: true, evento: nuevoEvento({ tipo: TIPO_AJUSTE, cuando, fecha, quien, azar, datos: { clave, valor: v } }) };
@@ -253,8 +256,8 @@ export function tramosDeTrabajo(eventos, { desde, hasta, hoy, ahora } = {}) {
 // "por revisar". La decisión la toma una persona, con nombre y motivo.
 export const TIPO_DECISION = "decision_jornada";
 export const PAGO_DE_JORNADA = { completo: "Se paga el día completo", medio: "Se paga medio día", horas: "Se pagan las horas trabajadas", ninguno: "No se paga ese día" };
-export function decidirJornada({ trabajadorId, fecha, situacion, pago, motivo, quien, cuando, azar }) {
-  if (quien?.rol !== "admin") return { ok: false, dice: "Cómo se paga un día así lo decide un administrador." };
+export function decidirJornada({ permitido, trabajadorId, fecha, situacion, pago, motivo, quien, cuando, azar }) {
+  { const no = negado(quien, permitido, "Cómo se paga un día así lo decide un administrador."); if (no) return { ok: false, dice: no }; }
   if (!trabajadorId || !fecha) return { ok: false, dice: "Falta decir de quién y de qué día." };
   if (!situacion) return { ok: false, dice: "Falta decir qué pasó." };
   if (!PAGO_DE_JORNADA[pago]) return { ok: false, dice: "Falta decidir cómo se paga ese día." };

@@ -187,16 +187,45 @@ Usuarios reales de la app:
 - **`src/cierres.js`**: cerrar la semana (`cierre_semana`, foto con versión) y,
   APARTE, confirmar los pagos (`confirmacion_pagos`). Reabrir pide motivo
   (`reapertura_semana`); la versión anterior se queda. Cerrar no congela los
-  hechos: lo que llegue después sale en `diferenciasDelCierre`. Cierra un
-  administrador o un encargado con `puedeCerrarSemana`.
-- **Encargados**: `calendario: [{desde, hasta}]` = periodos en que su día se
-  paga por calendario (`porCalendario`; apagar cierra el periodo, no cambia lo
+  hechos: lo que llegue después sale en `diferenciasDelCierre`. Cierra quien
+  tiene el permiso `cerrar_semana` (lo comprueba la base).
+- **Encargados**: `calendario: [{desde, hasta, activo}]` = periodos en que su
+  día se paga por calendario (`activarCalendario`/`cerrarCalendario`: lo
+  activa un administrador, persona por persona, con fecha; cerrar no cambia lo
   anterior). Pueden checar (`quienesChecan`), pero no es obligatorio. Tienen
   ausencias como cualquiera.
-- **Abono a préstamo desde la semana**: `abonarPrestamos` lo anota EN el
-  préstamo con su `semana`; `abonosDeSemana` lo lee. El pago ya no lleva
-  `descuento`. **`src/pdfSimple.js`** arma el PDF de texto del recibo
-  (`datos.pdf`), sin librerías.
+- **Abonos a préstamos = eventos** (`abono_prestamo`, `abonar`): el saldo se
+  CALCULA (`saldosDePrestamos` en `normalizeData`); `abonado` guardado es sólo
+  el punto de partida y `upd("prestamos")` no escribe lo calculado
+  (`paraGuardarPrestamo`). Dos aparatos sin señal = dos abonos, ninguno se
+  pisa. **Nunca hagas `upd` de un préstamo para sumarle un abono.**
+  **`src/pdfSimple.js`** arma el PDF de texto del recibo (`datos.pdf`).
+- **LO SENSIBLE LO AUTORIZA LA BASE (hoja 37).** Los tipos de `OPERACION_DE`
+  (`eventos.js`; la misma lista que `operaciones_sensibles` en la base, hay
+  prueba) — pagos, abonos, recibos, cierres, prestaciones, saldos iniciales,
+  decisiones de un día y cambios de regla — los valida la base AL RECIBIRLOS
+  con la cuenta de la sesión (`auth.uid()`), nunca con lo que diga el evento:
+  sello `_validacion` = `autorizado` | `rechazado` en columnas que nadie puede
+  escribir. **`vigentes()` no devuelve un evento sensible sin sello
+  `autorizado`** cuando hay base (`exigirValidacion(supabaseListo)`): lo
+  capturado sin señal está «por validar» y no cuenta; lo rechazado se guarda y
+  no cuenta (`sinValidar`, `<PorValidar>`). Los permisos son por CUENTA y por
+  operación (`permisos_operacion`, `otorgar_permiso`/`revocar_permiso`, sólo
+  superadministrador; se asignan en Arranque → Cuentas). Ser encargado no da
+  ninguno, y un teléfono ligado a su cuenta sube y se valida con ESA cuenta.
+  En la app, `puedeOp(op)`/`seOfrece(session, op)` sólo evitan ofrecer lo que
+  la base va a rechazar; a las funciones se les pasa `permitido`. **Un tipo de
+  evento nuevo que mueva dinero o reglas se agrega a `OPERACION_DE` Y a la
+  hoja SQL.** Cancelar/corregir algo sensible sin permiso: la base deja el
+  renglón como estaba y anota `cambio_rechazado` (`juntarEventos` lo deshace).
+- **Saldos iniciales de prestaciones** (`prestacion_saldo_inicial`): lo que ya
+  se debía al corte (`prest_corte`, regla con fecha), con importe, periodo,
+  fundamento, responsable y evidencia. NUNCA va al costo ni a una parcela. Al
+  determinar: ajuste = determinado − saldo inicial − generado después.
+- **Destajo ≠ sin prestaciones.** La base de quien no tiene sueldo fijo es el
+  promedio de sus últimos días trabajados (`promedioDiario`,
+  `prest_dias_promedio`). Sin datos: `porRevisar`, nunca un renglón en cero.
+  `relacionLaboral` (planta/temporada/eventual) va aparte de `modalidadPago`.
 - Reglas ya decididas por Luis (19 nov): checar salida TERMINA la asignación
   (al volver queda sin asignar; se ofrece «continuar»); el tiempo sin asignar es
   «por aclarar» y nunca se distribuye solo; las horas adicionales se registran y

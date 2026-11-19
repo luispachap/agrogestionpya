@@ -24,7 +24,7 @@
 //  · Un recibo interno NO sustituye un CFDI de nómina ni ningún documento que
 //    la ley pida. Lo dice el propio recibo.
 // ════════════════════════════════════════════════════════════════════════
-import { nuevoEvento, vigentes, corregirEvento, rastroDe } from "./eventos.js";
+import { nuevoEvento, vigentes, corregirEvento, rastroDe, negado } from "./eventos.js";
 import { sumarDinero, sueldoVigente, sumarDias } from "./calculos.js";
 
 export const T_AUSENCIA = "ausencia", T_PAGO = "pago_personal", T_RECIBO = "recibo_personal", T_HORAS = "horas_reconocidas";
@@ -51,8 +51,21 @@ export const leToca = (trabajador, fecha) => (Array.isArray(trabajador?.diasAsis
 // Apagarla cierra el periodo; lo anterior sigue valiendo como estaba.
 export const porCalendario = (persona, fecha) => (persona?.calendario || []).some(p => p?.desde && fecha >= p.desde && (!p.hasta || fecha <= p.hasta));
 export const calendarioActivo = (persona, hoy) => (persona?.calendario || []).find(p => p?.desde && !p.hasta || (p?.hasta && p.hasta >= hoy)) || null;
-export const alternarCalendario = (persona, hoy, ayer) => { const act = calendarioActivo(persona, hoy); const l = persona.calendario || [];
-  return { ...persona, calendario: act ? l.map(p => (p === act ? { ...p, hasta: ayer } : p)).filter(p => !p.hasta || p.hasta >= p.desde) : [...l, { desde: hoy }] }; };
+// Se activa persona por persona, con fecha de inicio, y queda quién lo activó. Nunca para todos a la vez.
+export function activarCalendario(persona, { desde, hoy, quien }) {
+  if (quien?.rol !== "admin") return { ok: false, dice: "El pago por calendario lo activa un administrador." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde || "")) return { ok: false, dice: "Falta desde qué día." };
+  if (calendarioActivo(persona, hoy > desde ? hoy : desde)) return { ok: false, dice: "Ya lo tiene activo." };
+  if (porCalendario(persona, desde)) return { ok: false, dice: "Ese día ya está dentro de un periodo anterior." };
+  return { ok: true, persona: { ...persona, calendario: [...(persona.calendario || []), { desde, activo: { por: quien.nombre || quien.id, el: hoy } }] } };
+}
+export function cerrarCalendario(persona, { hasta, hoy, quien }) {
+  const act = calendarioActivo(persona, hoy);
+  if (quien?.rol !== "admin") return { ok: false, dice: "El pago por calendario lo quita un administrador." };
+  if (!act) return { ok: false, dice: "No lo tiene activo." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(hasta || "") || hasta < act.desde) return { ok: false, dice: "El último día no puede ser antes de que empezó." };
+  return { ok: true, persona: { ...persona, calendario: persona.calendario.map(p => (p === act ? { ...p, hasta, cerro: { por: quien.nombre || quien.id, el: hoy } } : p)) } };
+}
 export const diasEntre = (desde, hasta) => { const l = []; for (let f = desde; f <= hasta && l.length < 400; f = sumarDias(f, 1)) l.push(f); return l; };
 
 // ── Ausencias ──────────────────────────────────────────────────────────────
@@ -133,9 +146,9 @@ export function cuentasDeCuadrillas(partes, { desde, hasta } = {}) {
 }
 
 // ── Los pagos ──────────────────────────────────────────────────────────────
-export function registrarPago({ a, desde, hasta, monto, medio, recibe = "", comprobante = null, nota = "", corresponde = null, quien, cuando, fecha, azar }) {
+export function registrarPago({ permitido, a, desde, hasta, monto, medio, recibe = "", comprobante = null, nota = "", corresponde = null, quien, cuando, fecha, azar }) {
   const m = Number(monto);
-  if (quien?.rol !== "admin") return { ok: false, dice: "Un pago lo registra un administrador." };
+  { const no = negado(quien, permitido, "Un pago lo registra un administrador."); if (no) return { ok: false, dice: no }; }
   if (!a?.id || !a?.tipo) return { ok: false, dice: "Falta decir a quién se le pagó." };
   if (!desde || !hasta) return { ok: false, dice: "Falta la semana que se está pagando." };
   if (!(m > 0)) return { ok: false, dice: "Falta cuánto se entregó." };
@@ -154,24 +167,52 @@ export function saldoDe({ corresponde, descuentos = 0, pagos = [] }) {
   return { corresponde, descuentos, neto, entregado, pendiente, estado: entregado === 0 ? (neto > 0 ? "sin_pagar" : "nada") : pendiente > 0.004 ? "parcial" : pendiente < -0.004 ? "de_mas" : "pagado" };
 }
 
-// ── Abonos a un préstamo desde la semana ───────────────────────────────────
-// El abono vive EN el préstamo, con la semana a la que pertenece. Así lo que se
-// le descuenta en una semana sale de un solo lado y no depende de si el pago se
-// registró antes o después del abono.
-export function abonarPrestamos(prestamos, monto, { desde, hasta, fecha, id }) {
-  let resto = Math.round(Number(monto) * 100) / 100; const cambiados = [];
+// ── Abonos a un préstamo: cada uno es un movimiento ────────────────────────
+// El saldo de un préstamo NO se escribe: se calcula de sus abonos. Cada abono es
+// un evento (`abono_prestamo`) con su propio identificador, así que dos aparatos
+// sin señal que abonan al mismo préstamo dejan DOS abonos (los dos cuentan, y
+// ninguno pisa al otro), y el mismo abono subido dos veces es uno solo. Un abono
+// mal capturado se cancela o se corrige como cualquier evento: queda su historial.
+// `abonado` en el préstamo guardado es sólo el punto de partida (lo que ya traía).
+export const T_ABONO = "abono_prestamo";
+export const abonosDe = (eventos, prestamoId) => vigentes(eventos).filter(e => e.tipo === T_ABONO && (!prestamoId || e.datos.prestamoId === prestamoId));
+// Los préstamos con su saldo calculado. `eventos`: basta pasar los de tipo abono.
+export function saldosDePrestamos(prestamos, eventos) {
+  const por = new Map();
+  for (const e of abonosDe(eventos)) { if (!por.has(e.datos.prestamoId)) por.set(e.datos.prestamoId, []); por.get(e.datos.prestamoId).push(e); }
+  return (prestamos || []).map(p => {
+    const evs = (por.get(p.id) || []).sort((a, b) => a.cuando.localeCompare(b.cuando));
+    if (evs.length === 0) return p;
+    const abonado = sumarDinero(p.abonado || 0, evs.map(e => e.datos.monto)), saldo = sumarDinero(p.monto || 0, -abonado);
+    return { ...p, abonado, estado: saldo <= 0 || p.estado === "pagado" ? "pagado" : p.estado, _abonadoBase: p.abonado || 0, _estadoBase: p.estado, _abonos: evs.map(e => ({ ev: e.id, fecha: e.fecha, monto: e.datos.monto, semana: e.datos.semana || null, nota: e.datos.nota || "", por: e.quien?.nombre || "" })),
+      // Se abonó más de lo que debía (dos aparatos a la vez, por ejemplo): no se recorta ni se esconde.
+      ...(saldo < -0.004 ? { _deMas: -saldo } : {}) };
+  });
+}
+// Al guardar el préstamo (cancelarlo, editar su nota) no se guarda lo calculado: su `abonado` y su `estado` de base se quedan como estaban.
+export function paraGuardarPrestamo(p) {
+  if (!p || p._abonos === undefined) return p;
+  const { _abonadoBase, _estadoBase, _abonos, _deMas, ...resto } = p;
+  return { ...resto, abonado: _abonadoBase, estado: _estadoBase };
+}
+// Abonar a los préstamos de una persona, el más viejo primero. `prestamos`: los suyos, activos, YA con saldo calculado.
+// `semana` { desde, hasta }: si el abono sale de lo que ganó esa semana (así lo encuentra el cálculo de la semana, sin importar el orden).
+export function abonar({ permitido, prestamos, monto, semana = null, nota = "", quien, cuando, fecha, azar }) {
+  let resto = Math.round(Number(monto) * 100) / 100; const eventos = []; let k = 0;
+  { const no = negado(quien, permitido, "Un abono a un préstamo lo registra un administrador."); if (no) return { ok: false, dice: no }; }
+  if (!(resto > 0)) return { ok: false, dice: "Falta cuánto se abona." };
   for (const pr of [...(prestamos || [])].sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""))) {
-    const saldo = Math.max(0, sumarDinero(pr.monto || 0, -(pr.abonado || 0))); const abono = Math.min(saldo, resto);
+    const saldo = Math.max(0, sumarDinero(pr.monto || 0, -(pr.abonado || 0))), abono = Math.min(saldo, resto);
     if (!(abono > 0)) continue;
-    const abonado = sumarDinero(pr.abonado || 0, abono);
-    cambiados.push({ ...pr, abonado, estado: abonado >= (pr.monto || 0) ? "pagado" : "activo", ultimoAbono: { fecha, monto: abono, nota: `Pago de la semana ${desde} a ${hasta}` },
-      abonos: [...(pr.abonos || []), { id: `${id}-${cambiados.length}`, fecha, monto: abono, semana: { desde, hasta } }] });
+    eventos.push(nuevoEvento({ tipo: T_ABONO, cuando, fecha, quien, azar: azar != null ? azar + (k++) / 1e9 : undefined, datos: { prestamoId: pr.id, trabajadorId: pr.trabajadorId, monto: abono, ...(semana ? { semana: { desde: semana.desde, hasta: semana.hasta } } : {}), nota: limpio(nota) } }));
     resto = sumarDinero(resto, -abono);
   }
-  return { cambiados, abonado: sumarDinero(cambiados.map(c => c.ultimoAbono.monto)), sobrante: resto };
+  if (eventos.length === 0) return { ok: false, dice: "Esa persona no tiene saldo de préstamo al que abonarle." };
+  return { ok: true, eventos, abonado: sumarDinero(eventos.map(e => e.datos.monto)), sobrante: resto, avisos: resto > 0 ? [`Sobraron ${resto}: no se abona más de lo que debe.`] : [] };
 }
-export const abonosDeSemana = (prestamos, trabajadorId, desde, hasta) => (prestamos || []).filter(p => p.trabajadorId === trabajadorId && !p.cancelado)
-  .flatMap(p => (p.abonos || []).filter(a => a.semana?.desde === desde && a.semana?.hasta === hasta).map(a => ({ ...a, prestamoId: p.id })));
+// Lo abonado por una persona con cargo a UNA semana. (Lee también los abonos que antes se anotaban dentro del préstamo.)
+export const abonosDeSemana = (eventos, prestamos, trabajadorId, desde, hasta) => abonosDe(eventos).filter(e => e.datos.trabajadorId === trabajadorId && e.datos.semana?.desde === desde && e.datos.semana?.hasta === hasta).map(e => ({ id: e.id, fecha: e.fecha, monto: e.datos.monto, prestamoId: e.datos.prestamoId }))
+  .concat((prestamos || []).filter(p => p.trabajadorId === trabajadorId && !p.cancelado).flatMap(p => (p.abonos || []).filter(a => a.semana?.desde === desde && a.semana?.hasta === hasta).map(a => ({ ...a, prestamoId: p.id }))));
 
 // ── Recibos internos ───────────────────────────────────────────────────────
 // Un recibo emitido no se modifica. Si algo cambia, se emite OTRO, con el
@@ -179,8 +220,8 @@ export const abonosDeSemana = (prestamos, trabajadorId, desde, hasta) => (presta
 export const LEYENDA_RECIBO = "Recibo interno de control. No es un CFDI de nómina ni sustituye ningún comprobante o documento que la ley exija.";
 export const LEYENDA_CUADRILLA = "Constancia de entrega al responsable de la cuadrilla. No acredita el pago individual a cada integrante ni sustituye las obligaciones laborales o fiscales que correspondan.";
 export const recibosDe = (eventos, a, { desde, hasta } = {}) => vigentes(eventos).filter(e => e.tipo === T_RECIBO && e.datos.a.id === a.id && e.datos.a.tipo === a.tipo && (!desde || e.datos.desde === desde) && (!hasta || e.datos.hasta === hasta)).sort((x, y) => x.datos.version - y.datos.version);
-export function emitirRecibo({ eventos, a, clase, desde, hasta, conceptos, saldo, pagos = [], autorizaciones = [], responsable = "", motivo = "", pdf = null, quien, cuando, fecha, azar }) {
-  if (quien?.rol !== "admin") return { ok: false, dice: "Un recibo lo emite un administrador." };
+export function emitirRecibo({ permitido, eventos, a, clase, desde, hasta, conceptos, saldo, pagos = [], autorizaciones = [], responsable = "", motivo = "", pdf = null, quien, cuando, fecha, azar }) {
+  { const no = negado(quien, permitido, "Un recibo lo emite un administrador."); if (no) return { ok: false, dice: no }; }
   if (!a?.id || !CLASES_DE_PERSONAL[clase]) return { ok: false, dice: "Falta decir de quién es el recibo." };
   if (!Array.isArray(conceptos) || conceptos.length === 0) return { ok: false, dice: "No hay nada que recibir en esa semana." };
   const previos = recibosDe(eventos, a, { desde, hasta }); const ultimo = previos[previos.length - 1];
@@ -204,9 +245,9 @@ export function reciboAlDia(recibo, saldoHoy) {
 }
 
 // ── Horas adicionales: registradas no es reconocidas, y reconocidas no es pagadas ──
-export function reconocerHoras({ trabajadorId, desde, hasta, horas, tratamiento, autorizo, quien, cuando, fecha, azar }) {
+export function reconocerHoras({ permitido, trabajadorId, desde, hasta, horas, tratamiento, autorizo, quien, cuando, fecha, azar }) {
   const h = Number(horas);
-  if (quien?.rol !== "admin") return { ok: false, dice: "Reconocer horas lo hace un administrador." };
+  { const no = negado(quien, permitido, "Reconocer horas lo hace un administrador."); if (no) return { ok: false, dice: no }; }
   if (!trabajadorId || !desde || !hasta) return { ok: false, dice: "Falta de quién y de qué fechas." };
   if (!(h > 0)) return { ok: false, dice: "Falta cuántas horas se reconocen." };
   if (!limpio(tratamiento)) return { ok: false, dice: "Falta decir qué se va a hacer con ellas." };

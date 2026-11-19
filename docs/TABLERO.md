@@ -13,7 +13,9 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 
 ## Operación integral (etapa abierta el 19 nov) — modelo y orden en `EVENTOS.md`
 
-**Próxima entrega operativa:** cierre de mes (foto de los reportes de costo) y que la base —no sólo la app— vigile quién puede cerrar, determinar y pagar. Antes: validar en el rancho el almacén (`docs/RECORRIDO-ALMACEN-RANCHO.md`), los pagos al personal y las prestaciones con las fechas de ingreso reales.
+**ESTADO (19 nov, noche):** la rama trae la autorización del lado de la base (hoja 37) y lo que depende de ella, **pero NO está publicada ni la hoja está instalada en la base real**: la instalación pidió la confirmación de Luis y no llegó. App y hoja se publican JUNTAS. Mientras tanto, lo publicado sigue siendo la versión anterior, cuyos permisos de pagos, cierres y prestaciones se pueden eludir: **el módulo de pagos NO es apto para dinero real** hasta que eso se instale y se pruebe contra la base real.
+
+**Próxima entrega operativa:** instalar la hoja 37 + publicar; después cierre de mes y bajas (partes proporcionales). Antes de usar con dinero: validar en el rancho almacén, pagos y prestaciones.
 
 | Asunto | En rama | Probado | Publicado | Validado en el rancho |
 |---|---|---|---|---|
@@ -101,15 +103,23 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | Cierre de la semana con versiones, reapertura con motivo, diferencias posteriores a la vista, y confirmación de pagos aparte | Sí | Sí | Sí | Falta: cerrar una semana real |
 | Abono a préstamo ligado a su semana sin importar el orden; recibo interno guardado también como PDF; tarjetas chicas dicen «costo directo»; horas adicionales probadas con una jornada de 10 h | Sí | Sí | Sí | Falta |
 
-**Lo que NO quedó cerrado en esta entrega (riesgos a la vista):**
-- Quién puede cerrar la semana, determinar una prestación o registrar un pago lo vigila la APP, no la base: alguien con cuenta de encargado y conocimientos técnicos podría mandar ese registro directo. Cerrarlo en la base choca con los teléfonos ligados a la cuenta de un encargado; hay que diseñarlo junto con `docs/auditoria/02-CONTENCION-P0.md`.
-- El abono a préstamo vive en el préstamo (no es evento): dos aparatos sin señal abonando al MISMO préstamo se pueden pisar. Pasar los préstamos a eventos lo resuelve.
-- Las prestaciones cuentan desde el primer día con registros en el sistema. Lo generado antes se enseña, pero no se carga a ningún periodo: si se quiere reconocer como saldo inicial, es decisión de Luis.
-- Los días de vacaciones pendientes de ANTES del sistema no se inventan: se capturan por persona (campo «días que traía pendientes»).
-- No hay finiquitos ni partes proporcionales al dar de baja: `fechaBaja` detiene lo que se genera, pero determinar y pagar es a mano.
-- No se calculan impuestos, cuotas del IMSS ni salario integrado. Son control interno, no nómina fiscal.
-- El PDF del recibo es de puro texto (sin logo). El de formato completo sigue saliendo por Imprimir.
-- Cierre de MES (foto de los reportes de costo): todavía no.
+| **Lo sensible lo autoriza la base** (hoja 37): pagos, abonos, recibos, cierres, prestaciones, saldos iniciales, decisiones de un día y reglas se validan al llegar con la cuenta de la sesión; permisos por cuenta y por operación; sin señal queda «por validar» y no cuenta | Sí | Sí: 11 ataques directos a la base de prueba + 15 casos en navegador con una nube que valida igual + 7 reglas | **No** (falta la confirmación de Luis para instalar) | Falta, y **falta repetir los ataques contra la base real** |
+| Abonos a préstamos como movimientos (saldo calculado, sin sobrescrituras, idempotentes, con historial) | Sí | Sí | No | Falta |
+| Saldos iniciales de prestaciones con fecha de corte, fundamento, responsable y evidencia; nunca al costo | Sí | Sí | No | Falta: capturar los reales |
+| Quien cobra por destajo: base por promedio de lo ganado; sin datos queda «pendiente de revisión», no en cero | Sí | Sí | No | Falta |
+| Pago por calendario: lo activa un administrador, por persona, con fecha de inicio | Sí | Sí | No | Falta |
+
+**Lo que NO quedó cerrado (riesgos a la vista):**
+- **La hoja 37 no está instalada en la base real y esta versión no está publicada.** Hasta entonces, lo publicado es eludible.
+- La base comprueba QUIÉN y con QUÉ permiso; no recalcula cuánto le corresponde a cada quien (eso vive en la app). De un pago sólo revisa que el importe sea un número mayor que cero.
+- El sello vive en cada aparato tal como lo bajó: quien altere su propio teléfono sólo se engaña a sí mismo, los demás leen el de la base.
+- Con base, quien entra con PIN de administrador en un aparato cuya cuenta no tiene el permiso NO puede pagar, cerrar ni cambiar reglas. Es lo pedido, pero cambia la costumbre: esas operaciones se hacen con cuenta propia.
+- **Cambio de costumbre:** abonar a un préstamo ahora pide el permiso de pagos; antes lo hacía cualquier encargado. Dar el préstamo sigue como estaba (no se tocó): revisar si también debe pedir permiso.
+- Los permisos los asigna sólo un superadministrador (hoy, Luis y Migue).
+- La base de destajo usa lo registrado en AgroGestión; lo ganado antes del sistema no está, así que al principio todo saldrá «por revisar». Se puede poner una base en la ficha, con evidencia.
+- Las prestaciones cuentan desde la fecha de corte que se declare (`prest_corte`); sin declararla, desde el primer día con registros.
+- No hay finiquitos ni partes proporcionales al dar de baja; no se calculan impuestos, cuotas ni salario integrado.
+- El PDF del recibo es de puro texto (sin logo). Cierre de MES: todavía no.
 
 ## Instalación en la infraestructura nueva
 
@@ -191,8 +201,8 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 
 | Batería | Resultado |
 |---|---|
-| Reglas, cálculos y nombres sin definir (`npm test`) | 869 de 869 |
-| La base armada desde cero y atacada directo (`npm run test:base`) | 49 de 49 |
+| Reglas, cálculos y nombres sin definir (`npm test`) | 888 de 888 |
+| La base armada desde cero y atacada directo (`npm run test:base`) | 76 de 76 (11 son los ataques a lo sensible) |
 | Navegador, alta de cuentas y Arranque (`cuentas`) | 22 de 22 |
 | **Proyecto real**, sin sesión, desde internet (`real_sin_sesion`) | 6 de 6 |
 | **Proyecto real**, 34 ataques con sesión (transacción deshecha) | 34 de 34 |
@@ -202,7 +212,8 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | Navegador, fotos fuera de los registros (`archivos`) | 9 de 9 |
 | Navegador, captura de campo (`campo`) | 13 de 13 |
 | Navegador, arranque limpio (`arranque`) | 13 de 13 |
-| Navegador, prestaciones, encargados y cierre de la semana (`prestaciones`) | 42 de 42 |
+| Navegador, prestaciones, encargados y cierre de la semana (`prestaciones`) | 49 de 49 |
+| Navegador, lo sensible contra una nube que valida como la base (`sensibles`) | 15 de 15 |
 | Compilación | correcta, 124 módulos, lector de PDF aparte |
 
 Todo junto: `sh pruebas/todo.sh`.

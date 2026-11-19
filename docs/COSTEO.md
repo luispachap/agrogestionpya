@@ -107,9 +107,17 @@ Decidido por Luis y ya construido:
 
 Valores que escogí yo y Luis puede cambiar en «Pagos al personal»: todos los conceptos se reparten por actividades salvo inactividad confirmada y «otra causa» (pendientes); prestaciones se reparten por actividades; aguinaldo 15 días, prima 25 %, cero días extra de vacaciones.
 
+## Saldos iniciales, destajo y autorización (19 nov, segunda vuelta)
+
+| Tema | Cómo quedó |
+|---|---|
+| Saldo inicial | `prestacion_saldo_inicial`: importe (o días de vacaciones), periodo, fundamento, responsable, evidencia, fecha. No va al costo. Fecha de corte = regla `prest_corte`. |
+| Cuenta por persona | saldo inicial · generado después · ajustes · pagado · pendiente (por periodo: lo determinado, o saldo inicial + generado, menos lo pagado). |
+| Destajo | Base = promedio de los últimos `prest_dias_promedio` (30) días efectivamente trabajados. Con menos días: «por revisar». Sin días: no hay importe (pendiente de revisión). |
+| Autorización | La base valida cada operación sensible (hoja 37). Ver `CLAUDE.md`. |
+
 ## Siguiente entrega
 
 1. **Cierre de mes**: foto de los reportes de costo, igual que la semana.
-2. **Que la base vigile** quién cierra, determina y paga (hoy lo vigila la app).
-3. **Préstamos como eventos** (abonos sin pisarse entre aparatos).
-4. **Bajas**: partes proporcionales al terminar la relación de trabajo.
+2. **Instalar la hoja 37 en la base real** y repetir ahí los ataques.
+3. **Bajas**: partes proporcionales al terminar la relación de trabajo.

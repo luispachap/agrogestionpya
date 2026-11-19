@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { vacacionesDeLey, aniosCumplidos, aniversario, condicionesDe, periodosDe, provisionDe, proponer, determinar, determinadasDe, pagarPrestacion, cuentaDe, renglonesAlCosto, LEY } from "./prestaciones.js";
+import { vacacionesDeLey, aniosCumplidos, aniversario, condicionesDe, periodosDe, provisionDe, proponer, determinar, determinadasDe, pagarPrestacion, cuentaDe, renglonesAlCosto, LEY, capturarSaldoInicial, saldosInicialesDe, remuneracionesDe, promedioDiario } from "./prestaciones.js";
 import { corregirEvento } from "./eventos.js";
 import { sumarDinero } from "./calculos.js";
 
@@ -24,11 +24,48 @@ test("la_antiguedad_se_cuenta_por_aniversario_no_por_año_de_calendario", () => 
   assert.deepEqual(periodosDe("2024-03-01", "vacaciones", "2026-07-01", "2026-11-19").map(p => [p.periodo, p.ini, p.fin]), [["s3", "2026-03-01", "2027-02-28"]]);
 });
 
-test("sin_fecha_de_ingreso_no_se_provisiona_nada_y_se_dice_que_falta", () => {
+test("sin_fecha_de_ingreso_no_se_calcula_nada_queda_pendiente_de_revision_y_no_vale_cero", () => {
   const r = provisionDe({ id: "x", nombre: "Sin fecha", sueldo_dia: 300 }, [], { inicio: INICIO, hoy: HOY });
-  assert.equal(r.renglones.length, 0); assert.match(r.porque, /fecha de ingreso/);
-  const d = provisionDe({ id: "y", nombre: "Destajo", fechaIngreso: "2025-01-01", sueldo_dia: 0 }, [], { inicio: INICIO, hoy: HOY });
-  assert.match(d.porque, /salario por día/, "quien cobra por destajo necesita una base: no se inventa");
+  assert.equal(r.renglones.length, 0); assert.match(r.porque, /Pendiente de revisión: falta la fecha de ingreso/); assert.match(r.porque, /no quiere decir que sea cero/);
+});
+
+// ── Quien cobra por destajo ──
+const DESTAJO = { id: "t-d", nombre: "Dora", modalidadPago: "destajo", sueldo_dia: 0, fechaIngreso: "2025-01-01" };
+const ganado = (n, monto, hasta = "2026-11-19") => Array.from({ length: n }, (_, i) => ({ fecha: new Date(Date.parse(hasta + "T12:00:00Z") - (n - 1 - i) * 86400000).toISOString().slice(0, 10), monto }));
+test("a_quien_cobra_por_destajo_no_se_le_inventa_un_sueldo_su_base_es_el_promedio_de_lo_que_gano", () => {
+  const rem = [...ganado(30, 300, "2026-10-15"), ...ganado(30, 500)];
+  assert.deepEqual(promedioDiario(rem, HOY, 30), { monto: 500, dias: 30, desde: "2026-10-21", hasta: "2026-11-19" });
+  const c = condicionesDe(DESTAJO, {}, rem);
+  assert.equal(c.falta.length, 0, "cobrar por destajo no le quita prestaciones"); assert.equal(c.fijo, false);
+  const b = c.baseDe("aguinaldo", HOY);
+  assert.equal(b.monto, 500); assert.equal(b.estimado, false); assert.match(b.origen, /promedio de sus últimos 30 días trabajados/);
+  assert.equal(c.baseDe("aguinaldo", "2026-10-15").monto, 300, "el promedio es el de ESA fecha, no el de hoy");
+  const p = proponer(DESTAJO, "aguinaldo", "2026", "2026-12-31", {}, rem);
+  assert.ok(p.ok); assert.equal(p.monto, 15 * 500);
+});
+
+test("con_pocos_dias_registrados_el_calculo_sale_marcado_para_revision", () => {
+  const { renglones, cond } = provisionDe(DESTAJO, [], { inicio: "2026-11-01", hoy: HOY, remuneraciones: ganado(4, 400) });
+  const nov = renglones.find(r => r.concepto === "aguinaldo" && !r.previo);
+  assert.equal(nov.estimado, true); assert.match(nov.revisar, /sólo 4 días trabajados; se piden 30/);
+  assert.equal(cond.baseDe("aguinaldo", HOY).monto, 400);
+  assert.equal(condicionesDe(DESTAJO, { diasPromedio: 4 }, ganado(4, 400)).baseDe("aguinaldo", HOY).estimado, false, "cuántos días se promedian es una regla del rancho");
+});
+
+test("sin_remuneraciones_registradas_la_prestacion_queda_pendiente_de_revision_y_nunca_en_cero", () => {
+  const r = provisionDe(DESTAJO, [], { inicio: "2026-11-01", hoy: HOY, remuneraciones: [] });
+  assert.equal(r.renglones.length, 0, "no hay ningún renglón en cero");
+  assert.ok(r.porRevisar.length > 0); assert.match(r.porRevisar[0].porque, /no hay días trabajados registrados/);
+  const cta = cuentaDe(DESTAJO, [], { inicio: "2026-11-01", hoy: HOY });
+  assert.equal(cta.conceptos.aguinaldo.porRevisar.length, 1, "noviembre, desde el corte"); assert.equal(cta.conceptos.aguinaldo.generado, 0);
+  const p = proponer(DESTAJO, "aguinaldo", "2026", HOY, {}, []);
+  assert.equal(p.ok, false); assert.match(p.dice, /Pendiente de revisión/); assert.match(p.dice, /no quiere decir que sea cero/);
+});
+
+test("lo_ganado_por_dia_sale_de_lo_ya_registrado_y_un_dia_cuenta_una_vez", () => {
+  const m = remuneracionesDe({ devengado: [{ trabajadorId: "t-d", fecha: "2026-11-18", monto: 300 }, { trabajadorId: "t-d", fecha: "2026-11-19", monto: 250 }],
+    actividades: [{ registradoPor: { id: "t-d" }, fecha: "2026-11-19", costoMO: 100 }, { registradoPor: { id: "t-d" }, fecha: "2026-11-17", costoMO: 0 }, { _deEventos: ["x"], registradoPor: { id: "t-d" }, fecha: "2026-11-18", costoMO: 300 }] });
+  assert.deepEqual(m.get("t-d"), [{ fecha: "2026-11-18", monto: 300 }, { fecha: "2026-11-19", monto: 350 }], "lo que ya salió de los eventos no se suma otra vez, y un día sin paga no cuenta como trabajado");
 });
 
 test("el_aguinaldo_se_va_generando_dia_con_dia_15_dias_de_sueldo_por_año", () => {
@@ -101,7 +138,7 @@ test("corregir_lo_determinado_deja_historial_y_cambia_el_ajuste_no_lo_duplica", 
   assert.equal(suma(ag, () => true), 4845);
 });
 
-test("pagar_una_prestacion_no_es_costo_y_no_se_paga_lo_que_nadie_ha_determinado", () => {
+test("pagar_una_prestacion_no_es_costo_y_no_se_paga_lo_que_nadie_ha_dicho_cuanto_es", () => {
   assert.equal(pagarPrestacion({ eventos: [], persona: ANA, concepto: "aguinaldo", periodo: "2026", monto: 100, medio: "efectivo", quien: ADMIN, cuando: c(HOY), fecha: HOY }).ok, false);
   const d = determinar({ eventos: [], persona: ANA, concepto: "aguinaldo", periodo: "2026", corte: HOY, monto: 5000, autorizo: "Rodolfo", quien: ADMIN, cuando: c(HOY), fecha: HOY, azar: az() }).evento;
   const antes = cuentaDe(ANA, [d], { inicio: INICIO, hoy: HOY }).conceptos.aguinaldo;
@@ -109,20 +146,70 @@ test("pagar_una_prestacion_no_es_costo_y_no_se_paga_lo_que_nadie_ha_determinado"
   assert.ok(p.ok); assert.equal(p.evento.origen, d.id);
   const cta = cuentaDe(ANA, [d, p.evento], { inicio: INICIO, hoy: HOY }).conceptos.aguinaldo;
   assert.equal(cta.alCosto, antes.alCosto, "el pago no movió el costo");
-  assert.equal(cta.determinado, 5000); assert.equal(cta.pagado, 3000); assert.equal(cta.porPagar, 2000); assert.equal(cta.provision, 0, "lo determinado ya no está provisionado");
+  assert.equal(cta.determinado, 5000); assert.equal(cta.pagado, 3000); assert.equal(cta.pendiente, 2000);
   const doble = pagarPrestacion({ eventos: [d, p.evento], persona: ANA, concepto: "aguinaldo", periodo: "2026", monto: 3000, medio: "efectivo", quien: ADMIN, cuando: c(HOY), fecha: HOY });
   assert.ok(doble.ok && doble.avisos.some(a => /pago doble/.test(a)), "pagar de más avisa, no bloquea");
 });
 
-test("la_cuenta_separa_provision_determinado_pagado_ajustes_y_lo_que_fue_al_costo", () => {
+test("la_cuenta_separa_saldo_inicial_generado_despues_ajustes_pagos_y_pendiente", () => {
   const cta = cuentaDe(ANA, [], { inicio: INICIO, hoy: HOY, vacacionesTomadas: [{ fecha: "2026-11-10", monto: 365 }, { fecha: "2026-11-11", monto: 365 }] });
   assert.equal(cta.antiguedad, 2);
-  assert.equal(cta.conceptos.aguinaldo.generado, 4845); assert.equal(cta.conceptos.aguinaldo.antesDelSistema, 2715); assert.equal(cta.conceptos.aguinaldo.alCosto, 2130);
-  assert.equal(cta.conceptos.vacaciones.provision, 4224 - 730, "las vacaciones disfrutadas bajan la provisión; no son costo nuevo");
+  const ag = cta.conceptos.aguinaldo;
+  assert.equal(ag.saldoInicial, 0, "sin saldo inicial capturado, no se inventa"); assert.equal(ag.generado, 2130); assert.equal(ag.referenciaAntes, 2715); assert.equal(ag.alCosto, 2130);
+  assert.equal(ag.pendiente, 2130, "lo de antes del corte no es saldo mientras nadie lo capture");
+  assert.equal(cta.conceptos.vacaciones.pendiente, cta.conceptos.vacaciones.generado - 730, "las vacaciones disfrutadas bajan lo pendiente; no son costo nuevo");
   assert.equal(cta.dias.tomados, 2); assert.equal(cta.dias.pendientes, null, "no se sabe cuántos días traía de antes: no se inventa");
   assert.equal(cta.dias.delAnioEnCurso, 16); assert.equal(cta.dias.cumple, "2027-03-01");
-  const con = cuentaDe({ ...ANA, prestaciones: { vacacionesPendientes: 6 } }, [], { inicio: INICIO, hoy: HOY, vacacionesTomadas: [{ fecha: "2026-11-10", monto: 365 }] });
-  assert.equal(con.dias.pendientes, 5);
+});
+
+// ── Saldos iniciales ──
+const SALDO = { persona: ANA, concepto: "aguinaldo", periodo: "2026", monto: 2700, corte: "2026-06-30", fundamento: "15 días × $365 × 180/365, según el cálculo del despacho", responsable: "Luis", evidencia: "archivo:abc.pdf", quien: ADMIN, cuando: c(HOY), fecha: HOY };
+test("el_saldo_inicial_pide_importe_periodo_fundamento_responsable_y_lo_captura_quien_tiene_el_permiso", () => {
+  assert.equal(capturarSaldoInicial({ ...SALDO, eventos: [], quien: ENC }).ok, false);
+  assert.equal(capturarSaldoInicial({ ...SALDO, eventos: [], permitido: false }).ok, false, "aunque en el aparato haya entrado como administrador");
+  for (const falta of ["periodo", "fundamento", "responsable", "corte", "monto"]) assert.equal(capturarSaldoInicial({ ...SALDO, eventos: [], [falta]: "" }).ok, false, falta);
+  const r = capturarSaldoInicial({ ...SALDO, eventos: [], azar: az() });
+  assert.ok(r.ok, r.dice); assert.equal(r.avisos.length, 0); assert.equal(r.evento.datos.fundamento, SALDO.fundamento); assert.equal(r.evento.datos.evidencia, "archivo:abc.pdf");
+  assert.match(capturarSaldoInicial({ ...SALDO, eventos: [], evidencia: null }).avisos[0], /sin evidencia/);
+  assert.equal(capturarSaldoInicial({ ...SALDO, eventos: [r.evento] }).ok, false, "el mismo saldo no se captura dos veces");
+  assert.equal(saldosInicialesDe([r.evento], ANA.id).length, 1);
+});
+
+test("el_saldo_inicial_no_va_al_costo_ni_a_ninguna_parcela_y_se_ve_aparte_de_lo_generado_despues", () => {
+  const s = capturarSaldoInicial({ ...SALDO, eventos: [], azar: az() }).evento;
+  const cta = cuentaDe(ANA, [s], { inicio: INICIO, hoy: HOY }), ag = cta.conceptos.aguinaldo;
+  assert.equal(ag.saldoInicial, 2700); assert.equal(ag.generado, 2130); assert.equal(ag.alCosto, 2130, "al costo sólo lo generado desde el corte");
+  assert.equal(ag.pendiente, 4830, "se le debe el saldo inicial más lo generado después");
+  assert.equal(sumarDinero(renglonesAlCosto([cta]).filter(r => r.concepto === "aguinaldo").map(r => r.monto)), 2130);
+});
+
+test("al_determinar_se_descuenta_el_saldo_inicial_capturado_y_no_se_vuelve_a_reconocer_como_costo", () => {
+  const s = capturarSaldoInicial({ ...SALDO, eventos: [], azar: az() }).evento;
+  const d = determinar({ eventos: [s], persona: ANA, concepto: "aguinaldo", periodo: "2026", corte: HOY, monto: 5000, autorizo: "Rodolfo", quien: ADMIN, cuando: c(HOY), fecha: HOY, azar: az() }).evento;
+  const ag = cuentaDe(ANA, [s, d], { inicio: INICIO, hoy: HOY }).conceptos.aguinaldo;
+  assert.equal(ag.ajustes, 5000 - 2700 - 2130, "determinado − saldo inicial − generado después");
+  assert.equal(ag.alCosto, 2300, "en este sistema el aguinaldo costó lo determinado menos lo que ya venía de antes");
+  assert.equal(ag.pendiente, 5000, "y se debe lo determinado, no determinado + saldo inicial");
+  // Sin saldo inicial capturado, lo de antes del corte tampoco se carga hoy: se usa la referencia que calcula la app, y lo dice.
+  const sin = provisionDe(ANA, [d], { inicio: INICIO, hoy: HOY }).renglones.find(r => r.ajuste);
+  assert.equal(sin.monto, 155); assert.match(sin.explica, /no hay saldo inicial capturado/);
+});
+
+test("un_saldo_de_un_periodo_ya_cerrado_se_paga_contra_el_saldo_y_baja_lo_pendiente", () => {
+  const s = capturarSaldoInicial({ ...SALDO, eventos: [], concepto: "prima", periodo: "s2", monto: 1277.5, azar: az() }).evento;
+  const p = pagarPrestacion({ eventos: [s], persona: ANA, concepto: "prima", periodo: "s2", monto: 1000, medio: "efectivo", comprobante: "x", quien: ADMIN, cuando: c(HOY), fecha: HOY, azar: az() });
+  assert.ok(p.ok, p.dice); assert.equal(p.evento.origen, s.id);
+  const pr = cuentaDe(ANA, [s, p.evento], { inicio: INICIO, hoy: HOY }).conceptos.prima;
+  assert.equal(pr.saldoInicial, 1277.5); assert.equal(pr.pagado, 1000); assert.equal(pr.pendiente, sumarDinero(277.5, pr.generado));
+  const otra = capturarSaldoInicial({ ...SALDO, eventos: [], concepto: "otra", periodo: "prima de antigüedad pendiente", monto: 900, azar: az() }).evento;
+  assert.equal(cuentaDe(ANA, [otra], { inicio: INICIO, hoy: HOY }).conceptos.otra.pendiente, 900, "caben otras obligaciones que ya se traían");
+});
+
+test("los_dias_de_vacaciones_que_traia_se_capturan_como_saldo_inicial", () => {
+  const s = capturarSaldoInicial({ ...SALDO, eventos: [], concepto: "vacaciones", periodo: "s2", monto: "", dias: 6, azar: az() });
+  assert.ok(s.ok, s.dice);
+  const cta = cuentaDe(ANA, [s.evento], { inicio: INICIO, hoy: HOY, vacacionesTomadas: [{ fecha: "2026-11-10", monto: 365 }] });
+  assert.equal(cta.dias.traia, 6); assert.equal(cta.dias.pendientes, 5); assert.equal(cta.conceptos.vacaciones.saldoInicial, 0, "días sin importe: no se le inventa valor");
 });
 
 test("al_costo_solo_va_lo_generado_desde_que_se_lleva_el_sistema_y_cada_renglon_se_explica", () => {

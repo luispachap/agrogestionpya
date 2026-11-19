@@ -131,7 +131,8 @@ test("las_horas_adicionales_registradas_no_estan_reconocidas_ni_saldadas_por_est
 });
 
 // ── Encargados, vacaciones, abonos a préstamo y el PDF del recibo ──
-import { abonarPrestamos, abonosDeSemana, alternarCalendario, calendarioActivo, porCalendario } from "./pagos.js";
+import { abonar, abonosDe, abonosDeSemana, saldosDePrestamos, paraGuardarPrestamo, activarCalendario, cerrarCalendario, calendarioActivo, porCalendario } from "./pagos.js";
+import { juntarEventos, corregirEvento } from "./eventos.js";
 test("un_encargado_por_calendario_cobra_su_dia_sin_checar_y_si_checa_manda_el_checador", () => {
   const CHUY = { id: "en1", nombre: "Chuy", sueldo_dia: 600, historialSueldo: [{ desde: "2026-01-01", sueldo_dia: 600, anterior: 600 }], calendario: [{ desde: "2026-11-17" }] };
   const falta = registrarAusencia({ trabajadorId: "en1", desde: "2026-11-19", clase: "falta", quien: ADMIN, cuando: c(HOY), azar: az() }).eventos;
@@ -142,12 +143,16 @@ test("un_encargado_por_calendario_cobra_su_dia_sin_checar_y_si_checa_manda_el_ch
   assert.equal(sin.corresponde, 0); assert.equal(sin.sinRegistro.length, 0);
 });
 
-test("apagar_la_asistencia_por_calendario_cierra_el_periodo_y_no_cambia_lo_anterior", () => {
-  let e = alternarCalendario({ id: "en1" }, "2026-11-10", "2026-11-09");
-  assert.ok(calendarioActivo(e, "2026-11-12"));
-  e = alternarCalendario(e, "2026-11-20", "2026-11-19");
+test("el_pago_por_calendario_lo_activa_un_administrador_por_persona_con_fecha_de_inicio_y_quitarlo_no_cambia_lo_anterior", () => {
+  const e0 = { id: "en1", nombre: "Chuy" };
+  assert.equal(activarCalendario(e0, { desde: "2026-11-10", hoy: "2026-11-10", quien: ENC }).ok, false, "un encargado no se lo activa");
+  assert.equal(activarCalendario(e0, { desde: "", hoy: "2026-11-10", quien: ADMIN }).ok, false, "pide la fecha de inicio");
+  let e = activarCalendario(e0, { desde: "2026-11-10", hoy: "2026-11-12", quien: ADMIN }).persona;
+  assert.equal(e.calendario[0].activo.por, "Luis"); assert.ok(calendarioActivo(e, "2026-11-12"));
+  assert.equal(activarCalendario(e, { desde: "2026-11-15", hoy: "2026-11-15", quien: ADMIN }).ok, false, "no se activa dos veces");
+  e = cerrarCalendario(e, { hasta: "2026-11-19", hoy: "2026-11-20", quien: ADMIN }).persona;
   assert.equal(calendarioActivo(e, "2026-11-20"), null); assert.equal(porCalendario(e, "2026-11-15"), true); assert.equal(porCalendario(e, "2026-11-20"), false);
-  e = alternarCalendario(e, "2026-12-01", "2026-11-30");
+  e = activarCalendario(e, { desde: "2026-12-01", hoy: "2026-12-01", quien: ADMIN }).persona;
   assert.equal(e.calendario.length, 2); assert.equal(porCalendario(e, "2026-11-15"), true); assert.equal(porCalendario(e, "2026-11-25"), false); assert.equal(porCalendario(e, "2026-12-02"), true);
 });
 
@@ -158,18 +163,50 @@ test("las_vacaciones_se_pagan_en_su_semana_y_piden_quien_las_autorizo_pero_no_un
   assert.equal(s.corresponde, 800); assert.equal(s.dias[0].clase, "vacaciones");
 });
 
-test("el_abono_a_un_prestamo_queda_ligado_a_su_semana_sin_importar_si_el_pago_fue_antes_o_despues", () => {
-  const prestamos = [{ id: "p2", trabajadorId: "t-ana", fecha: "2026-10-01", monto: 1000, abonado: 0, estado: "activo" }, { id: "p1", trabajadorId: "t-ana", fecha: "2026-09-01", monto: 300, abonado: 100, estado: "activo" }];
-  const r = abonarPrestamos(prestamos, 500, { desde: L, hasta: D, fecha: HOY, id: "ab1" });
-  assert.deepEqual(r.cambiados.map(p => [p.id, p.abonado, p.estado]), [["p1", 300, "pagado"], ["p2", 300, "activo"]], "primero el más viejo");
-  assert.equal(r.abonado, 500); assert.equal(r.sobrante, 0);
-  const sem = abonosDeSemana(r.cambiados, "t-ana", L, D);
-  assert.equal(sem.reduce((s, a) => s + a.monto, 0), 500);
-  assert.equal(abonosDeSemana(r.cambiados, "t-ana", "2026-11-09", "2026-11-15").length, 0, "otra semana no lo ve");
-  // El saldo de la semana sale igual haya o no un pago registrado antes del abono.
+const P = () => [{ id: "p2", trabajadorId: "t-ana", fecha: "2026-10-01", monto: 1000, abonado: 0, estado: "activo" }, { id: "p1", trabajadorId: "t-ana", fecha: "2026-09-01", monto: 300, abonado: 100, estado: "activo" }];
+const abona = (prestamos, monto, mas = {}) => abonar({ prestamos, monto, semana: { desde: L, hasta: D }, quien: ADMIN, cuando: c(HOY), fecha: HOY, azar: az(), ...mas });
+test("cada_abono_a_un_prestamo_es_un_movimiento_y_el_saldo_se_calcula_de_ellos", () => {
+  assert.equal(abona(P(), 500, { quien: ENC }).ok, false, "lo registra quien tiene el permiso");
+  assert.equal(abona(P(), 0).ok, false);
+  const r = abona(P(), 500);
+  assert.ok(r.ok); assert.deepEqual(r.eventos.map(e => [e.datos.prestamoId, e.datos.monto]), [["p1", 200], ["p2", 300]], "primero el más viejo");
+  assert.notEqual(r.eventos[0].id, r.eventos[1].id);
+  const con = saldosDePrestamos(P(), r.eventos);
+  assert.deepEqual(con.map(p => [p.id, p.abonado, p.estado]), [["p2", 300, "activo"], ["p1", 300, "pagado"]]);
+  assert.equal(P()[1].abonado, 100, "el préstamo guardado no se tocó");
+  assert.deepEqual(paraGuardarPrestamo(con[1]), P()[1], "y al guardarlo (por ejemplo al cancelarlo) no se le escribe lo calculado");
+  assert.equal(abona(con, 5000).sobrante, 4300, "no se abona más de lo que debe");
+  assert.equal(abona(saldosDePrestamos(P(), abona(P(), 1200).eventos), 10).ok, false, "ya no debe nada");
+});
+
+test("dos_aparatos_sin_señal_abonando_al_mismo_prestamo_no_se_pisan_y_el_mismo_abono_dos_veces_es_uno", () => {
+  const a = abona(P().slice(0, 1), 200).eventos, b = abona(P().slice(0, 1), 300).eventos;   // cada aparato veía el préstamo en $1,000
+  const enUno = juntarEventos(a, b).eventos, enOtro = juntarEventos(b, a).eventos;
+  assert.equal(saldosDePrestamos(P(), enUno)[0].abonado, 500, "cuentan los dos");
+  assert.deepEqual(saldosDePrestamos(P(), enUno)[0].abonado, saldosDePrestamos(P(), enOtro)[0].abonado, "sin importar en qué orden lleguen");
+  const repetido = juntarEventos(enUno, [...a, ...a]).eventos;
+  assert.equal(abonosDe(repetido).length, 2, "subir otra vez el mismo abono no lo duplica");
+  // Si entre los dos abonan de más, se ve; no se recorta.
+  const c2 = abona(P().slice(0, 1), 900).eventos;
+  assert.equal(saldosDePrestamos(P(), [...enUno, ...c2])[0]._deMas, 400);
+});
+
+test("un_abono_mal_capturado_se_cancela_o_se_corrige_y_queda_su_historial", () => {
+  const [ab] = abona(P().slice(0, 1), 200).eventos;
+  const can = cancelarEvento(ab, { motivo: "era de otra persona", quien: ADMIN, cuando: c(HOY) }).evento;
+  assert.equal(saldosDePrestamos(P(), [can])[0].abonado, 0); assert.equal(can.datos.monto, 200, "lo que decía se conserva");
+  const cor = corregirEvento(ab, { datos: { monto: 250 } }, { motivo: "eran 250", quien: ADMIN, cuando: c(HOY), azar: az() });
+  assert.equal(saldosDePrestamos(P(), [cor.anterior, cor.nuevo])[0].abonado, 250);
+  assert.equal(rastroDe([cor.anterior, cor.nuevo], cor.nuevo.id).length, 2);
+});
+
+test("el_abono_cuenta_en_su_semana_sin_importar_si_el_pago_se_registro_antes_o_despues", () => {
+  const r = abona(P(), 500);
+  assert.equal(abonosDeSemana(r.eventos, P(), "t-ana", L, D).reduce((s, a) => s + a.monto, 0), 500);
+  assert.equal(abonosDeSemana(r.eventos, P(), "t-ana", "2026-11-09", "2026-11-15").length, 0, "otra semana no lo ve");
+  assert.equal(abonosDeSemana(r.eventos, P(), "t-beto", L, D).length, 0);
   const pagoAntes = registrarPago({ a: { tipo: "trabajador", id: "t-ana", nombre: "Ana" }, desde: L, hasta: D, monto: 1900, medio: "efectivo", comprobante: "x", quien: ADMIN, cuando: c(HOY), fecha: HOY, azar: az() }).evento;
   assert.equal(saldoDe({ corresponde: 2400, descuentos: 500, pagos: [pagoAntes] }).pendiente, 0);
-  assert.equal(abonarPrestamos(r.cambiados, 5000, { desde: L, hasta: D, fecha: HOY, id: "ab2" }).sobrante, 4300, "no se abona más de lo que debe");
 });
 
 test("el_recibo_emitido_guarda_su_pdf_y_cada_version_el_suyo", () => {

@@ -39,10 +39,12 @@ export function llavesDe(espacio) {
     // El almacén grande (IndexedDB) donde viven los eventos, y el candado del
     // checador cuando la tableta se deja cerrada en esa pantalla.
     eventos: `agro_eventos_v8:${e}`, checador: `agro_checador_v8:${e}`, reloj: `agro_reloj_v8:${e}`,
+    // Lo que la base dijo que puede la cuenta de este aparato (para no ofrecer lo que va a rechazar). Decide la base, no esto.
+    permisos: `agro_permisos_v8:${e}`,
   };
 }
 // Lo que se puede borrar al "reiniciar este teléfono": SÓLO lo de este espacio.
-export const llavesQueSeReinician = (espacio) => { const l = llavesDe(espacio); return [l.datos, l.cola, l.fallidas, l.sesion, l.reset, l.checador]; };
+export const llavesQueSeReinician = (espacio) => { const l = llavesDe(espacio); return [l.datos, l.cola, l.fallidas, l.sesion, l.reset, l.checador, l.permisos]; };
 
 // La marca de nacimiento. Se pone una vez y no se cambia.
 export const marcarEspacio = (registro, espacio) =>

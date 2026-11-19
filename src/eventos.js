@@ -70,9 +70,54 @@ export function nuevoEvento({ id, tipo, cuando, fecha, capturado, quien, datos, 
 }
 
 export const estaVigente = (e) => !!e && (e.estado || VIGENTE) === VIGENTE;
+
+// ── Lo sensible lo autoriza el servidor (hoja 37) ──────────────────────────
+// Estos tipos de evento mueven dinero o reglas. La app los deja capturar, pero
+// NO les da efecto hasta que la base los valida con la cuenta que los subió:
+//   autorizado   la base comprobó el permiso → cuenta
+//   pendiente    todavía no sube (sin señal) → se enseña "por validar", no cuenta
+//   rechazado    la cuenta que lo subió no tenía el permiso → no cuenta, y se enseña
+// El sello (`_validacion`) lo pone la base; nada que venga escrito en el evento lo sustituye.
+// Esta lista es la misma de `operaciones_sensibles` en la base (hay prueba que las compara).
+export const OPERACION_DE = {
+  cierre_semana: "cerrar_semana", reapertura_semana: "cerrar_semana", confirmacion_pagos: "cerrar_semana",
+  prestacion_determinada: "determinar_prestaciones", prestacion_saldo_inicial: "determinar_prestaciones",
+  pago_personal: "autorizar_pagos", pago_prestacion: "autorizar_pagos", abono_prestamo: "autorizar_pagos", recibo_personal: "autorizar_pagos",
+  decision_jornada: "decidir_asistencia", horas_reconocidas: "decidir_asistencia",
+  ajuste: "cambiar_reglas",
+};
+export const OPERACIONES = {
+  cerrar_semana: "Cerrar y reabrir la semana, y confirmar sus pagos",
+  determinar_prestaciones: "Determinar prestaciones y capturar sus saldos iniciales",
+  autorizar_pagos: "Registrar pagos, abonos a préstamos y recibos",
+  decidir_asistencia: "Decidir cómo se paga un día y reconocer horas adicionales",
+  cambiar_reglas: "Cambiar las reglas del rancho",
+};
+// Sin servidor (un aparato que no está conectado a ninguna nube, o las pruebas) no hay quién valide:
+// ahí mandan las reglas de la app. Con servidor, se exige el sello. Lo prende la app al arrancar.
+let conServidor = false;
+export const exigirValidacion = (si) => { conServidor = !!si; };
+export const esSensible = (e) => !!OPERACION_DE[e?.tipo];
+export function validacionDe(e) {
+  if (!esSensible(e) || !conServidor) return "no_aplica";
+  return e._validacion === "autorizado" ? "autorizado" : e._validacion === "rechazado" ? "rechazado" : "pendiente";
+}
+const cuenta = (e) => { const v = validacionDe(e); return v === "no_aplica" || v === "autorizado"; };
+// ¿Se le deja capturar esto aquí? `permitido` es lo que la base dijo de la cuenta de este aparato
+// (true/false); sin servidor no viene, y entonces manda el perfil con que se entró. Esto sólo evita
+// ofrecer lo que la base va a rechazar: la que decide es la base.
+export const SIN_PERMISO = "La cuenta con la que está conectado este aparato no tiene ese permiso. Lo asigna un administrador en Arranque, en Cuentas.";
+export const negado = (quien, permitido, dice) => (permitido === true ? null : permitido === false ? SIN_PERMISO : quien?.rol === "admin" ? null : dice);
+// Lo capturado que todavía no cuenta, para enseñarlo: por validar y rechazado.
+export function sinValidar(eventos) {
+  const pendientes = [], rechazados = [];
+  for (const e of sinRepetir(eventos)) { if (!estaVigente(e)) continue; const v = validacionDe(e); if (v === "pendiente") pendientes.push(e); else if (v === "rechazado") rechazados.push(e); }
+  return { pendientes, rechazados };
+}
 // Los vigentes, ya sin repetidos: quien pregunte por aquí nunca cuenta dos veces
 // el mismo evento, aunque la lista venga de juntar dos aparatos.
-export const vigentes = (eventos) => sinRepetir(eventos).filter(estaVigente);
+// Y nunca uno sensible que la base no haya autorizado.
+export const vigentes = (eventos) => sinRepetir(eventos).filter(e => estaVigente(e) && cuenta(e));
 
 // Cancelar: el evento se queda, tachado, y deja de producir efectos.
 export function cancelarEvento(evento, { motivo, quien, cuando }) {
@@ -112,6 +157,7 @@ export function sinRepetir(eventos) {
 // que dice, así que no hay "cuál versión gana": sólo importa si alguno de los
 // dos ya dejó de estar vigente. Devuelve también cuáles son nuevos o cambiaron,
 // para guardar sólo ésos.
+export const SELLOS = ["_recibido", "_validacion", "_validacionDice", "_validadoPor", "_validadoRol", "_validado", "_cambioRechazado"];
 export function juntarEventos(locales, deLaNube) {
   const porId = new Map((locales || []).filter(e => e?.id).map(e => [e.id, e]));
   const cambiaron = [];
@@ -119,8 +165,10 @@ export function juntarEventos(locales, deLaNube) {
     if (!n?.id) continue;
     const l = porId.get(n.id);
     if (!l || (estaVigente(l) && !estaVigente(n))) { porId.set(n.id, n); cambiaron.push(n); }
-    // Lo único que la nube le agrega a un evento que ya se tenía: la hora en que el servidor lo recibió.
-    else if (n._recibido && !l._recibido) { const con = { ...l, _recibido: n._recibido }; porId.set(n.id, con); cambiaron.push(con); }
+    // Aquí se canceló o corrigió algo sensible y la base NO lo aceptó (quien lo subió no tenía el permiso): vale lo de la base.
+    else if (!estaVigente(l) && estaVigente(n) && n._cambioRechazado && n._cambioRechazado !== l._cambioRechazado) { porId.set(n.id, n); cambiaron.push(n); }
+    // Lo único que la nube le agrega a un evento que ya se tenía: los sellos del servidor (cuándo lo recibió, si lo validó).
+    else if (SELLOS.some(k => n[k] != null && n[k] !== l[k])) { const con = { ...l }; for (const k of SELLOS) if (n[k] != null) con[k] = n[k]; porId.set(n.id, con); cambiaron.push(con); }
   }
   return { eventos: [...porId.values()], cambiaron };
 }

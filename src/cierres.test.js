@@ -9,8 +9,10 @@ const cerrar = (eventos, mas = {}) => cerrarSemana({ eventos, desde: L, hasta: D
 
 test("la_semana_la_cierra_un_administrador_o_alguien_autorizado_expresamente", () => {
   assert.equal(cerrar([], { quien: ENC }).ok, false);
-  assert.equal(cerrar([], { quien: ENC, autorizados: ["en1"] }).ok, true);
-  assert.equal(puedeCerrar({ id: "t1", rol: "trabajador" }, []), false);
+  assert.equal(cerrar([], { quien: ENC, permitido: true }).ok, true, "con el permiso que le asignaron a su cuenta");
+  assert.equal(cerrar([], { quien: ADMIN, permitido: false }).ok, false, "entrar como administrador en un aparato cuya cuenta no tiene el permiso no basta");
+  assert.match(cerrar([], { quien: ADMIN, permitido: false }).dice, /no tiene ese permiso/);
+  assert.equal(puedeCerrar({ id: "t1", rol: "trabajador" }), false);
 });
 
 test("cerrar_guarda_la_foto_del_calculo_y_no_se_cierra_dos_veces", () => {

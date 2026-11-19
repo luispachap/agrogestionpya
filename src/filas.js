@@ -80,6 +80,8 @@ const MAP_COL = {
   trabajadorId: "trabajador_id",
   cat:          "categoria",
 };
+// Lo que sólo la base puede decir de un registro. Nunca se sube, y al bajar sólo se cree lo que venga en su columna.
+export const DEL_SERVIDOR = ["_recibido", "_validacion", "_validacionDice", "_validadoPor", "_validadoRol", "_validado", "_cambioRechazado"];
 const inv = obj => Object.fromEntries(Object.entries(obj).map(([k, v]) => [v, k]));
 const MAP_COL_INV = inv(MAP_COL);
 
@@ -94,7 +96,7 @@ export function objetoAFila(tabla, obj) {
   const fila = {};
   const datos = {};
   for (const [k, v] of Object.entries(obj || {})) {
-    if (k === "_actualizado" || k === "_borrado" || k === "_recibido") continue; // metadatos locales o del servidor, no se suben
+    if (k === "_actualizado" || k === "_borrado" || DEL_SERVIDOR.includes(k)) continue; // metadatos locales o del servidor, no se suben
     if (reales.includes(k)) fila[aSql(k)] = v;
     else datos[k] = v;
   }
@@ -111,7 +113,8 @@ export function filaAObjeto(fila) {
   // datos del registro y no deben regresar a la nube dentro de él.
   // borrado es la lápida: alguien lo borró.
   // recibido: la hora en que el servidor recibió un evento. La pone la base, no el teléfono.
-  const { datos, actualizado, creado_por, subido_por, borrado, recibido, ...resto } = fila || {};
+  // validacion…: el sello de lo sensible (hoja 37). También lo pone la base.
+  const { datos, actualizado, creado_por, subido_por, borrado, recibido, validacion, validacion_dice, validado_por, validado_rol, validado, cambio_rechazado, ...resto } = fila || {};
   const obj = {};
   for (const [k, v] of Object.entries(resto)) {
     if (v === null || v === undefined) continue;
@@ -122,7 +125,15 @@ export function filaAObjeto(fila) {
   // (merge por registro: gana el más reciente). Se guarda aparte para no chocar con datos.
   if (actualizado) obj._actualizado = actualizado;
   if (borrado) obj._borrado = borrado;
+  // Los sellos del servidor salen de SUS columnas. Si alguien metió uno con ese nombre dentro del registro, no vale.
+  for (const k of DEL_SERVIDOR) delete obj[k];
   if (recibido) obj._recibido = recibido;
+  if (validacion) obj._validacion = validacion;
+  if (validacion_dice) obj._validacionDice = validacion_dice;
+  if (validado_por) obj._validadoPor = validado_por;
+  if (validado_rol) obj._validadoRol = validado_rol;
+  if (validado) obj._validado = validado;
+  if (cambio_rechazado) obj._cambioRechazado = cambio_rechazado;
   return obj;
 }
 
