@@ -1,0 +1,1293 @@
+[
+{
+"c": "Ic",
+"l": 1063,
+"lee": [
+"actividades",
+"asistencia",
+"compras",
+"config_seguridad",
+"creditos",
+"cultivos",
+"egresos",
+"embarques",
+"entradas_inv",
+"incidencias",
+"ingresos",
+"inventario",
+"parcelas",
+"siembras",
+"trabajadores"
+],
+"esc": [
+"actividades",
+"egresos",
+"entradas_inv*",
+"inventario*",
+"tareas"
+],
+"val": 1,
+"conf": 0,
+"roles": []
+},
+{
+"c": "GraficaBarras",
+"l": 21,
+"lee": [],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": []
+},
+{
+"c": "GraficaBarrasPar",
+"l": 33,
+"lee": [],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": []
+},
+{
+"c": "GraficaLinea",
+"l": 987,
+"lee": [
+"actividades",
+"avances_fase",
+"compras",
+"cosechas",
+"cuadrillas",
+"cultivos",
+"egresos",
+"encargados",
+"entradas_inv",
+"envios_bodega",
+"estibas",
+"ingresos",
+"parcelas",
+"siembras",
+"terminados",
+"trabajadores"
+],
+"esc": [
+"cosechas",
+"estibas",
+"terminados"
+],
+"val": 0,
+"conf": 1,
+"roles": []
+},
+{
+"c": "AppInner",
+"l": 528,
+"lee": [
+"actividades",
+"compras",
+"incidencias",
+"session",
+"tareas"
+],
+"esc": [],
+"val": 0,
+"conf": 1,
+"roles": []
+},
+{
+"c": "LoginScreen",
+"l": 154,
+"lee": [
+"agronomos",
+"config_seguridad",
+"cuadrillas",
+"encargados",
+"externos",
+"trabajadores"
+],
+"esc": [
+"config_seguridad",
+"externos"
+],
+"val": 16,
+"conf": 0,
+"roles": []
+},
+{
+"c": "AprobacionExternosBanner",
+"l": 14,
+"lee": [
+"actividades"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": []
+},
+{
+"c": "AprobacionExternos",
+"l": 71,
+"lee": [
+"actividades",
+"externos",
+"parcelas"
+],
+"esc": [
+"actividades"
+],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin",
+"Encargado"
+]
+},
+{
+"c": "AdminHome",
+"l": 92,
+"lee": [
+"actividades",
+"compras",
+"egresos",
+"entradas_inv",
+"incidencias",
+"ingresos",
+"parcelas"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin"
+]
+},
+{
+"c": "AdminParcelas",
+"l": 266,
+"lee": [
+"actividades",
+"parcelas",
+"ranchos"
+],
+"esc": [
+"parcelas",
+"ranchos"
+],
+"val": 0,
+"conf": 2,
+"roles": [
+"Admin"
+]
+},
+{
+"c": "AdminInventario",
+"l": 205,
+"lee": [
+"actividades",
+"entradas_inv",
+"inventario",
+"parcelas"
+],
+"esc": [
+"entradas_inv",
+"entradas_inv*",
+"inventario",
+"inventario*"
+],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin"
+]
+},
+{
+"c": "AdminEquipo",
+"l": 274,
+"lee": [
+"actividades",
+"bonificaciones",
+"cuadrillas",
+"encargados",
+"externos",
+"incidencias",
+"maquinaria",
+"prestamos",
+"trabajadores"
+],
+"esc": [
+"bonificaciones",
+"cuadrillas",
+"encargados",
+"externos",
+"incidencias",
+"maquinaria",
+"trabajadores"
+],
+"val": 1,
+"conf": 2,
+"roles": [
+"Admin"
+]
+},
+{
+"c": "TrabReg",
+"l": 389,
+"lee": [
+"actividades",
+"asistencia",
+"inventario",
+"maquinaria",
+"parcelas",
+"trabajadores"
+],
+"esc": [
+"actividades",
+"entradas_inv*",
+"inventario*"
+],
+"val": 0,
+"conf": 0,
+"roles": [
+"Trab"
+]
+},
+{
+"c": "TrabHistorial",
+"l": 77,
+"lee": [
+"actividades",
+"asistencia",
+"bonificaciones",
+"parcelas",
+"prestamos",
+"tareas",
+"trabajadores"
+],
+"esc": [
+"tareas"
+],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin",
+"Trab"
+]
+},
+{
+"c": "TrabReporte",
+"l": 39,
+"lee": [],
+"esc": [
+"incidencias"
+],
+"val": 1,
+"conf": 0,
+"roles": [
+"Admin",
+"Agronomo",
+"Cuad",
+"Externo",
+"Trab"
+]
+},
+{
+"c": "CuadrillaReg",
+"l": 248,
+"lee": [
+"inventario",
+"parcelas"
+],
+"esc": [
+"actividades",
+"entradas_inv*",
+"inventario*"
+],
+"val": 0,
+"conf": 0,
+"roles": [
+"Cuad"
+]
+},
+{
+"c": "CuadHistorial",
+"l": 58,
+"lee": [
+"actividades",
+"parcelas",
+"tareas"
+],
+"esc": [
+"tareas"
+],
+"val": 0,
+"conf": 0,
+"roles": [
+"Cuad"
+]
+},
+{
+"c": "AiPanel",
+"l": 88,
+"lee": [
+"actividades",
+"ciclos",
+"compras",
+"cuadrillas",
+"egresos",
+"incidencias",
+"ingresos",
+"inventario",
+"parcelas",
+"ranchos",
+"trabajadores"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": []
+},
+{
+"c": "AdminReportes",
+"l": 365,
+"lee": [
+"cultivos",
+"parcelas",
+"siembras"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin",
+"Dueno"
+]
+},
+{
+"c": "AdminContabilidad",
+"l": 348,
+"lee": [
+"actividades",
+"compras",
+"creditos",
+"cuadrillas",
+"egresos",
+"entradas_inv",
+"ingresos",
+"parcelas",
+"trabajadores"
+],
+"esc": [
+"compras",
+"egresos",
+"entradas_inv*",
+"ingresos",
+"inventario*"
+],
+"val": 2,
+"conf": 0,
+"roles": [
+"Admin",
+"Finanzas"
+]
+},
+{
+"c": "ExternoReg",
+"l": 204,
+"lee": [
+"inventario",
+"parcelas"
+],
+"esc": [
+"actividades",
+"entradas_inv*",
+"inventario*"
+],
+"val": 0,
+"conf": 0,
+"roles": [
+"Externo"
+]
+},
+{
+"c": "ExternoHistorial",
+"l": 64,
+"lee": [
+"actividades",
+"parcelas"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Externo"
+]
+},
+{
+"c": "TrabCompras",
+"l": 165,
+"lee": [
+"compras",
+"inventario"
+],
+"esc": [
+"compras"
+],
+"val": 2,
+"conf": 0,
+"roles": [
+"Admin",
+"Cuad",
+"Trab"
+]
+},
+{
+"c": "AdminMovimientos",
+"l": 115,
+"lee": [
+"actividades",
+"compras",
+"cuadrillas",
+"egresos",
+"entradas_inv",
+"ingresos",
+"inventario",
+"parcelas",
+"trabajadores"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin"
+]
+},
+{
+"c": "MovimientoDetalle",
+"l": 113,
+"lee": [
+"cosechas",
+"maquinaria",
+"trabajadores"
+],
+"esc": [
+"cosechas"
+],
+"val": 0,
+"conf": 1,
+"roles": []
+},
+{
+"c": "EncargadoHome",
+"l": 104,
+"lee": [
+"actividades",
+"asistencia",
+"cajachica",
+"parcelas",
+"prestamos",
+"tareas"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Encargado"
+]
+},
+{
+"c": "EncargadoTareas",
+"l": 173,
+"lee": [
+"cuadrillas",
+"incidencias",
+"parcelas",
+"tareas",
+"trabajadores"
+],
+"esc": [
+"incidencias",
+"tareas"
+],
+"val": 2,
+"conf": 0,
+"roles": [
+"Admin",
+"Encargado"
+]
+},
+{
+"c": "EncargadoPersonal",
+"l": 168,
+"lee": [
+"actividades",
+"cuadrillas",
+"parcelas",
+"prestamos",
+"trabajadores"
+],
+"esc": [
+"cuadrillas",
+"prestamos"
+],
+"val": 2,
+"conf": 0,
+"roles": [
+"Admin",
+"Encargado"
+]
+},
+{
+"c": "EncargadoCaja",
+"l": 111,
+"lee": [
+"cajachica",
+"parcelas"
+],
+"esc": [
+"cajachica",
+"egresos"
+],
+"val": 1,
+"conf": 0,
+"roles": [
+"Admin",
+"Encargado"
+]
+},
+{
+"c": "AdminProveedores",
+"l": 182,
+"lee": [
+"creditos",
+"parcelas",
+"proveedores"
+],
+"esc": [
+"creditos",
+"proveedores"
+],
+"val": 2,
+"conf": 0,
+"roles": [
+"Admin"
+]
+},
+{
+"c": "CreditoDetalle",
+"l": 143,
+"lee": [
+"parcelas",
+"proveedores"
+],
+"esc": [
+"creditos",
+"ingresos"
+],
+"val": 1,
+"conf": 2,
+"roles": []
+},
+{
+"c": "RegistroActividadAdmin",
+"l": 370,
+"lee": [
+"cuadrillas",
+"cultivos",
+"encargados",
+"inventario",
+"maquinaria",
+"parcelas",
+"siembras",
+"trabajadores"
+],
+"esc": [
+"actividades",
+"entradas_inv*",
+"inventario*"
+],
+"val": 3,
+"conf": 0,
+"roles": [
+"Admin",
+"Encargado"
+]
+},
+{
+"c": "GestionCosechas",
+"l": 50,
+"lee": [
+"parcelas"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin",
+"Encargado"
+]
+},
+{
+"c": "CosechaDetalle",
+"l": 246,
+"lee": [
+"cuadrillas",
+"inventario",
+"parcelas",
+"trabajadores"
+],
+"esc": [
+"cosechas",
+"envios_bodega",
+"inventario"
+],
+"val": 10,
+"conf": 2,
+"roles": []
+},
+{
+"c": "GestionCiclos",
+"l": 113,
+"lee": [
+"ciclos"
+],
+"esc": [
+"ciclos"
+],
+"val": 1,
+"conf": 2,
+"roles": [
+"Admin"
+]
+},
+{
+"c": "ResumenSemanal",
+"l": 138,
+"lee": [
+"actividades",
+"compras",
+"cosechas",
+"egresos",
+"incidencias",
+"ingresos",
+"inventario",
+"siembras",
+"tareas"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin",
+"Dueno"
+]
+},
+{
+"c": "CalendarioCultivos",
+"l": 368,
+"lee": [
+"cosechas",
+"cultivos",
+"parcelas",
+"siembras"
+],
+"esc": [
+"parcelas",
+"siembras"
+],
+"val": 1,
+"conf": 1,
+"roles": [
+"Admin"
+]
+},
+{
+"c": "PanelParcelas",
+"l": 191,
+"lee": [
+"incidencias",
+"inventario",
+"parcelas"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin",
+"Agronomo",
+"Dueno"
+]
+},
+{
+"c": "EditorRegistro",
+"l": 50,
+"lee": [],
+"esc": [],
+"val": 0,
+"conf": 1,
+"roles": []
+},
+{
+"c": "RespaldoDatos",
+"l": 207,
+"lee": [
+"actividades",
+"egresos",
+"ingresos",
+"inventario",
+"parcelas",
+"siembras",
+"trabajadores"
+],
+"esc": [],
+"val": 0,
+"conf": 3,
+"roles": [
+"Admin"
+]
+},
+{
+"c": "RegistroMasivo",
+"l": 421,
+"lee": [
+"actividades",
+"cuadrillas",
+"encargados",
+"externos",
+"maquinaria",
+"parcelas",
+"trabajadores"
+],
+"esc": [
+"actividades"
+],
+"val": 4,
+"conf": 0,
+"roles": [
+"Admin",
+"Encargado"
+]
+},
+{
+"c": "AgronomoHome",
+"l": 66,
+"lee": [
+"aplicaciones",
+"parcelas",
+"tareas"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Agronomo"
+]
+},
+{
+"c": "GestionAplicaciones",
+"l": 224,
+"lee": [
+"aplicaciones",
+"inventario",
+"parcelas"
+],
+"esc": [
+"aplicaciones",
+"egresos",
+"entradas_inv*",
+"inventario*"
+],
+"val": 4,
+"conf": 1,
+"roles": [
+"Admin",
+"Agronomo"
+]
+},
+{
+"c": "AgronomoIndicaciones",
+"l": 120,
+"lee": [
+"inventario",
+"parcelas",
+"tareas",
+"trabajadores"
+],
+"esc": [
+"tareas"
+],
+"val": 1,
+"conf": 0,
+"roles": [
+"Admin",
+"Agronomo"
+]
+},
+{
+"c": "AgronomoCompras",
+"l": 89,
+"lee": [
+"inventario"
+],
+"esc": [
+"egresos",
+"entradas_inv",
+"inventario"
+],
+"val": 4,
+"conf": 0,
+"roles": [
+"Admin",
+"Agronomo"
+]
+},
+{
+"c": "PanelFinanciero",
+"l": 152,
+"lee": [
+"actividades",
+"egresos",
+"ingresos",
+"parcelas",
+"siembras"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin",
+"Dueno"
+]
+},
+{
+"c": "DuenoHome",
+"l": 104,
+"lee": [
+"actividades",
+"egresos",
+"embarques",
+"envios_bodega",
+"ingresos",
+"parcelas",
+"siembras",
+"terminados"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Dueno"
+]
+},
+{
+"c": "FinanzasHome",
+"l": 83,
+"lee": [
+"cajachica",
+"compras",
+"creditos",
+"encargados",
+"prestamos",
+"trabajadores"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Finanzas"
+]
+},
+{
+"c": "ProyeccionSemanal",
+"l": 78,
+"lee": [
+"encargados",
+"trabajadores"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin",
+"Finanzas"
+]
+},
+{
+"c": "GestionDeudas",
+"l": 124,
+"lee": [
+"creditos"
+],
+"esc": [
+"creditos"
+],
+"val": 2,
+"conf": 2,
+"roles": [
+"Admin",
+"Finanzas"
+]
+},
+{
+"c": "SubirCatalogos",
+"l": 278,
+"lee": [],
+"esc": [],
+"val": 3,
+"conf": 0,
+"roles": [
+"Admin"
+]
+},
+{
+"c": "CompletarIndicacionModal",
+"l": 93,
+"lee": [
+"inventario",
+"parcelas"
+],
+"esc": [],
+"val": 2,
+"conf": 1,
+"roles": []
+},
+{
+"c": "SolicitudesCompra",
+"l": 286,
+"lee": [
+"inventario",
+"proveedores",
+"solicitudes_compra"
+],
+"esc": [
+"solicitudes_compra"
+],
+"val": 2,
+"conf": 1,
+"roles": [
+"Admin",
+"Agronomo",
+"Encargado",
+"Finanzas",
+"Trab"
+]
+},
+{
+"c": "ConfirmarCompraModal",
+"l": 159,
+"lee": [
+"inventario"
+],
+"esc": [],
+"val": 3,
+"conf": 0,
+"roles": []
+},
+{
+"c": "BitacoraParcela",
+"l": 118,
+"lee": [
+"bitacora",
+"parcelas",
+"siembras"
+],
+"esc": [
+"bitacora"
+],
+"val": 1,
+"conf": 1,
+"roles": []
+},
+{
+"c": "ReportarAvanceModal",
+"l": 118,
+"lee": [],
+"esc": [
+"avances_fase"
+],
+"val": 0,
+"conf": 0,
+"roles": []
+},
+{
+"c": "PanelOperacion",
+"l": 82,
+"lee": [],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin",
+"Agronomo",
+"Dueno",
+"Encargado",
+"Finanzas"
+]
+},
+{
+"c": "AdminMasFunciones",
+"l": 82,
+"lee": [],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin"
+]
+},
+{
+"c": "GestionVariedades",
+"l": 125,
+"lee": [
+"cultivos"
+],
+"esc": [
+"cultivos"
+],
+"val": 2,
+"conf": 1,
+"roles": [
+"Admin",
+"Agronomo"
+]
+},
+{
+"c": "ReporteVariedades",
+"l": 70,
+"lee": [
+"siembras"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin",
+"Agronomo"
+]
+},
+{
+"c": "ExportarContPAQi",
+"l": 117,
+"lee": [
+"actividades",
+"config_contpaqi",
+"egresos",
+"ingresos",
+"parcelas"
+],
+"esc": [
+"config_contpaqi"
+],
+"val": 2,
+"conf": 0,
+"roles": [
+"Admin",
+"Finanzas"
+]
+},
+{
+"c": "EmbarqueAjo",
+"l": 284,
+"lee": [
+"config_emisor",
+"cultivos",
+"embarques",
+"estibas",
+"parcelas"
+],
+"esc": [
+"embarques",
+"estibas"
+],
+"val": 3,
+"conf": 1,
+"roles": [
+"Admin",
+"Finanzas"
+]
+},
+{
+"c": "FormatoSalida",
+"l": 88,
+"lee": [],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": []
+},
+{
+"c": "InventarioTerminado",
+"l": 195,
+"lee": [
+"creditos",
+"cultivos",
+"terminados"
+],
+"esc": [
+"creditos",
+"embarques",
+"ingresos"
+],
+"val": 1,
+"conf": 0,
+"roles": [
+"Admin",
+"Finanzas"
+]
+},
+{
+"c": "Consignaciones",
+"l": 126,
+"lee": [
+"creditos",
+"embarques"
+],
+"esc": [],
+"val": 2,
+"conf": 0,
+"roles": [
+"Admin",
+"Finanzas"
+]
+},
+{
+"c": "CorridaAjo",
+"l": 1196,
+"lee": [
+"control_corrida",
+"corridas",
+"cultivos",
+"estibas",
+"inventario",
+"parcelas",
+"siembras"
+],
+"esc": [
+"control_corrida",
+"corridas",
+"estibas",
+"inventario"
+],
+"val": 8,
+"conf": 5,
+"roles": [
+"Admin",
+"Encargado",
+"Finanzas"
+]
+},
+{
+"c": "Estibas",
+"l": 454,
+"lee": [
+"cosechas",
+"cultivos",
+"estibas",
+"parcelas",
+"siembras"
+],
+"esc": [
+"estibas"
+],
+"val": 8,
+"conf": 3,
+"roles": [
+"Admin",
+"Encargado",
+"Finanzas"
+]
+},
+{
+"c": "NominaSemanal",
+"l": 202,
+"lee": [
+"actividades",
+"encargados",
+"prestamos",
+"trabajadores"
+],
+"esc": [
+"prestamos"
+],
+"val": 1,
+"conf": 0,
+"roles": [
+"Admin",
+"Finanzas"
+]
+},
+{
+"c": "PaseLista",
+"l": 219,
+"lee": [
+"actividades",
+"asistencia",
+"parcelas",
+"trabajadores"
+],
+"esc": [
+"actividades",
+"asistencia"
+],
+"val": 3,
+"conf": 0,
+"roles": [
+"Admin",
+"Encargado",
+"Finanzas",
+"Trab"
+]
+},
+{
+"c": "ReporteComercializacion",
+"l": 94,
+"lee": [
+"embarques"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin",
+"Finanzas"
+]
+},
+{
+"c": "RendimientoParcelas",
+"l": 98,
+"lee": [
+"corridas",
+"parcelas"
+],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": [
+"Admin",
+"Agronomo",
+"Finanzas"
+]
+},
+{
+"c": "PanelSeguridad",
+"l": 96,
+"lee": [
+"config_seguridad"
+],
+"esc": [
+"config_seguridad"
+],
+"val": 0,
+"conf": 1,
+"roles": [
+"Admin"
+]
+},
+{
+"c": "SelectorMapa",
+"l": 63,
+"lee": [],
+"esc": [],
+"val": 0,
+"conf": 0,
+"roles": []
+}
+]

@@ -1,4 +1,22 @@
-node_modules
-dist
+# Dependencias
+node_modules/
+
+# Build
+dist/
+dist-ssr/
+
+# Variables de entorno — NUNCA subir estas (traen contraseñas)
+.env
+.env.local
+.env.*.local
+
+# Sistema
 .DS_Store
-*.local
+Thumbs.db
+*.log
+npm-debug.log*
+
+# Editores
+.vscode/*
+!.vscode/extensions.json
+.idea/
