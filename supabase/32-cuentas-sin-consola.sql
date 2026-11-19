@@ -51,7 +51,7 @@ declare v timestamptz := now() + make_interval(days => p_dias);
 begin
   if auth.uid() is not null then raise exception 'Esto sólo se hace al montar la base'; end if;
   if coalesce(length(p_huella), 0) <> 64 then raise exception 'Huella inválida'; end if;
-  update operacion set arranque_huella = p_huella, arranque_usos = p_usos, arranque_vence = v;
+  update operacion set arranque_huella = p_huella, arranque_usos = p_usos, arranque_vence = v where id = 'unico';
   return v;
 end $$;
 
@@ -87,7 +87,7 @@ begin
     if o.arranque_huella is not null and o.arranque_usos > 0 and o.arranque_vence > now()
        and o.arranque_huella = encode(sha256(convert_to(trim(p_codigo), 'UTF8')), 'hex') then
       insert into perfiles (id, nombre, rol) values (yo, u.nombre, 'superadmin');
-      update operacion set arranque_usos = arranque_usos - 1;
+      update operacion set arranque_usos = arranque_usos - 1 where id = 'unico';
       return 'superadmin';
     end if;
     raise exception 'El código de arranque no es válido, ya se usó o caducó.';

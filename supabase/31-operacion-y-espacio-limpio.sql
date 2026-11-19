@@ -48,7 +48,7 @@ begin
   if coalesce(trim(p_espacio), '') = '' then raise exception 'Falta el nombre del espacio'; end if;
   select espacio into actual from operacion;
   if actual is not null and actual <> p_espacio then raise exception 'Esta base ya es del espacio "%": no se cambia', actual; end if;
-  update operacion set espacio = p_espacio, sellado_el = coalesce(sellado_el, now());
+  update operacion set espacio = p_espacio, sellado_el = coalesce(sellado_el, now()) where id = 'unico';
   return p_espacio;
 end $$;
 
@@ -62,7 +62,7 @@ begin
   if p_fecha is null then raise exception 'Falta la fecha'; end if;
   select inicio_operaciones into ya from operacion;
   if ya is not null then raise exception 'El inicio de operaciones ya está declarado (%) y no se cambia', ya; end if;
-  update operacion set inicio_operaciones = p_fecha, declarado_por = auth.uid(), declarado_el = now(), nota = p_nota;
+  update operacion set inicio_operaciones = p_fecha, declarado_por = auth.uid(), declarado_el = now(), nota = p_nota where id = 'unico';
   return p_fecha;
 end $$;
 

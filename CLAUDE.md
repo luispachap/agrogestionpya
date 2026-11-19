@@ -174,6 +174,12 @@ Después de **cada** cambio en `App.jsx`, en este orden:
   un empate gana lo local (`ganaAlSincronizar`). El dato nunca se había perdido
   —la cola lo guardaba— pero la persona veía que su corrección se borró sola, que
   es peor.
+- **Un UPDATE sin WHERE truena en la base real y no en las pruebas**: Supabase
+  le carga a las cuentas de la app una regla (`safeupdate`) que rechaza todo
+  `UPDATE`/`DELETE` sin `WHERE`, también dentro de una función. La base de
+  pruebas no la trae. Al primer superadministrador no lo dejó entrar con su
+  código de arranque. Toda sentencia dice cuál renglón (`where id = 'unico'`),
+  y `src/hojasSql.test.js` lo vigila.
 - **Un dato que falta no es un cero**: `leerTodo()` convertía en lista vacía toda
   tabla que fallara al bajar, y la utilidad salía igual de verde. Ahora devuelve
   `_fallas` y `_topes` y la app lo dice en una banda arriba.
