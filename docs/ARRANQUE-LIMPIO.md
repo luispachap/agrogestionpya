@@ -31,7 +31,7 @@ lo que traía guardado. Éstas son las puertas que encontré:
 | 7 | Segundo candado, por si alguna de las anteriores fallara | **Puesto y probado** (hoja SQL 31): la base rechaza todo registro que no traiga la marca de su espacio, aunque quien lo suba tenga permiso |
 | 8 | Una base nueva "sin sellar" acepta registros sin marca | Paso obligatorio del montaje; no se abre a nadie antes de sellarla |
 | 9 | La pantalla de administrador que importa catálogos desde Excel | **Abierta a propósito, sólo para superadministradores.** Es una puerta legítima, pero se brinca la hoja de revisión: la regla es no usarla para el arranque |
-| 10 | **Datos de prueba durante la validación en teléfonos** | **Abierta — necesita una decisión** (sección 6) |
+| 10 | Datos de prueba durante la validación en teléfonos | Acotada: van marcados y se cancelan (sección 6) |
 | 11 | Un teléfono que siga con la versión vieja abierta | No puede llegar a la base nueva (apunta a la anterior). Lo que capture ahí se queda en su cajón viejo. Hay que avisar que recarguen |
 | 12 | Alguien teclea a mano datos viejos | No lo impide ningún candado; para eso es la fecha de inicio |
 
@@ -67,12 +67,11 @@ inventado, un PIN y existencias, a la base sólo llegó lo aprobado.
 
 | Qué | Cómo | Estado |
 |---|---|---|
-| **Fecha oficial de inicio** | La declara un superadministrador, una sola vez; ya no se cambia. Queda quién y cuándo | En la base y probado. **Falta el botón en la app** |
-| **Inventario inicial** | Conteo físico con fecha, lugar y responsable. La app ya tiene el conteo a ciegas (no enseña el saldo hasta después de contar) | La regla que exige fecha, lugar y responsable está escrita y probada. **Falta conectarla a la pantalla de conteo** |
-| **Saldos iniciales** | Por cada cuenta o caja: fecha de corte, saldo, responsable y evidencia (estado de cuenta o arqueo). Sin evidencia se puede guardar, pero queda marcado así | Regla escrita y probada. **Falta la pantalla** |
+| **Fecha oficial de inicio** | La declara un superadministrador, una sola vez; ya no se cambia. Queda quién y cuándo | Listo: Admin → Arranque → Inicio |
+| **Inventario inicial** | Conteo físico con fecha, lugar y responsable. La app ya tiene el conteo a ciegas (no enseña el saldo hasta después de contar) | Listo: Admin → Arranque → Conteo |
+| **Saldos iniciales** | Por cada cuenta o caja: fecha de corte, saldo, responsable y evidencia (estado de cuenta o arqueo). Sin evidencia se puede guardar, pero queda marcado así | Listo: Admin → Arranque → Saldos |
 
-Esas tres pantallas son chicas y las propongo como primer paso de la
-especificación ampliada, porque inventarios y control financiero vienen ahí.
+Las tres están en la app y probadas en navegador; falta usarlas con datos reales.
 
 ## 5 · Orden del arranque
 
@@ -84,16 +83,17 @@ especificación ampliada, porque inventarios y control financiero vienen ahí.
 6. Saldos iniciales con su evidencia.
 7. Declarar la fecha de inicio. De ahí en adelante, todo es operación real.
 
-## 6 · Decisión pendiente: dónde se hacen las pruebas
+## 6 · Dónde se prueba (resuelto el 19 de noviembre)
 
-El plan gratuito de Supabase da **dos proyectos activos por persona**, contando
-todas sus organizaciones. Luis ya tiene uno activo (el del despacho). Queda
-**un solo lugar**: no caben a la vez uno de pruebas y uno de producción.
+El plan gratuito de Supabase da dos proyectos activos por persona y Luis ya usa
+uno (el despacho), así que hay **un solo proyecto de AgroGestión y es el de
+producción**. Cómo se cuida:
 
-| Opción | Qué implica |
-|---|---|
-| **A · Uno después del otro (la que propongo)** | Se crea primero el proyecto **de pruebas**, se hace ahí toda la validación en teléfonos con datos de mentira, se **elimina**, y se crea el de producción limpio. Armar la base toma minutos, así que no cuesta nada repetirlo. Los datos de prueba nunca tocan producción porque producción todavía no existe. Eliminar el proyecto de pruebas requiere tu autorización. Después del arranque ya no habría ambiente de pruebas |
-| B · Migue crea el de pruebas con su cuenta | Cada persona tiene sus dos lugares. Deja ambiente de pruebas permanente, que hará falta para las funciones nuevas |
-| C · Plan de paga | No lo propongo ahora |
-
-A y B no se excluyen: A para arrancar, B cuando empiecen las funciones nuevas.
+- **Mis pruebas contra el proyecto real** van dentro de una transacción que se
+  deshace sola: no queda ni una cuenta ni un registro. Las de pantallas corren
+  aparte, contra una nube de mentira.
+- **Las pruebas de Luis y Migue** antes del inicio van marcadas "PRUEBA" y se
+  cancelan; quedan tachadas, no escondidas. La fecha oficial de inicio marca
+  desde cuándo es operación formal.
+- Si más adelante hace falta un ambiente de pruebas permanente (para las
+  funciones nuevas), la opción sin costo es que Migue cree uno con su cuenta.

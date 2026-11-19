@@ -18,7 +18,9 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | Base montada (27 hojas, 60 tablas), sellada y vacía | Sí | Sí |
 | 6 ataques sin sesión + 34 con sesión | Sí | Sí, sin dejar rastro |
 | Sitio publicado y conectado | Sí | Sí (18 de 18 en navegador real) |
-| Alta de cuentas sin consola (invitación / código de arranque) | Sí | **Falta: con cuentas reales** |
+| Alta de cuentas sin consola (código de arranque de un uso + invitación) | Sí | El procedimiento completo, sí (sin dejar rastro). **Falta: que entren ustedes** |
+| El correo de confirmación lleva al sitio | Sí | Sí |
+| `main` no puede publicar encima del sitio | Sí | Sí |
 | Pantalla de Arranque: cuentas, conteo, saldos, inicio | Sí | **Falta: con datos reales** |
 | Función de lectura con IA instalada y cerrada a extraños | Sí | El candado sí; **leer, no (falta llave)** |
 | Sincronización entre dos teléfonos reales | — | **Falta** |
@@ -35,10 +37,10 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | La app ya no trae rancho ni parcelas de fábrica | Sí | Sí | No | No |
 | La base nace sin un solo registro de operación | Sí | Sí | No | No |
 | Catálogos: hoja de revisión y carga sólo de lo aprobado | Sí | Sí | — | No |
-| Fecha oficial de inicio, una sola vez | En la base; falta el botón | Sí | No | No |
-| Conteo inicial con fecha, lugar y responsable | Regla; falta conectarla a la pantalla | La regla | No | No |
-| Saldos iniciales con corte, responsable y evidencia | Regla; falta la pantalla | La regla | No | No |
-| Ambiente de pruebas separado de producción | **Decisión pendiente** | — | — | — |
+| Fecha oficial de inicio, una sola vez | Sí (pantalla Arranque) | Sí | No | No |
+| Conteo inicial con fecha, lugar y responsable | Sí (pantalla Arranque) | Sí | No | No |
+| Saldos iniciales con corte, responsable y evidencia | Sí (pantalla Arranque) | Sí | No | No |
+| Pruebas sin ensuciar producción | Sí: transacciones que se deshacen; lo de ustedes, marcado y cancelado | Sí | — | — |
 
 ## Infraestructura propia (nuevo)
 
@@ -65,7 +67,7 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | Aviso cuando el teléfono no guarda | Sí | **Sí (nuevo)** | No | No |
 | Confirmación al borrar trabajador + bitácora | Sí | **Sí (nuevo)** | No | No |
 | Recargar ya no borra lo pendiente | Sí | Sí | No | No |
-| Permisos por rol en la base (hoja 24) | **Sí (nuevo)** | **Sí, 16 ataques en base aislada** | No | No — falta correrla en copia de la base real |
+| Permisos por rol en la base (hoja 24) | **Sí (nuevo)** | **Sí, 16 ataques en base aislada** | No | No |
 | Luis y Migue superadministradores con cuenta propia | **Sí (nuevo)** | Sí | No | No |
 | Función de lectura con IA cerrada a extraños | **Sí (nuevo)** | **No** | No | No |
 | Funciones `oir-audio` y `revisar-parcela` abiertas a extraños | No | — | — | — |
@@ -89,9 +91,9 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 
 | Batería | Resultado |
 |---|---|
-| Reglas, cálculos y nombres sin definir (`npm test`) | 661 de 661 |
+| Reglas, cálculos y nombres sin definir (`npm test`) | 664 de 664 |
 | La base armada desde cero y atacada directo (`npm run test:base`) | 49 de 49 |
-| Navegador, alta de cuentas y Arranque (`cuentas`) | 19 de 19 |
+| Navegador, alta de cuentas y Arranque (`cuentas`) | 22 de 22 |
 | **Proyecto real**, sin sesión, desde internet (`real_sin_sesion`) | 6 de 6 |
 | **Proyecto real**, 34 ataques con sesión (transacción deshecha) | 34 de 34 |
 | **Sitio publicado**, navegador real (`real_sitio`) | 18 de 18 |
@@ -124,7 +126,7 @@ Todo junto: `sh pruebas/todo.sh`.
 
 | # | Qué | Urgencia |
 |---|---|---|
-| 1 | Crear cada quien su cuenta y entrar con el código de arranque (`PRIMEROS-PASOS.md`) | **Ahora: es lo que falta para usarla** |
+| 1 | Luis entra con el código de arranque e invita a Migue (`PRIMEROS-PASOS.md`) | **Ahora: es lo que falta para usarla** |
 | 2 | Dar de alta lo básico o aprobar la hoja de catálogos | Para empezar a capturar |
 | 3 | Conteo físico, saldos iniciales y declarar la fecha de inicio (pantalla Arranque) | Para empezar a operar |
 | 4 | Decir cuándo se cambia app.agroselectos.com a la versión nueva | Cuando la hayan probado |

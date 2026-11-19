@@ -30,16 +30,15 @@
 //  · No decide nada. Propone; la persona confirma en la app.
 //  · No guarda la foto ni el texto. Sólo responde y se olvida.
 //
-//  CÓMO SE INSTALA (para Luis, una sola vez):
+//  CÓMO ESTÁ INSTALADA
 //
-//    1. En la terminal, dentro de la carpeta del proyecto:
-//         npx supabase login
-//         npx supabase link --project-ref zicflluuksanrjwjotps
-//         npx supabase secrets set ANTHROPIC_API_KEY=la-llave-real
-//         npx supabase functions deploy leer-papel
+//    Vive en el proyecto de Supabase de AgroGestión. La instalación carga este
+//    mismo archivo desde el repositorio, fijado a un commit: para publicar un
+//    cambio hay que volver a instalarla apuntando al commit nuevo.
 //
-//    2. La llave se pone UNA vez con "secrets set" y nunca aparece en el
-//       código ni en GitHub ni en el navegador.
+//    La llave de IA se pone UNA vez como secreto del proyecto
+//    (ANTHROPIC_API_KEY) y nunca aparece en el código, en GitHub ni en el
+//    navegador. Mientras no exista, la función contesta "no está configurada".
 //
 //  Si esto no está instalado, la app NO se rompe: sigue leyendo con los
 //  patrones que ya aprendió, y para los papeles nuevos avisa que la lectura

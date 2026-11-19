@@ -1,53 +1,73 @@
-# Primeros pasos — AgroGestión ya está instalado
+# Cómo entrar — AgroGestión
 
-**Dónde se abre:** https://agrogestion-operacion.vercel.app
-(En el teléfono: abrirlo en Chrome o Safari → menú → "Agregar a pantalla de inicio".)
+**Dirección:** https://agrogestion-operacion.vercel.app
+(En el teléfono: abrirla en Chrome o Safari → menú → "Agregar a pantalla de inicio".)
 
-La dirección de siempre, app.agroselectos.com, **no se tocó**: sigue con la
-versión vieja hasta que ustedes decidan cambiarla.
+app.agroselectos.com **no se tocó**: sigue con la versión vieja hasta que
+ustedes digan.
 
-## 1 · Luis y Migue crean su cuenta (cada quien la suya)
+## Luis — primero, con el código de arranque
 
 1. Abrir la dirección → **"Es mi primera vez: crear mi cuenta"**.
-2. Nombre, correo y una contraseña de 10 caracteres o más. La contraseña es de
-   cada quien: no se comparte ni me la pasan a mí.
-3. Llega un correo de Supabase: tocar el enlace para confirmar. **La página que
-   abre el enlace puede salir en blanco o con error — no importa**: el correo
-   ya quedó confirmado. Regresar a la app.
-4. En la app: tocar **Admin**, escribir correo y contraseña → Entrar.
-5. La primera vez dirá que la cuenta no está invitada y aparecerá el campo
-   **Código de arranque**. Escribir el código que Luis recibió y entrar otra vez.
+2. Nombre, correo y una contraseña de 10 caracteres o más.
+3. Llega un correo de Supabase: tocar el enlace. Abre AgroGestión con el aviso
+   **"Correo confirmado"**.
+4. Tocar **Admin**, escribir correo y contraseña → Entrar.
+5. Dirá que la cuenta no está invitada y aparecerá el campo **Código de
+   arranque**. Escribirlo y volver a tocar Entrar.
 
-El código sirve **dos veces** (una por cada uno) y caduca el **3 de diciembre**.
-Después de eso nadie más puede hacerse superadministrador con él.
+El código sirve **una sola vez** y caduca el **21 de noviembre**. En cuanto
+Luis entra, deja de existir: ya nadie puede usarlo, aunque lo vea.
 
-## 2 · Lo que sigue, todo desde la app → Admin → **Arranque**
+## Migue — por invitación, sin código
+
+1. Luis, ya adentro: **Admin → Arranque → Cuentas** → nombre y correo de Migue,
+   rol **Superadministrador** → Invitar.
+2. Migue abre la dirección → "Es mi primera vez" → crea su cuenta **con ese
+   mismo correo** → confirma el enlace → entra con correo y contraseña.
+
+La invitación sólo le sirve a quien controla ese correo. Así se invita también
+a encargados, finanzas, agrónomo y dirección, cada uno con su rol.
+
+## Por qué así
+
+- Cada quien tiene su cuenta y su contraseña; nadie la comparte ni me la pasa.
+- El único secreto que viaja es el código, y vale una vez.
+- En **Arranque → Cuentas** se ve quién tiene cuenta y con qué rol: deben ser
+  exactamente los que ustedes dieron de alta.
+
+## Qué probar primero
+
+1. Que los dos entren y vean las pantallas de administrador.
+2. Luis captura un gasto de prueba **marcado como prueba en el concepto**; Migue
+   lo ve en su teléfono; uno de los dos lo **cancela** con motivo.
+3. Luis pone modo avión, captura otro, quita el modo avión: ¿le llega a Migue,
+   una sola vez?
+4. Tomar una foto de cualquier ticket en el Buzón de papeles y guardarla: ¿el
+   otro la puede ver?
+
+Si algo falla, captura de pantalla.
+
+## Después: Admin → Arranque
 
 | Pestaña | Qué se hace |
 |---|---|
-| **Cuentas** | Invitar a encargados, finanzas, agrónomo y dirección: nombre, correo y rol. Cada quien crea su cuenta con ese correo |
-| **Conteo** | Inventario inicial: fecha, dónde se contó, quién contó y lo contado de cada artículo |
-| **Saldos** | Saldo inicial de cada cuenta o caja: fecha de corte, monto, responsable y evidencia |
-| **Inicio** | Declarar la fecha oficial de inicio. Una sola vez; ya no se cambia |
-| **Estado** | Qué falta de todo lo anterior |
+| **Cuentas** | Invitar a los demás |
+| **Conteo** | Inventario inicial: fecha, dónde, quién y lo contado |
+| **Saldos** | Saldo inicial de cada cuenta o caja, con evidencia |
+| **Inicio** | Declarar la fecha oficial de inicio (una sola vez) |
+| **Estado** | Qué falta |
 
-Antes del conteo y los saldos hay que dar de alta lo básico: parcelas y
-trabajadores (Admin → Equipo / Parcelas), los artículos del almacén, y las
-cuentas y cajas (Socios y bolsas). O cargar los catálogos aprobados
-(`ARRANQUE-LIMPIO.md`, sección 3).
-
-## 3 · Gente de campo
-
-Un encargado entra con su cuenta y, **al salir**, acepta dejar su teléfono
-ligado. Desde ese teléfono los trabajadores entran con su PIN y lo que
-capturan sube solo.
+Lo que capturen antes de declarar el inicio se queda; la fecha de inicio sólo
+marca desde cuándo es operación formal. Por eso lo de prueba va marcado y
+cancelado, no borrado.
 
 ## Si algo no funciona
 
-Captura de pantalla y me la mandas. Lo que sé que puede pasar:
-
-- **No llega el correo de confirmación.** El servicio gratuito manda pocos
-  correos por hora; esperar unos minutos y revisar la carpeta de spam.
-- **"Falta confirmar tu correo".** No se tocó el enlace del mensaje.
+- **No llega el correo.** El servicio gratuito manda pocos por hora. Revisar
+  spam; en la app, al intentar entrar, aparece **"Mandar otra vez el correo de
+  confirmación"**.
+- **"Ese enlace ya se usó o caducó".** Si ya habías tocado el enlace, sólo
+  entra con correo y contraseña.
 - **Leer tickets por foto** dirá que la lectura con IA no está configurada:
-  es cierto, falta la llave de IA. El XML de una factura sí se lee, gratis.
+  falta la llave de IA. El XML de una factura sí se lee, gratis.

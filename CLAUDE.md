@@ -1,7 +1,9 @@
 # AgroGestión — Agroselectos P&A
 
 App de gestión agrícola para una empresa familiar de ajo en Zacatecas (bodega en
-Aguascalientes). PWA móvil en React, desplegada en app.agroselectos.com.
+Aguascalientes). PWA móvil en React. La versión vigente vive en
+https://agrogestion-operacion.vercel.app; app.agroselectos.com todavía sirve la
+versión vieja y no se toca hasta que Luis lo diga.
 
 ## Con quién trabajas
 
@@ -56,8 +58,10 @@ Usuarios reales de la app:
 - **Tema claro/oscuro**: `aplicarTemaGuardado()` corre antes del primer render y
   `<ThemeBtn/>` lo cambia. Cualquier color nuevo va como variable CSS, nunca
   quemado, o se rompe en uno de los dos temas.
-- **Despliegue**: StackBlitz → GitHub → Vercel. Luis pega los archivos en
-  StackBlitz; considera esto al entregar cambios.
+- **Despliegue**: GitHub (`luispachap/agrogestionpya`, rama
+  `produccion/base-vigente`) → Vercel, proyecto `agrogestion-operacion`. Se
+  publica SÓLO mandando esa rama a producción a propósito; Vercel omite todo lo
+  demás (`main`, vistas previas). Luis ya no pega archivos en StackBlitz.
 
 ## Datos
 
@@ -71,12 +75,13 @@ Usuarios reales de la app:
 - **Columnas**: las tablas de Supabase tienen columnas fijas; todo campo extra
   viaja dentro de la columna JSON `datos`. Por eso se pueden agregar campos nuevos
   sin migración (ej. la ficha de agroquímicos de Fito).
-- **40 tablas**. Si agregas una colección nueva: regístrala en `INITIAL`,
+- **54 colecciones que sincronizan** (60 tablas con las de reglas). Si agregas una colección nueva: regístrala en `INITIAL`,
   `TABLAS_NUBE`, `dataApi.TABLAS` y `COLUMNAS_REALES`, **y escribe su SQL**
   en `supabase/` siguiendo el patrón de `17-tabla-config-contpaqi.sql`
-  (id/datos/actualizado + RLS con `tiene_perfil()`). Avísale a Luis que debe
-  correrlo; si no, el dato se queda solo en el teléfono.
-- `supabase/14-verificar-tablas.sql` comprueba que las 40 existan. Actualízalo
+  (id/datos/actualizado), pero con las reglas de acceso de la hoja 24
+  (`puede()`), no `tiene_perfil()`. La instalas tú (ver "Infraestructura
+  propia"); si no, el dato se queda solo en el teléfono.
+- `supabase/14-verificar-tablas.sql` comprueba que todas existan. Actualízalo
   cuando agregues una.
 
 ## Trazabilidad (el corazón del sistema)
@@ -448,9 +453,9 @@ demás tablas se dejan como estaban a propósito: borrar un catálogo mal captur
 es normal y no esconde nada.
 
 ## Pendiente
-- **Correr `supabase/18-tablas-lectura-de-papeles.sql`** y desplegar la Edge
-  Function (las instrucciones están en su encabezado). Sin el SQL, la app avisa en
-  pantalla que dos tablas no se pudieron leer — que es justo lo que debe hacer.
+- **Lectura con IA**: la función `leer-papel` ya está instalada y cerrada a
+  quien no tiene perfil, pero sin llave de IA (es un gasto: lo autoriza Luis).
+  Mientras, contesta "no está configurada" y la app ofrece capturar a mano.
 - **Salidas del almacén con el costo promedio**: la ENTRADA ya mueve el costo
   promedio ponderado (`costoPromedio`) — urea a $580 en marzo más 40 bultos a
   $940 en agosto quedan en 50 a $868, que es la respuesta a "¿cargó $23,200 o
@@ -509,8 +514,8 @@ tocan sin que Luis lo diga). Reglas de ahí:
   la nube de mentira de `pruebas/*_navegador.py`.
 - Una hoja nueva se instala con `apply_migration` y va también a
   `supabase/orden.json`. Después: `get_advisors` y `pruebas/real_sin_sesion.py`.
-- Las cuentas se dan de alta desde la app (hoja 32: invitación o código de
-  arranque). Nunca crees cuentas por SQL ni manejes contraseñas de nadie.
+- Las cuentas se dan de alta desde la app (hoja 32: invitación por correo; el
+  código de arranque es de un solo uso y sólo para el primer superadministrador). Nunca crees cuentas por SQL ni manejes contraseñas de nadie.
 - La pantalla **Arranque** (Admin) lleva cuentas, conteo inicial, saldos
   iniciales y la fecha de inicio.
 
