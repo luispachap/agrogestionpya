@@ -40,7 +40,7 @@ test("no_caben_mas_de_24_horas_de_maquina_en_un_dia", () => {
 test("el_horometro_se_compara_contra_las_horas_que_se_capturaron_en_la_labor", () => {
   // El aparato dice 8 horas y en la labor capturaron 3: sobran 5.
   const r = revisarHorometro({ lectura: 1248, lecturaAnterior: 1240, fecha: "2026-09-06", fechaAnterior: "2026-09-05", horasTrabajadas: 3 });
-  assert.equal(r.estado, "no cuadra con la labor");
+  assert.equal(r.estado, "no cuadra con la actividad");
   assert.ok(r.dice.includes("sobran 5.0 hr"));
 });
 

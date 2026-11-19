@@ -71,8 +71,8 @@ export function revisarHorometro({ lectura, lecturaAnterior, fecha, fechaAnterio
     const dif = delta - ht;
     if (Math.abs(dif) >= 1) {
       return {
-        estado: "no cuadra con la labor", marcada: true, horasDelPeriodo: delta,
-        dice: `El horómetro avanzó ${delta.toFixed(1)} hr y en la labor se capturaron ${ht} hr: ${dif > 0 ? "sobran" : "faltan"} ${Math.abs(dif).toFixed(1)} hr.`,
+        estado: "no cuadra con la actividad", marcada: true, horasDelPeriodo: delta,
+        dice: `El horómetro avanzó ${delta.toFixed(1)} hr y en la actividad se capturaron ${ht} hr: ${dif > 0 ? "sobran" : "faltan"} ${Math.abs(dif).toFixed(1)} hr.`,
       };
     }
   }
@@ -118,7 +118,7 @@ export function promedioConsumo(labores, { minimo = 3 } = {}) {
 export function compararConsumo({ maquina, labor, litros, horas, historial }) {
   const actual = consumoPorHora({ litros, horas });
   const nombreMaq = maquina || "esta máquina";
-  const nombreLab = labor || "esta labor";
+  const nombreLab = labor || "esta actividad";
 
   if (actual === null) {
     return {
@@ -130,7 +130,7 @@ export function compararConsumo({ maquina, labor, litros, horas, historial }) {
   if (!suficiente) {
     return {
       hay: true, actual, promedio: null, sobre,
-      dice: `${nombreMaq} en ${nombreLab} viene en ${actual} L/h. Todavía no hay con qué compararlo: van ${sobre} labor(es) de ${nombreLab} con datos completos, y hacen falta 3.`,
+      dice: `${nombreMaq} en ${nombreLab} viene en ${actual} L/h. Todavía no hay con qué compararlo: van ${sobre} actividad(es) de ${nombreLab} con datos completos, y hacen falta 3.`,
     };
   }
   const dif = Math.round((actual - promedio) * 100) / 100;
@@ -138,7 +138,7 @@ export function compararConsumo({ maquina, labor, litros, horas, historial }) {
   return {
     hay: true, actual, promedio, sobre, diferencia: dif, porciento: pct,
     // Ni una palabra de robo. Los dos números, lado a lado, y ya.
-    dice: `${nombreMaq} en ${nombreLab} viene en ${actual} L/h; su promedio de las últimas ${sobre} labores de ${nombreLab} es ${promedio}.`,
+    dice: `${nombreMaq} en ${nombreLab} viene en ${actual} L/h; su promedio de las últimas ${sobre} actividades de ${nombreLab} es ${promedio}.`,
     llamaLaAtencion: Math.abs(pct) >= 25,
   };
 }

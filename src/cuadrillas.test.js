@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cancelarEvento, corregirEvento, efectosDe } from "./eventos.js";
 import { marcar, marcaQueFalto, emitirCredencial } from "./checador.js";
-import { asignar, terminar, anotarDestajo, repartoActual, tramosDeTrabajo, manoDeObra, agrupar, actividadesDeManoDeObra, capturasDobles, ajusteVigente, cambiarAjuste, horasDe } from "./cuadrillas.js";
+import { anotarTareas, aclararTiempo, CAUSAS_SIN_ASIGNAR, asignar, terminar, anotarDestajo, repartoActual, tramosDeTrabajo, manoDeObra, agrupar, actividadesDeManoDeObra, capturasDobles, ajusteVigente, cambiarAjuste, horasDe } from "./cuadrillas.js";
 import { sumarDinero } from "./calculos.js";
 
 const ENC = { id: "enc1", nombre: "Encargado", rol: "encargado" }, ADMIN = { id: "u1", nombre: "Luis", rol: "admin" };
@@ -108,7 +108,7 @@ test("el_destajo_se_reparte_parejo_y_quien_va_solo_a_destajo_no_devenga_por_esta
   assert.equal(dani.monto, 1339.5); assert.deepEqual(dani.partes.map(p => p.modalidad), ["destajo"]);
   assert.equal(costoEn(r, "p7"), 1739.5);
   const dos = anotarDestajo({ trabajadorIds: ["t-dani", "t-x", "t-y"], parcelaId: "p7", unidad: "caja", cantidad: 10, tarifa: 3.33, cuando: a("13:00"), fecha: D, quien: ENC }).evento;
-  const partes = manoDeObra([dos], GENTE, { desde: D, hasta: D, hoy: D, ahora: a("15:00") }).partes;
+  const partes = manoDeObra([dos], [...GENTE, { id: "t-x", nombre: "X" }, { id: "t-y", nombre: "Y" }], { desde: D, hasta: D, hoy: D, ahora: a("15:00") }).partes;
   assert.equal(sumarDinero(partes.map(p => p.monto)), 33.3, "repartir entre tres no pierde centavos");
   assert.equal(anotarDestajo({ trabajadorIds: ["t-dani"], parcelaId: "p7", cantidad: 0, tarifa: 9, cuando: a("13:00"), fecha: D, quien: ENC }).ok, false);
 });
@@ -191,4 +191,59 @@ test("el_intervalo_de_lecturas_repetidas_se_cambia_y_queda_dicho_quien_lo_cambio
   assert.equal(marcar({ eventos: evs, trabajador: ANA, via: "qr", ahora: a("09:06"), fecha: D, quien: ENC, ventanaMin: v.valor }).sentido, "salida", "con 5 minutos, a los 6 ya es salida");
   assert.equal(marcar({ eventos: evs, trabajador: ANA, via: "qr", ahora: a("09:06"), fecha: D, quien: ENC }).repetida, true, "con 15, todavía es repetida");
   void emitirCredencial;
+});
+
+test("en_pago_por_tarea_a_cada_quien_le_toca_lo_que_hizo_no_una_parte_pareja", () => {
+  const r = anotarTareas({ produccion: [{ trabajadorId: "t-dani", cantidad: 90 }, { trabajadorId: "t-ana", cantidad: 30 }], parcelaId: "p7", actividad: "Corte", unidad: "caja", tarifa: 10, cuando: a("13:00"), fecha: D, quien: ENC });
+  assert.ok(r.ok);
+  const m = manoDeObra([r.evento], GENTE, { desde: D, hasta: D, hoy: D, ahora: a("15:00") });
+  const de = (id) => m.partes.find(p => p.trabajadorId === id && p.modalidad === "destajo");
+  assert.equal(de("t-dani").monto, 900); assert.equal(de("t-ana").monto, 300); assert.equal(de("t-dani").parejo, false);
+  assert.equal(de("t-dani").unidades, 90);
+});
+
+test("si_solo_se_sabe_el_total_del_grupo_repartir_parejo_hay_que_pedirlo", () => {
+  const base = { trabajadorIds: ["t-dani", "t-ana"], cantidad: 120, parcelaId: "p7", unidad: "caja", tarifa: 10, cuando: a("13:00"), fecha: D, quien: ENC };
+  const sin = anotarTareas(base);
+  assert.equal(sin.ok, false); assert.match(sin.dice, /cuánto hizo cada quien/);
+  const con = anotarTareas({ ...base, repartirParejo: true });
+  assert.ok(con.ok); assert.equal(con.evento.datos.parejo, true);
+  const m = manoDeObra([con.evento], GENTE, { desde: D, hasta: D, hoy: D, ahora: a("15:00") });
+  assert.ok(m.partes.every(p => p.parejo && p.monto === 600), "y queda dicho que fue parejo");
+  assert.equal(anotarTareas({ produccion: [{ trabajadorId: "t-ana", cantidad: 5 }, { trabajadorId: "t-ana", cantidad: 6 }], parcelaId: "p7", tarifa: 10, cuando: a("13:00"), fecha: D, quien: ENC }).ok, false);
+});
+
+test("el_tiempo_sin_asignar_sale_como_por_aclarar_no_como_desperdicio", () => {
+  let evs = checa([], ANA, "06:00"); evs = manda(evs, [ANA], "p7", "Deshierbe", "10:00"); evs = checa(evs, ANA, "14:00");
+  const r = mo(evs);
+  assert.equal(r.porAclarar.minutos, 240); assert.equal(r.porAclarar.monto, 200); assert.deepEqual(r.porCausa, []);
+  assert.equal(r.partes.find(p => !p.parcelaId).causa, null);
+});
+
+test("aclarar_que_fue_espera_le_pone_causa_pero_no_se_lo_carga_a_ninguna_parcela", () => {
+  let evs = checa([], ANA, "06:00"); evs = manda(evs, [ANA], "p7", "Deshierbe", "10:00"); evs = checa(evs, ANA, "14:00");
+  const suelto = mo(evs).partes.find(p => !p.parcelaId);
+  const ac = aclararTiempo({ trabajadorId: "t-ana", fecha: D, desde: suelto.desde, hasta: suelto.hasta, causa: "espera", nota: "no llegaba el fertilizante", quien: ENC, cuando: a("16:00") });
+  assert.ok(ac.ok);
+  const r = mo([...evs, ac.evento]);
+  assert.equal(r.porAclarar.minutos, 0); assert.equal(r.porCausa[0].causa, "espera"); assert.equal(r.porCausa[0].minutos, 240);
+  assert.equal(costoEn(r, "p7"), 200); assert.equal(r.totalSinAsignar, 200, "sigue fuera de las parcelas, pero ya con nombre");
+  assert.ok(r.partes.find(p => p.causa === "espera").evs.includes(ac.evento.id), "y el importe apunta a la aclaración");
+  assert.ok(CAUSAS_SIN_ASIGNAR.espera);
+});
+
+test("aclarar_que_si_trabajo_manda_ese_tiempo_y_su_costo_a_la_parcela_sin_tocar_las_marcas", () => {
+  let evs = checa([], ANA, "06:00"); evs = manda(evs, [ANA], "p7", "Deshierbe", "10:00"); evs = checa(evs, ANA, "14:00");
+  const suelto = mo(evs).partes.find(p => !p.parcelaId);
+  const base = { trabajadorId: "t-ana", fecha: D, desde: suelto.desde, hasta: suelto.hasta, causa: "trabajo_no_registrado", quien: ENC, cuando: a("16:00") };
+  assert.equal(aclararTiempo(base).ok, false, "hay que decir dónde y haciendo qué");
+  assert.equal(aclararTiempo({ ...base, causa: "otra" }).ok, false, "otra causa pide decir cuál");
+  assert.equal(aclararTiempo({ ...base, parcelaId: "p9", actividad: "Riego", quien: { id: "t-ana", rol: "trabajador" } }).ok, false, "nadie aclara su propio tiempo");
+  const ac = aclararTiempo({ ...base, parcelaId: "p9", actividad: "Riego" });
+  const todos = [...evs, ac.evento];
+  const r = mo(todos);
+  assert.equal(costoEn(r, "p9"), 200); assert.equal(costoEn(r, "p7"), 200); assert.equal(r.totalSinAsignar, 0); assert.equal(r.total, 400);
+  assert.equal(todos.filter(e => e.tipo === "marca").length, 2, "las marcas son las mismas");
+  const c = cancelarEvento(ac.evento, { motivo: "no era cierto", quien: ENC, cuando: a("17:00") });
+  assert.equal(mo([...evs, c.evento]).porAclarar.minutos, 240, "y si se cancela la aclaración, vuelve a quedar por aclarar");
 });

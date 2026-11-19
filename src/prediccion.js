@@ -766,7 +766,7 @@ export function pararaLaOperacion({
         gastoAntesDeEmpezar: null, disponibleEseDia: null,
         falta: null, costoDeReponer: null, costoDesconocido: false,
         diasQueAguantaLaFaena: null, seParaEnElDia: null,
-        dice: `${etiqueta}: hoy hay ${cant(hay)}${unidad} y se ocupan ${cant(pedido)}, así que HOY alcanzaría. Pero la faena es en ${hastaQueEmpieza} día(s) y de este insumo no hay ritmo capturado —${minuscula(ritmo.porque)}—, así que no se puede saber cuánto va a quedar ese día. No es que alcance: es que no se sabe.${notaJuntos}`,
+        dice: `${etiqueta}: hoy hay ${cant(hay)}${unidad} y se ocupan ${cant(pedido)}, así que HOY alcanzaría. Pero el trabajo es en ${hastaQueEmpieza} día(s) y de este insumo no hay ritmo capturado —${minuscula(ritmo.porque)}—, así que no se puede saber cuánto va a quedar ese día. No es que alcance: es que no se sabe.${notaJuntos}`,
       };
     }
 
@@ -794,7 +794,7 @@ export function pararaLaOperacion({
           letraChica + notaJuntos
         : `${etiqueta}: se ocupan ${cant(pedido)}${unidad} y para ese día habría ${cant(paraLaCuenta)}. Faltan ${cant(falta)}` +
           (costo?.sabe ? `, unos ${fmt(costo.costoTotal)}.` : ". No hay costo registrado, así que no se sabe cuánto costaría reponerlos.") +
-          (diasPlan > 1 ? ` La faena es de ${diasPlan} día(s) y con esto alcanza para ${diasQueAguanta}: se pararía el día ${Math.min(diasPlan, diasQueAguanta + 1)}.` : "") +
+          (diasPlan > 1 ? ` El trabajo es de ${diasPlan} día(s) y con esto alcanza para ${diasQueAguanta}: se pararía el día ${Math.min(diasPlan, diasQueAguanta + 1)}.` : "") +
           (gastoAntes !== null ? ` (Se descontaron ${cant(gastoAntes)} de lo que se gasta a diario en los ${hastaQueEmpieza} día(s) que faltan para empezar.)` : "") +
           (noSePudoProyectar ? ` Y ése es el faltante de HOY: de este insumo no hay ritmo capturado, así que no se pudo descontar lo que se gaste entre hoy y el ${fechaPlan}; ese día puede faltar más.` : "") +
           letraChica + notaJuntos,
@@ -827,12 +827,12 @@ export function pararaLaOperacion({
     // bodega. Contestar "alcanza" ahí es afirmar sobre lo que nadie miró, y es
     // peor que no contestar: manda a arrancar la faena tranquilo.
     crudos.length === 0
-      ? `No se sabe: no se dijo qué insumos ocupa esta faena, así que no hay nada que comparar contra la bodega. Escribe qué se va a ocupar y con cuánto.`
+      ? `No se sabe: no se dijo qué insumos ocupa este trabajo, así que no hay nada que comparar contra la bodega. Escribe qué se va a ocupar y con cuánto.`
       : para === true
         ? `Sí: ${elPrimeroQueSeAcaba.nombre} se acaba antes de terminar${diasPlan > 1 ? ` (se pararía el día ${elPrimeroQueSeAcaba.seParaEnElDia} de ${diasPlan})` : ""}.`
         : para === null
           ? `No se sabe: de ${sinSaber.length === 1 ? "una" : sinSaber.length} de las cosas que se ocupan no hay dato (${sinSaber.map(f => f.nombre).join(", ")}). Con lo demás sí alcanza, pero eso no contesta la pregunta.`
-          : `No: con lo que hay en bodega alcanza para toda la faena.`;
+          : `No: con lo que hay en bodega alcanza para todo el trabajo.`;
 
   const cola = [
     faltantes.length > 1 ? `También faltan ${faltantes.slice(1).map(f => f.nombre).join(", ")}.` : null,
@@ -843,7 +843,7 @@ export function pararaLaOperacion({
       : `No hay costo registrado de ${sinCosto.map(f => f.nombre).join(", ")}, así que no se puede decir cuánto costaría reponerlo. No es que sea gratis: es que no se sabe.`) : null,
     para !== false && sinSaber.length && faltantes.length ? `Y de ${sinSaber.map(f => f.nombre).join(", ")} tampoco se sabe.` : null,
     // La faena se planea igual. Esto avisa a tiempo; no cancela nada.
-    faltantes.length ? "La faena se puede programar igual: lo que importa es enterarse hoy y no con la cuadrilla ya en la parcela." : null,
+    faltantes.length ? "El trabajo se puede programar igual: lo que importa es enterarse hoy y no con la cuadrilla ya en la parcela." : null,
   ].filter(Boolean);
 
   return {

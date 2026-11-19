@@ -33,7 +33,7 @@ export const HOJAS = {
     columnas: ["Nombre", "PIN", "Sueldo diario", "Categoría", "Teléfono", "Notas"],
     ejemplos: [
       ["Juan Pérez",   "1111", 350, "Tractorista", "4491234567", ""],
-      ["Pablo Ramírez","2222", 280, "Jornalero",   "", ""],
+      ["Pablo Ramírez","2222", 280, "General",   "", ""],
       ["Miguel Solís", "3333", 400, "Dronero",     "4499876543", ""],
     ],
   },
@@ -221,7 +221,7 @@ export function excelAColecciones(datosExcel) {
       nombre,
       pin: (f["PIN"] || "").toString().trim(),
       sueldo_dia: parseFloat(f["Sueldo diario"]) || 0,
-      categoria: (f["Categoría"] || "Jornalero").toString().trim(),
+      categoria: (f["Categoría"] || "General").toString().trim(),
       telefono: (f["Teléfono"] || "").toString().trim(),
       notas: (f["Notas"] || "").toString().trim(),
     });

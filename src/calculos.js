@@ -433,7 +433,7 @@ export function distribuirCosto(devengado) {
   let total = 0, estimado = 0;
   for (const d of devengado || []) {
     for (const p of d.partes || []) {
-      const par = p.parcelaId || "(sin parcela)", lab = p.tipo || "(sin labor)";
+      const par = p.parcelaId || "(sin parcela)", lab = p.tipo || "(sin actividad)";
       porParcela[par] = sumarDinero(porParcela[par] || 0, p.monto);
       porActividad[lab] = sumarDinero(porActividad[lab] || 0, p.monto);
       porModalidad[p.modalidad] = sumarDinero(porModalidad[p.modalidad] || 0, p.monto);

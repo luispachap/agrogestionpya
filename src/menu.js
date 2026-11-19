@@ -35,7 +35,7 @@ export const FUNCIONES = {
   chat: f("gente", "💬", "Chat", "Lo del grupo, ya clasificado"),
   dictado: f("campo", "💬", "Dile a la app", "Habla y ella lo registra"),
   // Campo
-  "registrar-actividad": f("campo", "✏️", "Registrar actividad", "Una labor de campo"),
+  "registrar-actividad": f("campo", "✏️", "Registrar actividad", "Lo que se hizo en campo"),
   "registro-masivo": f("campo", "👥", "Registro de varios", "Varios trabajadores a la vez"),
   aplicaciones: f("campo", "🧪", "Aplicaciones", "Fertirriego y tratamientos"),
   indicaciones: f("campo", "📋", "Indicaciones", "Mandar al personal"),
@@ -81,7 +81,7 @@ export const FUNCIONES = {
   // Gente
   equipo: f("gente", "👷", "Equipo", "Personal y maquinaria"),
   personal: f("gente", "👷", "Personal", "Actividades y préstamos"),
-  reparto: f("gente", "👥", "Cuadrillas", "Quién va a dónde y a qué"),
+  reparto: f("gente", "👥", "Equipos de trabajo", "Quién va a dónde y a qué"),
   checador: f("gente", "📲", "Checador", "Entrada y salida con QR o PIN"),
   jornadas: f("gente", "⏱", "Jornadas", "Quién está, horas y correcciones"),
   credenciales: f("gente", "🏷️", "Credenciales", "El QR de cada trabajador"),
@@ -216,7 +216,7 @@ export const enBarraDe = (rol, prefs) => limpiar(prefs?.barra ?? fabricaDe(rol, 
 const CORTOS = {
   "registrar-actividad": "Registrar", "registro-masivo": "Varios", "panel-parcelas": "Parcelas", "rendimiento-parcelas": "Rendimiento",
   "reporte-variedades": "Comparar", solicitudes: "Compras", compras: "Compras", "compras-insumos": "Compra", "aprobacion-externos": "Externos",
-  "panel-financiero": "Dinero", "pase-lista": "Lista", credenciales: "Credencial", reparto: "Cuadrillas", "mano-obra": "M. de obra", dictado: "Dictar", corrida: "Corrida", terminados: "Terminado", embarque: "Camión",
+  "panel-financiero": "Dinero", "pase-lista": "Lista", credenciales: "Credencial", reparto: "Equipos", "mano-obra": "M. de obra", dictado: "Dictar", corrida: "Corrida", terminados: "Terminado", embarque: "Camión",
   comercializacion: "Ventas", nomina: "Nómina", "subir-nube": "Subir", consignaciones: "Consigna", proveedores: "Proveed.",
   mis: "Mis días", fito: "Fito", caja: "Caja", indicaciones: "Indicar",
 };

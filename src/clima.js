@@ -585,7 +585,7 @@ export function sePuedeAplicar({ pronostico, cuando, tipo = "fumigar", hoy = nul
   if (!reglas) {
     return {
       ...base,
-      porque: `No se sabe con qué reglas medir "${tipo}". Las que este módulo conoce son: ${Object.keys(TIPOS_APLICACION).join(", ")}. Usar las de otra faena sería inventar un límite — y con un herbicida eso le quema la parcela al vecino.`,
+      porque: `No se sabe con qué reglas medir "${tipo}". Las que este módulo conoce son: ${Object.keys(TIPOS_APLICACION).join(", ")}. Usar las de otra actividad sería inventar un límite — y con un herbicida eso le quema la parcela al vecino.`,
     };
   }
 

@@ -87,7 +87,7 @@ with sync_playwright() as p:
     for tarjeta, (bandera, clave) in ROLES.items():
         pg = nueva(); sembrar(pg)
         if not entrar(pg, tarjeta, clave): caso(f"{tarjeta}: entra", False); pg.context.close(); continue
-        malas = []
+        malas = []; palabras = []
         for pant in pantallas(bandera):
             antes = len(pg.errores)
             pg.evaluate("p => window.__agroIr(p)", pant); pg.wait_for_timeout(350)
@@ -95,8 +95,12 @@ with sync_playwright() as p:
             if trono(pg) or len(pg.errores) > antes or vacia:
                 malas.append(pant + (" (en blanco)" if vacia else " (" + (pg.errores[-1][:70] if len(pg.errores) > antes else "tronó") + ")"))
                 if trono(pg): pg.get_by_role("button", name="Volver al inicio").click(); pg.wait_for_timeout(300)
+            # Palabras que en el rancho no se usan y no deben verse en ninguna pantalla.
+            vistas = re.findall(r"\bjornal\w*|\bfaenas?\b|\blabor(?:es)?\b", pg.evaluate("() => document.body.innerText").lower())
+            if vistas: palabras.append(f"{pant}: {sorted(set(vistas))}")
             total += 1
         caso(f"{tarjeta}: abre sus {len(pantallas(bandera))} pantallas sin tronar", not malas, "; ".join(malas)[:300])
+        caso(f"{tarjeta}: ninguna pantalla dice jornal, faena ni labor", not palabras, "; ".join(palabras)[:400])
         pg.context.close()
     print(f"({total} pantallas abiertas en total)")
     b.close()

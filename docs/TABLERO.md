@@ -26,8 +26,15 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | El pase de lista toma la presencia del checador sin capturarla otra vez | Sí | Sí | Sí | Falta |
 | Menú por grupos, accesos anclados, enfoque por administrador | Sí | Sí | Sí | Falta la opinión de Migue |
 | El acomodo sigue a la persona entre aparatos | Sí | Sí | Sí | Falta con dos aparatos reales |
-| Cuadrillas: mandar a parcela y labor con una captura, cambios en el día, "ya acabaron", destajo | Sí | Sí (reloj simulado: un día completo) | Sí | **Falta: con gente y parcelas reales** |
+| Equipos de trabajo: asignar a parcela y actividad con una captura, cambios en el día, "ya acabaron", pago por tarea | Sí | Sí (reloj simulado: un día completo) | Sí | **Falta: con gente y parcelas reales** |
 | Mano de obra: quién, dónde, cuánto tiempo, haciendo qué y cuánto costó, con el rastro de cada importe | Sí | Sí | Sí | Falta |
+| Pago por tarea con lo que hizo cada quien (parejo sólo si se pide) | Sí | Sí | Sí | Falta |
+| Tiempo sin asignar "por aclarar", con causa e historia | Sí | Sí | Sí | Falta |
+| Lenguaje unificado: sin jornal, labor ni faena en ninguna pantalla | Sí | Sí (recorrido de todas las pantallas) | Sí | Que lo lean ustedes |
+| Cuadrillas eventuales: quién vino, responsable, precio, producción individual, flete repartido | No (sigue la pantalla anterior) | — | — | — |
+| Faltas y permisos con causa; horas extra, bonos, aguinaldo | No | — | — | Hay políticas por definir (`COSTEO.md`) |
+| Pagos y pendientes por trabajador | No | — | — | — |
+| Provisiones de prestaciones e indirectos distribuidos | No | — | — | Hay políticas por definir |
 | Esa mano de obra entra sola a los reportes de costo que ya existían | Sí | Sí | Sí | Falta |
 | Tableta cerrada en el checador (con clave para abrir) | Sí | Sí | Sí | **Falta: en la tableta de la nave** |
 | Los minutos de "lectura repetida" se cambian desde la app | Sí | Sí | Sí | — |

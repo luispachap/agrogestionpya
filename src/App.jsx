@@ -9,7 +9,7 @@ import {
 } from "./checador.js";
 // Cuadrillas: a dónde se mandó a cada quien, y la mano de obra que sale de ahí.
 import {
-  asignar, terminar, anotarDestajo, repartoActual, manoDeObra, agrupar, actividadesDeManoDeObra, capturasDobles,
+  asignar, terminar, anotarTareas, aclararTiempo, CAUSAS_SIN_ASIGNAR, repartoActual, manoDeObra, agrupar, actividadesDeManoDeObra, capturasDobles,
   ajusteVigente, cambiarAjuste, AJUSTES, horasDe,
 } from "./cuadrillas.js";
 // Encontrar las cosas: grupos, lo de cada perfil, lo anclado y lo que más se usa.
@@ -275,10 +275,13 @@ textarea.inp{min-height:90px;resize:none;}
 .rep-nom{font-size:13px;font-weight:800;line-height:1.15;}
 .rep-hr{font-size:11px;color:var(--muted);}
 .rep-barra{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(74px + env(safe-area-inset-bottom));width:calc(100% - 24px);max-width:456px;z-index:60;background:var(--surface);border:1.5px solid var(--accent);border-radius:18px;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.45);}
+.dj-fila{display:grid;grid-template-columns:1fr 96px 70px;gap:8px;align-items:center;margin-bottom:6px;font-size:13px;font-weight:700;}
+.dj-fila .inp{padding:10px 12px;}
+.dj-parejo{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-bottom:6px;}
 .mo-dos{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border-soft);}
 .mo-cab{width:100%;display:flex;align-items:center;gap:10px;background:transparent;border:none;color:var(--text);font-family:'Nunito',sans-serif;text-align:left;cursor:pointer;padding:0;}
-.mo-labor{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:9px 0;border-top:1px solid var(--border-soft);font-size:14px;}
-.mo-cab + .mo-labor{margin-top:12px;}
+.mo-act{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:9px 0;border-top:1px solid var(--border-soft);font-size:14px;}
+.mo-cab + .mo-act{margin-top:12px;}
 /* ── Menú y accesos del inicio ── */
 .acc-link{background:transparent;border:none;color:var(--accent);font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;cursor:pointer;padding:6px 4px;}
 .acc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
@@ -7524,7 +7527,7 @@ function AprobacionExternos({ data, upd, onBack }) {
         </div>
         <div className="text-sm text-muted">{ext?.nombre || a.registradoPor?.nombre || "Externo"} · {p?.nombre || "Parcela"} · {a.fecha}</div>
         <div className="text-sm" style={{ marginTop: 4 }}>
-          Modalidad: <b>{a.modalidadPago || "jornal"}</b> · MO: <b>${(a.costoMO || 0).toLocaleString("es-MX")}</b> · Total: <b>${(a.costoTotal || 0).toLocaleString("es-MX")}</b>
+          Pago: <b>{nombreDeModalidad(a.modalidadPago)}</b> · MO: <b>${(a.costoMO || 0).toLocaleString("es-MX")}</b> · Total: <b>${(a.costoTotal || 0).toLocaleString("es-MX")}</b>
         </div>
         {a.observaciones ? <div className="text-sm text-muted" style={{ fontStyle: "italic", marginTop: 2 }}>{a.observaciones}</div> : null}
         {showActions && (
@@ -7571,6 +7574,10 @@ function AprobacionExternos({ data, upd, onBack }) {
 //  EL CHECADOR, LAS CREDENCIALES Y LAS JORNADAS
 //  Las reglas viven en checador.js y eventos.js. Aquí sólo se pinta.
 // ════════════════════════════════════════════════════════════════════════
+// Cómo se le dice a cada cosa en pantalla. Por dentro los valores guardados no
+// cambian ("jornalero", "jornal", "destajo"): cambiarlos rompería lo ya capturado.
+const nombreDeCategoria = (c) => (String(c || "").toLowerCase() === "jornalero" ? "general" : c);
+const nombreDeModalidad = (m) => ({ jornal: "por día", dia: "por día", tarea: "monto fijo", destajo: "por tarea", caja: "por caja", hora: "por hora" }[m || "jornal"] || m);
 const horaCorta = (iso) => new Date(iso).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit" });
 const quienDe = (session) => ({ id: session.id, nombre: session.nombre, rol: session.role });
 
@@ -7785,7 +7792,7 @@ function Credenciales({ data, upd, session, onClose }) {
               <div className="cred-emp">AGROSELECTOS P&A</div>
               <DibujoQR texto={textoDeCredencial(t)} />
               <div className="cred-nom">{t.nombre}</div>
-              {t.categoria && <div className="cred-cat">{t.categoria}</div>}
+              {t.categoria && <div className="cred-cat">{nombreDeCategoria(t.categoria)}</div>}
             </div>
           ))}
         </div>
@@ -7851,7 +7858,7 @@ function Jornadas({ data, add, upd, session, onNav, onClose }) {
             <div className="card-title" style={{ marginBottom: 4 }}>{fechaLarga(new Date(fecha + "T12:00:00"))}</div>
             <div className="text-sm" style={{ marginBottom: 6 }}>{j ? (j.adentro ? `Está adentro. Lleva ${horasYMinutos(j.minutos + j.minutosCorriendo)}.` : `Horas que se saben: ${horasYMinutos(j.minutos)}.`) : "No tiene marcas vigentes este día."}</div>
             {j?.avisos.map((a, i) => <div key={i} className="text-sm" style={{ color: "var(--gold)" }}>{a}</div>)}
-            <div className="text-xs text-muted" style={{ marginTop: 8 }}>Estas son horas en el rancho. A qué parcela se cargan lo dice la asignación de cuadrilla, no esta pantalla.</div>
+            <div className="text-xs text-muted" style={{ marginTop: 8 }}>Estas son horas en el rancho. A qué parcela se cargan lo dice su asignación en Equipos de trabajo, no esta pantalla.</div>
           </div>
           <div className="card">
             <div className="card-title">Sus marcas</div>
@@ -7985,7 +7992,7 @@ function Reparto({ data, add, session, onNav, onClose }) {
   const [sel, setSel] = useState({});
   const F0 = { parcelaId: "", actividad: "", otra: "", cuadrilla: "", hora: "" };
   const [form, setForm] = useState(F0);
-  const [destajo, setDestajo] = useState(null);       // { grupo, cantidad, unidad, tarifa }
+  const [destajo, setDestajo] = useState(null);       // { grupo, porPersona: {id: cantidad}, soloTotal, cantidad, parejo, unidad, tarifa }
   const [dice, setDice] = useState("");
   const nombre = (id) => (data.trabajadores || []).find(t => t.id === id)?.nombre || "Sin ficha en este aparato";
   const parcela = (id) => (data.parcelas || []).find(p => p.id === id);
@@ -8010,8 +8017,11 @@ function Reparto({ data, add, session, onNav, onClose }) {
   };
   const guardarDestajo = () => {
     const g = destajo.grupo;
-    const res = anotarDestajo({ trabajadorIds: g.miembros.map(m => m.trabajadorId), parcelaId: g.parcelaId, actividad: g.actividad, unidad: destajo.unidad, cantidad: destajo.cantidad, tarifa: destajo.tarifa, cuando: ahora, fecha: hoy, quien, capturado: ahora });
-    if (!res.ok) { setDice(res.dice); return; }
+    const comun = { parcelaId: g.parcelaId, actividad: g.actividad, unidad: destajo.unidad, tarifa: destajo.tarifa, cuando: ahora, fecha: hoy, quien, capturado: ahora };
+    const res = destajo.soloTotal
+      ? anotarTareas({ ...comun, trabajadorIds: g.miembros.map(m => m.trabajadorId), cantidad: destajo.cantidad, repartirParejo: destajo.parejo })
+      : anotarTareas({ ...comun, produccion: g.miembros.map(m => ({ trabajadorId: m.trabajadorId, cantidad: destajo.porPersona[m.trabajadorId] })) });
+    if (!res.ok) { setDice(destajo.soloTotal ? res.dice : res.dice === "Falta decir quiénes lo hicieron." ? "Falta cuánto hizo cada quien." : res.dice); return; }
     add("eventos", res.evento); setDestajo(null); setDice("");
   };
   const ficha = (id, desde) => (
@@ -8023,18 +8033,18 @@ function Reparto({ data, add, session, onNav, onClose }) {
   return (
     <div>
       <div className="top-bar">
-        <button className="btn-ghost" onClick={onClose}>‹</button><h2 style={{ flex: 1 }}>Cuadrillas</h2>
+        <button className="btn-ghost" onClick={onClose}>‹</button><h2 style={{ flex: 1 }}>Equipos de trabajo</h2>
         <button className="btn btn-outline btn-sm" onClick={() => onNav("checador")}>Checador</button>
       </div>
       <div className="section-pad" style={{ paddingBottom: elegidos.length ? 330 : undefined }}>
         {adentro.size === 0 && (
           <div className="card"><div className="text-sm">Todavía nadie ha checado entrada hoy.</div>
-            <div className="text-xs text-muted" style={{ marginTop: 6 }}>Aquí se reparte a quien ya está en el rancho. Quien llegó directo a campo se registra en el Checador, escogiendo su rancho.</div></div>
+            <div className="text-xs text-muted" style={{ marginTop: 6 }}>Aquí se asigna a quien ya está en el rancho. Quien llegó directo a campo se registra en el Checador, escogiendo su rancho.</div></div>
         )}
         {r.sinAsignar.length > 0 && (
           <div className="card">
             <div className="flex-b" style={{ marginBottom: 10 }}>
-              <span className="card-title" style={{ marginBottom: 0, color: "var(--gold)" }}>Sin mandar ({r.sinAsignar.length})</span>
+              <span className="card-title" style={{ marginBottom: 0, color: "var(--gold)" }}>Sin asignar ({r.sinAsignar.length})</span>
               <button className="acc-link" onClick={() => { const ids = r.sinAsignar.map(x => x.trabajadorId); marcarVarios(ids, !ids.every(id => sel[id])); }}>{r.sinAsignar.every(x => sel[x.trabajadorId]) ? "Quitar todos" : "Marcar todos"}</button>
             </div>
             <div className="rep-fichas">{r.sinAsignar.map(x => ficha(x.trabajadorId, x.desde))}</div>
@@ -8052,13 +8062,13 @@ function Reparto({ data, add, session, onNav, onClose }) {
             <div className="jor-acc">
               <button onClick={() => { const ids = g.miembros.map(m => m.trabajadorId); marcarVarios(ids, !ids.every(id => sel[id])); }}>Marcar a todos para moverlos</button>
               <button onClick={() => acabaron(g.miembros.map(m => m.trabajadorId))}>Ya acabaron</button>
-              <button onClick={() => { setDestajo({ grupo: g, cantidad: "", unidad: "caja", tarifa: "" }); setDice(""); }}>Anotar destajo</button>
+              <button onClick={() => { setDestajo({ grupo: g, porPersona: {}, soloTotal: false, cantidad: "", parejo: false, unidad: "caja", tarifa: "" }); setDice(""); }}>Anotar pago por tarea</button>
             </div>
           </div>
         ))}
         {r.sinChecar.length > 0 && (
           <div className="card">
-            <div className="card-title" style={{ color: "var(--gold)" }}>Mandados sin haber checado ({r.sinChecar.length})</div>
+            <div className="card-title" style={{ color: "var(--gold)" }}>Asignados sin haber checado ({r.sinChecar.length})</div>
             <div className="text-sm">{r.sinChecar.map(x => nombre(x.trabajadorId)).join(", ")}</div>
             <div className="text-xs text-muted" style={{ marginTop: 6 }}>No cuentan horas hasta que chequen su entrada (o un encargado la ponga en Jornadas, con su motivo).</div>
           </div>
@@ -8069,18 +8079,31 @@ function Reparto({ data, add, session, onNav, onClose }) {
       {destajo && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setDestajo(null); }}>
           <div className="modal-sheet">
-            <div className="card-title">Destajo · {parcela(destajo.grupo.parcelaId)?.nombre} · {destajo.grupo.actividad}</div>
-            <div className="text-sm text-muted" style={{ marginBottom: 10 }}>Lo que hicieron entre los {destajo.grupo.miembros.length}. Se reparte parejo.</div>
+            <div className="card-title">Pago por tarea · {parcela(destajo.grupo.parcelaId)?.nombre} · {destajo.grupo.actividad}</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="dj-c">Cuánto</label><input id="dj-c" className="inp" type="number" inputMode="decimal" value={destajo.cantidad} onChange={e => setDestajo(d => ({ ...d, cantidad: e.target.value }))} /></div>
-              <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="dj-u">De qué</label><input id="dj-u" className="inp" value={destajo.unidad} onChange={e => setDestajo(d => ({ ...d, unidad: e.target.value }))} /></div>
+              <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="dj-u">Se paga por</label><input id="dj-u" className="inp" value={destajo.unidad} onChange={e => setDestajo(d => ({ ...d, unidad: e.target.value }))} /></div>
+              <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="dj-t">A cómo cada una ($)</label><input id="dj-t" className="inp" type="number" inputMode="decimal" value={destajo.tarifa} onChange={e => setDestajo(d => ({ ...d, tarifa: e.target.value }))} /></div>
             </div>
-            <div className="form-group"><label className="form-label" htmlFor="dj-t">A cómo cada una ($)</label><input id="dj-t" className="inp" type="number" inputMode="decimal" value={destajo.tarifa} onChange={e => setDestajo(d => ({ ...d, tarifa: e.target.value }))} /></div>
-            {Number(destajo.cantidad) > 0 && Number(destajo.tarifa) > 0 && <div className="text-sm" style={{ marginBottom: 10 }}>Son <b>{fmt(Number(destajo.cantidad) * Number(destajo.tarifa))}</b> en total.</div>}
+            {!destajo.soloTotal && <>
+              <div className="form-label" style={{ marginBottom: 6 }}>Cuánto hizo cada quien</div>
+              {destajo.grupo.miembros.map(m => (
+                <div key={m.trabajadorId} className="dj-fila">
+                  <label htmlFor={`dj-${m.trabajadorId}`}>{nombre(m.trabajadorId)}</label>
+                  <input id={`dj-${m.trabajadorId}`} className="inp" type="number" inputMode="decimal" placeholder="0" value={destajo.porPersona[m.trabajadorId] ?? ""} onChange={e => setDestajo(d => ({ ...d, porPersona: { ...d.porPersona, [m.trabajadorId]: e.target.value } }))} />
+                  <span className="text-sm text-muted">{Number(destajo.porPersona[m.trabajadorId]) > 0 && Number(destajo.tarifa) > 0 ? fmt(Number(destajo.porPersona[m.trabajadorId]) * Number(destajo.tarifa)) : ""}</span>
+                </div>
+              ))}
+            </>}
+            {destajo.soloTotal && <>
+              <div className="form-group"><label className="form-label" htmlFor="dj-c">Total entre los {destajo.grupo.miembros.length}</label><input id="dj-c" className="inp" type="number" inputMode="decimal" value={destajo.cantidad} onChange={e => setDestajo(d => ({ ...d, cantidad: e.target.value }))} /></div>
+              <label className="dj-parejo"><input type="checkbox" checked={destajo.parejo} onChange={e => setDestajo(d => ({ ...d, parejo: e.target.checked }))} /> No se sabe cuánto hizo cada quien: repartirlo parejo</label>
+            </>}
+            <button className="acc-link" style={{ padding: "8px 0" }} onClick={() => { setDestajo(d => ({ ...d, soloTotal: !d.soloTotal })); setDice(""); }}>{destajo.soloTotal ? "Tengo cuánto hizo cada quien" : "Sólo tengo el total del grupo"}</button>
+            {(() => { const u = destajo.soloTotal ? Number(destajo.cantidad) : Object.values(destajo.porPersona).reduce((t, v) => t + (Number(v) || 0), 0); return u > 0 && Number(destajo.tarifa) > 0 ? <div className="text-sm" style={{ marginBottom: 10 }}>Son {fmtN(u)} {destajo.unidad}: <b>{fmt(u * Number(destajo.tarifa))}</b> en total.</div> : null; })()}
             {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setDestajo(null)}>No</button>
-              <button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarDestajo}>Guardar destajo</button>
+              <button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarDestajo}>Guardar</button>
             </div>
           </div>
         </div>
@@ -8089,7 +8112,7 @@ function Reparto({ data, add, session, onNav, onClose }) {
       {elegidos.length > 0 && (
         <div className="rep-barra">
           <div className="flex-b" style={{ marginBottom: 8 }}>
-            <b>Mandar a {elegidos.length}</b>
+            <b>Asignar a {elegidos.length}</b>
             <button className="acc-link" onClick={() => setSel({})}>Soltar</button>
           </div>
           <select className="inp" aria-label="Parcela" value={form.parcelaId} onChange={e => setForm(f => ({ ...f, parcelaId: e.target.value }))} style={{ marginBottom: 8 }}>
@@ -8103,11 +8126,11 @@ function Reparto({ data, add, session, onNav, onClose }) {
           </select>
           {form.actividad === "__otra__" && <input className="inp" placeholder="¿Qué van a hacer?" aria-label="Otra actividad" value={form.otra} onChange={e => setForm(f => ({ ...f, otra: e.target.value }))} style={{ marginBottom: 8 }} />}
           <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-            <input className="inp" placeholder="Nombre de la cuadrilla (opcional)" aria-label="Nombre de la cuadrilla" value={form.cuadrilla} onChange={e => setForm(f => ({ ...f, cuadrilla: e.target.value }))} style={{ flex: 2 }} />
+            <input className="inp" placeholder="Nombre del equipo (opcional)" aria-label="Nombre del equipo" value={form.cuadrilla} onChange={e => setForm(f => ({ ...f, cuadrilla: e.target.value }))} style={{ flex: 2 }} />
             <input className="inp" type="time" aria-label="Desde qué hora (vacío = ahora)" value={form.hora} onChange={e => setForm(f => ({ ...f, hora: e.target.value }))} style={{ flex: 1 }} />
           </div>
           {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 6 }}>{dice}</div>}
-          <button className="btn btn-accent" style={{ width: "100%" }} onClick={mandar}>Mandar{form.hora ? ` desde las ${form.hora}` : " desde ahorita"}</button>
+          <button className="btn btn-accent" style={{ width: "100%" }} onClick={mandar}>Asignar{form.hora ? ` desde las ${form.hora}` : " desde ahorita"}</button>
           {(data.parcelas || []).length === 0 && <div className="text-xs text-muted" style={{ marginTop: 6 }}>No hay parcelas dadas de alta todavía.</div>}
         </div>
       )}
@@ -8124,28 +8147,37 @@ function ManoDeObra({ data, add, session, onClose }) {
   const [vista, setVista] = useState("parcela");
   const [abierto, setAbierto] = useState(null);
   const [rastro, setRastro] = useState(null);         // una parte
+  const [aclara, setAclara] = useState(null);         // { causa, parcelaId, actividad, nota }
+  const [diceAclara, setDiceAclara] = useState("");
+  const puedeAclarar = ["admin", "encargado"].includes(session.role);
+  const guardarAclaracion = () => {
+    const res = aclararTiempo({ trabajadorId: rastro.trabajadorId, fecha: rastro.fecha, desde: rastro.desde, hasta: rastro.hasta, ...aclara, quien: quienDe(session), cuando: new Date().toISOString() });
+    if (!res.ok) { setDiceAclara(res.dice); return; }
+    add("eventos", res.evento); setAclara(null); setRastro(null); setDiceAclara("");
+  };
   const r = useMemo(() => manoDeObra(data.eventos, data.trabajadores || [], { desde: rango.desde, hasta: rango.hasta, hoy, ahora: new Date().toISOString() }), [data.eventos, data.trabajadores, rango.desde, rango.hasta, hoy]);
   const dobles = capturasDobles(data.actividades, r.partes);
   const nombre = (id) => (data.trabajadores || []).find(t => t.id === id)?.nombre || "Sin ficha en este aparato";
-  const parcela = (id) => (id ? (data.parcelas || []).find(p => p.id === id)?.nombre || "Parcela que no está en este aparato" : "Sin asignar a parcela");
+  const parcela = (id) => (id ? (data.parcelas || []).find(p => p.id === id)?.nombre || "Parcela que no está en este aparato" : "Fuera de parcelas");
   const grupos = vista === "parcela" ? agrupar(r.partes, ["parcelaId"]) : agrupar(r.partes, ["trabajadorId"]);
   const etiquetas = (g) => <>{g.provisional && <span className="jor-etq">sigue adentro</span>}{g.estimado && <span className="jor-etq">sueldo estimado</span>}</>;
-  const modalidad = { dia: "por día", hora: "por hora", destajo: "a destajo" };
+  const modalidad = { dia: "pago por día", hora: "pago por hora", destajo: "pago por tarea" };
   const decir = (id) => {
     const e = (data.eventos || []).find(x => x.id === id);
     if (!e) return { titulo: "Un evento que este aparato todavía no ha bajado", linea: id };
     const base = `${fechaLocal(new Date(e.cuando))} · ${horaCorta(e.cuando)}`;
     const quienFue = `Lo registró ${e.quien?.nombre || "—"}${e.relacion === "corrige" ? " (corrección)" : ""}`;
     if (e.tipo === "marca") return { titulo: `${base} · ${e.datos.sentido}`, linea: `${e.datos.via === "qr" ? "Con credencial" : e.datos.via === "pin" ? "Con PIN" : e.datos.via === "remoto" ? `Directo a ${e.datos.lugar?.nombre || "campo"}` : `A mano: "${e.datos.motivo || ""}"`} · ${quienFue}` };
-    if (e.tipo === "asignacion") return { titulo: `${base} · mandado a ${parcela(e.datos.parcelaId)}`, linea: `${e.datos.actividad}${e.datos.cuadrilla ? ` · ${e.datos.cuadrilla}` : ""} · junto con ${e.datos.trabajadorIds.length - 1} más · ${quienFue}` };
-    if (e.tipo === "destajo") return { titulo: `${base} · destajo`, linea: `${fmtN(e.datos.cantidad)} ${e.datos.unidad} a ${fmt(e.datos.tarifa)} entre ${e.datos.trabajadorIds.length} · ${quienFue}` };
+    if (e.tipo === "asignacion") return { titulo: `${base} · asignado a ${parcela(e.datos.parcelaId)}`, linea: `${e.datos.actividad}${e.datos.cuadrilla ? ` · ${e.datos.cuadrilla}` : ""} · junto con ${e.datos.trabajadorIds.length - 1} más · ${quienFue}` };
+    if (e.tipo === "destajo") return { titulo: `${base} · pago por tarea`, linea: `${e.datos.produccion ? "Con lo que hizo cada quien" : `${fmtN(e.datos.cantidad)} ${e.datos.unidad} entre ${e.datos.trabajadorIds.length}${e.datos.parejo ? ", repartido parejo" : ""}`} · a ${fmt(e.datos.tarifa)} por ${e.datos.unidad} · ${quienFue}` };
+    if (e.tipo === "aclaracion") return { titulo: `Aclarado: ${CAUSAS_SIN_ASIGNAR[e.datos.causa] || e.datos.causa}`, linea: `${e.datos.nota ? `"${e.datos.nota}" · ` : ""}${quienFue}` };
     return { titulo: `${base} · ${e.tipo}`, linea: quienFue };
   };
   const linea = (p, i) => (
     <button key={i} className="jor-fila" onClick={() => setRastro(p)}>
       <span className="mn-tx" style={{ flex: 1 }}>
         <span className="mn-n">{vista === "parcela" ? nombre(p.trabajadorId) : parcela(p.parcelaId)}</span>
-        <span className="mn-s">{p.fecha !== rango.desde || rango.desde !== rango.hasta ? `${p.fecha} · ` : ""}{p.actividad || (p.sinHoras ? "no checó salida" : "en el rancho, sin mandar")} · {p.modalidad === "destajo" ? `${fmtN(p.unidades)} ${p.unidad}` : horasDe(p.minutos)} · {modalidad[p.modalidad]}</span>
+        <span className="mn-s">{p.fecha !== rango.desde || rango.desde !== rango.hasta ? `${p.fecha} · ` : ""}{p.actividad || (p.sinHoras ? "no checó salida" : p.causa ? CAUSAS_SIN_ASIGNAR[p.causa] : "sin asignar, por aclarar")} · {p.modalidad === "destajo" ? `${fmtN(p.unidades)} ${p.unidad}` : horasDe(p.minutos)} · {modalidad[p.modalidad]}</span>
       </span>
       <b>{fmt(p.monto)}</b><span className="mn-fl">›</span>
     </button>
@@ -8167,13 +8199,19 @@ function ManoDeObra({ data, add, session, onClose }) {
           </div>
         )}
         <div className="card">
-          <div className="stat-label">Devengado en el periodo</div>
+          <div className="stat-label">Lo que se ganó el personal en el periodo</div>
           <div className="stat-val" style={{ fontSize: 30 }}>{fmt(r.total)}</div>
           <div className="mo-dos">
             <div><div className="stat-label">Cargado a parcelas</div><b>{fmt(r.totalAsignado)}</b><div className="text-xs text-muted">{horasDe(r.minutosAsignados)}</div></div>
-            <div><div className="stat-label" style={{ color: r.totalSinAsignar > 0 ? "var(--gold)" : undefined }}>Sin asignar</div><b>{fmt(r.totalSinAsignar)}</b><div className="text-xs text-muted">{horasDe(r.minutosSinAsignar)}</div></div>
+            <div><div className="stat-label">Fuera de parcelas</div><b>{fmt(r.totalSinAsignar)}</b><div className="text-xs text-muted">{horasDe(r.minutosSinAsignar)}</div></div>
           </div>
-          <div className="text-xs text-muted" style={{ marginTop: 8 }}>Lo cargado más lo sin asignar suma exacto lo devengado. Lo sin asignar no se reparte entre las parcelas para que cuadre: se queda a la vista.</div>
+          {r.totalSinAsignar > 0 && (
+            <div style={{ marginTop: 12 }}>
+              {r.porAclarar.monto > 0 && <div className="mo-act" style={{ color: "var(--gold)" }}><span>Sin asignar, por aclarar</span><span>{horasDe(r.porAclarar.minutos)}</span><b>{fmt(r.porAclarar.monto)}</b></div>}
+              {r.porCausa.map(c => <div key={c.causa} className="mo-act"><span>{CAUSAS_SIN_ASIGNAR[c.causa]}</span><span className="text-muted">{horasDe(c.minutos)}</span><b>{fmt(c.monto)}</b></div>)}
+            </div>
+          )}
+          <div className="text-xs text-muted" style={{ marginTop: 8 }}>Las dos partes suman exacto lo pagado. Tiempo sin asignar no quiere decir tiempo perdido: quiere decir que falta aclararlo. No se reparte entre las parcelas para que cuadre.</div>
         </div>
 
         {(r.avisos.length > 0 || dobles.length > 0) && (
@@ -8188,7 +8226,7 @@ function ManoDeObra({ data, add, session, onClose }) {
           <button className={`tab-pill${vista === "parcela" ? " active" : ""}`} onClick={() => { setVista("parcela"); setAbierto(null); }}>Por parcela</button>
           <button className={`tab-pill${vista === "persona" ? " active" : ""}`} onClick={() => { setVista("persona"); setAbierto(null); }}>Por persona</button>
         </div>
-        {grupos.length === 0 && <div className="card"><div className="text-sm text-muted">En esas fechas no hay marcas del checador ni destajos. Aquí no se captura: sale de lo que se checó y de a dónde se mandó a cada quien.</div></div>}
+        {grupos.length === 0 && <div className="card"><div className="text-sm text-muted">En esas fechas no hay marcas del checador ni pagos por tarea. Aquí no se captura: sale de lo que se checó y de a dónde se mandó a cada quien.</div></div>}
         {grupos.map(g => {
           const k = vista === "parcela" ? (g.parcelaId || "_sin") : g.trabajadorId;
           const esSuelto = vista === "parcela" && !g.parcelaId;
@@ -8196,13 +8234,13 @@ function ManoDeObra({ data, add, session, onClose }) {
             <div key={k} className="card" style={esSuelto ? { borderColor: "var(--gold)" } : undefined}>
               <button className="mo-cab" onClick={() => setAbierto(abierto === k ? null : k)}>
                 <span className="mn-tx" style={{ flex: 1 }}>
-                  <span className="mn-n" style={{ fontSize: 16, color: esSuelto ? "var(--gold)" : undefined }}>{vista === "parcela" ? parcela(g.parcelaId) : nombre(g.trabajadorId)}</span>
+                  <span className="mn-n" style={{ fontSize: 16, color: esSuelto ? "var(--gold)" : undefined }}>{vista === "parcela" ? (g.parcelaId ? parcela(g.parcelaId) : "Fuera de parcelas") : nombre(g.trabajadorId)}</span>
                   <span className="mn-s">{horasDe(g.minutos)} · {new Set(g.partes.map(p => vista === "parcela" ? p.trabajadorId : p.parcelaId)).size} {vista === "parcela" ? "persona(s)" : "lugar(es)"}</span>
                 </span>
                 {etiquetas(g)}<b style={{ fontSize: 17 }}>{fmt(g.monto)}</b><span className="mn-fl">{abierto === k ? "−" : "+"}</span>
               </button>
               {abierto === k && vista === "parcela" && agrupar(g.partes, ["actividad"]).map(a => (
-                <div key={a.actividad || "_"} className="mo-labor"><span>{a.actividad || "Sin labor"}</span><span className="text-muted">{horasDe(a.minutos)}</span><b>{fmt(a.monto)}</b></div>
+                <div key={a.actividad || "_"} className="mo-act"><span>{a.actividad || "Sin actividad"}</span><span className="text-muted">{horasDe(a.minutos)}</span><b>{fmt(a.monto)}</b></div>
               ))}
               {abierto === k && g.partes.map(linea)}
             </div>
@@ -8212,16 +8250,41 @@ function ManoDeObra({ data, add, session, onClose }) {
       </div>
 
       {rastro && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setRastro(null); }}>
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) { setRastro(null); setAclara(null); } }}>
           <div className="modal-sheet">
-            <div className="flex-b" style={{ marginBottom: 6 }}><span className="card-title" style={{ marginBottom: 0 }}>De dónde sale {fmt(rastro.monto)}</span><button className="acc-link" onClick={() => setRastro(null)}>Cerrar</button></div>
+            <div className="flex-b" style={{ marginBottom: 6 }}><span className="card-title" style={{ marginBottom: 0 }}>De dónde sale {fmt(rastro.monto)}</span><button className="acc-link" onClick={() => { setRastro(null); setAclara(null); }}>Cerrar</button></div>
             <div className="text-sm" style={{ marginBottom: 10 }}>{nombre(rastro.trabajadorId)} · {parcela(rastro.parcelaId)} · {rastro.fecha}</div>
             {rastro.evs.map(id => { const d = decir(id); return <div key={id} className="jor-marca"><b>{d.titulo}</b><div className="text-xs text-muted">{d.linea}</div></div>; })}
             <div className="text-xs text-muted" style={{ marginTop: 10 }}>
-              {rastro.modalidad === "dia" ? "Cobra por día: su día se reparte entre lo que hizo, según el tiempo en cada cosa." : rastro.modalidad === "hora" ? `Cobra por hora: sólo el tiempo que se sabe, sobre una jornada de ${ajusteVigente(data.eventos, "horas_jornada").valor} horas.` : "Es destajo: unidades por tarifa, repartido parejo entre quienes lo hicieron."}
+              {rastro.modalidad === "dia" ? "Cobra por día: su día se reparte entre lo que hizo, según el tiempo en cada cosa." : rastro.modalidad === "hora" ? `Cobra por hora: sólo el tiempo que se sabe, sobre un día de ${ajusteVigente(data.eventos, "horas_jornada").valor} horas.` : rastro.parejo ? "Pago por tarea: sólo se sabía el total del grupo y se repartió parejo." : "Pago por tarea: lo que hizo esta persona por el precio de cada unidad."}
               {rastro.estimado ? " El sueldo de ese día no consta en su historial: se usó el de hoy, como estimado." : ""}
               {rastro.provisional ? " Sigue adentro: el reparto puede cambiar cuando cheque su salida." : ""}
             </div>
+            {puedeAclarar && rastro.modalidad !== "destajo" && rastro.desde && rastro.hasta && (!rastro.parcelaId || rastro.aclarado) && !aclara && (
+              <button className="acc-todo" onClick={() => { setAclara({ causa: rastro.causa || "", parcelaId: "", actividad: "", nota: "" }); setDiceAclara(""); }}>{rastro.causa ? "Cambiar la aclaración" : "Aclarar este tiempo"}</button>
+            )}
+            {aclara && (
+              <div style={{ marginTop: 12 }}>
+                <div className="form-group"><label className="form-label" htmlFor="ac-causa">¿Qué pasó en ese rato?</label>
+                  <select id="ac-causa" className="inp" value={aclara.causa} onChange={e => setAclara(a => ({ ...a, causa: e.target.value }))}>
+                    <option value="">Escoge…</option>
+                    {Object.entries(CAUSAS_SIN_ASIGNAR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select></div>
+                {aclara.causa === "trabajo_no_registrado" && <>
+                  <select className="inp" aria-label="Parcela donde trabajó" value={aclara.parcelaId} onChange={e => setAclara(a => ({ ...a, parcelaId: e.target.value }))} style={{ marginBottom: 8 }}>
+                    <option value="">¿En qué parcela?</option>{(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                  </select>
+                  <input className="inp" aria-label="Qué hizo" placeholder="¿Haciendo qué?" value={aclara.actividad} onChange={e => setAclara(a => ({ ...a, actividad: e.target.value }))} style={{ marginBottom: 8 }} />
+                </>}
+                <input className="inp" aria-label="Nota de la aclaración" placeholder="Nota (queda escrita)" value={aclara.nota} onChange={e => setAclara(a => ({ ...a, nota: e.target.value }))} style={{ marginBottom: 8 }} />
+                {diceAclara && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{diceAclara}</div>}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setAclara(null)}>No</button>
+                  <button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarAclaracion}>Guardar aclaración</button>
+                </div>
+                <div className="text-xs text-muted" style={{ marginTop: 8 }}>No cambia las marcas ni lo que ganó. Sólo "sí trabajó" manda ese tiempo y su costo a una parcela.</div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -9019,7 +9082,7 @@ function AdminEquipo({ data, add, upd, del, onBack }) {
             ))}
             <div className="form-group"><label className="form-label">Categoría / Puesto</label>
               <select className="inp" value={tForm.categoria} onChange={e => setTForm(f => ({ ...f, categoria: e.target.value }))}>
-                {cats.map(c => <option key={c}>{c}</option>)}
+                {cats.map(c => <option key={c} value={c}>{nombreDeCategoria(c)}</option>)}
               </select>
               <div className="text-xs text-muted mt-2">El puesto define la interfaz de registro: tractorista, dronero, etc.</div>
             </div>
@@ -9069,7 +9132,7 @@ function AdminEquipo({ data, add, upd, del, onBack }) {
               <div className="li-icon"><Ic e={ci[t.categoria] || "👤"} /></div>
               <div className="li-body">
                 <div className="li-title">{t.nombre}{t.cabo ? <span style={{ color: "var(--accent)", fontSize: 11, marginLeft: 6 }}>· CABO</span> : null}</div>
-                <div className="li-sub">{t.categoria}{t.codigoNomina ? ` · ${t.codigoNomina}` : ""} · {fmt(t.sueldo_dia)}/día · PIN {t.pin}</div>
+                <div className="li-sub">{nombreDeCategoria(t.categoria)}{t.codigoNomina ? ` · ${t.codigoNomina}` : ""} · {fmt(t.sueldo_dia)}/día · PIN {t.pin}</div>
                 <div className="li-sub">{acts.length} actividades · Bonif: {fmt(bons)}{prestamoSaldo > 0 ? <span style={{ color: "var(--gold)" }}> · 💸 Debe {fmt(prestamoSaldo)}</span> : null}</div>
               </div>
               <div className="li-right" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
@@ -9283,7 +9346,7 @@ function AvisoHorometro({ data, maquinaId, form }) {
   const comp = (litros !== null && horasMaquina !== null)
     ? compararConsumo({
         maquina: maq?.nombre || "Esta máquina",
-        labor: form?.tipo || "esta labor",
+        labor: form?.tipo || "esta actividad",
         litros, horas: horasMaquina,
         historial: previas.slice(0, 12).map(a => ({
           litros: (parseFloat(a.extras?.diesel_inicial) - parseFloat(a.extras?.diesel_final)) || parseFloat(a.extras?.diesel_cargado),
@@ -9381,7 +9444,7 @@ function TrabReg({ data, add, upd, setInv, session, online, onLogout, onNav }) {
               cruzaba: el horómetro se tecleaba y ahí moría. Aquí se cruzan.
 
               Esto INFORMA, no acusa ni bloquea: enseña la resta y se calla.
-              El tractorista puede guardar la labor aunque los números no
+              El tractorista puede guardar la actividad aunque los números no
               cuadren — negarlo sólo lograría que nadie capture. */}
           <AvisoHorometro data={data} maquinaId={form.extras.maquinaId || form.maquinariaId} form={form} />
         </div>
@@ -9953,7 +10016,7 @@ function CuadrillaReg({ data, add, upd, setInv, session, online, onLogout }) {
             <div className="big-question">¿Cómo se paga?</div>
             <div className="big-sub">Elige la modalidad de pago</div>
             <div className="option-grid mb-3">
-              {[["jornal", "💼", "Por jornal", "Por persona"], ["tarea", "📋", "Por tarea", "Monto fijo"], ["caja", "📦", "Por caja", "Por unidad"]].map(([v, ic, lb, sb]) => (
+              {[["jornal", "💼", "Por día", "Por persona"], ["tarea", "📋", "Por tarea", "Monto fijo"], ["caja", "📦", "Por caja", "Por unidad"]].map(([v, ic, lb, sb]) => (
                 <div key={v} className={`option-card${form.modalidad === v ? " active" : ""}`} onClick={() => setForm(f => ({ ...f, modalidad: v }))}>
                   <span className="oc-icon"><Ic e={ic} /></span><span className="oc-label">{lb}</span><span className="oc-sub">{sb}</span>
                 </div>
@@ -10969,7 +11032,7 @@ function ExternoReg({ data, add, setInv, session, online, onLogout }) {
             <div className="form-group">
               <label className="form-label">Modalidad de pago</label>
               <div className="pill-group">
-                {[["jornal", "Por día"], ["tarea", "Por tarea"], ["destajo", "Por destajo"]].map(([v, l]) => (
+                {[["jornal", "Por día"], ["tarea", "Monto fijo"], ["destajo", "Por tarea"]].map(([v, l]) => (
                   <button key={v} className={`pill${form.modalidad === v ? " active" : ""}`} onClick={() => setForm(f => ({ ...f, modalidad: v }))}>{l}</button>
                 ))}
               </div>
@@ -11104,7 +11167,7 @@ function ExternoHistorial({ data, session, onLogout }) {
                 </div>
                 <div className="li-right">
                   <div className="li-val" style={{ color: a.estado === "rechazado" ? "var(--muted)" : undefined }}>${(a.costoMO || 0).toLocaleString("es-MX")}</div>
-                  <div className="li-val-sub">{a.modalidadPago || "jornal"}</div>
+                  <div className="li-val-sub">{nombreDeModalidad(a.modalidadPago)}</div>
                 </div>
               </div>
             );
@@ -11656,7 +11719,7 @@ function EncargadoTareas({ data, add, upd, del, session }) {
               <select className="inp" value={form.asignadoA} onChange={e => setForm(f => ({ ...f, asignadoA: e.target.value }))}>
                 <option value="">Seleccionar...</option>
                 <optgroup label="Trabajadores de planta">
-                  {data.trabajadores.map(t => <option key={t.id} value={t.id}>{t.nombre} ({t.categoria})</option>)}
+                  {data.trabajadores.map(t => <option key={t.id} value={t.id}>{t.nombre} ({nombreDeCategoria(t.categoria)})</option>)}
                 </optgroup>
                 <optgroup label="Cuadrillas">
                   {data.cuadrillas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
@@ -12550,7 +12613,7 @@ function RegistroActividadAdmin({ data, add, upd, setInv, session, onClose }) {
               <div key={t.id} className={`parcela-card${form.ejecutorTipo === "planta" && form.ejecutorId === t.id ? " active" : ""}`}
                 onClick={() => { setForm(f => ({ ...f, ejecutorTipo: "planta", ejecutorId: t.id })); setPaso(2); }}>
                 <div className="parcela-thumb-ph"><Ic e="👷" /></div>
-                <div className="parcela-body"><div className="pc-name">{t.nombre}</div><div className="pc-sub">{t.categoria} · {fmt(t.sueldo_dia)}/día</div></div>
+                <div className="parcela-body"><div className="pc-name">{t.nombre}</div><div className="pc-sub">{nombreDeCategoria(t.categoria)} · {fmt(t.sueldo_dia)}/día</div></div>
               </div>
             ))}
             {(data.encargados || []).length > 0 && (
@@ -12680,7 +12743,7 @@ function RegistroActividadAdmin({ data, add, upd, setInv, session, onClose }) {
               <>
                 <div className="form-group"><label className="form-label">Modalidad de pago</label>
                   <select className="inp" value={form.modalidad} onChange={e => setForm(f => ({ ...f, modalidad: e.target.value }))}>
-                    <option value="jornal">Por jornal (por persona)</option>
+                    <option value="jornal">Por día (por persona)</option>
                     <option value="tarea">Por tarea (monto fijo)</option>
                     <option value="caja">Por caja/unidad</option>
                   </select>
@@ -14210,7 +14273,7 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
 
   // Lista de personas disponibles: trabajadores de planta + encargados
   const personas = [
-    ...data.trabajadores.map(t => ({ id: t.id, tipo: "planta", nombre: t.nombre, sub: `${t.categoria} · ${fmt(t.sueldo_dia)}/día`, sueldo: t.sueldo_dia })),
+    ...data.trabajadores.map(t => ({ id: t.id, tipo: "planta", nombre: t.nombre, sub: `${nombreDeCategoria(t.categoria)} · ${fmt(t.sueldo_dia)}/día`, sueldo: t.sueldo_dia })),
     ...(data.encargados || []).map(e => ({ id: e.id, tipo: "encargado", nombre: e.nombre, sub: `Encargado · ${fmt(e.sueldo_dia || 0)}/día`, sueldo: e.sueldo_dia || 0 })),
   ];
 
@@ -14443,7 +14506,7 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
             {(data.cuadrillas || []).length > 0 && (
               <div style={{ marginTop: 18 }}>
                 <div className="text-sm font-bold mb-2" style={{ paddingLeft: 4 }}>Cuadrillas</div>
-                <div className="text-xs text-muted mb-2" style={{ paddingLeft: 4 }}>Las cuadrillas se pagan por jornal, tarea o destajo (no por horas).</div>
+                <div className="text-xs text-muted mb-2" style={{ paddingLeft: 4 }}>Las cuadrillas se pagan por día, por monto fijo o por tarea (no por horas).</div>
                 {(data.cuadrillas || []).map(c => {
                   const cfg = selCuad[c.id];
                   const activo = cfg && cfg.incluir;
@@ -14457,7 +14520,7 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
                         <div style={{ paddingLeft: 4 }}>
                           <label className="form-label" style={{ fontSize: 10 }}>Modalidad de pago</label>
                           <div className="gap-row mb-2">
-                            {[["jornal", "Por jornal"], ["tarea", "Por tarea"], ["destajo", "Destajo"]].map(([v, l]) => (
+                            {[["jornal", "Por día"], ["tarea", "Monto fijo"], ["destajo", "Por tarea"]].map(([v, l]) => (
                               <button key={v} className={`btn btn-sm ${cfg.modalidad === v ? "btn-accent" : "btn-outline"}`} style={{ flex: 1 }} onClick={() => setCampoCuad(c.id, "modalidad", v)}>{l}</button>
                             ))}
                           </div>
@@ -16711,7 +16774,7 @@ function PanelOperacion({ data, onClose, onVerParcela }) {
         {/* EN PROCESO AHORA */}
         <div className="card">
           <div className="card-title">En proceso ahora</div>
-          {op.enProceso.length === 0 && <div className="text-muted text-sm" style={{ padding: "12px 0" }}>Nada reportado en proceso. Si hay labores activas, repórtalas desde el detalle de cada siembra (botón "Reportar avance").</div>}
+          {op.enProceso.length === 0 && <div className="text-muted text-sm" style={{ padding: "12px 0" }}>Nada reportado en proceso. Si hay actividades en curso, repórtalas desde el detalle de cada siembra (botón "Reportar avance").</div>}
           {op.enProceso.map((grupo, i) => (
             <div key={i} style={{ marginBottom: 14 }}>
               <div className="font-bold text-sm mb-2" style={{ color: "var(--accent)" }}>{grupo.labor}</div>

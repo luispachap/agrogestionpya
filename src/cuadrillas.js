@@ -31,6 +31,19 @@ export const TIPO_ASIGNACION = "asignacion";
 export const TIPO_FIN = "fin_asignacion";
 export const TIPO_DESTAJO = "destajo";
 export const TIPO_AJUSTE = "ajuste";
+export const TIPO_ACLARACION = "aclaracion";
+// Por qué alguien estuvo en el rancho sin estar asignado a una actividad. Que
+// haya tiempo sin asignar NO quiere decir que se desperdició: quiere decir que
+// falta aclararlo. Sólo "trabajo no registrado" manda ese tiempo a una parcela.
+export const CAUSAS_SIN_ASIGNAR = {
+  trabajo_no_registrado: "Sí trabajó, pero no se registró dónde",
+  espera: "Espera (de material, de transporte, de indicaciones)",
+  mantenimiento: "Mantenimiento o limpieza general",
+  traslado: "Traslado",
+  descanso_autorizado: "Descanso autorizado",
+  inactividad: "Inactividad confirmada",
+  otra: "Otra causa",
+};
 const PUEDE_REPARTIR = ["admin", "encargado"];
 const unicos = (lista) => [...new Set((lista || []).filter(Boolean))];
 const min = (a, b) => Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000));
@@ -39,7 +52,7 @@ const min = (a, b) => Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000
 // Un ajuste es un evento: queda dicho quién cambió la regla, cuándo y cuánto valía.
 export const AJUSTES = {
   ventana_repetida_min: { defecto: 15, minimo: 1, maximo: 120, nombre: "Minutos para tomar una segunda lectura como repetida" },
-  horas_jornada: { defecto: 8, minimo: 4, maximo: 12, nombre: "Horas de una jornada (para quien cobra por hora)" },
+  horas_jornada: { defecto: 8, minimo: 4, maximo: 12, nombre: "Horas de un día de trabajo (para quien cobra por hora)" },
 };
 export function ajusteVigente(eventos, clave) {
   const def = AJUSTES[clave];
@@ -70,15 +83,46 @@ export function terminar({ trabajadorIds, desde, fecha, quien, capturado, azar }
   if (ids.length === 0) return { ok: false, dice: "Falta decir quiénes terminaron." };
   return { ok: true, evento: nuevoEvento({ tipo: TIPO_FIN, cuando: desde, fecha, capturado, quien, azar, datos: { trabajadorIds: ids } }) };
 }
-// Trabajo a destajo: tantas unidades a tanto. Se reparte parejo entre quienes lo hicieron.
-export function anotarDestajo({ trabajadorIds, parcelaId, actividad, unidad, cantidad, tarifa, cuando, fecha, quien, capturado, azar }) {
-  const ids = unicos(trabajadorIds); const c = Number(cantidad), t = Number(tarifa);
-  if (!PUEDE_REPARTIR.includes(quien?.rol)) return { ok: false, dice: "Sólo un encargado o un administrador anota un destajo." };
-  if (ids.length === 0) return { ok: false, dice: "Falta decir quiénes lo hicieron." };
+// Pago por tarea: tantas unidades a tanto. Si se sabe cuánto hizo CADA QUIEN
+// (la relación que entrega la cuadrilla), a cada uno le toca lo suyo. Sólo
+// cuando nada más se sabe el total del grupo se reparte parejo — y eso tiene
+// que pedirlo quien captura, no lo decide la app.
+export function anotarTareas({ produccion, trabajadorIds, cantidad, repartirParejo = false, parcelaId, actividad, unidad, tarifa, cuando, fecha, quien, capturado, azar }) {
+  const t = Number(tarifa);
+  if (!PUEDE_REPARTIR.includes(quien?.rol)) return { ok: false, dice: "Sólo un encargado o un administrador anota un pago por tarea." };
   if (!parcelaId) return { ok: false, dice: "Falta la parcela." };
-  if (!(c > 0)) return { ok: false, dice: "Falta cuánto hicieron." };
   if (!(t > 0)) return { ok: false, dice: "Falta a cómo se paga cada unidad." };
-  return { ok: true, evento: nuevoEvento({ tipo: TIPO_DESTAJO, cuando, fecha, capturado, quien, azar, datos: { trabajadorIds: ids, parcelaId, actividad: String(actividad || "Destajo").trim(), unidad: String(unidad || "unidad").trim(), cantidad: c, tarifa: t } }) };
+  const base = { parcelaId, actividad: String(actividad || "Pago por tarea").trim(), unidad: String(unidad || "unidad").trim(), tarifa: t };
+  const porPersona = (produccion || []).map(r => ({ trabajadorId: r.trabajadorId, cantidad: Number(r.cantidad) })).filter(r => r.trabajadorId && r.cantidad > 0);
+  if (porPersona.length > 0) {
+    if (new Set(porPersona.map(r => r.trabajadorId)).size !== porPersona.length) return { ok: false, dice: "Una persona aparece dos veces en la relación." };
+    return { ok: true, evento: nuevoEvento({ tipo: TIPO_DESTAJO, cuando, fecha, capturado, quien, azar, datos: { ...base, produccion: porPersona } }) };
+  }
+  const ids = unicos(trabajadorIds); const c = Number(cantidad);
+  if (ids.length === 0) return { ok: false, dice: "Falta decir quiénes lo hicieron." };
+  if (!(c > 0)) return { ok: false, dice: "Falta cuánto hizo cada quien, o el total del grupo." };
+  if (ids.length > 1 && !repartirParejo) return { ok: false, dice: "Sólo se capturó el total del grupo. Captura cuánto hizo cada quien, o di que se reparta parejo." };
+  return { ok: true, evento: nuevoEvento({ tipo: TIPO_DESTAJO, cuando, fecha, capturado, quien, azar, datos: { ...base, trabajadorIds: ids, cantidad: c, parejo: ids.length > 1 } }) };
+}
+export const anotarDestajo = (o) => anotarTareas({ ...o, repartirParejo: true });   // nombre anterior
+// Lo que le toca a cada quien de un pago por tarea: [{ trabajadorId, cantidad, monto, parejo }].
+export function partesDeTareas(e) {
+  if (Array.isArray(e.datos.produccion)) return e.datos.produccion.map(r => ({ trabajadorId: r.trabajadorId, cantidad: r.cantidad, monto: multiplicarDinero(e.datos.tarifa, r.cantidad), parejo: false }));
+  const ids = e.datos.trabajadorIds || [];
+  const montos = repartirDinero(multiplicarDinero(e.datos.tarifa, e.datos.cantidad), ids.map(() => 1));
+  return ids.map((id, i) => ({ trabajadorId: id, cantidad: e.datos.cantidad / ids.length, monto: montos[i], parejo: ids.length > 1 }));
+}
+
+// Aclarar un rato sin asignar: por qué fue. Es un evento aparte; el rato y las
+// marcas no se tocan, y la aclaración se puede cancelar o corregir con su motivo.
+export function aclararTiempo({ trabajadorId, fecha, desde, hasta, causa, parcelaId = null, actividad = null, nota = "", quien, cuando, azar }) {
+  if (!PUEDE_REPARTIR.includes(quien?.rol)) return { ok: false, dice: "Sólo un encargado o un administrador aclara el tiempo sin asignar." };
+  if (!CAUSAS_SIN_ASIGNAR[causa]) return { ok: false, dice: "Falta decir la causa." };
+  if (!trabajadorId || !desde || !hasta) return { ok: false, dice: "Falta decir de quién y de qué rato se trata." };
+  if (causa === "trabajo_no_registrado" && (!parcelaId || !String(actividad || "").trim())) return { ok: false, dice: "Si sí trabajó, hay que decir en qué parcela y haciendo qué." };
+  if (causa === "otra" && !String(nota).trim()) return { ok: false, dice: "Con \"otra causa\" hay que escribir cuál." };
+  return { ok: true, evento: nuevoEvento({ tipo: TIPO_ACLARACION, cuando: desde, fecha, capturado: cuando, quien, azar,
+    datos: { trabajadorId, desde, hasta, causa, nota: String(nota || "").trim(), ...(causa === "trabajo_no_registrado" ? { parcelaId, actividad: String(actividad).trim() } : {}) } }) };
 }
 
 // ── Dónde está cada quien AHORA ────────────────────────────────────────────
@@ -135,6 +179,15 @@ export function tramosDeTrabajo(eventos, { desde, hasta, hoy, ahora } = {}) {
       }
     }
   }
+  // Las aclaraciones: a cada rato sin asignar se le pone su causa (la más reciente que lo cubra).
+  const aclaraciones = vigentes(eventos).filter(e => e.tipo === TIPO_ACLARACION).sort((a, b) => a.capturado.localeCompare(b.capturado));
+  for (const t of tramos) {
+    if (t.parcelaId || !t.hasta) continue;
+    const a = aclaraciones.filter(x => x.datos.trabajadorId === t.trabajadorId && x.fecha === t.fecha && x.datos.desde < t.hasta && x.datos.hasta > t.desde).pop();
+    if (!a) { t.causa = null; continue; }
+    t.causa = a.datos.causa; t.nota = a.datos.nota; t.evAclaracion = a.id;
+    if (a.datos.causa === "trabajo_no_registrado") { t.parcelaId = a.datos.parcelaId; t.actividad = a.datos.actividad; t.aclarado = true; }
+  }
   // Asignados que nunca checaron ese día.
   for (const e of vigentes(eventos)) {
     if (e.tipo !== TIPO_ASIGNACION || (desde && e.fecha < desde) || (hasta && e.fecha > hasta)) continue;
@@ -159,13 +212,11 @@ export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } =
   const destajos = vigentes(eventos).filter(e => e.tipo === TIPO_DESTAJO && (!desde || e.fecha >= desde) && (!hasta || e.fecha <= hasta));
   const destajoPorDia = new Map();
   for (const e of destajos) {
-    const total = multiplicarDinero(e.datos.tarifa, e.datos.cantidad);
-    const montos = repartirDinero(total, e.datos.trabajadorIds.map(() => 1));
-    e.datos.trabajadorIds.forEach((id, i) => {
-      const k = `${id}|${e.fecha}`; if (!destajoPorDia.has(k)) destajoPorDia.set(k, []);
-      destajoPorDia.get(k).push({ trabajadorId: id, fecha: e.fecha, parcelaId: e.datos.parcelaId, actividad: e.datos.actividad, modalidad: "destajo", minutos: null,
-        unidades: e.datos.cantidad / e.datos.trabajadorIds.length, unidad: e.datos.unidad, monto: montos[i], evs: [e.id], estimado: false, provisional: false });
-    });
+    for (const x of partesDeTareas(e)) {
+      const k = `${x.trabajadorId}|${e.fecha}`; if (!destajoPorDia.has(k)) destajoPorDia.set(k, []);
+      destajoPorDia.get(k).push({ trabajadorId: x.trabajadorId, fecha: e.fecha, parcelaId: e.datos.parcelaId, actividad: e.datos.actividad, modalidad: "destajo", minutos: null,
+        unidades: x.cantidad, unidad: e.datos.unidad, monto: x.monto, evs: [e.id], estimado: false, provisional: false, parejo: x.parejo });
+    }
   }
 
   for (const k of new Set([...dias.keys(), ...destajoPorDia.keys()])) {
@@ -176,7 +227,8 @@ export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } =
     const sabidos = mios.filter(x => x.minutos != null && x.minutos > 0);
     const provisional = mios.some(x => x.corriendo);
     const misPartes = [...dest];
-    const evsDe = (x) => [x.evEntrada, x.evSalida, x.evAsignacion].filter(Boolean);
+    const evsDe = (x) => [x.evEntrada, x.evSalida, x.evAsignacion, x.evAclaracion].filter(Boolean);
+    const extra = (x) => ({ causa: x.parcelaId && !x.aclarado ? undefined : x.causa ?? null, nota: x.nota || "", desde: x.desde, hasta: x.hasta, aclarado: !!x.aclarado });
     if (!t) avisos.push({ clase: "sin_ficha", trabajadorId, fecha, dice: "Checó alguien que no está en el catálogo de este aparato: no se le puede poner costo." });
     else if (modalidad !== "destajo" && mios.length > 0) {
       if (!(v.sueldo > 0)) avisos.push({ clase: "sin_sueldo", trabajadorId, fecha, dice: "No tiene sueldo capturado: su día quedó sin costo. Un dato que falta no es un cero." });
@@ -184,16 +236,16 @@ export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } =
         // El total se calcula una vez (no minuto por minuto, que arrastra centavos) y se reparte.
         const total = Math.round((v.sueldo * 100 / horasJornada) * (sabidos.reduce((n, x) => n + x.minutos, 0) / 60)) / 100;
         const montos = repartirDinero(total, sabidos.map(x => x.minutos));
-        sabidos.forEach((x, i) => misPartes.push({ trabajadorId, fecha, parcelaId: x.parcelaId, actividad: x.actividad, modalidad: "hora", minutos: x.minutos, monto: montos[i], evs: evsDe(x), estimado: v.estimado === true, provisional: x.corriendo }));
+        sabidos.forEach((x, i) => misPartes.push({ trabajadorId, fecha, parcelaId: x.parcelaId, actividad: x.actividad, modalidad: "hora", minutos: x.minutos, monto: montos[i], evs: evsDe(x), estimado: v.estimado === true, provisional: x.corriendo, ...extra(x) }));
       } else if (sabidos.length > 0) {
         const montos = repartirDinero(v.sueldo, sabidos.map(x => x.minutos));
-        sabidos.forEach((x, i) => misPartes.push({ trabajadorId, fecha, parcelaId: x.parcelaId, actividad: x.actividad, modalidad: "dia", minutos: x.minutos, monto: montos[i], evs: evsDe(x), estimado: v.estimado === true, provisional }));
+        sabidos.forEach((x, i) => misPartes.push({ trabajadorId, fecha, parcelaId: x.parcelaId, actividad: x.actividad, modalidad: "dia", minutos: x.minutos, monto: montos[i], evs: evsDe(x), estimado: v.estimado === true, provisional, ...extra(x) }));
       } else {
         // Vino (checó entrada) pero no se sabe cuánto tiempo: su día se devenga, y
         // NO se le carga a ninguna parcela hasta que alguien cierre su jornada.
         misPartes.push({ trabajadorId, fecha, parcelaId: null, actividad: null, modalidad: "dia", minutos: null, monto: v.sueldo, evs: unicos(mios.flatMap(evsDe)), estimado: v.estimado === true, provisional: false, sinHoras: true });
       }
-      if (dest.length > 0) avisos.push({ clase: "dia_y_destajo", trabajadorId, fecha, dice: "Ese día tiene su pago de siempre Y un destajo. Si sólo iba a destajo, hay que decirlo en su ficha." });
+      if (dest.length > 0) avisos.push({ clase: "dia_y_destajo", trabajadorId, fecha, dice: "Ese día tiene su pago por día Y un pago por tarea. Si sólo cobra por tarea, hay que decirlo en su ficha." });
     }
     if (misPartes.length === 0) continue;
     partes.push(...misPartes);
@@ -205,6 +257,9 @@ export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } =
     tramos, partes, devengado, avisos,
     total: sumarDinero(partes.map(p => p.monto)), totalAsignado: sumarDinero(asignado.map(p => p.monto)), totalSinAsignar: sumarDinero(suelto.map(p => p.monto)),
     minutosAsignados: asignado.reduce((s, p) => s + (p.minutos || 0), 0), minutosSinAsignar: suelto.reduce((s, p) => s + (p.minutos || 0), 0),
+    // Del tiempo sin asignar: cuánto sigue sin aclarar y cuánto ya tiene causa.
+    porAclarar: { minutos: suelto.filter(p => !p.causa).reduce((s, p) => s + (p.minutos || 0), 0), monto: sumarDinero(suelto.filter(p => !p.causa).map(p => p.monto)) },
+    porCausa: agrupar(suelto.filter(p => p.causa), ["causa"]),
   };
 }
 
@@ -252,5 +307,6 @@ export const horasDe = (minutos) => (minutos == null ? "no se sabe" : `${Math.fl
 // sólo va lo que sí es de cada uno.
 reglasDe(TIPO_ASIGNACION, (e) => e.datos.trabajadorIds.map(id => ({ clase: "destino", trabajadorId: id, parcelaId: e.datos.parcelaId, actividad: e.datos.actividad, desde: e.cuando })));
 reglasDe(TIPO_FIN, (e) => e.datos.trabajadorIds.map(id => ({ clase: "destino", trabajadorId: id, parcelaId: null, actividad: null, desde: e.cuando })));
-reglasDe(TIPO_DESTAJO, (e) => [{ clase: "destajo", parcelaId: e.datos.parcelaId, actividad: e.datos.actividad, monto: multiplicarDinero(e.datos.tarifa, e.datos.cantidad), unidades: e.datos.cantidad }]);
+reglasDe(TIPO_DESTAJO, (e) => partesDeTareas(e).map(x => ({ clase: "pago_por_tarea", trabajadorId: x.trabajadorId, parcelaId: e.datos.parcelaId, actividad: e.datos.actividad, monto: x.monto, unidades: x.cantidad })));
+reglasDe(TIPO_ACLARACION, (e) => [{ clase: "aclaracion", trabajadorId: e.datos.trabajadorId, causa: e.datos.causa, parcelaId: e.datos.parcelaId || null }]);
 reglasDe(TIPO_AJUSTE, (e) => [{ clase: "regla", clave: e.datos.clave, valor: e.datos.valor }]);

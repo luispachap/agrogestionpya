@@ -12,6 +12,17 @@ di "la pantalla de la corrida", no "el componente `CorridaAjo`". Nada de jerga s
 explicarla. Va directo al grano: no le ofrezcas pausas ni le adviertas de límites,
 entrega el trabajo hecho.
 
+**Cómo se habla en las pantallas.** Lenguaje moderno, claro y natural, como se
+habla en el rancho. **Nunca** «jornal», «jornalero», «labor» ni «faena». Se dice
+«trabajador», «personal», «actividad», «pago por día», «pago por tarea», «equipo
+de trabajo», «trabajadores de planta», y «cuadrilla» sólo para los grupos
+eventuales que llegan juntos con su responsable y su flete. En pantallas de
+operación, nada de tecnicismos contables («devengado», «provisión»); en reportes
+financieros sí, cuando den precisión. Los valores guardados por dentro no se
+cambian (`"jornalero"`, `"jornal"`, `"destajo"`): se traducen al enseñarlos
+(`nombreDeCategoria`, `nombreDeModalidad`). `pruebas/recorrido_navegador.py`
+revisa todas las pantallas de todos los perfiles.
+
 Usuarios reales de la app:
 - **Rodolfo** (papá, dueño) — solo lectura, ve reportes y resúmenes.
 - **Migue** (hermano, finanzas) — usuario principal del módulo de corrida de ajo.
@@ -50,15 +61,18 @@ Usuarios reales de la app:
 - **`src/checador.js`**: credenciales con QR, marcas de entrada y salida, y la
   jornada que sale de ellas. Entrar al rancho NO es trabajar en una parcela; una
   entrada sin salida no vale 8 horas, vale "no se sabe".
-- **`src/cuadrillas.js`**: a dónde se mandó a cada quien (`asignacion`,
-  `fin_asignacion`, `destajo`) y la mano de obra que sale de cruzar eso con las
+- **`src/cuadrillas.js`** (en pantalla: «Equipos de trabajo»; el archivo conserva
+  el nombre): a qué se asignó a cada quien (`asignacion`, `fin_asignacion`,
+  `destajo` = pago por tarea, `aclaracion` del tiempo sin asignar) y la mano de obra que sale de cruzar eso con las
   marcas: `manoDeObra()`. Cambiar de parcela o de labor es OTRA asignación, no
   una edición. Tiempo en el rancho sin asignar NO se le carga a ninguna parcela:
   queda aparte, a la vista. Lo repartido suma exacto lo devengado. Las reglas
   que el rancho puede cambiar (`AJUSTES`) también son eventos. `normalizeData`
   mete esa mano de obra a `actividadesContables`, así que los reportes de
   siempre la ven **sin que nadie teclee una actividad** — teclearla además la
-  duplica (`capturasDobles` lo avisa).
+  duplica (`capturasDobles` lo avisa). En pago por tarea a cada quien le toca lo
+  que hizo; parejo sólo si se pide. El tiempo sin asignar es «por aclarar», no
+  pérdida. El plan del motor de costeo y las políticas pendientes: `docs/COSTEO.md`.
 - **`src/almacenEventos.js`**: los eventos NO viven en el cajón de 5 MB: viven
   en IndexedDB (`LLAVES.eventos`), uno por renglón (`useCajon`). De la nube se
   bajan aparte, sólo lo nuevo y por páginas (`leerEventosDesde`), cada 2 min.
