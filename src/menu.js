@@ -82,6 +82,7 @@ export const FUNCIONES = {
   equipo: f("gente", "👷", "Equipo", "Personal y maquinaria"),
   personal: f("gente", "👷", "Personal", "Actividades y préstamos"),
   reparto: f("gente", "👥", "Equipos de trabajo", "Quién va a dónde y a qué"),
+  "cuadrillas-dia": f("gente", "🚌", "Cuadrillas", "Los grupos eventuales: quién vino y cómo cobran"),
   checador: f("gente", "📲", "Checador", "Entrada y salida con QR o PIN"),
   jornadas: f("gente", "⏱", "Jornadas", "Quién está, horas y correcciones"),
   credenciales: f("gente", "🏷️", "Credenciales", "El QR de cada trabajador"),
@@ -101,8 +102,8 @@ export const FUNCIONES = {
 // Qué puede abrir cada perfil. Tiene que coincidir con lo que App.jsx sabe
 // pintarle a ese perfil: una prueba lo compara contra el propio App.jsx.
 export const PANTALLAS_DE = {
-  admin: ["checador", "reparto", "mano-obra", "jornadas", "credenciales", "aldia", "aplicaciones", "aprobacion-externos", "arranque", "asistencia", "banco", "bitacora", "caja", "calendario", "chat", "ciclos", "comercializacion", "compras", "compras-insumos", "consignaciones", "contabilidad", "contpaqi", "corrida", "cosechas", "deudas", "dictado", "dron", "eldia", "embarque", "equipo", "estibas", "fito", "ganado", "indicaciones", "inventario", "mis", "movimientos", "nomina", "operacion", "panel-financiero", "panel-parcelas", "papeles", "parcelas", "pase-lista", "personal", "proveedores", "proyeccion", "registrar-actividad", "registro-masivo", "rendimiento-parcelas", "reporte", "reporte-variedades", "reportes", "respaldo", "resumen", "seguridad", "socios", "solicitudes", "subir-nube", "tareas", "terminados", "vales", "variedades"],
-  encargado: ["checador", "reparto", "jornadas", "credenciales", "aldia", "aprobacion-externos", "asistencia", "banco", "bitacora", "caja", "chat", "corrida", "cosechas", "dictado", "dron", "eldia", "estibas", "fito", "ganado", "operacion", "papeles", "pase-lista", "personal", "registrar-actividad", "registro-masivo", "socios", "solicitudes", "tareas", "vales"],
+  admin: ["checador", "reparto", "cuadrillas-dia", "mano-obra", "jornadas", "credenciales", "aldia", "aplicaciones", "aprobacion-externos", "arranque", "asistencia", "banco", "bitacora", "caja", "calendario", "chat", "ciclos", "comercializacion", "compras", "compras-insumos", "consignaciones", "contabilidad", "contpaqi", "corrida", "cosechas", "deudas", "dictado", "dron", "eldia", "embarque", "equipo", "estibas", "fito", "ganado", "indicaciones", "inventario", "mis", "movimientos", "nomina", "operacion", "panel-financiero", "panel-parcelas", "papeles", "parcelas", "pase-lista", "personal", "proveedores", "proyeccion", "registrar-actividad", "registro-masivo", "rendimiento-parcelas", "reporte", "reporte-variedades", "reportes", "respaldo", "resumen", "seguridad", "socios", "solicitudes", "subir-nube", "tareas", "terminados", "vales", "variedades"],
+  encargado: ["checador", "reparto", "cuadrillas-dia", "jornadas", "credenciales", "aldia", "aprobacion-externos", "asistencia", "banco", "bitacora", "caja", "chat", "corrida", "cosechas", "dictado", "dron", "eldia", "estibas", "fito", "ganado", "operacion", "papeles", "pase-lista", "personal", "registrar-actividad", "registro-masivo", "socios", "solicitudes", "tareas", "vales"],
   trabajador: ["compras", "mis", "pase-lista", "reporte", "solicitudes"],
   cuadrilla: ["compras", "mis", "reporte"],
   externo: ["mis", "reporte"],
@@ -114,7 +115,7 @@ export const PANTALLAS_DE = {
 // Con qué abre cada perfil antes de que la persona acomode nada.
 export const DE_FABRICA = {
   admin: { barra: ["movimientos", "contabilidad", "inventario"], inicio: ["arranque", "papeles", "registrar-actividad", "aldia", "corrida", "pase-lista"] },
-  encargado: { barra: ["checador", "reparto", "tareas"], inicio: ["checador", "reparto", "jornadas", "registrar-actividad", "registro-masivo", "pase-lista", "vales", "solicitudes", "corrida"] },
+  encargado: { barra: ["checador", "reparto", "tareas"], inicio: ["checador", "reparto", "cuadrillas-dia", "jornadas", "registrar-actividad", "registro-masivo", "pase-lista", "vales", "solicitudes", "corrida"] },
   trabajador: { barra: ["mis", "compras", "reporte"], inicio: [] },
   cuadrilla: { barra: ["mis", "compras", "reporte"], inicio: [] },
   externo: { barra: ["mis", "reporte"], inicio: [] },
@@ -133,7 +134,7 @@ export const ENFOQUES = [
     orden: ["dinero", "almacen", "gente", "ajo", "campo", "control"] },
   { id: "campo", nombre: "El rancho", sub: "Actividades, gente, comprobantes",
     barra: ["checador", "reparto", "papeles"],
-    inicio: ["arranque", "checador", "reparto", "jornadas", "mano-obra", "registrar-actividad", "pase-lista", "papeles", "vales", "tareas", "operacion"],
+    inicio: ["arranque", "checador", "reparto", "cuadrillas-dia", "jornadas", "mano-obra", "registrar-actividad", "pase-lista", "papeles", "vales", "tareas", "operacion"],
     orden: ["campo", "gente", "almacen", "ajo", "dinero", "control"] },
   { id: "bodega", nombre: "La bodega", sub: "Corrida, estibas, embarques",
     barra: ["corrida", "estibas", "terminados"],
@@ -216,7 +217,7 @@ export const enBarraDe = (rol, prefs) => limpiar(prefs?.barra ?? fabricaDe(rol, 
 const CORTOS = {
   "registrar-actividad": "Registrar", "registro-masivo": "Varios", "panel-parcelas": "Parcelas", "rendimiento-parcelas": "Rendimiento",
   "reporte-variedades": "Comparar", solicitudes: "Compras", compras: "Compras", "compras-insumos": "Compra", "aprobacion-externos": "Externos",
-  "panel-financiero": "Dinero", "pase-lista": "Lista", credenciales: "Credencial", reparto: "Equipos", "mano-obra": "M. de obra", dictado: "Dictar", corrida: "Corrida", terminados: "Terminado", embarque: "Camión",
+  "panel-financiero": "Dinero", "pase-lista": "Lista", credenciales: "Credencial", reparto: "Equipos", "cuadrillas-dia": "Cuadrillas", "mano-obra": "M. de obra", dictado: "Dictar", corrida: "Corrida", terminados: "Terminado", embarque: "Camión",
   comercializacion: "Ventas", nomina: "Nómina", "subir-nube": "Subir", consignaciones: "Consigna", proveedores: "Proveed.",
   mis: "Mis días", fito: "Fito", caja: "Caja", indicaciones: "Indicar",
 };

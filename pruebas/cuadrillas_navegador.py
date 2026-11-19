@@ -95,7 +95,7 @@ with sync_playwright() as p:
     uno, dos = pg.locator(".card", has_text="PARCELA UNO"), pg.locator(".card", has_text="PARCELA DOS")
     caso("la parcela uno carga $580 (Ana completa + medio día de Beto) en 12 horas", "$580" in uno.inner_text() and "12 h 00 min" in uno.inner_text(), uno.inner_text())
     caso("la parcela dos carga $135 en 3 horas", "$135" in dos.inner_text() and "3 h 00 min" in dos.inner_text(), dos.inner_text())
-    caso("la hora de Beto sin asignar NO se le cargó a ninguna parcela: quedó aparte, por aclarar", "$45" in pg.locator(".mo-act", has_text="por aclarar").inner_text() and "1 h 00 min" in pg.locator(".mo-act", has_text="por aclarar").inner_text())
+    caso("la hora de Beto sin asignar NO se le cargó a ninguna parcela: quedó aparte, por aclarar", "$45" in pg.locator(".mo-act", has_text="Sin asignar, por aclarar").inner_text() and "1 h 00 min" in pg.locator(".mo-act", has_text="Sin asignar, por aclarar").inner_text())
     dos.locator(".mo-cab").click(); pg.wait_for_timeout(200)
     caso("dice haciendo qué", "Riego" in dos.inner_text() and "BETO" in dos.inner_text())
     dos.locator(".jor-fila").first.click(); pg.wait_for_timeout(300)
@@ -116,7 +116,7 @@ with sync_playwright() as p:
     ac = [e for e in eventos(pg) if e["tipo"] == "aclaracion"]
     caso("la aclaración es un evento aparte, con su causa y quién la puso", len(ac) == 1 and ac[0]["datos"]["causa"] == "espera" and ac[0]["quien"]["nombre"] == "Administrador")
     caso("ya no sale por aclarar: sale como espera, y sigue fuera de las parcelas", pg.get_by_text("Sin asignar, por aclarar").count() == 0 and pg.locator(".mo-act", has_text="Espera").count() >= 1 and "$580" in pg.locator(".card", has_text="PARCELA UNO").inner_text())
-    caso("en pantalla no aparecen las palabras que no usamos", not any(w in pg.locator("body").inner_text().lower() for w in ["jornal", "faena", " labor", "destajo"]))
+    caso("en pantalla no aparecen las palabras que no usamos", not any(w in pg.locator("body").inner_text().lower() for w in ["jornal", "faena", " labor"]))
 
     # ── La regla de los minutos se cambia, y queda quién la cambió ──
     ir(pg, "jornadas")

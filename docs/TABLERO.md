@@ -28,12 +28,17 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | El acomodo sigue a la persona entre aparatos | Sí | Sí | Sí | Falta con dos aparatos reales |
 | Equipos de trabajo: asignar a parcela y actividad con una captura, cambios en el día, "ya acabaron", pago por tarea | Sí | Sí (reloj simulado: un día completo) | Sí | **Falta: con gente y parcelas reales** |
 | Mano de obra: quién, dónde, cuánto tiempo, haciendo qué y cuánto costó, con el rastro de cada importe | Sí | Sí | Sí | Falta |
-| Pago por tarea con lo que hizo cada quien (parejo sólo si se pide) | Sí | Sí | Sí | Falta |
+| Destajo con lo que hizo cada quien (parejo sólo si se pide) | Sí | Sí | Sí | Falta |
 | Tiempo sin asignar "por aclarar", con causa e historia | Sí | Sí | Sí | Falta |
 | Lenguaje unificado: sin jornal, labor ni faena en ninguna pantalla | Sí | Sí (recorrido de todas las pantallas) | Sí | Que lo lean ustedes |
-| Cuadrillas eventuales: quién vino, responsable, precio, producción individual, flete repartido | No (sigue la pantalla anterior) | — | — | — |
-| Faltas y permisos con causa; horas extra, bonos, aguinaldo | No | — | — | Hay políticas por definir (`COSTEO.md`) |
-| Pagos y pendientes por trabajador | No | — | — | — |
+| Cuadrillas eventuales: quién vino, responsable, pago por persona, destajo individual | Sí | Sí | Sí | **Falta: con una cuadrilla real** |
+| Transporte de cuadrillas: flete externo repartido (criterio configurable), vehículo propio sin importe, sin transporte | Sí | Sí | Sí | Falta |
+| Salida termina la asignación; "continuar actividad anterior" | Sí | Sí | Sí | Falta |
+| Tiempo: trabajado, por aclarar e improductivo como cuentas separadas | Sí | Sí | Sí | Falta |
+| Horas adicionales registradas y acumuladas (sin cambiar el pago) | Sí | Sí | Sí | Falta; reconocerlas para pago no está hecho |
+| Costo real del vehículo propio ligado a los viajes de cuadrilla | No | — | — | Depende del almacén (combustible) |
+| Faltas y permisos con causa; horas extraordinarias reconocidas, bonos, aguinaldo, vacaciones | No | — | — | Hay políticas por definir (`COSTEO.md`) |
+| Pagos, pendientes por trabajador y recibos internos en PDF | No | — | — | — |
 | Provisiones de prestaciones e indirectos distribuidos | No | — | — | Hay políticas por definir |
 | Esa mano de obra entra sola a los reportes de costo que ya existían | Sí | Sí | Sí | Falta |
 | Tableta cerrada en el checador (con clave para abrir) | Sí | Sí | Sí | **Falta: en la tableta de la nave** |
@@ -49,6 +54,7 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 - **El cálculo recorre todos los eventos cada vez.** Con unos meses de marcas va bien; con años habrá que cerrar periodos y guardar su resumen. No urge, pero está anotado.
 - **Las existencias del almacén se pisan entre aparatos** (número guardado, no suma de movimientos). Se corrige en la entrega del almacén.
 - **La tableta cerrada no impide salirse del navegador**: eso lo cierra el propio aparato (en Android, "fijar pantalla"). La app ya no deja ir a otras pantallas.
+- **La pantalla anterior de cuadrillas (la cuadrilla entra con su PIN) sigue existiendo.** Si se usa esa y la nueva para el mismo día, el costo se duplica. Hay que escoger una; propongo retirar la anterior cuando validen la nueva.
 - **Si alguien teclea una actividad a mano para quien ya fue mandado con su cuadrilla, el costo se duplica.** La app lo avisa en Mano de obra, pero no lo impide.
 - **Dos personas con el mismo PIN** no pueden checar con PIN (el checador lo dice). Hay que revisar los PIN al dar de alta a la gente.
 - Una prueba de la base falló dos veces de forma intermitente y no se ha podido repetir; la corrida completa ya guarda el detalle.

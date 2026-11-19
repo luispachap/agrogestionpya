@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cancelarEvento, corregirEvento, efectosDe } from "./eventos.js";
 import { marcar, marcaQueFalto, emitirCredencial } from "./checador.js";
-import { anotarTareas, aclararTiempo, CAUSAS_SIN_ASIGNAR, asignar, terminar, anotarDestajo, repartoActual, tramosDeTrabajo, manoDeObra, agrupar, actividadesDeManoDeObra, capturasDobles, ajusteVigente, cambiarAjuste, horasDe } from "./cuadrillas.js";
+import { anotarTareas, aclararTiempo, CAUSAS_SIN_ASIGNAR, asignar, terminar, anotarDestajo, repartoActual, tramosDeTrabajo, manoDeObra, agrupar, actividadesDeManoDeObra, capturasDobles, ajusteVigente, cambiarAjuste, horasDe, acumular, semanaDe } from "./cuadrillas.js";
 import { sumarDinero } from "./calculos.js";
 
 const ENC = { id: "enc1", nombre: "Encargado", rol: "encargado" }, ADMIN = { id: "u1", nombre: "Luis", rol: "admin" };
@@ -246,4 +246,60 @@ test("aclarar_que_si_trabajo_manda_ese_tiempo_y_su_costo_a_la_parcela_sin_tocar_
   assert.equal(todos.filter(e => e.tipo === "marca").length, 2, "las marcas son las mismas");
   const c = cancelarEvento(ac.evento, { motivo: "no era cierto", quien: ENC, cuando: a("17:00") });
   assert.equal(mo([...evs, c.evento]).porAclarar.minutos, 240, "y si se cancela la aclaración, vuelve a quedar por aclarar");
+});
+
+test("checar_salida_termina_la_asignacion_y_al_volver_queda_sin_asignar", () => {
+  let evs = checa([], ANA, "06:00"); evs = manda(evs, [ANA], "p7", "Deshierbe", "06:00");
+  evs = checa(evs, ANA, "11:00");                       // sale a comer
+  evs = checa(evs, ANA, "12:00");                       // regresa: nadie la ha asignado
+  const ahora = repartoActual(evs, { fecha: D, hoy: D, ahora: a("12:30") });
+  assert.equal(ahora.grupos.length, 0);
+  assert.deepEqual(ahora.sinAsignar[0].anterior, { parcelaId: "p7", actividad: "Deshierbe", cuadrilla: "" }, "y se ofrece continuar lo anterior");
+  evs = checa(evs, ANA, "14:00");
+  const r = mo(evs);
+  assert.equal(r.minutosAsignados, 300); assert.equal(r.porAclarar.minutos, 120);
+  assert.equal(r.tramos.reduce((s, t) => s + t.minutos, 0), 420, "la hora que estuvo fuera no cuenta como trabajo");
+  assert.equal(r.total, 400);
+});
+
+test("continuar_la_actividad_anterior_es_volver_a_asignar_y_solo_cuenta_desde_ahi", () => {
+  let evs = checa([], ANA, "06:00"); evs = manda(evs, [ANA], "p7", "Deshierbe", "06:00");
+  evs = checa(evs, ANA, "11:00"); evs = checa(evs, ANA, "12:00");
+  evs = manda(evs, [ANA], "p7", "Deshierbe", "12:00");  // "Continuar actividad anterior"
+  const dentro = repartoActual(evs, { fecha: D, hoy: D, ahora: a("13:00") });
+  assert.equal(dentro.grupos[0].miembros[0].trabajadorId, "t-ana"); assert.equal(dentro.sinAsignar.length, 0);
+  evs = checa(evs, ANA, "14:00");
+  const r = mo(evs);
+  assert.equal(r.minutosAsignados, 420); assert.equal(r.porAclarar.minutos, 0); assert.equal(costoEn(r, "p7"), 400);
+});
+
+test("si_ya_le_habian_dicho_que_acabo_al_volver_no_se_ofrece_continuar", () => {
+  let evs = checa([], ANA, "06:00"); evs = manda(evs, [ANA], "p7", "Deshierbe", "06:00");
+  evs = [...evs, terminar({ trabajadorIds: ["t-ana"], desde: a("10:00"), fecha: D, quien: ENC }).evento];
+  evs = checa(evs, ANA, "11:00"); evs = checa(evs, ANA, "12:00");
+  assert.equal(repartoActual(evs, { fecha: D, hoy: D, ahora: a("12:30") }).sinAsignar[0].anterior, null);
+});
+
+test("lo_trabajado_lo_por_aclarar_y_lo_improductivo_son_tres_cuentas_distintas", () => {
+  let evs = checa([], ANA, "06:00"); evs = manda(evs, [ANA], "p7", "Deshierbe", "06:00");
+  evs = [...evs, terminar({ trabajadorIds: ["t-ana"], desde: a("10:00"), fecha: D, quien: ENC }).evento];
+  evs = checa(evs, ANA, "14:00");
+  let r = mo(evs);
+  assert.deepEqual(r.tiempo, { trabajado: 240, porAclarar: 240, improductivo: 0, otros: 0 });
+  const suelto = r.partes.find(p => !p.parcelaId);
+  const ac = (causa, desde, hasta) => aclararTiempo({ trabajadorId: "t-ana", fecha: D, desde, hasta, causa, quien: ENC, cuando: a("16:00") }).evento;
+  r = mo([...evs, ac("inactividad", suelto.desde, suelto.hasta)]);
+  assert.deepEqual(r.tiempo, { trabajado: 240, porAclarar: 0, improductivo: 240, otros: 0 });
+  r = mo([...evs, ac("traslado", suelto.desde, suelto.hasta)]);
+  assert.deepEqual(r.tiempo, { trabajado: 240, porAclarar: 0, improductivo: 0, otros: 240 }, "un traslado no es tiempo improductivo");
+});
+
+test("las_horas_adicionales_salen_solas_de_las_marcas_y_no_cambian_el_pago", () => {
+  let evs = checa([], ANA, "06:00"); evs = manda(evs, [ANA], "p7", "Cosecha", "06:00"); evs = checa(evs, ANA, "16:30");   // 10.5 h
+  evs = checa(evs, BETO, "06:00"); evs = checa(evs, BETO, "14:00");                                                       // 8 h justas
+  const r = mo(evs);
+  assert.deepEqual(r.horasAdicionales.map(h => [h.trabajadorId, h.minutos]), [["t-ana", 150]]);
+  assert.equal(r.devengado.find(d => d.trabajadorId === "t-ana").monto, 400, "su pago por día es el mismo");
+  assert.equal(semanaDe("2026-11-19"), "2026-11-16"); assert.equal(r.horasAdicionales[0].mes, "2026-11");
+  assert.deepEqual(acumular([...r.horasAdicionales, { ...r.horasAdicionales[0], fecha: "2026-11-20" }], "semana"), [{ trabajadorId: "t-ana", semana: "2026-11-16", minutos: 300, dias: 2 }]);
 });

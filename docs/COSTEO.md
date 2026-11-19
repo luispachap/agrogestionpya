@@ -36,38 +36,54 @@ cargado a parcelas y lo que queda fuera siempre suman lo mismo.
   queda fuera, con nombre.
 - **Cada importe enseña de qué salió**: sus marcas, su asignación, su aclaración.
 
+## Cuadrillas eventuales (hecho)
+
+- Quiénes vinieron, su responsable, parcela y actividad.
+- Por día: cada persona con su pago, aunque no cobren igual.
+- Destajo: lo que hizo cada persona. Parejo sólo con el total del grupo y con
+  el nombre de quien lo autoriza.
+- Transporte, tres casos: **flete externo** (se reparte entre las personas
+  transportadas; el criterio se cambia y queda escrito en cada importe; si ese
+  día no hay trabajo registrado, el flete queda pendiente y no se reparte),
+  **vehículo del rancho** (sin importe: su costo sale de los gastos del
+  vehículo) y **sin transporte registrado**.
+- Todo llega solo al costo de la parcela, con el pago y el flete por separado.
+
+## Decidido por ustedes el 19 de noviembre (ya aplicado)
+
+- Checar salida termina la asignación. Al volver, queda sin asignar; hay un
+  botón para continuar la actividad anterior. El tiempo fuera no cuenta.
+- El tiempo sin asignar es "por aclarar" y no se distribuye solo.
+- Lo trabajado, lo por aclarar y lo improductivo confirmado son cuentas aparte.
+- Las horas adicionales se registran y se acumulan sin tocar el pago.
+
 ## Lo que sigue, en este orden
 
-1. **Cuadrillas eventuales como eventos.** Hoy la cuadrilla se registra con la
-   pantalla de antes (un total por día, a una sola parcela). Falta: quiénes
-   vinieron cada día, su responsable, precio por día o por unidad, lo que hizo
-   cada integrante, flete y otros costos, y repartirlo entre las parcelas y
-   actividades que se beneficiaron.
-2. **Faltas, permisos y salidas antes de tiempo, con su causa.** Se registra la
-   causa y alguien decide el tratamiento. La app no descuenta sola.
-3. **Otros conceptos**: horas extra, bonos, gratificaciones, aguinaldo.
-   Separando lo que es obligación de ley de lo que es incentivo del rancho.
-4. **Pagos**: qué se pagó, qué queda pendiente por persona. Un pago apunta a lo
-   que paga; no es un costo nuevo.
-5. **Provisiones**: reconocer el aguinaldo y demás prestaciones conforme se
-   generan, y ajustar cuando se conoce el importe definitivo. La provisión, el
-   ajuste y el pago apuntan al mismo concepto para no contarlo tres veces.
-6. **Indirectos y su distribución**, con criterio configurable y a la vista:
-   costo original, lo distribuido encima, y costo completo. Una actividad de
-   hace meses conserva su costo directo original y enseña aparte lo que se le
-   sumó después.
+1. **Costo real del vehículo propio**: ligar los viajes de cuadrilla (ya quedan
+   registrados con su vehículo) al combustible, mantenimiento y operador.
+   Depende del almacén (combustible con destino) y de un registro de viajes.
+2. **Faltas, permisos y salidas antes de tiempo, con su causa**, y quién decide
+   el tratamiento. La app no descuenta sola.
+3. **Horas extraordinarias reconocidas**: de las adicionales registradas, cuáles
+   se autorizan para pago, con quién y cuándo. Acumulados por semana, mes y año.
+4. **Centros de costo** para el tiempo ya aclarado (espera, traslado,
+   mantenimiento): vehículo, instalación, parcela o cultivo.
+5. **Pagos y documentos**: calcular, revisar, autorizar y registrar; pendiente
+   por persona; recibos internos en PDF con cálculo detallado, versiones y
+   firmas. Un recibo interno no es un CFDI de nómina y lo dirá.
+6. **Prestaciones**: aguinaldo, vacaciones, prima vacacional. Provisión
+   periódica, ajuste al conocer el importe definitivo, y pago que apunta a lo ya
+   reconocido para no contarlo otra vez. Bonos y gratificaciones, aparte.
+7. **Distribución de indirectos** con criterio configurable: costo original, lo
+   distribuido encima y costo completo, sin tocar el original.
 
-## Decisiones que son del rancho
-
-Están con un valor provisional o sin resolver. Ninguna es técnica.
+## Decisiones que siguen siendo del rancho
 
 | Tema | Hoy | Hay que decidir |
 |---|---|---|
-| Día incompleto de un trabajador de planta | Gana el día completo | Qué pasa por abandono, permiso o descanso autorizado, y quién lo decide |
-| Regreso el mismo día | Si sale y vuelve a entrar, sigue asignado a lo último que tenía | Si así trabajan, o si al volver hay que asignarlo otra vez |
-| Tiempo fuera de parcelas ya aclarado (espera, traslado, mantenimiento) | Se queda fuera de las parcelas | Si se distribuye como indirecto, y con qué criterio (horas, hectáreas, lo pagado) |
-| Flete de la cuadrilla | No está en el modelo nuevo | Entre qué se reparte: personas, lo pagado, o parcelas por igual |
-| Horas extra | No existen | Desde qué hora cuentan, a cómo, y quién las autoriza |
-| Aguinaldo y prestaciones | No se provisionan | Qué conceptos, con qué base, y a qué se cargan |
-| Bonos y gratificaciones | No existen en el modelo nuevo | Cuándo se reconocen: al autorizarse o al pagarse |
-| Quién aclara el tiempo sin asignar | Administradores y encargados | Si el encargado puede aclarar el tiempo de su propia gente |
+| Día incompleto de un trabajador de planta | Gana el día completo | Qué tratamiento lleva cada causa (abandono, permiso, descanso) y quién lo decide |
+| Horario habitual | 8 horas para todos (se cambia en Mano de obra) | Si es distinto por categoría o por temporada |
+| Horas extraordinarias | Sólo se registran las adicionales | Cuáles se reconocen, a cómo y quién autoriza |
+| Prestaciones | No se provisionan | Con qué base y a qué se cargan (cultivo, parcela, periodo) |
+| Tiempo aclarado como espera, traslado, mantenimiento | Queda fuera de las parcelas | A qué centro de costo va cada causa y con qué criterio se distribuye |
+| Operador del camión | No está en el modelo | Si es un trabajador de planta más (y su tiempo va al vehículo) |

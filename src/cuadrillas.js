@@ -37,7 +37,7 @@ export const TIPO_ACLARACION = "aclaracion";
 // falta aclararlo. Sólo "trabajo no registrado" manda ese tiempo a una parcela.
 export const CAUSAS_SIN_ASIGNAR = {
   trabajo_no_registrado: "Sí trabajó, pero no se registró dónde",
-  espera: "Espera (de material, de transporte, de indicaciones)",
+  espera: "Espera por instrucciones",
   mantenimiento: "Mantenimiento o limpieza general",
   traslado: "Traslado",
   descanso_autorizado: "Descanso autorizado",
@@ -52,7 +52,8 @@ const min = (a, b) => Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000
 // Un ajuste es un evento: queda dicho quién cambió la regla, cuándo y cuánto valía.
 export const AJUSTES = {
   ventana_repetida_min: { defecto: 15, minimo: 1, maximo: 120, nombre: "Minutos para tomar una segunda lectura como repetida" },
-  horas_jornada: { defecto: 8, minimo: 4, maximo: 12, nombre: "Horas de un día de trabajo (para quien cobra por hora)" },
+  criterio_flete: { defecto: "personas", opciones: { personas: "Entre las personas transportadas", pagado: "En proporción a lo que cobró cada grupo", parejo: "Parejo entre las parcelas donde trabajaron" }, nombre: "Cómo se reparte un flete externo de cuadrilla" },
+  horas_jornada: { defecto: 8, minimo: 4, maximo: 12, nombre: "Horas del horario habitual (de ahí en adelante son horas adicionales)" },
 };
 export function ajusteVigente(eventos, clave) {
   const def = AJUSTES[clave];
@@ -60,9 +61,10 @@ export function ajusteVigente(eventos, clave) {
   return ultimo ? { valor: ultimo.datos.valor, evento: ultimo.id, por: ultimo.quien?.nombre || "", desde: ultimo.cuando } : { valor: def?.defecto, evento: null, por: "", desde: null };
 }
 export function cambiarAjuste({ clave, valor, quien, cuando, fecha, azar }) {
-  const def = AJUSTES[clave]; const v = Number(valor);
+  const def = AJUSTES[clave]; const v = def?.opciones ? String(valor) : Number(valor);
   if (!def) return { ok: false, dice: "Esa regla no existe." };
   if (quien?.rol !== "admin") return { ok: false, dice: "Las reglas del rancho sólo las cambia un administrador." };
+  if (def.opciones) return def.opciones[v] ? { ok: true, evento: nuevoEvento({ tipo: TIPO_AJUSTE, cuando, fecha, quien, azar, datos: { clave, valor: v } }) } : { ok: false, dice: "Esa opción no existe." };
   if (!Number.isFinite(v) || v < def.minimo || v > def.maximo) return { ok: false, dice: `Tiene que ser un número entre ${def.minimo} y ${def.maximo}.` };
   return { ok: true, evento: nuevoEvento({ tipo: TIPO_AJUSTE, cuando, fecha, quien, azar, datos: { clave, valor: v } }) };
 }
@@ -89,10 +91,10 @@ export function terminar({ trabajadorIds, desde, fecha, quien, capturado, azar }
 // que pedirlo quien captura, no lo decide la app.
 export function anotarTareas({ produccion, trabajadorIds, cantidad, repartirParejo = false, parcelaId, actividad, unidad, tarifa, cuando, fecha, quien, capturado, azar }) {
   const t = Number(tarifa);
-  if (!PUEDE_REPARTIR.includes(quien?.rol)) return { ok: false, dice: "Sólo un encargado o un administrador anota un pago por tarea." };
+  if (!PUEDE_REPARTIR.includes(quien?.rol)) return { ok: false, dice: "Sólo un encargado o un administrador anota un destajo." };
   if (!parcelaId) return { ok: false, dice: "Falta la parcela." };
   if (!(t > 0)) return { ok: false, dice: "Falta a cómo se paga cada unidad." };
-  const base = { parcelaId, actividad: String(actividad || "Pago por tarea").trim(), unidad: String(unidad || "unidad").trim(), tarifa: t };
+  const base = { parcelaId, actividad: String(actividad || "Destajo").trim(), unidad: String(unidad || "unidad").trim(), tarifa: t };
   const porPersona = (produccion || []).map(r => ({ trabajadorId: r.trabajadorId, cantidad: Number(r.cantidad) })).filter(r => r.trabajadorId && r.cantidad > 0);
   if (porPersona.length > 0) {
     if (new Set(porPersona.map(r => r.trabajadorId)).size !== porPersona.length) return { ok: false, dice: "Una persona aparece dos veces en la relación." };
@@ -131,19 +133,33 @@ const cambiosDe = (eventos, fecha) => vigentes(eventos).filter(e => (e.tipo === 
 
 export function repartoActual(eventos, { fecha, hoy, ahora }) {
   const adentro = jornadasDe(eventos, { fecha, hoy, ahora }).filter(j => j.adentro);
-  const ultimo = new Map();
-  for (const c of cambiosDe(eventos, fecha)) if (c.cuando <= new Date(ahora).toISOString()) for (const id of c.datos.trabajadorIds) ultimo.set(id, c);
+  const hasta = new Date(ahora).toISOString();
+  const cambios = cambiosDe(eventos, fecha).filter(c => c.cuando <= hasta);
   const grupos = new Map(); const sinAsignar = [];
   for (const j of adentro) {
-    const c = ultimo.get(j.trabajadorId);
-    if (!c || c.tipo === TIPO_FIN) { sinAsignar.push({ trabajadorId: j.trabajadorId, desde: c?.cuando || j.primera.cuando }); continue; }
+    // Checar salida TERMINA la asignación. Si volvió a entrar, sólo cuenta lo que
+    // se le asignó después de esa salida; lo de antes queda como "lo anterior".
+    const entro = j.tramos[j.tramos.length - 1].entrada.cuando;
+    const salidaPrevia = j.tramos.slice(0, -1).map(t => t.salida?.cuando).filter(Boolean).pop() || null;
+    const mios = cambios.filter(c => c.datos.trabajadorIds.includes(j.trabajadorId));
+    const c = mios.filter(x => !salidaPrevia || x.cuando >= salidaPrevia).pop();
+    if (!c || c.tipo === TIPO_FIN) {
+      const previa = salidaPrevia ? mios.filter(x => x.cuando < salidaPrevia && x.tipo === TIPO_ASIGNACION).pop() : null;
+      const seguia = previa && mios.filter(x => x.cuando < salidaPrevia).pop() === previa;     // no le habían dicho "ya acabaron"
+      sinAsignar.push({ trabajadorId: j.trabajadorId, desde: c?.cuando > entro ? c.cuando : entro,
+        anterior: seguia ? { parcelaId: previa.datos.parcelaId, actividad: previa.datos.actividad, cuadrilla: previa.datos.cuadrilla } : null });
+      continue;
+    }
     const k = `${c.datos.parcelaId}|${c.datos.actividad}|${c.datos.cuadrilla}`;
     if (!grupos.has(k)) grupos.set(k, { clave: k, parcelaId: c.datos.parcelaId, actividad: c.datos.actividad, cuadrilla: c.datos.cuadrilla, miembros: [] });
-    grupos.get(k).miembros.push({ trabajadorId: j.trabajadorId, desde: c.cuando, evento: c.id });
+    grupos.get(k).miembros.push({ trabajadorId: j.trabajadorId, desde: c.cuando > entro ? c.cuando : entro, evento: c.id });
   }
-  // A quién se mandó a una parcela sin que haya checado: no cuenta horas, y se dice.
-  const presentes = new Set(adentro.map(j => j.trabajadorId));
-  const sinChecar = [...ultimo.entries()].filter(([id, c]) => c.tipo === TIPO_ASIGNACION && !presentes.has(id)).map(([id, c]) => ({ trabajadorId: id, evento: c.id, parcelaId: c.datos.parcelaId }));
+  // A quién se asignó sin que haya checado: no cuenta horas, y se dice.
+  const dia = jornadasDe(eventos, { fecha, hoy, ahora });
+  const vino = new Set(dia.map(j => j.trabajadorId));
+  const ultimo = new Map();
+  for (const c of cambios) for (const id of c.datos.trabajadorIds) ultimo.set(id, c);
+  const sinChecar = [...ultimo.entries()].filter(([id, c]) => c.tipo === TIPO_ASIGNACION && !vino.has(id)).map(([id, c]) => ({ trabajadorId: id, evento: c.id, parcelaId: c.datos.parcelaId }));
   return { grupos: [...grupos.values()], sinAsignar, sinChecar };
 }
 
@@ -162,7 +178,11 @@ export function tramosDeTrabajo(eventos, { desde, hasta, hoy, ahora } = {}) {
       const corriendo = !t.salida && j.adentro && j.tramos[j.tramos.length - 1] === t;
       const fin = t.salida ? t.salida.cuando : corriendo ? new Date(ahora).toISOString() : null;
       const base = { trabajadorId: j.trabajadorId, fecha: j.fecha, evEntrada: t.entrada.id, evSalida: t.salida?.id || null, corriendo };
-      const vigenteEn = (cuando) => mios.filter(c => c.cuando <= cuando).pop() || null;
+      // Checar salida termina la asignación: en este tramo sólo vale lo que se le
+      // asignó después de su última salida (o antes de entrar, si es el primero).
+      const k = j.tramos.indexOf(t);
+      const salidaPrevia = j.tramos.slice(0, k).map(x => x.salida?.cuando).filter(Boolean).pop() || null;
+      const vigenteEn = (cuando) => mios.filter(c => c.cuando <= cuando && (!salidaPrevia || c.cuando >= salidaPrevia)).pop() || null;
       if (!fin) {
         // Entró y no se sabe cuándo salió: no se inventan horas. Se deja dicho dónde estaba.
         const c = vigenteEn(ini) || mios[0] || null; const asig = c && c.tipo === TIPO_ASIGNACION ? c : null;
@@ -245,7 +265,7 @@ export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } =
         // NO se le carga a ninguna parcela hasta que alguien cierre su jornada.
         misPartes.push({ trabajadorId, fecha, parcelaId: null, actividad: null, modalidad: "dia", minutos: null, monto: v.sueldo, evs: unicos(mios.flatMap(evsDe)), estimado: v.estimado === true, provisional: false, sinHoras: true });
       }
-      if (dest.length > 0) avisos.push({ clase: "dia_y_destajo", trabajadorId, fecha, dice: "Ese día tiene su pago por día Y un pago por tarea. Si sólo cobra por tarea, hay que decirlo en su ficha." });
+      if (dest.length > 0) avisos.push({ clase: "dia_y_destajo", trabajadorId, fecha, dice: "Ese día tiene su pago por día Y un destajo. Si sólo cobra por destajo, hay que decirlo en su ficha." });
     }
     if (misPartes.length === 0) continue;
     partes.push(...misPartes);
@@ -260,7 +280,35 @@ export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } =
     // Del tiempo sin asignar: cuánto sigue sin aclarar y cuánto ya tiene causa.
     porAclarar: { minutos: suelto.filter(p => !p.causa).reduce((s, p) => s + (p.minutos || 0), 0), monto: sumarDinero(suelto.filter(p => !p.causa).map(p => p.monto)) },
     porCausa: agrupar(suelto.filter(p => p.causa), ["causa"]),
+    // Productividad, sin revolver: lo trabajado, lo que falta aclarar, y lo que
+    // alguien CONFIRMÓ como improductivo. Espera, traslado y mantenimiento no son ninguna de las tres.
+    tiempo: {
+      trabajado: asignado.reduce((s, p) => s + (p.minutos || 0), 0),
+      porAclarar: suelto.filter(p => !p.causa).reduce((s, p) => s + (p.minutos || 0), 0),
+      improductivo: suelto.filter(p => p.causa === "inactividad").reduce((s, p) => s + (p.minutos || 0), 0),
+      otros: suelto.filter(p => p.causa && p.causa !== "inactividad").reduce((s, p) => s + (p.minutos || 0), 0),
+    },
+    horasAdicionales: horasAdicionalesDe(devengado, horasJornada),
   };
+}
+
+// Horas adicionales REGISTRADAS: el tiempo que cada quien estuvo por encima de
+// su horario habitual. Salen solas de las marcas; nadie las captura. Registrarlas
+// NO cambia el pago: reconocerlas como extraordinarias para pagarlas es otra
+// decisión, que lleva autorización (todavía no está hecha).
+export function horasAdicionalesDe(devengado, horasHabituales) {
+  const tope = Math.round(Number(horasHabituales) * 60);
+  return devengado.filter(d => d.minutos > tope).map(d => ({ trabajadorId: d.trabajadorId, fecha: d.fecha, minutos: d.minutos - tope, semana: semanaDe(d.fecha), mes: d.fecha.slice(0, 7), anio: d.fecha.slice(0, 4), provisional: d.provisional }));
+}
+// El lunes de la semana de una fecha (AAAA-MM-DD), para acumular por semana.
+export function semanaDe(fecha) {
+  const d = new Date(fecha + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+export function acumular(horas, campo) {
+  const m = new Map();
+  for (const h of horas) { const k = `${h.trabajadorId}|${h[campo]}`; m.set(k, { trabajadorId: h.trabajadorId, [campo]: h[campo], minutos: (m.get(k)?.minutos || 0) + h.minutos, dias: (m.get(k)?.dias || 0) + 1 }); }
+  return [...m.values()];
 }
 
 // Agrupar las partes para contestar "por parcela" o "por persona".

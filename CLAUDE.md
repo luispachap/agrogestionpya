@@ -14,9 +14,9 @@ entrega el trabajo hecho.
 
 **Cómo se habla en las pantallas.** Lenguaje moderno, claro y natural, como se
 habla en el rancho. **Nunca** «jornal», «jornalero», «labor» ni «faena». Se dice
-«trabajador», «personal», «actividad», «pago por día», «pago por tarea», «equipo
-de trabajo», «trabajadores de planta», y «cuadrilla» sólo para los grupos
-eventuales que llegan juntos con su responsable y su flete. En pantallas de
+«trabajador», «personal», «actividad», «pago por día», «destajo», «equipo de
+trabajo», «trabajadores de planta», y «cuadrilla» sólo para los grupos
+eventuales que llegan juntos con su responsable. En pantallas de
 operación, nada de tecnicismos contables («devengado», «provisión»); en reportes
 financieros sí, cuando den precisión. Los valores guardados por dentro no se
 cambian (`"jornalero"`, `"jornal"`, `"destajo"`): se traducen al enseñarlos
@@ -73,6 +73,20 @@ Usuarios reales de la app:
   duplica (`capturasDobles` lo avisa). En pago por tarea a cada quien le toca lo
   que hizo; parejo sólo si se pide. El tiempo sin asignar es «por aclarar», no
   pérdida. El plan del motor de costeo y las políticas pendientes: `docs/COSTEO.md`.
+- **`src/eventuales.js`** (en pantalla: «Cuadrillas»): los grupos eventuales.
+  `cuadrilla_dia` = quiénes vinieron, parcela, actividad y cómo cobran (por día,
+  cada quien lo suyo; o destajo con lo que hizo CADA persona — parejo sólo con
+  el total del grupo y con el nombre de quien lo autoriza). `traslado_cuadrilla`
+  = cómo llegaron: flete externo (se reparte con `criterio_flete`, configurable,
+  y si ese día no hay trabajo registrado queda PENDIENTE, no se reparte),
+  vehículo propio (**sin importe**: su costo vive en los gastos del vehículo;
+  ponerlo aquí lo duplica o lo inventa) o sin transporte. La pantalla vieja
+  donde la cuadrilla entra con PIN sigue existiendo; no usar las dos para el
+  mismo día.
+- Reglas ya decididas por Luis (19 nov): checar salida TERMINA la asignación
+  (al volver queda sin asignar; se ofrece «continuar»); el tiempo sin asignar es
+  «por aclarar» y nunca se distribuye solo; las horas adicionales se registran y
+  acumulan sin cambiar el pago (reconocerlas es otra decisión).
 - **`src/almacenEventos.js`**: los eventos NO viven en el cajón de 5 MB: viven
   en IndexedDB (`LLAVES.eventos`), uno por renglón (`useCajon`). De la nube se
   bajan aparte, sólo lo nuevo y por páginas (`leerEventosDesde`), cada 2 min.
@@ -193,7 +207,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **114 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **115 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

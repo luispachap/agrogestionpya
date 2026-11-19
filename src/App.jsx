@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component, createContext, useContext } from "react";
 // Una operación, múltiples consecuencias: el evento se captura una vez.
-import { estaVigente, cambioPermitido, sinRepetir, juntarEventos } from "./eventos.js";
+import { estaVigente, cambioPermitido, sinRepetir, juntarEventos, cancelarEvento } from "./eventos.js";
 import { abrirAlmacenDeEventos, borrarAlmacenDeEventos } from "./almacenEventos.js";
 // El checador: credenciales, marcas de entrada y salida, y la jornada que sale de ellas.
 import {
@@ -10,8 +10,10 @@ import {
 // Cuadrillas: a dónde se mandó a cada quien, y la mano de obra que sale de ahí.
 import {
   asignar, terminar, anotarTareas, aclararTiempo, CAUSAS_SIN_ASIGNAR, repartoActual, manoDeObra, agrupar, actividadesDeManoDeObra, capturasDobles,
-  ajusteVigente, cambiarAjuste, AJUSTES, horasDe,
+  ajusteVigente, cambiarAjuste, AJUSTES, horasDe, acumular,
 } from "./cuadrillas.js";
+// Cuadrillas: los grupos eventuales que llegan juntos, con su responsable y su transporte.
+import { registrarCuadrilla, registrarTraslado, costoDeCuadrillas, actividadesDeCuadrillas, integrantesConocidos, yaTieneTraslado, pagosDe, CRITERIOS_FLETE } from "./eventuales.js";
 // Encontrar las cosas: grupos, lo de cada perfil, lo anclado y lo que más se usa.
 import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarraDe, barraDe, necesitaMenu, alternarInicio, alternarBarra, moverEnInicio, volverALoDeFabrica, anotarUso, masUsadas, ancladasConDatos, TOPE_BARRA, ENFOQUES, PERFILES_CON_ENFOQUE, faltaEnfoque, elegirEnfoque, alternarGrupo, mezclarPrefs, sellarAcomodo, mismoAcomodo } from "./menu.js";
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
@@ -2401,6 +2403,9 @@ function normalizeData(d) {
   const __moEv = manoDeObra(fix.eventos, fix.trabajadores || [], { hoy: fechaLocal(), ahora: new Date().toISOString() });
   fix.manoDeObraEventos = __moEv;
   fix.actividadesContables = fix.actividadesContables.concat(actividadesDeManoDeObra(__moEv.partes, fix.trabajadores || []));
+  // Y lo de las cuadrillas eventuales: lo que cobró cada persona y el flete externo ya repartido.
+  const __cq = costoDeCuadrillas(fix.eventos, { criterioFlete: ajusteVigente(fix.eventos, "criterio_flete").valor });
+  fix.actividadesContables = fix.actividadesContables.concat(actividadesDeCuadrillas(__cq.partes));
   return fix;
 }
 
@@ -6795,6 +6800,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "checador" && <Checador data={data} add={add} session={session} onNav={setPage} onClose={() => setPage("home")} listo={eventosListos} cerrado={clavado ? cerrado : null} onCerrar={cerrarChecador} onAbrir={abrirChecador} />}
               {page === "credenciales" && <Credenciales data={data} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "reparto" && <Reparto data={data} add={add} session={session} onNav={setPage} onClose={() => setPage("home")} />}
+              {page === "cuadrillas-dia" && <CuadrillasDelDia data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "mano-obra" && <ManoDeObra data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "jornadas" && <Jornadas data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "arranque" && <ArranqueLimpio data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
@@ -6835,6 +6841,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "checador" && <Checador data={data} add={add} session={session} onNav={setPage} onClose={() => setPage("home")} listo={eventosListos} cerrado={clavado ? cerrado : null} onCerrar={cerrarChecador} onAbrir={abrirChecador} />}
               {page === "credenciales" && <Credenciales data={data} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "reparto" && <Reparto data={data} add={add} session={session} onNav={setPage} onClose={() => setPage("home")} />}
+              {page === "cuadrillas-dia" && <CuadrillasDelDia data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "jornadas" && <Jornadas data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "tareas" && <EncargadoTareas data={data} add={add} upd={upd} del={del} session={session} />}
               {page === "personal" && <EncargadoPersonal data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} session={session} />}
@@ -7577,7 +7584,7 @@ function AprobacionExternos({ data, upd, onBack }) {
 // Cómo se le dice a cada cosa en pantalla. Por dentro los valores guardados no
 // cambian ("jornalero", "jornal", "destajo"): cambiarlos rompería lo ya capturado.
 const nombreDeCategoria = (c) => (String(c || "").toLowerCase() === "jornalero" ? "general" : c);
-const nombreDeModalidad = (m) => ({ jornal: "por día", dia: "por día", tarea: "monto fijo", destajo: "por tarea", caja: "por caja", hora: "por hora" }[m || "jornal"] || m);
+const nombreDeModalidad = (m) => ({ jornal: "por día", dia: "por día", tarea: "monto fijo", destajo: "destajo", caja: "por caja", hora: "por hora" }[m || "jornal"] || m);
 const horaCorta = (iso) => new Date(iso).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit" });
 const quienDe = (session) => ({ id: session.id, nombre: session.nombre, rol: session.role });
 
@@ -7966,7 +7973,9 @@ function ReglasDelRancho({ data, add, session, claves }) {
           <div key={clave} className="form-group">
             <label className="form-label" htmlFor={`regla-${clave}`}>{AJUSTES[clave].nombre}</label>
             <div style={{ display: "flex", gap: 8 }}>
-              <input id={`regla-${clave}`} className="inp" type="number" inputMode="numeric" min={AJUSTES[clave].minimo} max={AJUSTES[clave].maximo} value={valores[clave] ?? v.valor} onChange={e => setValores(x => ({ ...x, [clave]: e.target.value }))} />
+              {AJUSTES[clave].opciones
+                ? <select id={`regla-${clave}`} className="inp" value={valores[clave] ?? v.valor} onChange={e => setValores(x => ({ ...x, [clave]: e.target.value }))}>{Object.entries(AJUSTES[clave].opciones).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
+                : <input id={`regla-${clave}`} className="inp" type="number" inputMode="numeric" min={AJUSTES[clave].minimo} max={AJUSTES[clave].maximo} value={valores[clave] ?? v.valor} onChange={e => setValores(x => ({ ...x, [clave]: e.target.value }))} />}
               <button className="btn btn-outline btn-sm" disabled={valores[clave] == null || String(valores[clave]) === String(v.valor)} onClick={() => guardar(clave)}>Guardar</button>
             </div>
             <div className="text-xs text-muted" style={{ marginTop: 4 }}>{v.evento ? `Lo puso ${v.por} el ${fechaLocal(new Date(v.desde))}.` : "Es el valor con el que viene."}</div>
@@ -8048,6 +8057,12 @@ function Reparto({ data, add, session, onNav, onClose }) {
               <button className="acc-link" onClick={() => { const ids = r.sinAsignar.map(x => x.trabajadorId); marcarVarios(ids, !ids.every(id => sel[id])); }}>{r.sinAsignar.every(x => sel[x.trabajadorId]) ? "Quitar todos" : "Marcar todos"}</button>
             </div>
             <div className="rep-fichas">{r.sinAsignar.map(x => ficha(x.trabajadorId, x.desde))}</div>
+            {r.sinAsignar.filter(x => x.anterior).map(x => (
+              <button key={"c" + x.trabajadorId} className="acc-todo" style={{ marginTop: 8 }} onClick={() => {
+                const res = asignar({ trabajadorIds: [x.trabajadorId], ...x.anterior, desde: ahora, fecha: hoy, quien, capturado: ahora });
+                if (res.ok) add("eventos", res.evento); else setDice(res.dice);
+              }}>{nombre(x.trabajadorId)}: continuar en {parcela(x.anterior.parcelaId)?.nombre || "su parcela"} · {x.anterior.actividad}</button>
+            ))}
             <div className="text-xs text-muted" style={{ marginTop: 8 }}>Están en el rancho pero su tiempo no se le carga a ninguna parcela.</div>
           </div>
         )}
@@ -8062,7 +8077,7 @@ function Reparto({ data, add, session, onNav, onClose }) {
             <div className="jor-acc">
               <button onClick={() => { const ids = g.miembros.map(m => m.trabajadorId); marcarVarios(ids, !ids.every(id => sel[id])); }}>Marcar a todos para moverlos</button>
               <button onClick={() => acabaron(g.miembros.map(m => m.trabajadorId))}>Ya acabaron</button>
-              <button onClick={() => { setDestajo({ grupo: g, porPersona: {}, soloTotal: false, cantidad: "", parejo: false, unidad: "caja", tarifa: "" }); setDice(""); }}>Anotar pago por tarea</button>
+              <button onClick={() => { setDestajo({ grupo: g, porPersona: {}, soloTotal: false, cantidad: "", parejo: false, unidad: "caja", tarifa: "" }); setDice(""); }}>Anotar destajo</button>
             </div>
           </div>
         ))}
@@ -8079,7 +8094,7 @@ function Reparto({ data, add, session, onNav, onClose }) {
       {destajo && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setDestajo(null); }}>
           <div className="modal-sheet">
-            <div className="card-title">Pago por tarea · {parcela(destajo.grupo.parcelaId)?.nombre} · {destajo.grupo.actividad}</div>
+            <div className="card-title">Destajo · {parcela(destajo.grupo.parcelaId)?.nombre} · {destajo.grupo.actividad}</div>
             <div style={{ display: "flex", gap: 8 }}>
               <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="dj-u">Se paga por</label><input id="dj-u" className="inp" value={destajo.unidad} onChange={e => setDestajo(d => ({ ...d, unidad: e.target.value }))} /></div>
               <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="dj-t">A cómo cada una ($)</label><input id="dj-t" className="inp" type="number" inputMode="decimal" value={destajo.tarifa} onChange={e => setDestajo(d => ({ ...d, tarifa: e.target.value }))} /></div>
@@ -8138,6 +8153,184 @@ function Reparto({ data, add, session, onNav, onClose }) {
   );
 }
 
+// Las cuadrillas eventuales: quiénes vinieron hoy, a qué parcela, a hacer qué,
+// cómo cobran y cómo llegaron. Una captura por cuadrilla y actividad.
+function CuadrillasDelDia({ data, add, upd, session, onClose }) {
+  const hoy = today();
+  const F0 = { cuadrillaId: "", otra: "", responsable: "", parcelaId: "", actividad: "", otraAct: "", modalidad: "dia", pagoTodos: "", gente: [{ nombre: "", valor: "" }], unidad: "caja", tarifa: "", soloTotal: false, total: "", parejo: false, transporte: "", vehiculoId: "", flete: "" };
+  const [form, setForm] = useState(null);
+  const [dice, setDice] = useState("");
+  const [cancelando, setCancelando] = useState(null);     // { evento, motivo }
+  const quien = quienDe(session);
+  const catalogo = data.cuadrillas || [];
+  const parcela = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "Parcela que no está en este aparato";
+  const deHoy = (data.eventos || []).filter(e => e.tipo === "cuadrilla_dia" && e.fecha === hoy).sort((a, b) => a.capturado.localeCompare(b.capturado));
+  const trasladosHoy = (data.eventos || []).filter(e => e.tipo === "traslado_cuadrilla" && e.fecha === hoy && estaVigente(e));
+  const actividades = [...new Set([...ACTIVIDADES_DE_CAMPO, ...(data.eventos || []).filter(e => e.tipo === "cuadrilla_dia").map(e => e.datos.actividad)])].sort((a, b) => a.localeCompare(b));
+  const elegida = form && catalogo.find(c => c.id === form.cuadrillaId);
+  const idCq = form ? (form.cuadrillaId === "__otra__" ? `sin-catalogo:${form.otra.trim().toLowerCase()}` : form.cuadrillaId) : "";
+  const nombreCq = form ? (form.cuadrillaId === "__otra__" ? form.otra : elegida?.nombre || "") : "";
+  const conocidos = form && idCq ? integrantesConocidos(data.eventos, idCq) : [];
+  const yaLlegaron = form && idCq ? yaTieneTraslado(data.eventos, idCq, hoy) : false;
+  const pon = (cambios) => setForm(f => ({ ...f, ...cambios }));
+  const ponGente = (i, cambios) => setForm(f => ({ ...f, gente: f.gente.map((g, k) => (k === i ? { ...g, ...cambios } : g)) }));
+  const gente = form ? form.gente.filter(g => g.nombre.trim()) : [];
+
+  const guardar = () => {
+    const ahora = new Date().toISOString();
+    const comun = { cuadrillaId: form.cuadrillaId === "__otra__" ? null : form.cuadrillaId, cuadrilla: nombreCq, responsable: form.responsable, parcelaId: form.parcelaId,
+      actividad: form.actividad === "__otra__" ? form.otraAct : form.actividad, fecha: hoy, cuando: ahora, capturado: ahora, quien };
+    const res = form.modalidad === "dia"
+      ? registrarCuadrilla({ ...comun, modalidad: "dia", integrantes: gente.map(g => ({ nombre: g.nombre, pagoDia: g.valor || form.pagoTodos })) })
+      : registrarCuadrilla({ ...comun, modalidad: "destajo", destajo: { unidad: form.unidad, tarifa: form.tarifa, produccion: gente.map(g => ({ nombre: g.nombre, cantidad: form.soloTotal ? "" : g.valor })), total: form.soloTotal ? form.total : "", autorizoParejo: form.soloTotal && form.parejo ? session.nombre : "" } });
+    if (!res.ok) { setDice(res.dice); return; }
+    let traslado = null;
+    if (!yaLlegaron) {
+      if (!form.transporte) { setDice("Falta decir cómo llegaron (si no se sabe, escoge \"Sin transporte registrado\")."); return; }
+      const v = (data.maquinaria || []).find(m => m.id === form.vehiculoId);
+      const t = registrarTraslado({ cuadrillaId: comun.cuadrillaId, cuadrilla: nombreCq, tipo: form.transporte, vehiculoId: form.vehiculoId, vehiculo: v?.nombre || "", monto: form.flete, personas: gente.length, fecha: hoy, cuando: ahora, capturado: ahora, quien });
+      if (!t.ok) { setDice(t.dice); return; }
+      traslado = t.evento;
+    }
+    add("eventos", res.evento); if (traslado) add("eventos", traslado);
+    setForm(null); setDice("");
+  };
+  const cancelarRegistro = () => {
+    const res = cancelarEvento(cancelando.evento, { motivo: cancelando.motivo, quien, cuando: new Date().toISOString() });
+    if (!res.ok) { setDice(res.dice); return; }
+    if (cambioPermitido(cancelando.evento, res.evento)) upd("eventos", res.evento);
+    setCancelando(null); setDice("");
+  };
+
+  if (form) {
+    const totalDia = gente.reduce((s, g) => s + (Number(g.valor || form.pagoTodos) || 0), 0);
+    const unidades = form.soloTotal ? Number(form.total) || 0 : gente.reduce((s, g) => s + (Number(g.valor) || 0), 0);
+    return (
+      <div>
+        <div className="top-bar"><button className="btn-ghost" onClick={() => { setForm(null); setDice(""); }}>‹</button><h2>Registrar cuadrilla</h2></div>
+        <div className="section-pad">
+          <div className="card">
+            <div className="form-group"><label className="form-label" htmlFor="cq-cual">Cuadrilla</label>
+              <select id="cq-cual" className="inp" value={form.cuadrillaId} onChange={e => { const c = catalogo.find(x => x.id === e.target.value); pon({ cuadrillaId: e.target.value, responsable: c?.responsable || form.responsable }); }}>
+                <option value="">¿Cuál vino?</option>
+                {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                <option value="__otra__">Otra que no está en la lista…</option>
+              </select></div>
+            {form.cuadrillaId === "__otra__" && <input className="inp" aria-label="Nombre de la cuadrilla" placeholder="¿Cómo se le conoce?" value={form.otra} onChange={e => pon({ otra: e.target.value })} style={{ marginBottom: 12 }} />}
+            <div className="form-group"><label className="form-label" htmlFor="cq-resp">Responsable</label><input id="cq-resp" className="inp" placeholder="Quién viene a cargo" value={form.responsable} onChange={e => pon({ responsable: e.target.value })} /></div>
+            <select className="inp" aria-label="Parcela" value={form.parcelaId} onChange={e => pon({ parcelaId: e.target.value })} style={{ marginBottom: 8 }}>
+              <option value="">¿En qué parcela?</option>{(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            </select>
+            <select className="inp" aria-label="Qué hicieron" value={form.actividad} onChange={e => pon({ actividad: e.target.value })}>
+              <option value="">¿Haciendo qué?</option>{actividades.map(a => <option key={a} value={a}>{a}</option>)}<option value="__otra__">Otra cosa…</option>
+            </select>
+            {form.actividad === "__otra__" && <input className="inp" aria-label="Otra actividad" placeholder="¿Qué hicieron?" value={form.otraAct} onChange={e => pon({ otraAct: e.target.value })} style={{ marginTop: 8 }} />}
+          </div>
+
+          <div className="card">
+            <div className="card-title">Cómo cobran</div>
+            <div className="tabs-pill" style={{ padding: "0 0 12px" }}>
+              <button className={`tab-pill${form.modalidad === "dia" ? " active" : ""}`} onClick={() => pon({ modalidad: "dia", gente: form.gente.map(g => ({ ...g, valor: "" })) })}>Por día</button>
+              <button className={`tab-pill${form.modalidad === "destajo" ? " active" : ""}`} onClick={() => pon({ modalidad: "destajo", gente: form.gente.map(g => ({ ...g, valor: "" })) })}>Destajo</button>
+            </div>
+            {form.modalidad === "dia" && <div className="form-group"><label className="form-label" htmlFor="cq-todos">Pago por día de cada persona ($)</label><input id="cq-todos" className="inp" type="number" inputMode="decimal" placeholder="Lo mismo para todos, salvo quien tenga otro" value={form.pagoTodos} onChange={e => pon({ pagoTodos: e.target.value })} /></div>}
+            {form.modalidad === "destajo" && (
+              <div style={{ display: "flex", gap: 8 }}>
+                <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="cq-u">Se paga por</label><input id="cq-u" className="inp" value={form.unidad} onChange={e => pon({ unidad: e.target.value })} /></div>
+                <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="cq-t">A cómo cada una ($)</label><input id="cq-t" className="inp" type="number" inputMode="decimal" value={form.tarifa} onChange={e => pon({ tarifa: e.target.value })} /></div>
+              </div>
+            )}
+            <div className="flex-b" style={{ marginBottom: 6 }}>
+              <span className="form-label" style={{ marginBottom: 0 }}>Quiénes vinieron ({gente.length})</span>
+              {conocidos.length > 0 && gente.length === 0 && <button className="acc-link" onClick={() => pon({ gente: conocidos.map(c => ({ nombre: c.nombre, valor: form.modalidad === "dia" && c.pagoDia ? String(c.pagoDia) : "" })) })}>Los de la vez pasada ({conocidos.length})</button>}
+            </div>
+            {form.gente.map((g, i) => (
+              <div key={i} className="dj-fila" style={{ gridTemplateColumns: form.soloTotal ? "1fr 34px" : "1fr 96px 34px" }}>
+                <input className="inp" aria-label={`Nombre ${i + 1}`} placeholder="Nombre" value={g.nombre} onChange={e => ponGente(i, { nombre: e.target.value })} />
+                {!form.soloTotal && <input className="inp" type="number" inputMode="decimal" aria-label={form.modalidad === "dia" ? `Pago de ${g.nombre || i + 1}` : `Cuánto hizo ${g.nombre || i + 1}`} placeholder={form.modalidad === "dia" ? (form.pagoTodos || "$") : form.unidad} value={g.valor} onChange={e => ponGente(i, { valor: e.target.value })} />}
+                <button className="btn-ghost" title="Quitar" onClick={() => pon({ gente: form.gente.length > 1 ? form.gente.filter((_, k) => k !== i) : [{ nombre: "", valor: "" }] })}>×</button>
+              </div>
+            ))}
+            <button className="acc-todo" style={{ marginTop: 6 }} onClick={() => pon({ gente: [...form.gente, { nombre: "", valor: "" }] })}>Agregar persona</button>
+            {form.modalidad === "destajo" && <>
+              <button className="acc-link" style={{ padding: "10px 0 4px" }} onClick={() => pon({ soloTotal: !form.soloTotal, parejo: false })}>{form.soloTotal ? "Tengo cuánto hizo cada quien" : "Sólo tengo el total del grupo"}</button>
+              {form.soloTotal && <>
+                <div className="form-group"><label className="form-label" htmlFor="cq-total">Total del grupo ({form.unidad})</label><input id="cq-total" className="inp" type="number" inputMode="decimal" value={form.total} onChange={e => pon({ total: e.target.value })} /></div>
+                <label className="dj-parejo"><input type="checkbox" checked={form.parejo} onChange={e => pon({ parejo: e.target.checked })} /> No se sabe cuánto hizo cada quien: repartirlo parejo. Lo autorizo yo, {session.nombre}.</label>
+              </>}
+            </>}
+            {form.modalidad === "dia" && totalDia > 0 && <div className="text-sm" style={{ marginTop: 10 }}>Son <b>{fmt(totalDia)}</b> entre {gente.length}.</div>}
+            {form.modalidad === "destajo" && unidades > 0 && Number(form.tarifa) > 0 && <div className="text-sm" style={{ marginTop: 10 }}>Son {fmtN(unidades)} {form.unidad}: <b>{fmt(unidades * Number(form.tarifa))}</b>.</div>}
+          </div>
+
+          <div className="card">
+            <div className="card-title">Cómo llegaron</div>
+            {yaLlegaron ? <div className="text-sm text-muted">Su transporte de hoy ya está registrado. No se vuelve a capturar.</div> : <>
+              <select className="inp" aria-label="Transporte" value={form.transporte} onChange={e => pon({ transporte: e.target.value })} style={{ marginBottom: 8 }}>
+                <option value="">Escoge…</option>
+                <option value="propio">En un vehículo del rancho</option>
+                <option value="flete">En un flete que se pagó</option>
+                <option value="ninguno">Sin transporte registrado</option>
+              </select>
+              {form.transporte === "propio" && <>
+                <select className="inp" aria-label="Vehículo" value={form.vehiculoId} onChange={e => pon({ vehiculoId: e.target.value })} style={{ marginBottom: 6 }}>
+                  <option value="">¿En cuál?</option>{(data.maquinaria || []).map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                </select>
+                <div className="text-xs text-muted">No se le pone importe: lo que cuesta ese viaje sale del combustible, el mantenimiento y el operador del vehículo. Ponerlo aquí lo contaría dos veces.{(data.maquinaria || []).length === 0 ? " Todavía no hay vehículos dados de alta en Equipo." : ""}</div>
+              </>}
+              {form.transporte === "flete" && <>
+                <input className="inp" type="number" inputMode="decimal" aria-label="Cuánto se pagó de flete" placeholder="¿Cuánto se pagó de flete? ($)" value={form.flete} onChange={e => pon({ flete: e.target.value })} style={{ marginBottom: 6 }} />
+                <div className="text-xs text-muted">Se reparte así: {CRITERIOS_FLETE[ajusteVigente(data.eventos, "criterio_flete").valor].toLowerCase()}. Un administrador lo cambia en Mano de obra.</div>
+              </>}
+            </>}
+          </div>
+          {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 10 }}>{dice}</div>}
+          <button className="btn btn-accent" style={{ width: "100%" }} onClick={guardar}>Guardar</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="top-bar"><button className="btn-ghost" onClick={onClose}>‹</button><h2>Cuadrillas</h2></div>
+      <div className="section-pad">
+        <button className="btn btn-accent" style={{ width: "100%", marginBottom: 14 }} onClick={() => { setForm(F0); setDice(""); }}>Registrar una cuadrilla de hoy</button>
+        {deHoy.length === 0 && <div className="card"><div className="text-sm text-muted">Hoy no se ha registrado ninguna cuadrilla. Aquí van los grupos eventuales que llegan juntos; los trabajadores de planta checan con su credencial y se asignan en Equipos de trabajo.</div></div>}
+        {deHoy.map(e => {
+          const vive = estaVigente(e); const pagos = pagosDe(e); const t = trasladosHoy.find(x => x.datos.cuadrillaId === e.datos.cuadrillaId);
+          return (
+            <div key={e.id} className="card" style={{ opacity: vive ? 1 : 0.55 }}>
+              <div className="flex-b"><span className="card-title" style={{ marginBottom: 0, textDecoration: vive ? "none" : "line-through" }}>{e.datos.cuadrilla}</span><b>{fmt(pagos.reduce((s, p) => s + p.monto, 0))}</b></div>
+              <div className="text-sm" style={{ margin: "2px 0 8px" }}>{parcela(e.datos.parcelaId)} · {e.datos.actividad} · {pagos.length} persona(s) · {e.datos.modalidad === "dia" ? "pago por día" : `destajo a ${fmt(e.datos.destajo.tarifa)} por ${e.datos.destajo.unidad}`}</div>
+              {pagos.map(p => <div key={p.persona} className="mo-act"><span>{p.persona}</span><span className="text-muted">{p.unidades != null ? `${fmtN(p.unidades)} ${e.datos.destajo.unidad}${p.parejo ? " (parejo)" : ""}` : ""}</span><b>{fmt(p.monto)}</b></div>)}
+              <div className="text-xs text-muted" style={{ marginTop: 8 }}>
+                {e.datos.responsable ? `Responsable: ${e.datos.responsable} · ` : ""}{t ? (t.datos.tipo === "flete" ? `Flete externo de ${fmt(t.datos.monto)}` : t.datos.tipo === "propio" ? `Llegaron en ${t.datos.vehiculo || "vehículo del rancho"}` : "Sin transporte registrado") : "Transporte sin registrar"} · Lo registró {e.quien?.nombre}
+                {e.estado === "cancelado" ? ` · CANCELADO por ${e.cancelado?.por?.nombre}: "${e.cancelado?.motivo}"` : ""}
+              </div>
+              {vive && <div className="jor-acc"><button onClick={() => { setCancelando({ evento: e, motivo: "" }); setDice(""); }}>Cancelar este registro</button></div>}
+            </div>
+          );
+        })}
+      </div>
+      {cancelando && (
+        <div className="modal-overlay" onClick={ev => { if (ev.target === ev.currentTarget) setCancelando(null); }}>
+          <div className="modal-sheet">
+            <div className="card-title">Cancelar el registro de {cancelando.evento.datos.cuadrilla}</div>
+            <div className="text-sm text-muted" style={{ marginBottom: 10 }}>No se borra: queda tachado, con quién lo canceló y por qué, y deja de contar en los costos. Si había un error, se registra otra vez bien.</div>
+            <input className="inp" aria-label="Por qué se cancela" placeholder="Por qué (queda escrito)" value={cancelando.motivo} onChange={ev => setCancelando(c => ({ ...c, motivo: ev.target.value }))} style={{ marginBottom: 10 }} />
+            {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setCancelando(null)}>No</button>
+              <button className="btn btn-accent" style={{ flex: 1 }} onClick={cancelarRegistro}>Cancelar registro</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Quién trabajó, dónde, cuánto tiempo, haciendo qué y cuánto costó. Todo sale
 // de las marcas del checador y de las asignaciones: aquí no se captura nada.
 function ManoDeObra({ data, add, session, onClose }) {
@@ -8157,11 +8350,19 @@ function ManoDeObra({ data, add, session, onClose }) {
   };
   const r = useMemo(() => manoDeObra(data.eventos, data.trabajadores || [], { desde: rango.desde, hasta: rango.hasta, hoy, ahora: new Date().toISOString() }), [data.eventos, data.trabajadores, rango.desde, rango.hasta, hoy]);
   const dobles = capturasDobles(data.actividades, r.partes);
-  const nombre = (id) => (data.trabajadores || []).find(t => t.id === id)?.nombre || "Sin ficha en este aparato";
+  // Las cuadrillas eventuales entran al mismo reporte: lo que cobró cada persona y el flete externo repartido.
+  const cq = useMemo(() => costoDeCuadrillas(data.eventos, { desde: rango.desde, hasta: rango.hasta, criterioFlete: ajusteVigente(data.eventos, "criterio_flete").valor }), [data.eventos, rango.desde, rango.hasta]);
+  const partesCq = cq.partes.map(p => ({ ...p, trabajadorId: `cq|${p.cuadrillaId}|${p.persona || "~flete"}`, minutos: null, deCuadrilla: true }));
+  const todas = [...r.partes, ...partesCq];
+  const nombre = (id) => {
+    if (String(id).startsWith("cq|")) { const p = partesCq.find(x => x.trabajadorId === id); return p ? (p.persona ? `${p.persona} · ${p.cuadrilla}` : `Flete externo · ${p.cuadrilla}`) : "Cuadrilla"; }
+    return (data.trabajadores || []).find(t => t.id === id)?.nombre || "Sin ficha en este aparato";
+  };
   const parcela = (id) => (id ? (data.parcelas || []).find(p => p.id === id)?.nombre || "Parcela que no está en este aparato" : "Fuera de parcelas");
-  const grupos = vista === "parcela" ? agrupar(r.partes, ["parcelaId"]) : agrupar(r.partes, ["trabajadorId"]);
+  const grupos = vista === "parcela" ? agrupar(todas, ["parcelaId"]) : agrupar(todas, ["trabajadorId"]);
+  const adicionales = acumular(r.horasAdicionales, "trabajadorId");
   const etiquetas = (g) => <>{g.provisional && <span className="jor-etq">sigue adentro</span>}{g.estimado && <span className="jor-etq">sueldo estimado</span>}</>;
-  const modalidad = { dia: "pago por día", hora: "pago por hora", destajo: "pago por tarea" };
+  const modalidad = { dia: "pago por día", hora: "pago por hora", destajo: "destajo", flete: "flete externo" };
   const decir = (id) => {
     const e = (data.eventos || []).find(x => x.id === id);
     if (!e) return { titulo: "Un evento que este aparato todavía no ha bajado", linea: id };
@@ -8169,7 +8370,9 @@ function ManoDeObra({ data, add, session, onClose }) {
     const quienFue = `Lo registró ${e.quien?.nombre || "—"}${e.relacion === "corrige" ? " (corrección)" : ""}`;
     if (e.tipo === "marca") return { titulo: `${base} · ${e.datos.sentido}`, linea: `${e.datos.via === "qr" ? "Con credencial" : e.datos.via === "pin" ? "Con PIN" : e.datos.via === "remoto" ? `Directo a ${e.datos.lugar?.nombre || "campo"}` : `A mano: "${e.datos.motivo || ""}"`} · ${quienFue}` };
     if (e.tipo === "asignacion") return { titulo: `${base} · asignado a ${parcela(e.datos.parcelaId)}`, linea: `${e.datos.actividad}${e.datos.cuadrilla ? ` · ${e.datos.cuadrilla}` : ""} · junto con ${e.datos.trabajadorIds.length - 1} más · ${quienFue}` };
-    if (e.tipo === "destajo") return { titulo: `${base} · pago por tarea`, linea: `${e.datos.produccion ? "Con lo que hizo cada quien" : `${fmtN(e.datos.cantidad)} ${e.datos.unidad} entre ${e.datos.trabajadorIds.length}${e.datos.parejo ? ", repartido parejo" : ""}`} · a ${fmt(e.datos.tarifa)} por ${e.datos.unidad} · ${quienFue}` };
+    if (e.tipo === "destajo") return { titulo: `${base} · destajo`, linea: `${e.datos.produccion ? "Con lo que hizo cada quien" : `${fmtN(e.datos.cantidad)} ${e.datos.unidad} entre ${e.datos.trabajadorIds.length}${e.datos.parejo ? ", repartido parejo" : ""}`} · a ${fmt(e.datos.tarifa)} por ${e.datos.unidad} · ${quienFue}` };
+    if (e.tipo === "cuadrilla_dia") return { titulo: `${e.fecha} · ${e.datos.cuadrilla} en ${parcela(e.datos.parcelaId)}`, linea: `${e.datos.actividad} · ${pagosDe(e).length} persona(s) · ${e.datos.modalidad === "dia" ? "pago por día" : `destajo a ${fmt(e.datos.destajo.tarifa)} por ${e.datos.destajo.unidad}${e.datos.destajo.parejo ? `, repartido parejo (lo autorizó ${e.datos.destajo.autorizoParejo})` : ""}`}${e.datos.responsable ? ` · responsable: ${e.datos.responsable}` : ""} · ${quienFue}` };
+    if (e.tipo === "traslado_cuadrilla") return { titulo: `${e.fecha} · transporte de ${e.datos.cuadrilla}`, linea: `${e.datos.tipo === "flete" ? `Flete externo de ${fmt(e.datos.monto)}` : e.datos.tipo === "propio" ? `Vehículo propio: ${e.datos.vehiculo}` : "Sin transporte"} · ${quienFue}` };
     if (e.tipo === "aclaracion") return { titulo: `Aclarado: ${CAUSAS_SIN_ASIGNAR[e.datos.causa] || e.datos.causa}`, linea: `${e.datos.nota ? `"${e.datos.nota}" · ` : ""}${quienFue}` };
     return { titulo: `${base} · ${e.tipo}`, linea: quienFue };
   };
@@ -8177,7 +8380,7 @@ function ManoDeObra({ data, add, session, onClose }) {
     <button key={i} className="jor-fila" onClick={() => setRastro(p)}>
       <span className="mn-tx" style={{ flex: 1 }}>
         <span className="mn-n">{vista === "parcela" ? nombre(p.trabajadorId) : parcela(p.parcelaId)}</span>
-        <span className="mn-s">{p.fecha !== rango.desde || rango.desde !== rango.hasta ? `${p.fecha} · ` : ""}{p.actividad || (p.sinHoras ? "no checó salida" : p.causa ? CAUSAS_SIN_ASIGNAR[p.causa] : "sin asignar, por aclarar")} · {p.modalidad === "destajo" ? `${fmtN(p.unidades)} ${p.unidad}` : horasDe(p.minutos)} · {modalidad[p.modalidad]}</span>
+        <span className="mn-s">{p.fecha !== rango.desde || rango.desde !== rango.hasta ? `${p.fecha} · ` : ""}{p.actividad || (p.sinHoras ? "no checó salida" : p.causa ? CAUSAS_SIN_ASIGNAR[p.causa] : "sin asignar, por aclarar")} · {p.modalidad === "flete" ? "transporte" : p.modalidad === "destajo" ? `${fmtN(p.unidades)} ${p.unidad}` : p.deCuadrilla ? "su día" : horasDe(p.minutos)} · {modalidad[p.modalidad]}</span>
       </span>
       <b>{fmt(p.monto)}</b><span className="mn-fl">›</span>
     </button>
@@ -8200,9 +8403,10 @@ function ManoDeObra({ data, add, session, onClose }) {
         )}
         <div className="card">
           <div className="stat-label">Lo que se ganó el personal en el periodo</div>
-          <div className="stat-val" style={{ fontSize: 30 }}>{fmt(r.total)}</div>
+          <div className="stat-val" style={{ fontSize: 30 }}>{fmt(sumarDinero(r.total, cq.totalPagos))}</div>
+          {cq.total > 0 && <div className="text-xs text-muted">Trabajadores de planta {fmt(r.total)} · cuadrillas {fmt(cq.totalPagos)}{cq.totalFlete > 0 ? ` · más ${fmt(cq.totalFlete)} de flete externo` : ""}</div>}
           <div className="mo-dos">
-            <div><div className="stat-label">Cargado a parcelas</div><b>{fmt(r.totalAsignado)}</b><div className="text-xs text-muted">{horasDe(r.minutosAsignados)}</div></div>
+            <div><div className="stat-label">Cargado a parcelas</div><b>{fmt(sumarDinero(r.totalAsignado, cq.total))}</b><div className="text-xs text-muted">{horasDe(r.minutosAsignados)} de planta</div></div>
             <div><div className="stat-label">Fuera de parcelas</div><b>{fmt(r.totalSinAsignar)}</b><div className="text-xs text-muted">{horasDe(r.minutosSinAsignar)}</div></div>
           </div>
           {r.totalSinAsignar > 0 && (
@@ -8214,6 +8418,28 @@ function ManoDeObra({ data, add, session, onClose }) {
           <div className="text-xs text-muted" style={{ marginTop: 8 }}>Las dos partes suman exacto lo pagado. Tiempo sin asignar no quiere decir tiempo perdido: quiere decir que falta aclararlo. No se reparte entre las parcelas para que cuadre.</div>
         </div>
 
+        <div className="card">
+          <div className="card-title">El tiempo de los trabajadores de planta</div>
+          <div className="mo-act"><span>Trabajado en actividades</span><span /><b>{horasDe(r.tiempo.trabajado)}</b></div>
+          <div className="mo-act" style={{ color: r.tiempo.porAclarar ? "var(--gold)" : undefined }}><span>Por aclarar</span><span /><b>{horasDe(r.tiempo.porAclarar)}</b></div>
+          <div className="mo-act"><span>Espera, traslado, mantenimiento y descansos</span><span /><b>{horasDe(r.tiempo.otros)}</b></div>
+          <div className="mo-act"><span>Inactividad confirmada</span><span /><b>{horasDe(r.tiempo.improductivo)}</b></div>
+          <div className="text-xs text-muted" style={{ marginTop: 8 }}>Son cuatro cuentas distintas. Lo que está por aclarar no es tiempo perdido: sólo cuenta como improductivo lo que alguien confirmó.</div>
+        </div>
+        {adicionales.length > 0 && (
+          <div className="card">
+            <div className="card-title">Horas adicionales registradas</div>
+            {adicionales.sort((a, b) => b.minutos - a.minutos).map(h => <div key={h.trabajadorId} className="mo-act"><span>{nombre(h.trabajadorId)}</span><span className="text-muted">{h.dias} día(s)</span><b>{horasDe(h.minutos)}</b></div>)}
+            <div className="text-xs text-muted" style={{ marginTop: 8 }}>Es el tiempo por encima de las {ajusteVigente(data.eventos, "horas_jornada").valor} horas del horario habitual, sacado de las marcas. Registrarlas no cambia el pago: reconocerlas para pagarlas necesita autorización, y eso todavía no está en la app.</div>
+          </div>
+        )}
+        {(cq.pendientes.length > 0 || cq.propios.length > 0) && (
+          <div className="card">
+            <div className="card-title">Transporte de cuadrillas</div>
+            {cq.pendientes.map((x, i) => <div key={"p" + i} className="jor-marca" style={{ color: "var(--gold)" }}><b>{x.cuadrilla}</b> · {x.fecha} · {fmt(x.monto)}<div className="text-xs text-muted">{x.dice}</div></div>)}
+            {cq.propios.map((x, i) => <div key={"v" + i} className="jor-marca"><b>{x.cuadrilla}</b> · {x.fecha} · {x.vehiculo || "vehículo propio"}{x.personas ? ` · ${x.personas} personas` : ""}<div className="text-xs text-muted">No lleva importe aquí: su costo sale del combustible, mantenimiento y operador de ese vehículo.</div></div>)}
+          </div>
+        )}
         {(r.avisos.length > 0 || dobles.length > 0) && (
           <div className="card">
             <div className="card-title" style={{ color: "var(--gold)" }}>Por revisar ({r.avisos.length + dobles.length})</div>
@@ -8226,7 +8452,7 @@ function ManoDeObra({ data, add, session, onClose }) {
           <button className={`tab-pill${vista === "parcela" ? " active" : ""}`} onClick={() => { setVista("parcela"); setAbierto(null); }}>Por parcela</button>
           <button className={`tab-pill${vista === "persona" ? " active" : ""}`} onClick={() => { setVista("persona"); setAbierto(null); }}>Por persona</button>
         </div>
-        {grupos.length === 0 && <div className="card"><div className="text-sm text-muted">En esas fechas no hay marcas del checador ni pagos por tarea. Aquí no se captura: sale de lo que se checó y de a dónde se mandó a cada quien.</div></div>}
+        {grupos.length === 0 && <div className="card"><div className="text-sm text-muted">En esas fechas no hay marcas del checador, destajos ni cuadrillas. Aquí no se captura: sale de lo que se checó y de a dónde se mandó a cada quien.</div></div>}
         {grupos.map(g => {
           const k = vista === "parcela" ? (g.parcelaId || "_sin") : g.trabajadorId;
           const esSuelto = vista === "parcela" && !g.parcelaId;
@@ -8235,7 +8461,7 @@ function ManoDeObra({ data, add, session, onClose }) {
               <button className="mo-cab" onClick={() => setAbierto(abierto === k ? null : k)}>
                 <span className="mn-tx" style={{ flex: 1 }}>
                   <span className="mn-n" style={{ fontSize: 16, color: esSuelto ? "var(--gold)" : undefined }}>{vista === "parcela" ? (g.parcelaId ? parcela(g.parcelaId) : "Fuera de parcelas") : nombre(g.trabajadorId)}</span>
-                  <span className="mn-s">{horasDe(g.minutos)} · {new Set(g.partes.map(p => vista === "parcela" ? p.trabajadorId : p.parcelaId)).size} {vista === "parcela" ? "persona(s)" : "lugar(es)"}</span>
+                  <span className="mn-s">{g.minutos > 0 ? `${horasDe(g.minutos)} · ` : ""}{new Set(g.partes.filter(p => vista !== "parcela" || p.modalidad !== "flete").map(p => vista === "parcela" ? p.trabajadorId : p.parcelaId)).size} {vista === "parcela" ? "persona(s)" : "lugar(es)"}{vista === "parcela" && g.partes.some(p => p.modalidad === "flete") ? " · con flete externo" : ""}</span>
                 </span>
                 {etiquetas(g)}<b style={{ fontSize: 17 }}>{fmt(g.monto)}</b><span className="mn-fl">{abierto === k ? "−" : "+"}</span>
               </button>
@@ -8246,7 +8472,7 @@ function ManoDeObra({ data, add, session, onClose }) {
             </div>
           );
         })}
-        <ReglasDelRancho data={data} add={add} session={session} claves={["horas_jornada"]} />
+        <ReglasDelRancho data={data} add={add} session={session} claves={["horas_jornada", "criterio_flete"]} />
       </div>
 
       {rastro && (
@@ -8256,11 +8482,11 @@ function ManoDeObra({ data, add, session, onClose }) {
             <div className="text-sm" style={{ marginBottom: 10 }}>{nombre(rastro.trabajadorId)} · {parcela(rastro.parcelaId)} · {rastro.fecha}</div>
             {rastro.evs.map(id => { const d = decir(id); return <div key={id} className="jor-marca"><b>{d.titulo}</b><div className="text-xs text-muted">{d.linea}</div></div>; })}
             <div className="text-xs text-muted" style={{ marginTop: 10 }}>
-              {rastro.modalidad === "dia" ? "Cobra por día: su día se reparte entre lo que hizo, según el tiempo en cada cosa." : rastro.modalidad === "hora" ? `Cobra por hora: sólo el tiempo que se sabe, sobre un día de ${ajusteVigente(data.eventos, "horas_jornada").valor} horas.` : rastro.parejo ? "Pago por tarea: sólo se sabía el total del grupo y se repartió parejo." : "Pago por tarea: lo que hizo esta persona por el precio de cada unidad."}
+              {rastro.deCuadrilla && rastro.modalidad === "dia" ? "Cuadrilla, pago por día: lo que se acordó con esta persona por ese día." : rastro.modalidad === "dia" ? "Cobra por día: su día se reparte entre lo que hizo, según el tiempo en cada cosa." : rastro.modalidad === "hora" ? `Cobra por hora: sólo el tiempo que se sabe, sobre un día de ${ajusteVigente(data.eventos, "horas_jornada").valor} horas.` : rastro.parejo ? "Destajo: sólo se sabía el total del grupo y se repartió parejo." : rastro.modalidad === "flete" ? `Flete externo repartido: ${CRITERIOS_FLETE[rastro.criterio] || ""}.` : "Destajo: lo que hizo esta persona por el precio de cada unidad."}
               {rastro.estimado ? " El sueldo de ese día no consta en su historial: se usó el de hoy, como estimado." : ""}
               {rastro.provisional ? " Sigue adentro: el reparto puede cambiar cuando cheque su salida." : ""}
             </div>
-            {puedeAclarar && rastro.modalidad !== "destajo" && rastro.desde && rastro.hasta && (!rastro.parcelaId || rastro.aclarado) && !aclara && (
+            {puedeAclarar && !rastro.deCuadrilla && rastro.modalidad !== "destajo" && rastro.desde && rastro.hasta && (!rastro.parcelaId || rastro.aclarado) && !aclara && (
               <button className="acc-todo" onClick={() => { setAclara({ causa: rastro.causa || "", parcelaId: "", actividad: "", nota: "" }); setDiceAclara(""); }}>{rastro.causa ? "Cambiar la aclaración" : "Aclarar este tiempo"}</button>
             )}
             {aclara && (
@@ -11032,7 +11258,7 @@ function ExternoReg({ data, add, setInv, session, online, onLogout }) {
             <div className="form-group">
               <label className="form-label">Modalidad de pago</label>
               <div className="pill-group">
-                {[["jornal", "Por día"], ["tarea", "Monto fijo"], ["destajo", "Por tarea"]].map(([v, l]) => (
+                {[["jornal", "Por día"], ["tarea", "Monto fijo"], ["destajo", "Destajo"]].map(([v, l]) => (
                   <button key={v} className={`pill${form.modalidad === v ? " active" : ""}`} onClick={() => setForm(f => ({ ...f, modalidad: v }))}>{l}</button>
                 ))}
               </div>
@@ -14506,7 +14732,7 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
             {(data.cuadrillas || []).length > 0 && (
               <div style={{ marginTop: 18 }}>
                 <div className="text-sm font-bold mb-2" style={{ paddingLeft: 4 }}>Cuadrillas</div>
-                <div className="text-xs text-muted mb-2" style={{ paddingLeft: 4 }}>Las cuadrillas se pagan por día, por monto fijo o por tarea (no por horas).</div>
+                <div className="text-xs text-muted mb-2" style={{ paddingLeft: 4 }}>Las cuadrillas se pagan por día, por monto fijo o por destajo (no por horas).</div>
                 {(data.cuadrillas || []).map(c => {
                   const cfg = selCuad[c.id];
                   const activo = cfg && cfg.incluir;
@@ -14520,7 +14746,7 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
                         <div style={{ paddingLeft: 4 }}>
                           <label className="form-label" style={{ fontSize: 10 }}>Modalidad de pago</label>
                           <div className="gap-row mb-2">
-                            {[["jornal", "Por día"], ["tarea", "Monto fijo"], ["destajo", "Por tarea"]].map(([v, l]) => (
+                            {[["jornal", "Por día"], ["tarea", "Monto fijo"], ["destajo", "Destajo"]].map(([v, l]) => (
                               <button key={v} className={`btn btn-sm ${cfg.modalidad === v ? "btn-accent" : "btn-outline"}`} style={{ flex: 1 }} onClick={() => setCampoCuad(c.id, "modalidad", v)}>{l}</button>
                             ))}
                           </div>
