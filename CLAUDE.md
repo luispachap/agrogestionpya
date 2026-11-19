@@ -137,7 +137,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **105 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **106 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.
@@ -496,6 +496,23 @@ teléfonos son pruebas. La operación arranca SIN registros de antes
 - `respaldos/` no se sube al repositorio: trae nombres de personas.
 
 ## Infraestructura propia y plan gratuito
+
+**Dónde vive (desde el 19 nov 2026):** Supabase, organización "AgroGestion",
+proyecto `cidgbfddrzoilvkqhszg` — es PRODUCCIÓN y es el único: no hay proyecto
+de pruebas. Vercel, proyecto `agrogestion-operacion` →
+https://agrogestion-operacion.vercel.app, publicado desde `produccion/base-vigente`
+(el proyecto de Vercel "agrogestion" y app.agroselectos.com son lo viejo: no se
+tocan sin que Luis lo diga). Reglas de ahí:
+
+- **Nunca dejes datos de prueba en el proyecto real.** Para probar con sesión,
+  un bloque `do $$ … raise exception … $$` que se deshace solo; para pantallas,
+  la nube de mentira de `pruebas/*_navegador.py`.
+- Una hoja nueva se instala con `apply_migration` y va también a
+  `supabase/orden.json`. Después: `get_advisors` y `pruebas/real_sin_sesion.py`.
+- Las cuentas se dan de alta desde la app (hoja 32: invitación o código de
+  arranque). Nunca crees cuentas por SQL ni manejes contraseñas de nadie.
+- La pantalla **Arranque** (Admin) lleva cuentas, conteo inicial, saldos
+  iniciales y la fecha de inicio.
 
 AgroGestión vive en su propio proyecto de Supabase (plan gratuito: 500 MB de
 base, 1 GB de archivos), separado de ATALAYA y del despacho. `docs/RUTA.md` es

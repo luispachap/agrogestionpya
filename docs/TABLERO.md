@@ -7,7 +7,22 @@ Actualizado: 19 nov 2026 · Rama de trabajo: `produccion/base-vigente` · Rama d
 **Cómo leer las columnas.** *En rama* = el código está escrito y subido. *Probado* = hay una prueba automática (con datos de mentira).
 *Desplegado* = está en app.agroselectos.com. *Validado* = se comprobó con la operación real del rancho.
 
-**Hoy: nada de esta etapa está desplegado ni validado.** Lo publicado sigue siendo la versión vulnerable, y el proyecto nuevo de Supabase aún no existe (falta que Luis cree la organización).
+**Hoy (19 nov):** la versión nueva está **instalada y abre** en https://agrogestion-operacion.vercel.app, conectada al proyecto nuevo de Supabase. **No está validada**: falta que Luis y Migue entren con sus cuentas y la usen en sus teléfonos. app.agroselectos.com sigue con la versión vieja, sin tocar.
+
+En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.com". En el sitio nuevo está todo lo que dice "En rama: Sí".
+
+## Instalación en la infraestructura nueva
+
+| Asunto | Hecho | Comprobado en el proyecto real |
+|---|---|---|
+| Base montada (27 hojas, 60 tablas), sellada y vacía | Sí | Sí |
+| 6 ataques sin sesión + 34 con sesión | Sí | Sí, sin dejar rastro |
+| Sitio publicado y conectado | Sí | Sí (18 de 18 en navegador real) |
+| Alta de cuentas sin consola (invitación / código de arranque) | Sí | **Falta: con cuentas reales** |
+| Pantalla de Arranque: cuentas, conteo, saldos, inicio | Sí | **Falta: con datos reales** |
+| Función de lectura con IA instalada y cerrada a extraños | Sí | El candado sí; **leer, no (falta llave)** |
+| Sincronización entre dos teléfonos reales | — | **Falta** |
+| Ensayo de respaldo y restauración | — | **Falta** |
 
 ## Arranque limpio (nuevo, 19 nov) — detalle en `ARRANQUE-LIMPIO.md`
 
@@ -75,13 +90,17 @@ Actualizado: 19 nov 2026 · Rama de trabajo: `produccion/base-vigente` · Rama d
 | Batería | Resultado |
 |---|---|
 | Reglas, cálculos y nombres sin definir (`npm test`) | 661 de 661 |
-| La base armada desde cero y atacada directo (`npm run test:base`) | 40 de 40 |
+| La base armada desde cero y atacada directo (`npm run test:base`) | 49 de 49 |
+| Navegador, alta de cuentas y Arranque (`cuentas`) | 19 de 19 |
+| **Proyecto real**, sin sesión, desde internet (`real_sin_sesion`) | 6 de 6 |
+| **Proyecto real**, 34 ataques con sesión (transacción deshecha) | 34 de 34 |
+| **Sitio publicado**, navegador real (`real_sitio`) | 18 de 18 |
 | Navegador, versión compilada (`humo`) | 9 de 9 (lo publicado hoy: 4 de 9) |
 | Navegador, recorrido por rol (`recorrido`) | 17 de 17 |
 | Navegador, fotos fuera de los registros (`archivos`) | 9 de 9 |
 | Navegador, captura de campo (`campo`) | 13 de 13 |
 | Navegador, arranque limpio (`arranque`) | 13 de 13 |
-| Compilación | correcta, 105 módulos, lector de PDF aparte |
+| Compilación | correcta, 106 módulos, lector de PDF aparte |
 
 Todo junto: `sh pruebas/todo.sh`.
 
@@ -101,18 +120,17 @@ Todo junto: `sh pruebas/todo.sh`.
 | `CAMBIO-DE-PRODUCCION.md` | El cambio y la reversa | Preparado, sin ejecutar |
 | Pantallas nuevas (17) | Todas abren sin error. Revisadas a fondo: sólo el buzón | **Faltan 16 por revisar a fondo** |
 
-## Pendiente de Luis
+## Pendiente de Luis y Migue
 
 | # | Qué | Urgencia |
 |---|---|---|
-| L-1 | Crear la organización nueva "AgroGestion" (plan gratuito) en Supabase | **Es lo que me detiene** |
-| L-5 | Decidir dónde se prueba: proyecto de pruebas primero y producción después, o que Migue cree el de pruebas | Antes de montar |
-| L-6 | Fecha oficial de inicio de operaciones | Antes del arranque |
-| L-7 | Juntar los respaldos que existan para la hoja de catálogos, y con Migue marcar sí / no | Antes del arranque |
-| L-4 | Hacer privados los dos repositorios; borrar las dos variables viejas en Vercel | Alta |
-| D-4 | Con Migue: quién va por día, por hora o a destajo | Antes del piloto |
-| D-9 | Llave y presupuesto de IA | Cuando toque |
-| D-2 | Separar el sistema del despacho del repositorio publicado | Media |
+| 1 | Crear cada quien su cuenta y entrar con el código de arranque (`PRIMEROS-PASOS.md`) | **Ahora: es lo que falta para usarla** |
+| 2 | Dar de alta lo básico o aprobar la hoja de catálogos | Para empezar a capturar |
+| 3 | Conteo físico, saldos iniciales y declarar la fecha de inicio (pantalla Arranque) | Para empezar a operar |
+| 4 | Decir cuándo se cambia app.agroselectos.com a la versión nueva | Cuando la hayan probado |
+| 5 | Quién va por día, por hora o a destajo (D-4) | Antes de confiar en los costos |
+| 6 | Llave y presupuesto de IA, si quieren leer tickets por foto | Cuando quieran |
+| 7 | Hacer privado el repositorio viejo; borrar las dos variables viejas en Vercel | Alta |
 
 ## Decisiones ya tomadas por Luis
 

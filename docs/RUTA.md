@@ -27,49 +27,57 @@ Lo que eso cambió en el plan:
   en el código pasaron a la hoja de revisión.
 - **Las pruebas no se hacen en producción** (ver "Decisiones").
 
-## Lo que me detiene
+## 19 nov, madrugada: instalado en la infraestructura nueva
 
-En la cuenta de Supabase sólo existe **una organización ("P&A")**, la bloqueada.
-Crear otra sólo se puede desde el panel. No creé nada dentro de "P&A".
+**Dónde se abre:** https://agrogestion-operacion.vercel.app · Guía: `PRIMEROS-PASOS.md`
 
-**Luis:** supabase.com → *New organization* → "AgroGestion", plan **Free**. Si
-Supabase no lo permite por la restricción de facturación, ésa es la respuesta:
-no se intenta por otro lado.
+| Qué | Estado | Cómo se comprobó |
+|---|---|---|
+| Base en el proyecto nuevo (`cidgbfddrzoilvkqhszg`, organización AgroGestion) | **Montada** con las 27 hojas; 60 tablas, todas con candado | Cada hoja se instaló sólo si su huella coincidía con la probada |
+| Arranca vacía | **Sí**: 0 cuentas, 0 registros, 0 archivos | Conteo directo en la base, después de todas las pruebas |
+| Sellada con su espacio | **Sí** | Consulta directa |
+| Ataques sin sesión, desde internet | **6 de 6 negados** | `pruebas/real_sin_sesion.py` contra el proyecto real |
+| Ataques con sesión (34: ascensos, borrado de dinero y bitácora, datos viejos, otro espacio…) | **34 de 34 como se esperaba** | En el proyecto real, dentro de una transacción que se deshizo completa |
+| Revisor de seguridad de Supabase | Sin errores. Corregí su aviso (funciones invocables desde afuera) | `get_advisors` antes y después |
+| Sitio publicado | **Abre**, conectado a la base nueva | `pruebas/real_sitio.py`: 18 de 18, en dos tamaños de teléfono |
+| Un teléfono con pruebas viejas abre el sitio real | No las muestra, no las sube, no las toca | Misma prueba |
+| Función de lectura con IA | **Instalada**; rechaza a quien no tiene perfil | Llamada real: 403. **Leer de verdad no se ha probado: falta la llave de IA** |
+| Alta de cuentas sin consola | En la app | Navegador real contra nube de mentira (19 de 19). **Con cuentas reales: falta que Luis y Migue entren** |
+| Pantalla de Arranque (cuentas, conteo, saldos, inicio) | En la app | Misma prueba |
 
-## Estado
+### Decisiones que tomé y por qué
 
-| # | Asunto | En rama | Probado | Montado | Validado |
-|---|---|---|---|---|---|
-| 1 | Organización y proyecto nuevos, aislados | — | — | **No: falta el paso de Luis** | No |
-| 2 | Base reconstruible desde cero (25 hojas, 54 tablas) y que nace vacía | Sí | Sí | No | No |
-| 3 | Lo viejo no entra: cajón propio por espacio + candado en la base | Sí | Sí (navegador real + ataques a la base) | No | No |
-| 4 | Lo viejo se conserva: nada se borra, se puede descargar | Sí | Sí | — | No |
-| 5 | Catálogos sólo validados (herramienta y hoja de revisión) | Sí | Sí, de punta a punta con datos de mentira | — | No |
-| 6 | Sin PIN, cuentas ni permisos de antes | Sí | Sí | No | No |
-| 7 | Inventario inicial por conteo físico | Regla escrita; **falta conectarla a la pantalla** | La regla, sí | No | No |
-| 8 | Saldos iniciales con corte, responsable y evidencia | Regla escrita; **falta la pantalla** | La regla, sí | No | No |
-| 9 | Fecha oficial de inicio | En la base; **falta el botón en la app** | Sí | No | No |
-| 10 | Datos de prueba fuera de producción | Depende de la decisión de abajo | — | — | — |
-| — | Fotos fuera de la base, medidor, IA con tope, campo por encargado, lápidas, sueldos | Sí | Sí | No | No |
-| — | Función de lectura con IA en el servidor | Sí | **No** (necesita el proyecto) | No | No |
+- **Sitio nuevo en vez de cambiar app.agroselectos.com.** Ya existía un proyecto
+  de Vercel llamado "agrogestion" con los dominios agroselectos.com; no lo
+  toqué. Creé "agrogestion-operacion". Cambiar el dominio de siempre es un
+  paso aparte, reversible, que haré cuando lo digan.
+- **Un solo proyecto de Supabase, y es el de producción.** El plan gratuito no
+  deja tener otro para pruebas. Por eso las pruebas con sesión contra el
+  proyecto real se hicieron en una transacción que se deshace, y no dejé
+  ninguna cuenta ni registro de prueba. Las pruebas de pantallas siguen
+  corriendo aparte, con nube de mentira.
+- **Cuentas por invitación y código de arranque**, en vez de darlas de alta yo
+  desde el panel: así nadie me pasa contraseñas y Luis no opera consola.
+- **Las hojas se instalaron bajándolas del repositorio con su huella**, no
+  copiándolas a mano: lo instalado es exactamente lo probado.
 
-## Decisiones que necesito
+### Lo que no pude hacer
 
-1. **Dónde se prueba.** El plan gratuito da dos proyectos activos por persona y
-   Luis ya usa uno (el despacho): no caben pruebas y producción a la vez.
-   Propongo crear primero el de **pruebas**, validar en teléfonos, eliminarlo y
-   crear el de **producción** limpio. Alternativa: que Migue cree el de pruebas
-   con su cuenta. Detalle en `ARRANQUE-LIMPIO.md`, sección 6.
-2. **La fecha de inicio de operaciones.**
-3. **Quién aprueba los catálogos** y de qué fuentes (qué respaldos existen).
+- **Borrar la herramienta `http` de la base** (la usé para instalar): Supabase
+  pide una confirmación que mi conexión cancela sola. Queda instalada; sólo la
+  puede usar el dueño de la base. Se puede quitar desde el panel → Database →
+  Extensions.
+- **Apagar el registro libre de cuentas y poner la dirección del sitio** en la
+  configuración de correos: no tengo herramienta para eso. No es un hueco —una
+  cuenta sin invitación no ve ni toca nada, y está probado— pero conviene:
+  Supabase → Authentication → URL Configuration → Site URL =
+  `https://agrogestion-operacion.vercel.app`.
 
-## Necesita autorización, y no se ha hecho
+### Ojo con Vercel
 
-- Crear proyectos en Supabase (cuando exista la organización; costo $0).
-- Eliminar el proyecto de pruebas al terminar.
-- Cargar los catálogos aprobados.
-- Publicar a producción.
-- Cualquier llave o gasto de IA.
+El sitio nuevo publica lo que yo le mando de la rama `produccion/base-vigente`.
+Si alguien empuja algo a la rama `main`, Vercel lo publicaría encima (y `main`
+es la versión de mayo). Nadie debe tocar `main`.
 
 ## Qué cambia en la app (ya en la rama `produccion/base-vigente`)
 
@@ -109,7 +117,7 @@ no se intenta por otro lado.
 Primero en el proyecto **de pruebas**; después, igual, en el de producción.
 
 1. Crear el proyecto — plan gratuito, costo $0.
-2. Aplicar las 25 hojas en el orden de `supabase/orden.json`.
+2. Aplicar las 27 hojas en el orden de `supabase/orden.json`.
 3. **Sellar el espacio** y comprobar que no hay ni un registro de operación.
 4. Correr contra el proyecto real los mismos ataques de `pruebas/base/`.
 5. Revisar los avisos de seguridad del propio Supabase.
