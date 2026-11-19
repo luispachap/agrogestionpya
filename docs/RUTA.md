@@ -7,7 +7,7 @@ Actualizado: 19 nov 2026. El detalle por asunto está en `TABLERO.md`.
 | | |
 |---|---|
 | **Sitio** | https://agrogestion-operacion.vercel.app — publicado, conectado |
-| **Base** | Supabase, organización "AgroGestion", proyecto `cidgbfddrzoilvkqhszg`. 28 hojas, 61 tablas con candado, sellada, **vacía** |
+| **Base** | Supabase, organización "AgroGestion", proyecto `cidgbfddrzoilvkqhszg`. 29 hojas, 62 tablas con candado, sellada, **vacía** |
 | **Cómo entrar** | `PRIMEROS-PASOS.md` |
 | **Validado por Luis y Migue** | **Todavía no** — es el siguiente paso |
 | app.agroselectos.com | Sin tocar: sigue con la versión vieja |
