@@ -15,7 +15,7 @@ begin
   for t in
     select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind = 'r'
-      and c.relname not in ('perfiles','permisos_rol','auditoria')
+      and c.relname not in ('perfiles','permisos_rol','auditoria','limites','uso_ia')
   loop
     for p in select policyname from pg_policies where schemaname = 'public' and tablename = t loop
       execute format('drop policy %I on %I', p.policyname, t);
@@ -23,7 +23,8 @@ begin
     execute format('create policy %I on %I for select using (tiene_perfil())', 'leer ' || t, t);
     execute format('create policy %I on %I for insert with check (tiene_perfil())', 'crear ' || t, t);
     execute format('create policy %I on %I for update using (tiene_perfil()) with check (tiene_perfil())', 'editar ' || t, t);
-    if not (t = any(dinero)) then
+    -- Si ya está la hoja 30 (borrar deja lápida), el borrado directo NO vuelve.
+    if not (t = any(dinero)) and to_regprocedure('public.borrar_registro(text,text)') is null then
       execute format('create policy %I on %I for delete using (tiene_perfil())', 'borrar ' || t, t);
     end if;
   end loop;

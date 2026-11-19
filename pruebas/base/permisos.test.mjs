@@ -63,7 +63,7 @@ test("el_dueno_lee_pero_no_escribe_dinero_ni_borra", async () => {
 });
 test("el_encargado_trabaja_lo_suyo_pero_no_borra_trabajadores_ni_ve_los_PIN_de_direccion", async () => {
   assert.equal((await como(db, "encargado", `insert into actividades (id, datos) values ('ac1', '{}')`)).ok, true);
-  assert.equal((await como(db, "encargado", "delete from tareas where id = 'ta1'")).afectadas, 1);
+  assert.ok(negado(await como(db, "encargado", "delete from tareas where id = 'ta1'")), "el borrado directo ya no existe");
   assert.ok(negado(await como(db, "encargado", "delete from trabajadores")));
   assert.ok(negado(await como(db, "encargado", `update trabajadores set datos = '{"sueldo": 9999}'`)));
   assert.equal((await como(db, "encargado", "select * from config_seguridad")).filas.length, 0);
@@ -126,7 +126,7 @@ test("ninguna_tabla_queda_sin_candado", async () => {
     where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity`);
   assert.deepEqual(sin.map((x) => x.relname), []);
   const viejas = await verdad(db, `select tablename, policyname from pg_policies where schemaname = 'public'
-    and (qual like '%tiene_perfil%' or with_check like '%tiene_perfil%') and tablename not in ('auditoria', 'permisos_rol')`);
+    and (qual like '%tiene_perfil%' or with_check like '%tiene_perfil%') and tablename not in ('auditoria', 'permisos_rol', 'limites')`);
   assert.deepEqual(viejas, [], "no debe quedar ninguna regla vieja de 'quien tenga perfil puede todo'");
 });
 test("la_reversa_devuelve_el_trabajo_pero_no_reabre_el_hoyo", async () => {

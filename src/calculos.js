@@ -294,6 +294,7 @@ export function calcularCostoManoObra(actividades, trabajadores) {
   const costoPorParcela = {};   // parcelaId -> costoTotal
   const desglosePorParcela = {}; // parcelaId -> [{trabajadorId, fecha, horas, costo}]
   const sinSueldo = [];          // días trabajados que no se pudieron costear
+  const estimados = [];          // actividades costeadas con un sueldo que no consta para esa fecha
 
   Object.entries(porTrabajadorDia).forEach(([k, acts]) => {
     const [trabajadorId, fecha] = k.split("|");
@@ -303,7 +304,11 @@ export function calcularCostoManoObra(actividades, trabajadores) {
     // catálogo de hoy. Así un aumento no reescribe los meses pasados, y dar de
     // baja a alguien no borra lo que ya costó.
     const foto = acts.find(a => a.sueldoDia > 0);
-    const sueldoDiario = foto ? foto.sueldoDia : (parseFloat(enCatalogo && enCatalogo.sueldo_dia) || 0);
+    // Sin foto: lo que diga el historial de sueldos para ESA fecha. Y si
+    // tampoco hay historial, el sueldo de hoy — pero marcado como estimado,
+    // porque nadie puede probar que ése era el sueldo de aquel día.
+    const vigente = foto ? { sueldo: foto.sueldoDia, origen: "foto" } : sueldoVigente(enCatalogo, fecha);
+    const sueldoDiario = vigente.sueldo;
     const trabajador = enCatalogo || { nombre: (acts.find(a => a.trabajadorNombre) || {}).trabajadorNombre || "(ya no está en el catálogo)" };
     if (sueldoDiario <= 0) {
       // Un dato que falta no es un cero: se dice cuáles días quedaron sin costo.
@@ -324,11 +329,121 @@ export function calcularCostoManoObra(actividades, trabajadores) {
       desglosePorParcela[a.parcelaId].push({
         trabajadorId, trabajadorNombre: trabajador.nombre, fecha,
         horas: a.horas, costoPorHora, costo, actividadId: a.actividadId,
+        origenSueldo: vigente.origen, estimado: vigente.estimado === true,
       });
+      if (vigente.estimado) estimados.push(a.actividadId);
     });
   });
 
-  return { costoPorParcela, desglosePorParcela, sinSueldo };
+  return { costoPorParcela, desglosePorParcela, sinSueldo, estimados };
+}
+
+/* ──── El sueldo de cada fecha, con su evidencia ──── */
+// ¿Cuánto ganaba esta persona ESE día? De mejor a peor evidencia:
+//   "historial"         — hay un cambio de sueldo anotado que cubre la fecha.
+//   "anterior_conocido" — la fecha es anterior al primer cambio anotado: se
+//                         usa el sueldo que tenía antes de ese cambio. Consta
+//                         que lo tenía; no consta desde cuándo. ESTIMADO.
+//   "catalogo_actual"   — no hay historial: se usa el de hoy. ESTIMADO.
+// Nunca se escribe un sueldo viejo con el valor de hoy como si fuera un hecho.
+export function sueldoVigente(trabajador, fecha) {
+  if (!trabajador) return { sueldo: 0, origen: "sin_dato", estimado: true };
+  const hist = (trabajador.historialSueldo || []).filter(h => h && h.desde).sort((a, b) => (a.desde < b.desde ? -1 : 1));
+  if (hist.length > 0 && fecha) {
+    let vigente = null;
+    for (const h of hist) if (h.desde <= fecha) vigente = h;
+    if (vigente) return { sueldo: parseFloat(vigente.sueldo_dia) || 0, origen: "historial", estimado: false };
+    const antes = parseFloat(hist[0].anterior);
+    if (antes > 0) return { sueldo: antes, origen: "anterior_conocido", estimado: true };
+  }
+  return { sueldo: parseFloat(trabajador.sueldo_dia) || 0, origen: "catalogo_actual", estimado: true };
+}
+
+// Al cambiarle el sueldo a alguien se ANOTA el cambio: desde qué día, cuánto,
+// y cuánto ganaba antes. Si el sueldo no cambió, no se anota nada.
+export function anotarCambioDeSueldo(antes, despues, hoy) {
+  if (!despues) return despues;
+  const viejo = parseFloat(antes && antes.sueldo_dia) || 0, nuevo = parseFloat(despues.sueldo_dia) || 0;
+  if (!antes || viejo === nuevo) return despues;
+  const hist = [...(despues.historialSueldo || antes.historialSueldo || [])];
+  // Dos cambios el mismo día (una corrección de dedo) son uno solo.
+  const mismoDia = hist.findIndex(h => h.desde === hoy);
+  const renglon = { desde: hoy, sueldo_dia: nuevo, anterior: mismoDia >= 0 ? hist[mismoDia].anterior : viejo };
+  if (mismoDia >= 0) hist[mismoDia] = renglon; else hist.push(renglon);
+  return { ...despues, historialSueldo: hist };
+}
+
+/* ──── Lo devengado no es lo mismo que el costo repartido ──── */
+// Son dos preguntas distintas y aquí se contestan por separado:
+//   1. DEVENGADO: ¿cuánto se ganó cada persona cada día, y por qué modalidad?
+//      (por día, por hora o a destajo). Esto es lo que se le debe.
+//   2. DISTRIBUCIÓN: de eso, ¿cuánto le toca a cada parcela y a cada labor?
+// La suma de la distribución SIEMPRE es igual a lo devengado: repartir no crea
+// ni pierde dinero.
+//
+// La modalidad sale de la actividad ("destajo" con tarifa y unidades) o del
+// trabajador (`modalidadPago`: "dia" —la de siempre— u "hora"). Sin dato, "dia".
+// NO cambia ninguna regla de pago: sólo las deja separadas y a la vista.
+export function remuneracionDevengada(actividades, trabajadores, { horasJornada = 8 } = {}) {
+  const dias = {};
+  for (const a of actividades || []) {
+    if (!a || !a.fecha || estaCancelado(a)) continue;
+    const id = a.trabajadorId || (a.registradoPor && a.registradoPor.id);
+    const rol = a.registradoPor && (a.registradoPor.rol || a.registradoPor.tipo);
+    if (!id || rol === "admin" || rol === "dueno" || rol === "finanzas") continue;
+    const k = `${id}|${a.fecha}`;
+    (dias[k] = dias[k] || []).push(a);
+  }
+  const devengado = [];
+  for (const [k, acts] of Object.entries(dias)) {
+    const [trabajadorId, fecha] = k.split("|");
+    const t = (trabajadores || []).find(x => x.id === trabajadorId);
+    const foto = acts.find(a => parseFloat(a.sueldoDia) > 0);
+    const v = foto ? { sueldo: parseFloat(foto.sueldoDia), origen: "foto", estimado: false } : sueldoVigente(t, fecha);
+    const destajo = acts.filter(a => a.modalidad === "destajo" && parseFloat(a.tarifa) > 0 && parseFloat(a.unidades) > 0);
+    const jornal = acts.filter(a => !destajo.includes(a) && (parseFloat(a.horas) || parseFloat(a.horas_trab) || 0) > 0);
+    const partes = [];
+    for (const a of destajo) {
+      partes.push({ actividadId: a.id, parcelaId: a.parcelaId || null, tipo: a.tipo || null, modalidad: "destajo",
+        unidades: parseFloat(a.unidades), monto: multiplicarDinero(parseFloat(a.tarifa), parseFloat(a.unidades)) });
+    }
+    if (jornal.length > 0 && v.sueldo > 0) {
+      const horas = jornal.map(a => parseFloat(a.horas) || parseFloat(a.horas_trab) || 0);
+      const porHora = (t && t.modalidadPago) === "hora";
+      // Por día: se devenga el día completo y se reparte entre lo que hizo.
+      // Por hora: se devenga sólo lo trabajado.
+      const total = porHora ? multiplicarDinero(v.sueldo / horasJornada, horas.reduce((s, h) => s + h, 0)) : v.sueldo;
+      const montos = repartirDinero(total, horas);
+      jornal.forEach((a, i) => partes.push({ actividadId: a.id, parcelaId: a.parcelaId || null, tipo: a.tipo || null,
+        modalidad: porHora ? "hora" : "dia", horas: horas[i], monto: montos[i] }));
+    }
+    if (partes.length === 0) continue;
+    devengado.push({
+      trabajadorId, trabajadorNombre: (t && t.nombre) || (acts.find(a => a.trabajadorNombre) || {}).trabajadorNombre || "",
+      fecha, monto: sumarDinero(partes.map(p => p.monto)), origenSueldo: v.origen, estimado: v.estimado === true && partes.some(p => p.modalidad !== "destajo"),
+      partes,
+    });
+  }
+  return devengado;
+}
+
+// De lo devengado, cuánto le toca a cada parcela, a cada labor y a cada modalidad.
+export function distribuirCosto(devengado) {
+  const porParcela = {}, porActividad = {}, porModalidad = {};
+  let total = 0, estimado = 0;
+  for (const d of devengado || []) {
+    for (const p of d.partes || []) {
+      const par = p.parcelaId || "(sin parcela)", lab = p.tipo || "(sin labor)";
+      porParcela[par] = sumarDinero(porParcela[par] || 0, p.monto);
+      porActividad[lab] = sumarDinero(porActividad[lab] || 0, p.monto);
+      porModalidad[p.modalidad] = sumarDinero(porModalidad[p.modalidad] || 0, p.monto);
+      total = sumarDinero(total, p.monto);
+      if (d.estimado && p.modalidad !== "destajo") estimado = sumarDinero(estimado, p.monto);
+    }
+  }
+  // "estimado" es la parte del total calculada con un sueldo que no consta
+  // para esa fecha. Se enseña junto al total, nunca escondida dentro de él.
+  return { porParcela, porActividad, porModalidad, total, estimado };
 }
 
 // La foto del sueldo: al capturar una actividad se le pega el sueldo diario que

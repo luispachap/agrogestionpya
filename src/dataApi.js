@@ -29,6 +29,7 @@ export const TABLAS = [
   "animales", "pesajes", "tratamientos", "potreros",
   "indicaciones", "chat", "vuelos",
   "auditoria",
+  "archivos",
 ];
 
 // Catálogos que sí subimos a la nube en la primera carga.
@@ -126,7 +127,7 @@ function objetoAFila(tabla, obj) {
   const fila = {};
   const datos = {};
   for (const [k, v] of Object.entries(obj || {})) {
-    if (k === "_actualizado") continue; // metadato local, no se sube
+    if (k === "_actualizado" || k === "_borrado") continue; // metadatos locales, no se suben
     if (reales.includes(k)) fila[aSql(k)] = v;
     else datos[k] = v;
   }
@@ -139,7 +140,10 @@ function objetoAFila(tabla, obj) {
 //  Convertir una fila SQL → objeto de la app
 // ------------------------------------------------------------
 function filaAObjeto(fila) {
-  const { datos, actualizado, ...resto } = fila || {};
+  // creado_por / subido_por los pone la base (qué cuenta lo subió): no son
+  // datos del registro y no deben regresar a la nube dentro de él.
+  // borrado es la lápida: alguien lo borró.
+  const { datos, actualizado, creado_por, subido_por, borrado, ...resto } = fila || {};
   const obj = {};
   for (const [k, v] of Object.entries(resto)) {
     if (v === null || v === undefined) continue;
@@ -149,6 +153,7 @@ function filaAObjeto(fila) {
   // Conservar el timestamp de la nube para poder resolver conflictos entre dispositivos
   // (merge por registro: gana el más reciente). Se guarda aparte para no chocar con datos.
   if (actualizado) obj._actualizado = actualizado;
+  if (borrado) obj._borrado = borrado;
   return obj;
 }
 
@@ -233,7 +238,10 @@ export async function guardarRegistro(tabla, obj) {
 // ------------------------------------------------------------
 export async function borrarRegistro(tabla, id) {
   if (!supabaseListo) throw new Error("Supabase no está configurado");
-  const { error } = await supabase.from(tabla).delete().eq("id", id);
+  // Borrar ya no quita el renglón: le pone una lápida (hoja SQL 30). Así los
+  // demás teléfonos se enteran y lo borrado no revive; y el contenido se
+  // conserva por si hay que restaurarlo.
+  const { error } = await supabase.rpc("borrar_registro", { p_tabla: tabla, p_id: String(id) });
   if (error) throw error;
   return true;
 }
@@ -286,4 +294,25 @@ export async function migrarCatalogos(datosLocales) {
     }
   }
   return resumen;
+}
+
+// ------------------------------------------------------------
+//  EL MEDIDOR: cuánto se lleva usado del plan (hoja SQL 27).
+//  Devuelve null si no se pudo medir — y eso NO quiere decir "todo bien".
+// ------------------------------------------------------------
+export async function leerConsumo() {
+  if (!supabaseListo) return null;
+  try {
+    const { data, error } = await supabase.rpc("consumo");
+    return error ? null : data;
+  } catch { return null; }
+}
+
+// ¿Hay una cuenta con sesión en este teléfono? Sin ella la base rechaza todo.
+export async function hayCuentaLigada() {
+  if (!supabaseListo) return false;
+  try {
+    const { data } = await supabase.auth.getSession();
+    return !!data?.session;
+  } catch { return false; }
 }

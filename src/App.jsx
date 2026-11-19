@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo, Component } f
 import { supabase, supabaseListo } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
 import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta } from "./acceso.js";
-import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion } from "./dataApi";
+import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada } from "./dataApi";
 import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, generarSQLCuentas, exportarPolizas, HOJAS } from "./excelLoader";
 // El estado de cuenta del banco: se valida solo antes de entrar.
 import {
@@ -64,18 +64,25 @@ import {
   fechaLocal, mesLocal, sumarDias, mesAnterior, diasEntre,
   saldoCredito, diasParaVencer, cubetaVencimiento, CUBETAS_VENCIMIENTO,
   estaCancelado, vivos, marcarCancelado, ganaAlSincronizar,
-  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra,
+  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia,
 } from "./calculos";
 // El lector de papeles: la cascada de gratis a caro (QR y XML sin costo,
 // patrón aprendido para lo ya conocido, IA sólo para un formato nuevo).
 import {
-  leerPapel, aprenderDeLaConfirmacion, CAMPOS_ESPERADOS, EXPLICA_FUENTE,
+  leerPapel, leerConIA, aprenderDeLaConfirmacion, CAMPOS_ESPERADOS, EXPLICA_FUENTE,
 } from "./lectorPapeles";
 import {
   tasaSobrevivencia, proponerAplicacion, yaSeAplico, renglonesAplicables,
   emparejarConInventario, costoUnitarioDe, costoPromedio, ventanasDeSeguridad,
   papelesParecidos, avisoDeParecidos,
 } from "./lectura.js";
+// Las fotos y los PDF viven fuera de los registros (teléfono + almacén privado).
+import { sacarArchivos, esReferencia, estadoDeConsumo, lecturaYaHecha, sha256Hex, partirDataUrl } from "./archivos.js";
+import {
+  abrirAlmacen, almacenListo, guardarEnTelefono, enlaceDeArchivo, contenidoDeArchivo,
+  subirArchivosPendientes, archivosSinSubir,
+} from "./almacenArchivos.js";
+import { mezclarConNube, planDeSubida, puedeLigarTelefono, vinculoDe, abrePantallasSola } from "./sincroniza.js";
 import { revisarHorometro, compararConsumo, consumoPorHora } from "./maquinaria.js";
 
 // Aplicar el tema guardado (oscuro/claro) antes del primer render.
@@ -549,6 +556,7 @@ const INITIAL = {
   config_emisor: [],
   config_seguridad: [],
   control_corrida: [],
+  archivos: [],          // la ficha de cada foto o PDF (el archivo vive aparte)
   lecturas: [],          // el buzon de papeles: cada foto con lo que se leyo
   patrones_lectura: [],  // lo aprendido de cada proveedor (donde estaba cada dato)
   estados_cuenta: [],    // lo que dice el banco, con su validacion aritmetica
@@ -2013,6 +2021,7 @@ const TABLAS_NUBE = [
   "animales","pesajes","tratamientos","potreros",
   "indicaciones","chat","vuelos",
   "auditoria",
+  "archivos",
 ];
 
 function useOffline() {
@@ -2025,7 +2034,10 @@ function useOffline() {
   // Así NUNCA se pierde un dato en silencio.
   const [fallidas, setFallidas] = useLS("agro_fallidas_v1", []);
   const [justSynced, setJustSynced] = useState(false);
+  const [sinCuenta, setSinCuenta] = useState(false);
   const procesandoRef = useRef(false);
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
   const MAX_INTENTOS = 5; // tras 5 fallos seguidos, se aparta a "fallidas" (no se borra)
 
   useEffect(() => {
@@ -2050,9 +2062,16 @@ function useOffline() {
   // Usa un ref como candado para no reentrar (evita disparos dobles de React).
   const procesarCola = useCallback(async () => {
     if (!supabaseListo || !online || procesandoRef.current) return;
-    let actuales = [];
-    setPending(p => { actuales = p; return p; });
-    if (!actuales || actuales.length === 0) return;
+    // Sin una cuenta ligada la base rechaza todo: intentar sólo quemaba los
+    // cinco intentos y apartaba el registro. Mejor esperar a que haya cuenta.
+    const conCuenta = await hayCuentaLigada();
+    setSinCuenta(!conCuenta);
+    if (!conCuenta) return;
+    // La cola se lee de un espejo, no "espiando" dentro de setPending: eso
+    // sólo funcionaba por casualidad y dejó de leer en cuanto hubo otra
+    // actualización pendiente (la cola parecía vacía y nada subía).
+    const actuales = pendingRef.current || [];
+    if (actuales.length === 0) return;
 
     procesandoRef.current = true;
     const exitosas = new Set();
@@ -2103,7 +2122,7 @@ function useOffline() {
     }
   }, [online, pending.length, procesarCola]);
 
-  return { online, pending, fallidas, queue, justSynced, procesarCola, reintentarFallidas };
+  return { online, pending, fallidas, queue, justSynced, procesarCola, reintentarFallidas, sinCuenta };
 }
 
 /* ════════════ ERROR BOUNDARY ════════════ */
@@ -2786,8 +2805,8 @@ function RecorridoDron({ data, add, upd, session, onClose }) {
       const anterior = linea.length >= 2 ? linea[linea.length - 2] : null;
       const { data: res, error } = await supabase.functions.invoke("revisar-parcela", {
         body: {
-          fotos: prep.fotos.map(f => sinCabecera(f.dataUrl)),
-          fotosAnteriores: (anterior?.fotos || []).slice(0, 6).map(f => sinCabecera(f.dataUrl)),
+          fotos: await Promise.all(prep.fotos.map(async f => sinCabecera(await contenidoDeArchivo(f.dataUrl)))),
+          fotosAnteriores: await Promise.all((anterior?.fotos || []).slice(0, 6).map(async f => sinCabecera(await contenidoDeArchivo(f.dataUrl)))),
           contexto: { ...prep.contexto, fechaVuelo: ultimo.fecha, fechaVueloAnterior: anterior?.fecha || null },
           dejadasFuera: prep.fotosFuera,
         },
@@ -2862,7 +2881,7 @@ function RecorridoDron({ data, add, upd, session, onClose }) {
                       </div>
                       <div className="text-xs text-muted">{v.fecha}</div>
                       <div style={{ display: "flex", gap: 4, overflowX: "auto", marginTop: 8 }}>
-                        {v.fotos.slice(0, 8).map(f => <img key={f.id} src={f.dataUrl} alt="" style={{ height: 54, borderRadius: 4 }} />)}
+                        {v.fotos.slice(0, 8).map(f => <Foto key={f.id} src={f.dataUrl} alt="" style={{ height: 54, borderRadius: 4 }} />)}
                       </div>
                     </div>
                   ))}
@@ -2872,7 +2891,7 @@ function RecorridoDron({ data, add, upd, session, onClose }) {
                   {[...propuesta.sinUbicar, ...propuesta.sinFecha, ...propuesta.fechaIlegible].map(fila => (
                     <div key={fila.foto.id} className="card" style={{ padding: 12, borderLeft: "3px solid var(--gold)" }}>
                       <div className="flex-b">
-                        <img src={fila.foto.dataUrl} alt="" style={{ height: 48, borderRadius: 4 }} />
+                        <Foto src={fila.foto.dataUrl} alt="" style={{ height: 48, borderRadius: 4 }} />
                         <div className="text-xs" style={{ flex: 1, marginLeft: 8, color: "var(--gold)" }}>{fila.porque}</div>
                       </div>
                       {nuevas.find(x => x.id === fila.foto.id)?.parcelaIdForzada ? (
@@ -2936,7 +2955,7 @@ function RecorridoDron({ data, add, upd, session, onClose }) {
               </div>
               <div className="text-xs text-muted">{v.dice}</div>
               <div style={{ display: "flex", gap: 4, overflowX: "auto", marginTop: 8 }}>
-                {v.fotos.map(f => <img key={f.id} src={f.dataUrl} alt="" style={{ height: 90, borderRadius: 4 }} />)}
+                {v.fotos.map(f => <Foto key={f.id} src={f.dataUrl} alt="" style={{ height: 90, borderRadius: 4 }} />)}
               </div>
             </div>
           ))}
@@ -2949,8 +2968,8 @@ function RecorridoDron({ data, add, upd, session, onClose }) {
               <div className="text-xs text-muted mt-1" style={{ fontStyle: "italic" }}>{comparacion.porqueNoHayPorcentaje}</div>
               {comparacion.pares.slice(0, 5).map((par, i) => (
                 <div key={i} style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
-                  <img src={par.antes.dataUrl} alt="" style={{ width: "48%", borderRadius: 4 }} />
-                  <img src={par.despues.dataUrl} alt="" style={{ width: "48%", borderRadius: 4 }} />
+                  <Foto src={par.antes.dataUrl} alt="" style={{ width: "48%", borderRadius: 4 }} />
+                  <Foto src={par.despues.dataUrl} alt="" style={{ width: "48%", borderRadius: 4 }} />
                 </div>
               ))}
             </div>
@@ -3258,7 +3277,7 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
                       placeholder="Escribe, o habla, o manda la foto de la hoja…" />
             {foto && (
               <div className="flex-b" style={{ marginTop: 6 }}>
-                <img src={foto.dataUrl} alt="" style={{ height: 54, borderRadius: 6 }} />
+                <Foto src={foto.dataUrl} alt="" style={{ height: 54, borderRadius: 6 }} />
                 <button className="btn-ghost" onClick={() => setFoto(null)}>quitar</button>
               </div>
             )}
@@ -3297,7 +3316,7 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
                     <span className="badge">{m.tipo}</span>
                   </div>
                   {m.texto && <div className="text-sm" style={{ margin: "6px 0" }}>{m.texto}</div>}
-                  {m.foto?.dataUrl && <img src={m.foto.dataUrl} alt="" style={{ width: "100%", borderRadius: 8, margin: "6px 0" }} />}
+                  {m.foto?.dataUrl && <Foto src={m.foto.dataUrl} alt="" style={{ width: "100%", borderRadius: 8, margin: "6px 0" }} />}
                   {m.audio?.dataUrl && <audio controls src={m.audio.dataUrl} style={{ width: "100%", margin: "6px 0" }} />}
                   {m.porIdentificar && (
                     <div className="text-xs" style={{ color: "var(--gold)" }}>
@@ -5323,6 +5342,25 @@ const TIPOS_PAPEL_UI = [
   ["estado_cuenta", "Estado de cuenta"], ["por identificar", "No sé qué es"],
 ];
 
+// Enseña una foto guardada. Si el registro trae la referencia ("archivo:..."),
+// la busca primero en este teléfono y luego en el almacén privado. Si no se
+// puede ver ahora (sin señal y la foto está en otro teléfono), lo dice.
+function Foto({ src, alt = "", ...resto }) {
+  const [enlace, setEnlace] = useState(esReferencia(src) ? null : src);
+  const [falto, setFalto] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    if (!esReferencia(src)) { setEnlace(src); setFalto(false); return; }
+    setEnlace(null); setFalto(false);
+    enlaceDeArchivo(src).then(u => { if (vivo) { setEnlace(u); setFalto(!u); } });
+    return () => { vivo = false; };
+  }, [src]);
+  if (!src) return null;
+  if (falto) return <div className="text-sm text-muted" style={{ padding: "8px 0" }}>La foto está guardada, pero no se puede ver sin señal desde este teléfono.</div>;
+  if (!enlace) return <div className="text-sm text-muted" style={{ padding: "8px 0" }}>Abriendo foto…</div>;
+  return <img src={enlace} alt={alt} {...resto} />;
+}
+
 function BuzonPapeles({ data, add, upd, setInv, session, onClose }) {
   const fileRef = useRef(null);
   const [foto, setFoto] = useState(null);          // dataURL
@@ -5411,9 +5449,25 @@ function BuzonPapeles({ data, add, upd, setInv, session, onClose }) {
     correrLectura({ imagenDataUrl: img.dataUrl, nitidez: img.nitidez, ancho: img.ancho, alto: img.alto });
   };
 
+  const [huella, setHuella] = useState(null);
   const correrLectura = async (args) => {
     setLeyendo(true);
     try {
+      // ¿Esta MISMA foto ya está en el buzón? Se reconoce por su huella. Si ya
+      // se leyó, se usa lo leído: no se vuelve a mandar a la IA ni a cobrar.
+      let h = null;
+      if (args.imagenDataUrl) { const p = partirDataUrl(args.imagenDataUrl); h = p ? sha256Hex(p.bytes) : null; }
+      setHuella(h);
+      const previa = lecturaYaHecha(h, data.lecturas);
+      if (previa) {
+        const r0 = {
+          tipo: previa.tipo, campos: previa.campos || previa.leido || {}, transcripcion: previa.transcripcion || "",
+          renglones: previa.renglones || [], noSeLeyo: previa.noSeLeyo || [], fuente: previa.fuente,
+          pasos: [{ paso: "ya leído", dice: `Esta misma foto ya está en el buzón (del ${(previa.capturadoEn || previa.fecha || "").slice(0, 10)}). Se usó lo que ya se había leído: no se volvió a mandar a la IA.` }],
+        };
+        setLectura(r0); setTipoElegido(r0.tipo && r0.tipo !== "por identificar" ? r0.tipo : "ticket"); setBorrador(r0.campos);
+        return;
+      }
       const r = await leerPapel({ ...args, patrones });
       setLectura(r);
       setTipoElegido(r.tipo && r.tipo !== "por identificar" ? r.tipo : "ticket");
@@ -5435,7 +5489,7 @@ function BuzonPapeles({ data, add, upd, setInv, session, onClose }) {
     const reg = add("lecturas", {
       tipo: tipoElegido, estado,
       fecha: campos.fecha || today(),
-      foto: foto || null, nombreArchivo,
+      foto: foto || null, nombreArchivo, huella,
       transcripcion: lectura?.transcripcion || textoArchivo || "",
       leido: leidoOriginal, campos,
       // Los renglones son lo más útil del papel: son lo que de verdad se
@@ -5709,7 +5763,7 @@ function BuzonPapeles({ data, add, upd, setInv, session, onClose }) {
 
           {lectura && (
             <>
-              {foto && <img src={foto} alt="papel" style={{ width: "100%", borderRadius: 12, marginBottom: 10, maxHeight: 260, objectFit: "contain", background: "var(--card-2, #0002)" }} />}
+              {foto && <Foto src={foto} alt="papel" style={{ width: "100%", borderRadius: 12, marginBottom: 10, maxHeight: 260, objectFit: "contain", background: "var(--card-2, #0002)" }} />}
 
               {/* Por qué el sistema hizo lo que hizo. Un resultado sin
                   explicación sólo se puede obedecer o ignorar. */}
@@ -5796,7 +5850,7 @@ function BuzonPapeles({ data, add, upd, setInv, session, onClose }) {
               {(l.noSeLeyo || []).length > 0 && (
                 <div className="text-xs" style={{ color: "var(--red)", marginTop: 3 }}>Falta: {l.noSeLeyo.map(etiquetaCampo).join(", ")}</div>
               )}
-              {l.foto && <img src={l.foto} alt="papel" style={{ width: "100%", borderRadius: 10, marginTop: 8, maxHeight: 160, objectFit: "cover" }} />}
+              {l.foto && <Foto src={l.foto} alt="papel" style={{ width: "100%", borderRadius: 10, marginTop: 8, maxHeight: 160, objectFit: "cover" }} />}
               {yaSeAplico(l)
                 ? <div className="text-xs" style={{ color: "var(--safe)", marginTop: 6 }}>Ya se aplicó como {l.aplicado.seccion}.</div>
                 : <button className="btn btn-outline btn-sm mt-2" onClick={() => aplicar(l)}>Aplicar</button>}
@@ -5890,7 +5944,14 @@ function AppInner() {
   }, []);
   const [page, setPageRaw] = useState("home");
   const [navParam, setNavParam] = useState(null);
-  const { online, pending, fallidas, queue, justSynced, reintentarFallidas } = useOffline();
+  const { online, pending, fallidas, queue, justSynced, reintentarFallidas, procesarCola, sinCuenta } = useOffline();
+  // El cajón de fotos del teléfono se abre antes que nada.
+  useEffect(() => { abrirAlmacen(); }, []);
+  // ¿Este teléfono quedó ligado a la cuenta de un encargado para que su gente capture?
+  const [vinculo, setVinculo] = useLS("agro_campo_v1", null);
+  // El medidor del plan gratuito: base, fotos e IA.
+  const [consumo, setConsumo] = useState(null);
+  const [sinSubir, setSinSubir] = useState({ cuantos: 0, bytes: 0, noSuben: 0 });
   const [guardadoFallo, setGuardadoFallo] = useState(() => typeof window !== "undefined" && !!window.__agroGuardadoFallo);
   useEffect(() => {
     const f = () => setGuardadoFallo(true);
@@ -5913,7 +5974,9 @@ function AppInner() {
         if (!ses || !activo) return;
         const { data: perfil } = await supabase.from("perfiles")
           .select("id, nombre, rol").eq("id", ses.user.id).maybeSingle();
-        if (sesionDeCuenta(perfil) && activo) {
+        // En un teléfono de campo la cuenta del encargado sirve para SUBIR,
+        // no para abrir sus pantallas a quien tome el teléfono.
+        if (sesionDeCuenta(perfil) && activo && abrePantallasSola(lsGet("agro_campo_v1"))) {
           setSession(sesionDeCuenta(perfil));
         }
       } catch { /* sin conexión: el usuario puede seguir usando PIN */ }
@@ -5924,10 +5987,25 @@ function AppInner() {
   // Cerrar sesión: limpia la sesión local y, si era cuenta real, también en Supabase.
   const cerrarSesion = useCallback(async () => {
     if (session && session.cuenta && supabaseListo) {
-      try { await supabase.auth.signOut(); } catch { /* ignorar */ }
+      // Un encargado puede dejar su cuenta ligada para que su gente capture
+      // con PIN y lo capturado suba. Sólo encargados: nunca la cuenta de un
+      // superadministrador en un teléfono que pasa de mano en mano.
+      let ligar = false;
+      if (puedeLigarTelefono(session)) {
+        ligar = vinculo?.cuentaId === session.id || window.confirm(
+          "¿Este teléfono se queda para que tu gente capture?\n\n" +
+          "ACEPTAR — tu cuenta queda ligada sólo para SUBIR lo que capturen con su PIN. " +
+          "Tus pantallas se cierran: para volver a entrar se pide tu contraseña.\n\n" +
+          "CANCELAR — se cierra todo. Lo que alguien capture aquí se guarda en el teléfono y sube cuando una cuenta vuelva a entrar.");
+      }
+      if (ligar) setVinculo(vinculoDe(session));
+      else {
+        setVinculo(null);
+        try { await supabase.auth.signOut(); } catch { /* ignorar */ }
+      }
     }
     setSession(null);
-  }, [session]);
+  }, [session, vinculo, setVinculo]);
 
   // Sincronización inicial: cuando hay sesión real, leer datos de Supabase y refrescar el navegador.
   // Supabase es la fuente de verdad. Si la red falla, se queda con lo que tenga local.
@@ -5975,30 +6053,12 @@ function AppInner() {
         // - Registros solo en la nube: se agregan.
         // - Registros solo locales (aún sin subir): se conservan.
         // - Registros en ambos: gana el más reciente; así nadie pisa el trabajo del otro.
-        setData(prev => {
-          const next = { ...prev };
-          Object.entries(datosNube || {}).forEach(([tabla, filasNube]) => {
-            if (!Array.isArray(filasNube)) return;
-            const localPrev = Array.isArray(prev[tabla]) ? prev[tabla] : [];
-            // Si la nube viene vacía, NO tocar lo local (precaución contra borrar todo).
-            if (filasNube.length === 0) return;
-            const porId = {};
-            // Primero lo local
-            localPrev.forEach(r => { if (r && r.id != null) porId[r.id] = r; });
-            // Luego la nube: gana si es más reciente o si el local no tiene timestamp
-            filasNube.forEach(rn => {
-              if (!rn || rn.id == null) return;
-              const rl = porId[rn.id];
-              if (!rl) { porId[rn.id] = rn; return; }
-              // Gana el más reciente; en un empate gana lo local, que es lo
-              // que la persona acaba de tocar. La regla vive en calculos.js
-              // con su prueba (antes la nube ganaba siempre).
-              porId[rn.id] = ganaAlSincronizar(rl, rn);
-            });
-            next[tabla] = Object.values(porId);
-          });
-          return next;
-        });
+        // La mezcla vive en sincroniza.js, con sus pruebas. Lo que trae lápida
+        // en la nube (alguien lo borró) se quita de este teléfono.
+        setData(prev => mezclarConNube(prev, datosNube).datos);
+        // Con la bajada hecha: medir el plan y subir lo que falte.
+        leerConsumo().then(c => { if (activo) setConsumo(c); });
+        procesarCola();
       } catch (e) {
         console.warn("Sincronización con nube falló:", e?.message);
         // La bajada completa falló: lo que se ve en pantalla es SOLO lo que
@@ -6013,6 +6073,19 @@ function AppInner() {
     })();
     return () => { activo = false; };
   }, [session?.id, session?.cuenta]);
+
+  // Subir las fotos que falten cuando hay señal. Si el medidor dice que el
+  // almacén está lleno, no se intenta: se quedan en el teléfono y se avisa.
+  useEffect(() => {
+    if (!online || !supabaseListo) return;
+    let vivo = true;
+    const t = setTimeout(async () => {
+      if (await hayCuentaLigada()) await subirArchivosPendientes({ lleno: estadoDeConsumo(consumo).archivosLlenos === true });
+      const s = await archivosSinSubir();
+      if (vivo) setSinSubir(s);
+    }, 2500);
+    return () => { vivo = false; clearTimeout(t); };
+  }, [online, data.archivos?.length, consumo]);
 
   const setPage = useCallback(p => { setPageRaw(p); setNavParam(null); }, []);
   // Sólo al desarrollar: deja que la prueba de recorrido abra cada pantalla.
@@ -6080,7 +6153,10 @@ function AppInner() {
   const marcarTocado = (item) => ({ ...item, _actualizado: new Date().toISOString() });
 
   const upd = useCallback((sec, item) => {
-    const it = marcarTocado(item);
+    // Un cambio de sueldo se ANOTA (desde cuándo y cuánto ganaba antes): así
+    // el costo de los meses pasados no se recalcula con el sueldo nuevo.
+    if (sec === "trabajadores") item = anotarCambioDeSueldo(trabajadoresRef.current.find(t => t.id === item.id), item, today());
+    const it = marcarTocado(apartarArchivosRef.current ? apartarArchivosRef.current(sec, item) : item);
     setData(d => {
       const col = Array.isArray(d[sec]) ? d[sec] : [];
       return { ...d, [sec]: col.some(x => x.id === it.id) ? col.map(x => x.id === it.id ? it : x) : [...col, it] };
@@ -6092,13 +6168,37 @@ function AppInner() {
   // nueva la foto del sueldo con que se costea ese día.
   const trabajadoresRef = useRef([]);
   trabajadoresRef.current = data.trabajadores || [];
+  const apartarArchivosRef = useRef(null);
+  // Las fotos y los PDF salen del registro antes de guardarlo: el archivo se
+  // queda en el teléfono (y sube aparte) y el registro sólo lleva la referencia.
+  // Si el teléfono no deja guardar archivos (modo privado), todo sigue como antes.
+  const apartarArchivos = useCallback((sec, item) => {
+    if (sec === "archivos" || !almacenListo()) return item;
+    let r;
+    try { r = sacarArchivos(item); } catch { return item; }
+    if (r.archivos.length === 0) return item;
+    const fichas = r.archivos.map(a => {
+      guardarEnTelefono(a);
+      return marcarTocado({ id: a.id, ruta: a.ruta, tipo: a.tipo, bytes: a.bytes, de: sec, cuando: new Date().toISOString() });
+    });
+    setData(d => {
+      const ya = new Set((d.archivos || []).map(x => x.id));
+      const nuevas = fichas.filter(f => !ya.has(f.id));
+      nuevas.forEach(f => replicarANube("add", "archivos", f));
+      return nuevas.length ? { ...d, archivos: [...(d.archivos || []), ...nuevas] } : d;
+    });
+    return r.registro;
+  }, [setData, replicarANube]);
+  apartarArchivosRef.current = apartarArchivos;
+
   const add = useCallback((sec, item) => {
     if (sec === "actividades") item = sellarSueldoDelDia(item, trabajadoresRef.current);
+    item = apartarArchivos(sec, item);
     const ni = marcarTocado({ ...item, id: item.id || `${sec[0]}${Date.now()}${Math.floor(Math.random() * 1000)}` });
     setData(d => ({ ...d, [sec]: [...(Array.isArray(d[sec]) ? d[sec] : []), ni] }));
     replicarANube("add", sec, ni);
     return ni;
-  }, [setData, replicarANube]);
+  }, [setData, replicarANube, apartarArchivos]);
 
   const del = useCallback((sec, id) => {
     // Lo que se borra queda anotado en la bitácora antes de irse. El dinero ya
@@ -6147,6 +6247,10 @@ function AppInner() {
   // de probar el primer pago.
   //
   // Devuelve true si se canceló, false si se arrepintió o no puso motivo.
+  // Sólo al desarrollar: deja que las pruebas de navegador guarden registros
+  // por la misma puerta que las pantallas. Vite lo quita de lo que se publica.
+  useEffect(() => { if (import.meta.env.DEV) window.__agro = { add, upd, del }; }, [add, upd, del]);
+
   const cancelar = useCallback((sec, id, etiqueta = "este movimiento") => {
     const col = Array.isArray(data[sec]) ? data[sec] : [];
     const registro = col.find(x => x.id === id);
@@ -6333,6 +6437,30 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
         {guardadoFallo && (
           <div className="sync-bar" style={{ background: "rgba(232,90,82,.16)", color: "var(--red)", fontWeight: 700 }}>
             <span><Ic e="⚠️" /></span><span>Este teléfono NO está guardando (memoria llena). No cierres la app: avisa al administrador y descarga un respaldo.</span>
+          </div>
+        )}
+        {(() => {
+          // Capturas que no han subido porque ninguna cuenta está ligada aquí.
+          const plan = planDeSubida({ nubeConfigurada: supabaseListo, enLinea: online, hayCuenta: !sinCuenta, pendientes: pending.length });
+          return plan.motivo === "sin_cuenta" ? (
+            <div className="sync-bar" style={{ background: "rgba(232,168,56,.16)", color: "var(--gold)", fontWeight: 600 }}>
+              <span><Ic e="⚠️" /></span><span>{plan.dice}</span>
+            </div>
+          ) : null;
+        })()}
+        {(() => {
+          // El medidor sólo habla cuando hay algo que decir, y sólo a quien puede hacer algo.
+          const e = estadoDeConsumo(consumo);
+          if (!consumo || !(e.peor === "alto" || e.peor === "lleno") || !["admin", "finanzas", "dueno"].includes(session?.role)) return null;
+          return (
+            <div className="sync-bar" style={{ background: e.peor === "lleno" ? "rgba(232,90,82,.16)" : "rgba(232,168,56,.16)", color: e.peor === "lleno" ? "var(--red)" : "var(--gold)", fontWeight: 600 }}>
+              <span><Ic e="⚠️" /></span><span>{e.peor === "lleno" ? "Se llegó al tope del plan. " : "El plan se está llenando. "}{e.dice}</span>
+            </div>
+          );
+        })()}
+        {sinSubir.noSuben > 0 && (
+          <div className="sync-bar" style={{ background: "rgba(232,168,56,.16)", color: "var(--gold)", fontWeight: 600 }}>
+            <span><Ic e="⚠️" /></span><span>{sinSubir.noSuben} foto(s) pesan demasiado para subir. Siguen guardadas en este teléfono; hay que volver a tomarlas.</span>
           </div>
         )}
         {!online && (
@@ -6888,7 +7016,7 @@ function AdminHome({ data, alertas, onNav, onLogout, pending, online }) {
             const p = data.parcelas.find(x => x.id === a.parcelaId);
             return (
               <div key={a.id} className="list-item">
-                <div className="li-icon"><Ic e={p?.foto ? <img src={p.foto} alt="" /> : p?.emoji || "🌿"} /></div>
+                <div className="li-icon"><Ic e={p?.foto ? <Foto src={p.foto} alt="" /> : p?.emoji || "🌿"} /></div>
                 <div className="li-body"><div className="li-title">{a.tipo}</div><div className="li-sub">{p?.nombre} · {a.fecha}</div></div>
                 <div className="li-right"><div className="li-val">{fmt(a.costoTotal)}</div></div>
               </div>
@@ -6963,7 +7091,7 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
                 const costo = data.actividades.filter(a => a.parcelaId === p.id).reduce((s, a) => s + a.costoTotal, 0);
                 return (
                   <div key={p.id} className="list-item" onClick={() => setEditId(p.id)} style={{ cursor: "pointer" }}>
-                    <div className="li-icon"><Ic e={p.foto ? <img src={p.foto} alt="" /> : p.emoji} /></div>
+                    <div className="li-icon"><Ic e={p.foto ? <Foto src={p.foto} alt="" /> : p.emoji} /></div>
                     <div className="li-body">
                       <div className="li-title">{p.nombre}</div>
                       <div className="li-sub">{p.cultivo} · {p.hectareas} ha{p.ubicacionId ? `· ${nombreUbicacion(p.ubicacionId)}` : ""} · {p.cicloFenologico?.length || 0} eventos</div>
@@ -6986,7 +7114,7 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
           <input ref={editFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleFoto(e, editId)} />
           {editP.foto
             ? <div style={{ position: "relative", marginBottom: 12 }}>
-                <img src={editP.foto} alt="" className="parcela-foto" />
+                <Foto src={editP.foto} alt="" className="parcela-foto" />
               </div>
             : <div className="foto-ph" onClick={() => editFileRef.current?.click()}>
                 <span style={{ fontSize: 36 }}><Ic e="📷" /></span>
@@ -7067,7 +7195,7 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
             <div className="card-title">Nueva Parcela</div>
             <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleFoto(e, null)} />
             {form.foto
-              ? <img src={form.foto} alt="" className="parcela-foto" />
+              ? <Foto src={form.foto} alt="" className="parcela-foto" />
               : <div className="foto-ph" onClick={() => fileRef.current?.click()}><span style={{ fontSize: 36 }}><Ic e="📷" /></span><span className="text-muted text-sm">Agregar foto (opcional)</span></div>}
             <div className="form-group">
               <label className="form-label">Rancho</label>
@@ -7986,7 +8114,7 @@ function TrabReg({ data, add, upd, setInv, session, online, onLogout, onNav }) {
               const sug = getSugerencia(p, mes);
               return (
                 <div key={p.id} className={`parcela-card${form.parcelaId === p.id ? " active" : ""}`} onClick={() => { setForm(f => ({ ...f, parcelaId: p.id })); setPaso(2); }}>
-                  {p.foto ? <img src={p.foto} className="parcela-thumb" alt="" /> : <div className="parcela-thumb-ph"><Ic e={p.emoji} /></div>}
+                  {p.foto ? <Foto src={p.foto} className="parcela-thumb" alt="" /> : <div className="parcela-thumb-ph"><Ic e={p.emoji} /></div>}
                   <div className="parcela-body">
                     <div className="pc-name">{p.nombre}</div>
                     <div className="pc-sub">{p.cultivo} · {p.hectareas} ha</div>
@@ -8207,7 +8335,7 @@ function TrabHistorial({ data, add, upd, session, onLogout }) {
           const p = data.parcelas.find(x => x.id === a.parcelaId);
           return (
             <div key={a.id} className="list-item">
-              <div className="li-icon"><Ic e={p?.foto ? <img src={p.foto} alt="" /> : p?.emoji || "🌿"} /></div>
+              <div className="li-icon"><Ic e={p?.foto ? <Foto src={p.foto} alt="" /> : p?.emoji || "🌿"} /></div>
               <div className="li-body">
                 <div className="li-title">{a.tipo}</div>
                 <div className="li-sub">{p?.nombre} · {a.fecha} · {a.horas_trab}h</div>
@@ -8345,7 +8473,7 @@ function CuadrillaReg({ data, add, upd, setInv, session, online, onLogout }) {
               const sug = getSugerencia(p, mesActual());
               return (
                 <div key={p.id} className={`parcela-card${form.parcelaId === p.id ? " active" : ""}`} onClick={() => { setForm(f => ({ ...f, parcelaId: p.id })); setPaso(2); }}>
-                  {p.foto ? <img src={p.foto} className="parcela-thumb" alt="" /> : <div className="parcela-thumb-ph"><Ic e={p.emoji} /></div>}
+                  {p.foto ? <Foto src={p.foto} className="parcela-thumb" alt="" /> : <div className="parcela-thumb-ph"><Ic e={p.emoji} /></div>}
                   <div className="parcela-body">
                     <div className="pc-name">{p.nombre}</div>
                     <div className="pc-sub">{p.cultivo} · {p.hectareas} ha</div>
@@ -8553,7 +8681,7 @@ function CuadHistorial({ data, upd, session, onLogout }) {
           const mod = a.modalidadPago === "jornal" ? `${a.cuadrilla_personas} personas` : a.modalidadPago === "caja" ? `${a.cuadrilla_unidades} cajas` : "Por tarea";
           return (
             <div key={a.id} className="list-item">
-              <div className="li-icon"><Ic e={p?.foto ? <img src={p.foto} alt="" /> : p?.emoji || "👥"} /></div>
+              <div className="li-icon"><Ic e={p?.foto ? <Foto src={p.foto} alt="" /> : p?.emoji || "👥"} /></div>
               <div className="li-body">
                 <div className="li-title">{a.tipo}</div>
                 <div className="li-sub">{p?.nombre} · {a.fecha} · {mod}</div>
@@ -9092,7 +9220,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
             </div>
             <input ref={egFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleTicket} />
             {egForm.ticket
-              ? <div style={{ marginBottom: 12 }}><img src={egForm.ticket} alt="ticket" className="parcela-foto" /></div>
+              ? <div style={{ marginBottom: 12 }}><Foto src={egForm.ticket} alt="ticket" className="parcela-foto" /></div>
               : <button className="btn btn-outline mb-3" onClick={() => egFileRef.current?.click()}><Ic e="📷" /> Adjuntar comprobante</button>}
             {egForm.ticket && <button className="btn btn-outline mb-3" onClick={() => egFileRef.current?.click()}><Ic e="📷" /> Cambiar comprobante</button>}
             <button className="btn btn-accent" onClick={guardarEgreso}>Guardar Egreso</button>
@@ -9232,7 +9360,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
                       <BotonCancelar seccion="egresos" registro={e} etiqueta={`el egreso "${e.concepto}" de ${fmt(e.monto)}`} cancelar={cancelar} />
                     </div>
                   </div>
-                  {e.ticket && <img src={e.ticket} alt="comprobante" style={{ width: "100%", borderRadius: 10, marginTop: 10, maxHeight: 200, objectFit: "cover" }} />}
+                  {e.ticket && <Foto src={e.ticket} alt="comprobante" style={{ width: "100%", borderRadius: 10, marginTop: 10, maxHeight: 200, objectFit: "cover" }} />}
                 </div>
               );
             })}
@@ -9259,7 +9387,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
                       {c.items.map((it, i) => `${it.nombre} (${it.cantidad})`).join(" · ")}
                     </div>
                   )}
-                  {c.ticket && <img src={c.ticket} alt="ticket" style={{ width: "100%", borderRadius: 10, marginBottom: 8, maxHeight: 200, objectFit: "cover" }} />}
+                  {c.ticket && <Foto src={c.ticket} alt="ticket" style={{ width: "100%", borderRadius: 10, marginBottom: 8, maxHeight: 200, objectFit: "cover" }} />}
                   {c.estado === "pendiente" ? (
                     <div className="gap-row">
                       <button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={() => {
@@ -9359,7 +9487,7 @@ function ExternoReg({ data, add, setInv, session, online, onLogout }) {
               const sug = getSugerencia(p, mesActual());
               return (
                 <div key={p.id} className={`parcela-card${form.parcelaId === p.id ? " active" : ""}`} onClick={() => { setForm(f => ({ ...f, parcelaId: p.id })); setPaso(2); }}>
-                  {p.foto ? <img src={p.foto} className="parcela-thumb" alt="" /> : <div className="parcela-thumb-ph"><Ic e={p.emoji} /></div>}
+                  {p.foto ? <Foto src={p.foto} className="parcela-thumb" alt="" /> : <div className="parcela-thumb-ph"><Ic e={p.emoji} /></div>}
                   <div className="parcela-body">
                     <div className="pc-name">{p.nombre}</div>
                     <div className="pc-sub">{p.cultivo || "Sin cultivo"} · {p.hectareas} ha</div>
@@ -9663,7 +9791,7 @@ function TrabCompras({ data, add, setInv, session, online, onLogout }) {
             <div className="big-sub">Toma foto del ticket o factura</div>
             <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleTicket} />
             {form.ticket
-              ? <img src={form.ticket} alt="ticket" className="parcela-foto" />
+              ? <Foto src={form.ticket} alt="ticket" className="parcela-foto" />
               : <div className="foto-ph" onClick={() => fileRef.current?.click()}>
                   <span style={{ fontSize: 36 }}><Ic e="📷" /></span>
                   <span className="text-muted text-sm">Toca para tomar foto del ticket</span>
@@ -9929,7 +10057,7 @@ function MovimientoDetalle({ data, mov, upd, del, onClose }) {
                   )}
                 </>
               )}
-              {form.ticket && <img src={form.ticket} alt="comprobante" style={{ width: "100%", borderRadius: 12, marginTop: 12 }} />}
+              {form.ticket && <Foto src={form.ticket} alt="comprobante" style={{ width: "100%", borderRadius: 12, marginTop: 12 }} />}
               <div className="gap-row mt-3">
                 <button className="btn btn-outline" onClick={() => setEdit(true)}><Ic e="✏️" /> Editar</button>
               </div>
@@ -10059,7 +10187,7 @@ function EncargadoHome({ data, session, onNav, onLogout, online }) {
             const quien = nombreEjecutorAct(data, a.registradoPor)?.split(" ")[0];
             return (
               <div key={a.id} className="list-item">
-                <div className="li-icon"><Ic e={p?.foto ? <img src={p.foto} alt="" /> : p?.emoji || "🌿"} /></div>
+                <div className="li-icon"><Ic e={p?.foto ? <Foto src={p.foto} alt="" /> : p?.emoji || "🌿"} /></div>
                 <div className="li-body"><div className="li-title">{a.tipo}</div><div className="li-sub">{p?.nombre} · {quien || "—"} · {a.fecha}</div></div>
               </div>
             );
@@ -10326,7 +10454,7 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
               const quien = nombreEjecutorAct(data, a.registradoPor);
               return (
                 <div key={a.id} className="list-item">
-                  <div className="li-icon"><Ic e={p?.foto ? <img src={p.foto} alt="" /> : p?.emoji || "🌿"} /></div>
+                  <div className="li-icon"><Ic e={p?.foto ? <Foto src={p.foto} alt="" /> : p?.emoji || "🌿"} /></div>
                   <div className="li-body">
                     <div className="li-title">{a.tipo}</div>
                     <div className="li-sub">{quien || "—"} · {p?.nombre || "—"}</div>
@@ -11052,7 +11180,7 @@ function RegistroActividadAdmin({ data, add, upd, setInv, session, onClose }) {
               const sug = getSugerencia(p, mesActual());
               return (
                 <div key={p.id} className={`parcela-card${form.parcelaId === p.id ? " active" : ""}`} onClick={() => { setForm(f => ({ ...f, parcelaId: p.id, cultivoBodega: "" })); setPaso(3); }}>
-                  {p.foto ? <img src={p.foto} className="parcela-thumb" alt="" /> : <div className="parcela-thumb-ph"><Ic e={p.emoji} /></div>}
+                  {p.foto ? <Foto src={p.foto} className="parcela-thumb" alt="" /> : <div className="parcela-thumb-ph"><Ic e={p.emoji} /></div>}
                   <div className="parcela-body">
                     <div className="pc-name">{p.nombre}</div>
                     <div className="pc-sub">{p.cultivo} · {p.hectareas} ha</div>
@@ -11284,7 +11412,7 @@ function GestionCosechas({ data, add, upd, del, session, onClose }) {
             <div key={p.id} className="card" style={{ cursor: "pointer" }} onClick={() => setDetalle(p.id)}>
               <div className="flex-b mb-2">
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  {p.foto ? <img src={p.foto} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}><Ic e={p.emoji} /></span>}
+                  {p.foto ? <Foto src={p.foto} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}><Ic e={p.emoji} /></span>}
                   <div>
                     <div className="font-bold">{p.nombre}</div>
                     <div className="text-xs text-muted">{p.cultivo} · {p.hectareas} ha</div>
@@ -12332,7 +12460,7 @@ function PanelParcelas({ data, add, del, session, onClose, onNav }) {
             <div key={p.id} className="card" style={{ cursor: "pointer" }} onClick={() => setDetalle(si.id)}>
               <div className="flex-b mb-2">
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  {p.foto ? <img src={p.foto} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}>{pr.cultivo?.emoji || p.emoji}</span>}
+                  {p.foto ? <Foto src={p.foto} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}>{pr.cultivo?.emoji || p.emoji}</span>}
                   <div>
                     <div className="font-bold">{p.nombre}</div>
                     <div className="text-xs text-muted">{nombreSiembra(si)} · {ea?.etapa || "—"}</div>

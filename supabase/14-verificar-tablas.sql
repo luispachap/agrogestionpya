@@ -25,6 +25,10 @@ with necesarias(tabla) as (
     ('animales'), ('pesajes'), ('tratamientos'), ('potreros'),
     ('indicaciones'), ('chat'), ('vuelos'),
     ('auditoria'),
+    ('lecturas'), ('patrones_lectura'), ('estados_cuenta'), ('titulares'), ('bolsas'),
+    ('aportaciones'), ('animales'), ('pesajes'), ('tratamientos'), ('potreros'),
+    ('indicaciones'), ('chat'), ('vuelos'), ('auditoria'),
+    ('archivos'), ('permisos_rol'), ('limites'), ('uso_ia'),
     ('perfiles')
 )
 select
@@ -63,6 +67,10 @@ with necesarias(tabla) as (
     ('animales'), ('pesajes'), ('tratamientos'), ('potreros'),
     ('indicaciones'), ('chat'), ('vuelos'),
     ('auditoria'),
+    ('lecturas'), ('patrones_lectura'), ('estados_cuenta'), ('titulares'), ('bolsas'),
+    ('aportaciones'), ('animales'), ('pesajes'), ('tratamientos'), ('potreros'),
+    ('indicaciones'), ('chat'), ('vuelos'), ('auditoria'),
+    ('archivos'), ('permisos_rol'), ('limites'), ('uso_ia'),
     ('perfiles')
 )
 select

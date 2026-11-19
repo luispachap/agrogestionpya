@@ -6,13 +6,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const DIR = fileURLToPath(new URL("../../supabase/", import.meta.url));
-// Las hojas que arman la base. Se dejan fuera las que sólo limpian o revisan.
-const HOJAS_BASE = ["1-esquema", "2-seguridad", "4-tabla-solicitudes-compra", "5-tabla-bitacora",
-  "6-tabla-avances-fase", "7-tabla-embarques", "8-tabla-terminados", "9-tabla-corridas",
-  "10-tabla-estibas", "11-tabla-config-seguridad", "13-tablas-emisor-y-control",
-  "17-tabla-config-contpaqi", "18-tablas-lectura-de-papeles", "19-tabla-estados-de-cuenta",
-  "20-tablas-titulares-y-bolsas", "21-tablas-ganado", "22-auditoria-y-borrado",
-  "23-chat-indicaciones-y-dron"];
+// El orden para armar la base desde cero: el mismo que se usa para montar la real.
+export const ORDEN = JSON.parse(readFileSync(DIR + "orden.json", "utf8")).hojas;
+const HOJAS_VIEJAS = ORDEN.slice(0, ORDEN.indexOf("24-permisos-por-rol"));   // lo que tenía la base anterior
+const HOJAS_NUEVAS = ORDEN.slice(ORDEN.indexOf("24-permisos-por-rol"));
 
 export const leerHoja = (nombre) =>
   readFileSync(DIR + nombre + ".sql", "utf8").replace(/create extension[^;]*;/gi, "");
@@ -40,8 +37,16 @@ export async function armarBase({ con24 = true } = {}) {
     grant usage on schema public, auth to anon, authenticated;
     alter default privileges in schema public grant all on tables to anon, authenticated;
     alter default privileges in schema public grant execute on functions to anon, authenticated;
+    -- El almacén de archivos de Supabase, en chiquito: las mismas dos tablas.
+    create schema storage;
+    create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+    create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text references storage.buckets(id),
+      name text, owner uuid, metadata jsonb, created_at timestamptz default now(), unique (bucket_id, name));
+    alter table storage.objects enable row level security;
+    grant usage on schema storage to anon, authenticated;
+    grant all on storage.objects to anon, authenticated;
   `);
-  for (const h of HOJAS_BASE) await db.exec(leerHoja(h));
+  for (const h of HOJAS_VIEJAS) await db.exec(leerHoja(h));
   for (const [nombre, id] of Object.entries(CUENTAS))
     await db.query("insert into auth.users values ($1, $2)", [id, nombre + "@prueba.invalid"]);
   // Perfiles puestos por el dueño de la base (como desde el panel).
@@ -50,7 +55,7 @@ export async function armarBase({ con24 = true } = {}) {
     await db.query("insert into perfiles (id, nombre, rol) values ($1, $2, $3)",
       [CUENTAS[n], "Prueba " + n, rolViejo[n] || n]);
   if (con24) {
-    await db.exec(leerHoja("24-permisos-por-rol"));
+    for (const h of HOJAS_NUEVAS) await db.exec(leerHoja(h));
     await db.query("update perfiles set rol = 'superadmin' where id in ($1, $2)", [CUENTAS.luis, CUENTAS.migue]);
   }
   await db.exec("grant all on all tables in schema public to anon, authenticated;");

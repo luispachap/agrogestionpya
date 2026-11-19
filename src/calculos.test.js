@@ -20,6 +20,7 @@ import {
   saldoCredito, diasParaVencer, cubetaVencimiento,
   estaCancelado, vivos, marcarCancelado, ganaAlSincronizar,
   formatearTelefonoMX, totalCosecha, calcularCostoManoObra, sellarSueldoDelDia, distKm,
+  sueldoVigente, anotarCambioDeSueldo, remuneracionDevengada, distribuirCosto,
 } from "./calculos.js";
 
 /* ════════════ LA REMISIÓN QUE SE LE ENTREGA AL CLIENTE ════════════ */
@@ -328,6 +329,85 @@ test("la_foto_del_sueldo_no_se_pisa_ni_se_inventa", () => {
   assert.equal(sellarSueldoDelDia({ trabajadorId: "t1", sueldoDia: 350 }, cat).sueldoDia, 350);
   assert.equal(sellarSueldoDelDia({ trabajadorId: "nadie" }, cat).sueldoDia, undefined);
   assert.equal(sellarSueldoDelDia({ registradoPor: { id: "t1" } }, cat).sueldoDia, 400);
+});
+
+/* ════════════ EL SUELDO DE CADA FECHA, CON SU EVIDENCIA ════════════ */
+
+test("un_sueldo_viejo_nunca_se_escribe_con_el_valor_de_hoy_como_si_fuera_un_hecho", () => {
+  // Registro anterior a la foto, sin historial: se calcula con el de hoy, PERO marcado.
+  const viejo = { id: "a1", fecha: "2025-11-03", parcelaId: "R01", horas: 8, trabajadorId: "t1" };
+  const r = calcularCostoManoObra([viejo], [{ id: "t1", nombre: "PRUEBA UNO", sueldo_dia: 500 }]);
+  assert.equal(r.costoPorParcela.R01, 500);
+  assert.equal(r.desglosePorParcela.R01[0].origenSueldo, "catalogo_actual");
+  assert.equal(r.desglosePorParcela.R01[0].estimado, true);
+  assert.deepEqual(r.estimados, ["a1"]);
+});
+
+test("al_cambiar_un_sueldo_queda_anotado_desde_cuando_y_cuanto_ganaba_antes", () => {
+  const antes = { id: "t1", nombre: "PRUEBA UNO", sueldo_dia: 400 };
+  const despues = anotarCambioDeSueldo(antes, { ...antes, sueldo_dia: 500 }, "2026-08-01");
+  assert.deepEqual(despues.historialSueldo, [{ desde: "2026-08-01", sueldo_dia: 500, anterior: 400 }]);
+  // sin cambio de sueldo no se anota nada
+  assert.equal(anotarCambioDeSueldo(antes, { ...antes, nombre: "OTRO" }, "2026-08-01").historialSueldo, undefined);
+  // una corrección el mismo día no deja dos renglones, y conserva el "antes" verdadero
+  const corr = anotarCambioDeSueldo(despues, { ...despues, sueldo_dia: 520 }, "2026-08-01");
+  assert.deepEqual(corr.historialSueldo, [{ desde: "2026-08-01", sueldo_dia: 520, anterior: 400 }]);
+});
+
+test("cada_fecha_usa_el_sueldo_que_consta_para_esa_fecha", () => {
+  const t = { id: "t1", sueldo_dia: 600, historialSueldo: [
+    { desde: "2026-08-01", sueldo_dia: 500, anterior: 400 }, { desde: "2026-10-01", sueldo_dia: 600, anterior: 500 }] };
+  assert.deepEqual(sueldoVigente(t, "2026-09-15"), { sueldo: 500, origen: "historial", estimado: false });
+  assert.deepEqual(sueldoVigente(t, "2026-11-01"), { sueldo: 600, origen: "historial", estimado: false });
+  // antes del primer cambio: consta que ganaba 400, no desde cuándo → estimado
+  assert.deepEqual(sueldoVigente(t, "2026-03-10"), { sueldo: 400, origen: "anterior_conocido", estimado: true });
+  // y el costo de marzo sale con 400, no con los 600 de hoy
+  const marzo = { id: "a1", fecha: "2026-03-10", parcelaId: "R01", horas: 8, trabajadorId: "t1" };
+  assert.equal(calcularCostoManoObra([marzo], [t]).costoPorParcela.R01, 400);
+});
+
+/* ════════════ DEVENGADO Y DISTRIBUCIÓN, POR SEPARADO ════════════ */
+
+test("lo_que_se_reparte_a_las_parcelas_suma_exactamente_lo_devengado", () => {
+  const trab = [{ id: "t1", nombre: "PRUEBA UNO", sueldo_dia: 400 }, { id: "t2", nombre: "PRUEBA DOS", sueldo_dia: 350 }];
+  const acts = [
+    { id: "a1", fecha: "2026-09-08", parcelaId: "R01", tipo: "riego", horas: 3, trabajadorId: "t1", sueldoDia: 400 },
+    { id: "a2", fecha: "2026-09-08", parcelaId: "R02", tipo: "deshierbe", horas: 3, trabajadorId: "t1", sueldoDia: 400 },
+    { id: "a3", fecha: "2026-09-08", parcelaId: "R03", tipo: "deshierbe", horas: 1, trabajadorId: "t1", sueldoDia: 400 },
+    { id: "a4", fecha: "2026-09-08", parcelaId: "R01", tipo: "corte", modalidad: "destajo", tarifa: 12.5, unidades: 37, trabajadorId: "t2" },
+  ];
+  const dev = remuneracionDevengada(acts, trab);
+  const d = distribuirCosto(dev);
+  assert.equal(dev.find(x => x.trabajadorId === "t1").monto, 400);
+  assert.equal(dev.find(x => x.trabajadorId === "t2").monto, 462.5);
+  assert.equal(d.total, 862.5);
+  assert.equal(sumarDinero(Object.values(d.porParcela)), d.total);
+  assert.equal(sumarDinero(Object.values(d.porActividad)), d.total);
+  assert.deepEqual(d.porModalidad, { dia: 400, destajo: 462.5 });
+  assert.equal(d.estimado, 0);
+});
+
+test("por_dia_por_hora_y_a_destajo_son_tres_cuentas_distintas", () => {
+  const act = { id: "a1", fecha: "2026-09-08", parcelaId: "R01", horas: 2, trabajadorId: "t1", sueldoDia: 400 };
+  // por día (la de siempre): 2 horas devengan el día completo
+  assert.equal(remuneracionDevengada([act], [{ id: "t1", sueldo_dia: 400 }])[0].monto, 400);
+  // por hora: 2 de 8 horas
+  const porHora = remuneracionDevengada([act], [{ id: "t1", sueldo_dia: 400, modalidadPago: "hora" }])[0];
+  assert.equal(porHora.monto, 100); assert.equal(porHora.partes[0].modalidad, "hora");
+  // a destajo: tarifa por unidades, sin importar las horas
+  const dest = remuneracionDevengada([{ ...act, modalidad: "destajo", tarifa: 3, unidades: 50 }], [{ id: "t1", sueldo_dia: 400 }])[0];
+  assert.equal(dest.monto, 150);
+});
+
+test("lo_estimado_se_ensena_aparte_del_total_y_lo_cancelado_no_cuenta", () => {
+  const trab = [{ id: "t1", sueldo_dia: 500 }];
+  const acts = [
+    { id: "a1", fecha: "2026-09-08", parcelaId: "R01", horas: 8, trabajadorId: "t1", sueldoDia: 400 },  // con foto
+    { id: "a2", fecha: "2025-09-08", parcelaId: "R01", horas: 8, trabajadorId: "t1" },                  // viejo, sin foto
+    { id: "a3", fecha: "2026-09-09", parcelaId: "R01", horas: 8, trabajadorId: "t1", sueldoDia: 400, cancelado: { motivo: "duplicado" } },
+  ];
+  const d = distribuirCosto(remuneracionDevengada(acts, trab));
+  assert.equal(d.total, 900); assert.equal(d.estimado, 500);
 });
 
 /* ════════════ COSECHA, TELÉFONO Y DISTANCIA ════════════ */

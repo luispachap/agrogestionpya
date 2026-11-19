@@ -92,7 +92,63 @@ REGLAS QUE NO SE ROMPEN:
 
 Responde solamente con el JSON del formato indicado.`;
 
-async function tienePerfil(autorizacion: string | null): Promise<{ ok: boolean; estado: number; dice: string }> {
+// ── La libreta de uso: una lectura por documento, y con presupuesto ────────
+// Se escribe con la llave de servicio, que sólo existe aquí en el servidor:
+// desde la app nadie puede inflar ni borrar el consumo (hoja SQL 28).
+const BASE = Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICIO = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const cabServicio = { apikey: SERVICIO, Authorization: `Bearer ${SERVICIO}`, "Content-Type": "application/json" };
+
+async function huellaDe(base64: string): Promise<string> {
+  const bin = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const h = await crypto.subtle.digest("SHA-256", bin);
+  return Array.from(new Uint8Array(h), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// ¿Este documento ya se leyó? Entonces se devuelve lo ya leído: no cuesta.
+async function yaLeido(funcion: string, huella: string): Promise<Record<string, unknown> | null> {
+  if (!BASE || !SERVICIO) return null;
+  try {
+    const r = await fetch(`${BASE}/rest/v1/uso_ia?select=resultado&funcion=eq.${funcion}&huella=eq.${huella}&resultado=not.is.null&order=cuando.desc&limit=1`, { headers: cabServicio });
+    const filas = r.ok ? await r.json() : [];
+    return filas[0]?.resultado ?? null;
+  } catch { return null; }
+}
+
+// ¿Queda presupuesto este mes? Si NO se puede comprobar, no se llama a la IA:
+// un presupuesto que se salta cuando falla la consulta no es un presupuesto.
+async function quedaPresupuesto(): Promise<{ ok: boolean; dice: string }> {
+  if (!BASE || !SERVICIO) return { ok: false, dice: "No se pudo comprobar el presupuesto de IA. Captura a mano." };
+  try {
+    const inicio = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Mexico_City" }));
+    const desde = new Date(Date.UTC(inicio.getFullYear(), inicio.getMonth(), 1, 6)).toISOString(); // día 1, medianoche de Zacatecas
+    const [lim, uso] = await Promise.all([
+      fetch(`${BASE}/rest/v1/limites?select=ia_llamadas_mes,ia_centavos_mes&limit=1`, { headers: cabServicio }).then((r) => r.json()),
+      fetch(`${BASE}/rest/v1/uso_ia?select=centavos&de_cache=eq.false&cuando=gte.${desde}`, { headers: cabServicio }).then((r) => r.json()),
+    ]);
+    const tope = lim?.[0];
+    if (!tope || !Array.isArray(uso)) return { ok: false, dice: "No se pudo comprobar el presupuesto de IA. Captura a mano." };
+    const gastado = uso.reduce((s: number, u: { centavos: number | null }) => s + (u.centavos ?? 0), 0);
+    if (uso.length >= tope.ia_llamadas_mes) return { ok: false, dice: `Ya se usaron las ${tope.ia_llamadas_mes} lecturas con IA de este mes. Se puede capturar a mano; el XML y los proveedores ya conocidos se siguen leyendo solos.` };
+    if (tope.ia_centavos_mes && gastado >= tope.ia_centavos_mes) return { ok: false, dice: "Se llegó al presupuesto de IA de este mes. Se puede capturar a mano." };
+    return { ok: true, dice: "" };
+  } catch { return { ok: false, dice: "No se pudo comprobar el presupuesto de IA. Captura a mano." }; }
+}
+
+async function anotarUso(fila: Record<string, unknown>) {
+  if (!BASE || !SERVICIO) return;
+  try { await fetch(`${BASE}/rest/v1/uso_ia`, { method: "POST", headers: { ...cabServicio, Prefer: "return=minimal" }, body: JSON.stringify(fila) }); } catch { /* la lectura ya se hizo: no se pierde por no poder anotarla */ }
+}
+
+// El costo estimado sólo se calcula si alguien configuró el precio. Sin
+// precio no se inventa: se deja en blanco y manda el tope por número de lecturas.
+function centavosDe(entrada: number | null, salida: number | null): number | null {
+  const pe = Number(Deno.env.get("IA_CENTAVOS_POR_MILLON_ENTRADA")), ps = Number(Deno.env.get("IA_CENTAVOS_POR_MILLON_SALIDA"));
+  if (!pe || !ps || entrada == null || salida == null) return null;
+  return Math.ceil((entrada * pe + salida * ps) / 1_000_000);
+}
+
+async function tienePerfil(autorizacion: string | null): Promise<{ ok: boolean; estado: number; dice: string; cuenta?: string | null }> {
   const base = Deno.env.get("SUPABASE_URL");
   const publica = Deno.env.get("SUPABASE_ANON_KEY");
   if (!autorizacion || !base || !publica) {
@@ -104,7 +160,11 @@ async function tienePerfil(autorizacion: string | null): Promise<{ ok: boolean; 
       headers: { Authorization: autorizacion, apikey: publica, "Content-Type": "application/json" },
       body: "{}",
     });
-    if (r.ok && (await r.json()) === true) return { ok: true, estado: 200, dice: "" };
+    if (r.ok && (await r.json()) === true) {
+      let cuenta: string | null = null;
+      try { cuenta = JSON.parse(atob(autorizacion.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).sub ?? null; } catch { /* sólo es para anotar quién */ }
+      return { ok: true, estado: 200, dice: "", cuenta };
+    }
     return { ok: false, estado: 403, dice: "Tu cuenta no tiene permiso para leer papeles con IA. Se puede capturar a mano." };
   } catch {
     // Si no se pudo comprobar, NO se deja pasar.
@@ -158,6 +218,16 @@ Deno.serve(async (req: Request) => {
       dice: "La foto pesa demasiado. La app debe reducirla antes de mandarla.",
     }, 413);
   }
+
+  // Una lectura por documento: si esta misma foto ya se leyó, se devuelve eso.
+  const huella = await huellaDe(imagenBase64);
+  const previa = await yaLeido("leer-papel", huella);
+  if (previa) {
+    await anotarUso({ huella, funcion: "leer-papel", cuenta: quien.cuenta ?? null, de_cache: true });
+    return responder({ ...previa, ok: true, fuente: "ia", deMemoria: true, huella });
+  }
+  const presupuesto = await quedaPresupuesto();
+  if (!presupuesto.ok) return responder({ error: "sin_presupuesto", dice: presupuesto.dice }, 429);
 
   const esquema = {
     type: "object",
@@ -247,9 +317,16 @@ Deno.serve(async (req: Request) => {
       return responder({ error: "respuesta_ilegible", dice: "La lectura no se entendió. Captura a mano." }, 502);
     }
 
+    const entrada = respuesta.usage?.input_tokens ?? null, salida = respuesta.usage?.output_tokens ?? null;
+    await anotarUso({
+      huella, funcion: "leer-papel", cuenta: quien.cuenta ?? null, de_cache: false,
+      entrada, salida, centavos: centavosDe(entrada, salida), resultado: leido,
+    });
+
     return responder({
       ok: true,
       fuente: "ia",                 // para que la app sepa que esta lectura SÍ costó
+      huella,
       ...leido,
       uso: {
         entrada: respuesta.usage?.input_tokens ?? null,

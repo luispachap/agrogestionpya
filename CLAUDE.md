@@ -134,7 +134,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **100 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **103 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.
@@ -470,6 +470,31 @@ y un gasto duplicado se descubre tarde y mal.
   `LO-QUE-FALTA-CONSTRUIR.md`: titulares y bolsas, lectura de estados de cuenta,
   cuenta corriente entre socios, el ganado.
 
+## Infraestructura propia y plan gratuito
+
+AgroGestión vive en su propio proyecto de Supabase (plan gratuito: 500 MB de
+base, 1 GB de archivos), separado de ATALAYA y del despacho. `docs/RUTA.md` es
+el plan y el estado. La base se arma desde cero con `supabase/orden.json`.
+
+- **Una foto o un PDF nunca va dentro de un registro.** `add`/`upd` los sacan
+  solos (`sacarArchivos`), los guardan en el teléfono (IndexedDB) y suben al
+  almacén privado `comprobantes`; el registro lleva `archivo:<huella>.jpg`.
+  Para enseñarla, `<Foto src=…/>` — **nunca `<img>` con un campo guardado**.
+  Para mandarla a leer, `contenidoDeArchivo()`.
+- **Borrar deja lápida** (`borrar_registro`, hoja 30). No hay borrado directo en
+  ninguna tabla. La mezcla con la nube vive en `src/sincroniza.js`.
+- **La gente de campo sube por la cuenta de su encargado** (teléfono ligado,
+  `agro_campo_v1`). Nunca una cuenta técnica compartida, y nunca se liga la
+  cuenta de un superadministrador.
+- **La IA se llama una vez por documento** (por huella) y con tope mensual
+  (`limites`, `uso_ia`). `uso_ia` sólo la escribe la función del servidor.
+- **El medidor** (`consumo()`, `estadoDeConsumo`) nunca dice "bien" si no pudo
+  medir.
+- `sh pruebas/todo.sh` corre todo. `src/nombres.test.js` revisa que ningún
+  nombre se use sin importar: la compilación no lo detecta y ya tronó dos veces.
+- Si agregas una tabla: además de lo de siempre, va en `supabase/orden.json` y
+  con sus renglones en `permisos_rol`.
+
 ## Permisos: la pantalla no es la puerta
 
 Lo que una pantalla esconde no está protegido: cualquiera con la llave pública
@@ -481,6 +506,8 @@ se toca **ni siendo superadministrador**; nunca queda el rancho sin
 superadministrador. Si agregas una tabla, agrégale sus renglones en
 `permisos_rol` — lo que no está ahí, está negado. `pruebas/recorrido_navegador.py`
 abre todas las pantallas de todos los roles (corre contra `npx vite`).
+No se congelan sueldos viejos con el valor de hoy: `sueldoVigente` dice de dónde
+salió cada sueldo y marca lo estimado.
 
 ## Secretos
 

@@ -22,12 +22,22 @@ Si a la persona se le paga el día completo aunque trabaje medio, la segunda es
 correcta como *costo*. Si se le paga por hora, es la primera. Lo que no puede
 seguir es que dependa de por cuál pantalla se capturó.
 
-## Límites de la corrección
+## Actualización del 19 de noviembre — no se congelan sueldos sin evidencia
 
-- **Los registros anteriores no traen foto del sueldo.** Siguen calculándose con
-  el sueldo del catálogo de hoy. Se pueden "congelar" de una vez con los sueldos
-  actuales, pero eso modifica datos reales: **requiere autorización**.
-- La lista de días sin costo ya se calcula pero **todavía no se enseña en
-  pantalla**.
-- No cambia cuánto se le paga a nadie. Sólo deja escrito con qué sueldo se
-  costeó cada día.
+Por instrucción de Luis, **no** se van a "congelar" los registros viejos con el
+sueldo de hoy. En su lugar:
+
+- Cada cambio de sueldo queda **anotado** en la ficha del trabajador: desde qué
+  día, cuánto, y cuánto ganaba antes.
+- El costo de un día usa, en este orden: el sueldo guardado al capturar; el que
+  diga el historial para esa fecha; el que tenía antes del primer cambio anotado
+  (consta que lo tenía, no desde cuándo); y sólo al final el de hoy.
+- Los dos últimos casos se marcan **"estimado"** y se suman aparte del total.
+- **Devengado** (cuánto se ganó cada persona cada día, por día, por hora o a
+  destajo) y **distribución** (cuánto le toca a cada parcela y labor) son dos
+  cuentas separadas que siempre suman lo mismo. Ocho pruebas.
+
+Lo que falta: enseñar en pantalla la parte estimada y los días sin costo, y que
+Luis y Migue digan qué modalidad lleva cada quien (D-4). Las cuentas nuevas
+están listas pero **todavía no alimentan los reportes**: los totales de hoy no
+cambiaron.
