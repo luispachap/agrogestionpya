@@ -67,7 +67,7 @@ los que están publicados; antes de publicar hay que compararlos contra el repos
 | M-4 | Códigos de estiba con 3 caracteres al azar (29,791 combinaciones por mes y fase): pueden repetirse. Identificadores basados en la hora del teléfono. |
 | M-5 | La plantilla de Excel para dar de alta cuentas trae una contraseña de ejemplo; si se usó tal cual, hay cuentas con contraseña conocida. No pude verificarlo con la base apagada. |
 | M-6 | El asistente de IA no funciona fuera del prototipo (no tiene credencial) y, de funcionar, mandaría ingresos y utilidades a un servicio externo. |
-| M-7 | Los datos iniciales incrustados en el código público incluyen nombres completos, sueldo y PIN de 11 trabajadores reales. |
+| M-7 | **El repositorio de GitHub es público** y el código incluye nombre completo, sueldo y PIN de 11 trabajadores reales (desde mayo, en `main`). Sube a severidad alta por tratarse de datos personales y laborales. |
 | M-8 | El modo sin conexión guarda en caché cualquier respuesta, incluidas las de la base, y nunca limpia versiones viejas. |
 | M-9 | Fechas: la hora del servidor es UTC y varias comparaciones usan la del teléfono; un reloj mal puesto altera el orden de los registros. |
 
@@ -247,6 +247,7 @@ confirmar en las páginas de cada servicio antes de contratar.
 
 ## H. Decisiones que necesito de ti
 
+0. **Hacer privado el repositorio hoy** (GitHub → Settings → Danger Zone → Change visibility). Es público y contiene datos personales de los trabajadores y este mismo diagnóstico.
 1. **¿Cuál es el repositorio fuente?** Lo publicado sale de `vitejs-vite-3ymxjehp`. Propongo que `agrogestionpya` sea el único y Vercel apunte aquí. Necesito acceso a aquel para comparar archivos antes.
 2. **Borrar en Vercel** `VITE_SUPABASE_APP_EMAIL` y `VITE_SUPABASE_APP_PASSWORD` y cambiar la contraseña de esa cuenta.
 3. **Reactivar la base y pasar a plan de pago** (≈ US$25/mes). Sin esto no hay etapa 0.
