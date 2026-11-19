@@ -89,7 +89,7 @@ export const FUNCIONES = {
   credenciales: f("gente", "🏷️", "Credenciales", "El QR de cada trabajador"),
   "pase-lista": f("gente", "✅", "Pase de lista", "Asistencia de la semana"),
   asistencia: f("gente", "✅", "Asistencia", "Quién vino hoy"),
-  nomina: f("gente", "🧾", "Nómina semanal", "Pago por trabajador"),
+  nomina: f("gente", "🧾", "Pagos al personal", "Nómina de la semana: lo que corresponde, lo pagado, permisos y recibos"),
   "aprobacion-externos": f("gente", "✅", "Aprobar externos", "Trabajo de gente de fuera"),
   mis: f("gente", "📋", "Mis días", "Lo que llevo registrado"),
   // Control y respaldo
@@ -219,7 +219,7 @@ const CORTOS = {
   "registrar-actividad": "Registrar", "registro-masivo": "Varios", "panel-parcelas": "Parcelas", "rendimiento-parcelas": "Rendimiento",
   "reporte-variedades": "Comparar", solicitudes: "Compras", compras: "Compras", "compras-insumos": "Compra", "aprobacion-externos": "Externos",
   "panel-financiero": "Dinero", "pase-lista": "Lista", credenciales: "Credencial", reparto: "Equipos", entregas: "Entregas", vales: "Conteo", "cuadrillas-dia": "Cuadrillas", "mano-obra": "M. de obra", dictado: "Dictar", corrida: "Corrida", terminados: "Terminado", embarque: "Camión",
-  comercializacion: "Ventas", nomina: "Nómina", "subir-nube": "Subir", consignaciones: "Consigna", proveedores: "Proveed.",
+  comercializacion: "Ventas", nomina: "Pagos", "subir-nube": "Subir", consignaciones: "Consigna", proveedores: "Proveed.",
   mis: "Mis días", fito: "Fito", caja: "Caja", indicaciones: "Indicar",
 };
 // La barra de abajo: lo que la persona escogió (Inicio y Menú los pone la app).

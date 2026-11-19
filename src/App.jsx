@@ -9,7 +9,7 @@ import {
 } from "./checador.js";
 // Cuadrillas: a dónde se mandó a cada quien, y la mano de obra que sale de ahí.
 import {
-  asignar, terminar, anotarTareas, aclararTiempo, CAUSAS_SIN_ASIGNAR, repartoActual, manoDeObra, agrupar, actividadesDeManoDeObra, capturasDobles, unaSolaManoDeObra,
+  asignar, terminar, anotarTareas, aclararTiempo, CAUSAS_SIN_ASIGNAR, repartoActual, manoDeObra, agrupar, actividadesDeManoDeObra, capturasDobles, unaSolaManoDeObra, decidirJornada, PAGO_DE_JORNADA,
   ajusteVigente, cambiarAjuste, AJUSTES, horasDe, acumular,
 } from "./cuadrillas.js";
 // Cuadrillas: los grupos eventuales que llegan juntos, con su responsable y su transporte.
@@ -30,6 +30,9 @@ import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./
 import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo } from "./acceso.js";
 import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde, horaDelServidor } from "./dataApi";
 import { desfaseDe, selloDeReloj, estadoDelReloj } from "./reloj.js";
+// Pagos al personal: ausencias, lo que corresponde, lo entregado, lo pendiente y los recibos.
+import { registrarAusencia, justificarFalta, ausenciasDe, semanaDe, leToca, DIAS_DE_SIEMPRE, cuentasDeCuadrillas, registrarPago, pagosA, saldoDe, emitirRecibo, recibosDe, reciboAlDia,
+  reconocerHoras, cuentaDeHoras, CLASES_AUSENCIA, SITUACIONES_SALIDA, MEDIOS_DE_PAGO, CLASES_DE_PERSONAL, LEYENDA_RECIBO, LEYENDA_CUADRILLA } from "./pagos.js";
 import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, generarSQLCuentas, exportarPolizas, HOJAS } from "./excelLoader";
 // El estado de cuenta del banco: se valida solo antes de entrar.
 import {
@@ -8142,8 +8145,9 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
   const trasladosHoy = (data.eventos || []).filter(e => e.tipo === "traslado_cuadrilla" && e.fecha === dia && estaVigente(e));
   const actividades = [...new Set([...ACTIVIDADES_DE_CAMPO, ...(data.eventos || []).filter(e => e.tipo === "cuadrilla_dia").map(e => e.datos.actividad)])].sort((a, b) => a.localeCompare(b));
   const elegida = form && catalogo.find(c => c.id === form.cuadrillaId);
-  const idCq = form ? (form.cuadrillaId === "__otra__" ? `sin-catalogo:${form.otra.trim().toLowerCase()}` : form.cuadrillaId) : "";
-  const nombreCq = form ? (form.cuadrillaId === "__otra__" ? form.otra : elegida?.nombre || "") : "";
+  const esInd = form?.cuadrillaId === "__ind__";
+  const idCq = form ? (esInd ? "independientes" : form.cuadrillaId === "__otra__" ? `sin-catalogo:${form.otra.trim().toLowerCase()}` : form.cuadrillaId) : "";
+  const nombreCq = form ? (esInd ? "Temporales independientes" : form.cuadrillaId === "__otra__" ? form.otra : elegida?.nombre || "") : "";
   const conocidos = form && idCq ? integrantesConocidos(data.eventos, idCq) : [];
   const fechaReg = form?.fecha || hoy;
   const yaLlegaron = form && idCq ? yaTieneTraslado(data.eventos, idCq, fechaReg) : false;
@@ -8158,7 +8162,7 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
     if (fechaReg > hoy) { setDice("No se registra un día que todavía no llega."); return; }
     // De otro día: pasó ese día (a mediodía del rancho), y se capturó hoy.
     const paso = fechaReg === hoy ? ahora : new Date(`${fechaReg}T12:00:00`).toISOString();
-    const comun = { cuadrillaId: form.cuadrillaId === "__otra__" ? null : form.cuadrillaId, cuadrilla: nombreCq, responsable: form.responsable, parcelaId: form.parcelaId,
+    const comun = { independiente: esInd, cuadrillaId: esInd ? "independientes" : form.cuadrillaId === "__otra__" ? null : form.cuadrillaId, cuadrilla: nombreCq, responsable: esInd ? "" : form.responsable, parcelaId: form.parcelaId,
       actividad: form.actividad === "__otra__" ? form.otraAct : form.actividad, hectareas: form.hectareas, nota: form.nota, fecha: fechaReg, cuando: paso, capturado: ahora, quien };
     const res = form.modalidad === "precio"
       ? registrarCuadrilla({ ...comun, modalidad: "precio", precio: { monto: form.precio, nombres: gente.map(g => g.nombre), personas: form.cuantos } })
@@ -8198,9 +8202,11 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
                 <option value="">¿Cuál vino?</option>
                 {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 <option value="__otra__">Otra que no está en la lista…</option>
+                <option value="__ind__">Trabajadores temporales independientes (sin cuadrilla)</option>
               </select></div>
+            {form.cuadrillaId === "__ind__" && <div className="text-xs text-muted" style={{ margin: "-6px 0 12px" }}>No vienen con un responsable: se le paga a cada quien, directo, por día o por destajo.</div>}
             {form.cuadrillaId === "__otra__" && <input className="inp" aria-label="Nombre de la cuadrilla" placeholder="¿Cómo se le conoce?" value={form.otra} onChange={e => pon({ otra: e.target.value })} style={{ marginBottom: 12 }} />}
-            <div className="form-group"><label className="form-label" htmlFor="cq-resp">Responsable</label><input id="cq-resp" className="inp" placeholder="Quién viene a cargo" value={form.responsable} onChange={e => pon({ responsable: e.target.value })} /></div>
+            {form.cuadrillaId !== "__ind__" && <div className="form-group"><label className="form-label" htmlFor="cq-resp">Responsable</label><input id="cq-resp" className="inp" placeholder="Quién viene a cargo" value={form.responsable} onChange={e => pon({ responsable: e.target.value })} /></div>}
             <select className="inp" aria-label="Parcela" value={form.parcelaId} onChange={e => pon({ parcelaId: e.target.value })} style={{ marginBottom: 8 }}>
               <option value="">¿En qué parcela?</option>{(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
             </select>
@@ -8225,7 +8231,7 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
             <div className="tabs-pill" style={{ padding: "0 0 12px" }}>
               <button className={`tab-pill${form.modalidad === "dia" ? " active" : ""}`} onClick={() => pon({ modalidad: "dia", gente: form.gente.map(g => ({ ...g, valor: "" })) })}>Por día</button>
               <button className={`tab-pill${form.modalidad === "destajo" ? " active" : ""}`} onClick={() => pon({ modalidad: "destajo", gente: form.gente.map(g => ({ ...g, valor: "" })) })}>Destajo</button>
-              <button className={`tab-pill${form.modalidad === "precio" ? " active" : ""}`} onClick={() => pon({ modalidad: "precio", soloTotal: false, gente: form.gente.map(g => ({ ...g, valor: "" })) })}>Precio por el trabajo</button>
+              {!esInd && <button className={`tab-pill${form.modalidad === "precio" ? " active" : ""}`} onClick={() => pon({ modalidad: "precio", soloTotal: false, gente: form.gente.map(g => ({ ...g, valor: "" })) })}>Precio por el trabajo</button>}
             </div>
             {form.modalidad === "precio" && <>
               <div className="form-group"><label className="form-label" htmlFor="cq-precio">En cuánto se acordó todo el trabajo ($)</label><input id="cq-precio" className="inp" type="number" inputMode="decimal" value={form.precio} onChange={e => pon({ precio: e.target.value })} /></div>
@@ -20311,8 +20317,248 @@ function rangoSemanaNomina(offset) {
   return { ini: iso(lunes), fin: iso(domingo) };
 }
 
+/* ════════════ PAGOS AL PERSONAL: piezas ════════════ */
+// Registrar una entrega de dinero. No genera costo: el costo nació al trabajar.
+function ModalPago({ a, desde, hasta, pendiente, descuento = 0, esCuadrilla, responsable, data, add, session, onClose }) {
+  const [f, setF] = useState({ monto: pendiente > 0 ? String(pendiente) : "", medio: "efectivo", recibe: responsable || "", nota: "", foto: null });
+  const [dice, setDice] = useState("");
+  const foto = (e) => { const x = e.target.files?.[0]; if (!x) return; const fr = new FileReader(); fr.onload = () => setF(v => ({ ...v, foto: fr.result })); fr.readAsDataURL(x); };
+  const guardar = () => {
+    const ahora = new Date().toISOString();
+    const r = registrarPago({ a, desde, hasta, monto: f.monto, medio: f.medio, recibe: f.recibe, comprobante: f.foto, nota: f.nota, corresponde: pendiente, quien: quienDe(session), cuando: ahora, fecha: today() });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", descuento > 0 ? { ...r.evento, datos: { ...r.evento.datos, descuento } } : r.evento); onClose(r.avisos);
+  };
+  return (
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal-sheet">
+        <div className="card-title">Pago a {a.nombre}</div>
+        <div className="text-sm text-muted" style={{ marginBottom: 10 }}>Semana del {desde} al {hasta}. Pendiente: {fmt(pendiente)}.{esCuadrilla ? " Se le entrega al responsable; eso no marca pagado a cada integrante." : ""}</div>
+        <div className="form-group"><label className="form-label" htmlFor="pg-monto">Cuánto se entregó ($)</label><input id="pg-monto" className="inp" type="number" inputMode="decimal" value={f.monto} onChange={e => setF(v => ({ ...v, monto: e.target.value }))} /></div>
+        <div className="form-group"><label className="form-label" htmlFor="pg-medio">Medio de pago</label><select id="pg-medio" className="inp" value={f.medio} onChange={e => setF(v => ({ ...v, medio: e.target.value }))}>{Object.entries(MEDIOS_DE_PAGO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+        <div className="form-group"><label className="form-label" htmlFor="pg-recibe">{esCuadrilla ? "Responsable que recibió" : "Quién recibió (si no fue la misma persona)"}</label><input id="pg-recibe" className="inp" value={f.recibe} onChange={e => setF(v => ({ ...v, recibe: e.target.value }))} /></div>
+        <label className="text-xs text-muted" style={{ display: "block", marginBottom: 8 }}>Comprobante (foto de la firma o de la transferencia) <input type="file" accept="image/*" capture="environment" aria-label="Comprobante del pago" onChange={foto} /></label>
+        <input className="inp" aria-label="Nota del pago" placeholder="Nota (opcional)" value={f.nota} onChange={e => setF(v => ({ ...v, nota: e.target.value }))} style={{ marginBottom: 10 }} />
+        {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+        <div style={{ display: "flex", gap: 8 }}><button className="btn btn-outline" style={{ flex: 1 }} onClick={() => onClose()}>No</button><button className="btn btn-accent" style={{ flex: 1 }} onClick={guardar}>Registrar pago</button></div>
+      </div>
+    </div>
+  );
+}
+
+// El recibo interno. Lo emitido es una foto de ese momento y no se cambia: si
+// algo cambió, se emite otro (con qué cambió) y el anterior se queda en el historial.
+function ReciboInterno({ a, clase, desde, hasta, conceptos, saldo, pagos, autorizaciones, responsable, data, add, session, onClose }) {
+  const emitidos = recibosDe(data.eventos, a, { desde, hasta });
+  const [ver, setVer] = useState(emitidos.length ? emitidos[emitidos.length - 1].id : null);
+  const [motivo, setMotivo] = useState(""); const [dice, setDice] = useState("");
+  const rec = emitidos.find(e => e.id === ver) || null;
+  const d = rec ? rec.datos : { a, clase, desde, hasta, conceptos, saldo, pagos: pagos.map(p => ({ ev: p.id, fecha: p.fecha, monto: p.datos.monto, medio: p.datos.medio, recibe: p.datos.recibe })), autorizaciones, responsable, leyenda: clase === "cuadrilla" ? LEYENDA_CUADRILLA : LEYENDA_RECIBO, version: null };
+  const alDia = reciboAlDia(emitidos[emitidos.length - 1], saldo);
+  const emitir = () => {
+    const r = emitirRecibo({ eventos: data.eventos, a, clase, desde, hasta, conceptos, saldo, pagos, autorizaciones, responsable, motivo, quien: quienDe(session), cuando: new Date().toISOString(), fecha: today() });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); setVer(r.evento.id); setMotivo(""); setDice("");
+  };
+  const celda = { padding: "5px 6px", border: "1px solid #ddd" };
+  return (
+    <div>
+      <div className="top-bar"><button className="btn-ghost" onClick={onClose}>‹</button><h2>Recibo interno</h2></div>
+      <div className="section-pad">
+        {!rec && <div className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">Esto es una vista previa: todavía no se ha emitido. Al emitirlo queda guardado tal como está y ya no se modifica.</div></div>}
+        {alDia.hay && !alDia.alDia && <div className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">{alDia.dice}</div></div>}
+        <div className="card printable" style={{ background: "#fff", color: "#1a1a1a" }}>
+          <div style={{ textAlign: "center", borderBottom: "2px solid #1f3a1e", paddingBottom: 8, marginBottom: 10 }}>
+            <img src={LOGO_AGRO} alt="Agroselectos" style={{ width: 44, height: 44, objectFit: "contain", margin: "0 auto 4px" }} />
+            <div style={{ fontWeight: 800, fontSize: 16, color: "#1f3a1e" }}>AGROSELECTOS P&A</div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{d.clase === "cuadrilla" ? "CONSTANCIA DE ENTREGA AL RESPONSABLE DE CUADRILLA" : "RECIBO INTERNO DE PAGO"}</div>
+            <div style={{ fontSize: 12, color: "#555" }}>{CLASES_DE_PERSONAL[d.clase]} · semana del {d.desde} al {d.hasta}{d.version ? ` · versión ${d.version}${d.sustituye ? ` (sustituye a la ${d.sustituye}: ${d.motivo})` : ""}` : " · SIN EMITIR"}</div>
+          </div>
+          <div style={{ fontSize: 13, marginBottom: 8 }}><b>{d.clase === "cuadrilla" ? "Cuadrilla" : "Nombre"}:</b> {d.a.nombre}{d.responsable ? <> · <b>Responsable:</b> {d.responsable}</> : null}</div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead><tr style={{ background: "#f0f0e8" }}><th style={{ ...celda, textAlign: "left" }}>Día</th><th style={{ ...celda, textAlign: "left" }}>Concepto y cómo se calculó</th><th style={{ ...celda, textAlign: "right" }}>Importe</th></tr></thead>
+            <tbody>{d.conceptos.map((c, k) => <tr key={k}><td style={celda}>{c.fecha}</td><td style={celda}>{c.que}{c.como ? <div style={{ color: "#666", fontSize: 11 }}>{c.como}</div> : null}</td><td style={{ ...celda, textAlign: "right" }}>{fmt(c.monto)}</td></tr>)}</tbody>
+            <tfoot>
+              <tr style={{ fontWeight: 700 }}><td colSpan="2" style={celda}>Lo que corresponde</td><td style={{ ...celda, textAlign: "right" }}>{fmt(d.saldo.corresponde)}</td></tr>
+              {d.saldo.descuentos > 0 && <tr><td colSpan="2" style={celda}>Retención y abonos a préstamo</td><td style={{ ...celda, textAlign: "right" }}>− {fmt(d.saldo.descuentos)}</td></tr>}
+              <tr><td colSpan="2" style={celda}>Entregado</td><td style={{ ...celda, textAlign: "right" }}>{fmt(d.saldo.entregado)}</td></tr>
+              <tr style={{ fontWeight: 700, background: "#f0f0e8" }}><td colSpan="2" style={celda}>Pendiente</td><td style={{ ...celda, textAlign: "right" }}>{fmt(d.saldo.pendiente)}</td></tr>
+            </tfoot>
+          </table>
+          {d.pagos.length > 0 && <div style={{ fontSize: 12, marginTop: 8 }}><b>Entregas:</b> {d.pagos.map(p => `${p.fecha}: ${fmt(p.monto)} en ${(MEDIOS_DE_PAGO[p.medio] || p.medio).toLowerCase()}${p.recibe ? `, recibió ${p.recibe}` : ""}${p.comprobante ? " (con comprobante)" : " (sin comprobante)"}`).join(" · ")}</div>}
+          {(d.autorizaciones || []).length > 0 && <div style={{ fontSize: 12, marginTop: 6 }}><b>Autorizaciones:</b> {d.autorizaciones.join(" · ")}</div>}
+          <div style={{ display: "flex", gap: 20, marginTop: 34, fontSize: 12 }}>
+            <div style={{ flex: 1, borderTop: "1px solid #333", paddingTop: 4, textAlign: "center" }}>Recibí: {d.clase === "cuadrilla" ? (d.responsable || "responsable") : d.a.nombre}</div>
+            <div style={{ flex: 1, borderTop: "1px solid #333", paddingTop: 4, textAlign: "center" }}>Entregó: {rec?.quien?.nombre || session.nombre || ""}</div>
+          </div>
+          <div style={{ fontSize: 10.5, color: "#555", marginTop: 14, borderTop: "1px solid #ddd", paddingTop: 6 }}>{d.leyenda}{rec ? ` Emitido el ${rec.fecha} por ${rec.quien?.nombre || ""}.` : ""}</div>
+        </div>
+        {emitidos.length > 0 && <div className="jor-acc" style={{ marginBottom: 10 }}>{emitidos.map(e => <button key={e.id} onClick={() => setVer(e.id)} style={ver === e.id ? { borderColor: "var(--accent)" } : undefined}>Versión {e.datos.version}</button>)}<button onClick={() => setVer(null)} style={!ver ? { borderColor: "var(--accent)" } : undefined}>Como está hoy</button></div>}
+        {!rec && <>
+          {emitidos.length > 0 && <input className="inp" aria-label="Qué cambió" placeholder="Qué cambió respecto al recibo anterior (queda escrito)" value={motivo} onChange={e => setMotivo(e.target.value)} style={{ marginBottom: 8 }} />}
+          {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+          <button className="btn btn-accent" style={{ width: "100%", marginBottom: 8 }} onClick={emitir}>{emitidos.length ? "Emitir una versión nueva" : "Emitir el recibo"}</button>
+        </>}
+        {rec && <button className="btn btn-outline" style={{ width: "100%" }} onClick={() => window.print()}><Ic e="🖨️" /> Imprimir / guardar PDF</button>}
+      </div>
+    </div>
+  );
+}
+
+// Cuadrillas (cuenta del responsable) y temporales independientes (cada quien la suya).
+function PagosCuadrillas({ data, add, session, ini, fin, abrirRecibo }) {
+  const [pago, setPago] = useState(null); const [avisos, setAvisos] = useState([]);
+  const cq = useMemo(() => costoDeCuadrillas(data.eventos, { desde: ini, hasta: fin, criterioFlete: ajusteVigente(data.eventos, "criterio_flete").valor }), [data.eventos, ini, fin]);
+  const cuentas = cuentasDeCuadrillas(cq.partes, { desde: ini, hasta: fin });
+  const parcela = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "";
+  return (<>
+    {avisos.map((a, k) => <div key={k} className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">{a}</div></div>)}
+    {cuentas.length === 0 && <div className="card"><div className="text-sm text-muted">Esta semana no hay cuadrillas ni trabajadores temporales registrados. Se registran en Cuadrillas.</div></div>}
+    {cuentas.map(c => {
+      const pagos = pagosA(data.eventos, c.a, { desde: ini, hasta: fin }); const s = saldoDe({ corresponde: c.corresponde, pagos });
+      const conceptos = c.renglones.map(r => ({ fecha: r.fecha, que: `${r.persona} · ${r.actividad} en ${parcela(r.parcelaId)}`, monto: r.monto, como: r.modalidad === "dia" ? "pago por día" : r.modalidad === "precio" ? "precio acordado por el trabajo" : `${fmtN(r.unidades)} ${r.unidad || "unidades"} a destajo${r.parejo ? " (repartido parejo, autorizado)" : ""}` }));
+      return (
+        <div key={c.a.id} className="card">
+          <div className="flex-b"><span className="card-title" style={{ marginBottom: 0 }}>{c.a.nombre}</span><b>{fmt(c.corresponde)}</b></div>
+          <div className="text-xs text-muted" style={{ marginBottom: 6 }}>{c.a.tipo === "independiente" ? "Trabajador temporal independiente: se le paga directo" : `Cuadrilla · se le entrega a ${c.responsable || "su responsable"}${c.integrantes.length ? ` · vinieron ${c.integrantes.join(", ")}` : ""}`}</div>
+          <div className="mo-act"><span>Entregado</span><span /><b>{fmt(s.entregado)}</b></div>
+          <div className="mo-act"><span>Pendiente</span><span /><b style={{ color: s.pendiente > 0 ? "var(--gold)" : undefined }}>{fmt(s.pendiente)}</b></div>
+          {pagos.map(p => <div key={p.id} className="text-xs text-muted">{p.fecha}: {fmt(p.datos.monto)} en {MEDIOS_DE_PAGO[p.datos.medio].toLowerCase()}{p.datos.recibe ? `, recibió ${p.datos.recibe}` : ""}{p.datos.comprobante ? "" : " · sin comprobante"}</div>)}
+          {c.a.tipo === "cuadrilla" && s.entregado > 0 && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Lo entregado al responsable no dice que cada integrante ya cobró: eso lo reparte él.</div>}
+          <div className="jor-acc">
+            {quienDe(session).rol === "admin" && <button onClick={() => setPago({ c, s })}>Registrar entrega</button>}
+            <button onClick={() => abrirRecibo({ a: c.a, clase: c.a.tipo, conceptos, saldo: s, pagos, autorizaciones: c.renglones.filter(r => r.parejo).length ? ["Reparto parejo autorizado"] : [], responsable: c.responsable })}>{c.a.tipo === "cuadrilla" ? "Constancia de entrega" : "Recibo"}</button>
+          </div>
+        </div>
+      );
+    })}
+    {pago && <ModalPago a={pago.c.a} desde={ini} hasta={fin} pendiente={pago.s.pendiente} esCuadrilla={pago.c.a.tipo === "cuadrilla"} responsable={pago.c.responsable} data={data} add={add} session={session} onClose={(av) => { setPago(null); setAvisos(av || []); }} />}
+  </>);
+}
+
+// Asistencia de la semana: lo que alguien tiene que decir. Nada se decide solo.
+function PanelAsistencia({ data, add, upd, session, ini, fin, semanas, mo }) {
+  const hoy = today(); const quien = quienDe(session);
+  const [aus, setAus] = useState(null);       // { trabajadorId, desde, hasta, clase, paga, causa, autorizo }
+  const [dec, setDec] = useState(null);       // { caso, situacion, pago, motivo }
+  const [jus, setJus] = useState(null);       // { evento, causa, paga, autorizo }
+  const [dice, setDice] = useState("");
+  const nombre = (id) => (data.trabajadores || []).find(t => t.id === id)?.nombre || "Alguien";
+  const ausencias = ausenciasDe(data.eventos, { desde: ini, hasta: fin });
+  const sinRegistro = semanas.flatMap(s => s.sem.sinRegistro.map(f => ({ t: s.p, fecha: f })));
+  const guardarAus = () => {
+    const r = registrarAusencia({ ...aus, paga: aus.clase === "justificada" ? aus.paga === "si" ? true : aus.paga === "no" ? false : undefined : undefined, quien, cuando: new Date().toISOString() });
+    if (!r.ok) { setDice(r.dice); return; }
+    r.eventos.forEach(e => add("eventos", e)); setAus(null); setDice("");
+  };
+  const guardarDec = () => {
+    const r = decidirJornada({ trabajadorId: dec.caso.trabajadorId, fecha: dec.caso.fecha, situacion: dec.situacion, pago: dec.pago, motivo: dec.motivo, quien, cuando: new Date().toISOString() });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); setDec(null); setDice("");
+  };
+  const guardarJus = () => {
+    const r = justificarFalta(jus.evento, { causa: jus.causa, paga: jus.paga === "si" ? true : jus.paga === "no" ? false : undefined, autorizo: jus.autorizo, quien, cuando: new Date().toISOString() });
+    if (!r.ok) { setDice(r.dice); return; }
+    if (cambioPermitido(jus.evento, r.anterior)) upd("eventos", r.anterior); add("eventos", r.nuevo); setJus(null); setDice("");
+  };
+  const alternaSabado = (t) => { const d = Array.isArray(t.diasAsistencia) && t.diasAsistencia.length ? t.diasAsistencia : DIAS_DE_SIEMPRE; upd("trabajadores", { ...t, diasAsistencia: d.includes(6) ? d.filter(x => x !== 6) : [...d, 6].sort() }); };
+  return (<>
+    <button className="btn btn-accent" style={{ width: "100%", marginBottom: 12 }} onClick={() => { setAus({ trabajadorId: "", desde: hoy, hasta: hoy, clase: "", paga: "", causa: "", autorizo: "" }); setDice(""); }}>Registrar permiso, descanso o falta</button>
+    {mo.salidasPorRevisar.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}>
+      <div className="card-title">Salieron antes: por revisar</div>
+      <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Mientras nadie decida, su día se paga completo. No hay descuento automático.</div>
+      {mo.salidasPorRevisar.map(c => <div key={`${c.trabajadorId}-${c.fecha}`} className="mo-act"><span>{c.nombre}<div className="text-xs text-muted">{c.fecha} · estuvo {horasDe(c.minutos)}</div></span><span />{quien.rol === "admin" ? <button className="acc-link" onClick={() => { setDec({ caso: c, situacion: "", pago: "", motivo: "" }); setDice(""); }}>Decidir</button> : <span className="text-xs text-muted">lo decide un administrador</span>}</div>)}
+    </div>}
+    {sinRegistro.length > 0 && <div className="card">
+      <div className="card-title">No vinieron y nadie ha dicho por qué</div>
+      <div className="text-xs text-muted" style={{ marginBottom: 8 }}>No es una falta todavía: es una pregunta. Esos días no tienen pago hasta que se diga qué pasó.</div>
+      {sinRegistro.map(x => <div key={`${x.t.id}-${x.fecha}`} className="mo-act"><span>{x.t.nombre}<div className="text-xs text-muted">{x.fecha}</div></span><span /><button className="acc-link" onClick={() => { setAus({ trabajadorId: x.t.id, desde: x.fecha, hasta: x.fecha, clase: "", paga: "", causa: "", autorizo: "" }); setDice(""); }}>Decir qué pasó</button></div>)}
+    </div>}
+    {ausencias.length > 0 && <div className="card">
+      <div className="card-title">Ausencias de la semana</div>
+      {ausencias.map(e => <div key={e.id} className="mo-act"><span>{nombre(e.datos.trabajadorId)} · {CLASES_AUSENCIA[e.datos.clase].nombre}<div className="text-xs text-muted">{e.fecha} · {e.datos.paga ? "se paga" : "no se paga"}{e.datos.causa ? ` · ${e.datos.causa}` : ""}{e.datos.autorizo ? ` · autorizó ${e.datos.autorizo}` : ""}{e.origen ? " · corregida: antes era falta" : ""}</div></span><span />{e.datos.clase === "falta" ? <button className="acc-link" onClick={() => { setJus({ evento: e, causa: "", paga: "", autorizo: "" }); setDice(""); }}>Justificar</button> : <span />}</div>)}
+    </div>}
+    <div className="card">
+      <div className="card-title">Quién viene los sábados</div>
+      <div className="text-xs text-muted" style={{ marginBottom: 8 }}>El calendario de cada quien. A quien no le toca el sábado no se le pregunta por qué no vino. El pago sigue siendo semanal para todos.</div>
+      {(data.trabajadores || []).filter(t => t.activo !== false).map(t => <div key={t.id} className="mo-act"><span>{t.nombre}</span><span className="text-muted">{leToca(t, "2026-11-21") ? "lunes a sábado" : "lunes a viernes"}</span>{quien.rol === "admin" ? <button className="acc-link" onClick={() => alternaSabado(t)}>Cambiar</button> : <span />}</div>)}
+    </div>
+    <ReglasDelRancho data={data} add={add} session={session} claves={["tolerancia_salida_min"]} />
+
+    {aus && <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setAus(null); }}><div className="modal-sheet">
+      <div className="card-title">Permiso, descanso o falta</div>
+      <select className="inp" aria-label="De quién" value={aus.trabajadorId} onChange={e => setAus(a => ({ ...a, trabajadorId: e.target.value }))} style={{ marginBottom: 8 }}><option value="">¿De quién?</option>{(data.trabajadores || []).filter(t => t.activo !== false).map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}</select>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}><input type="date" className="inp" aria-label="Desde" value={aus.desde} onChange={e => setAus(a => ({ ...a, desde: e.target.value, hasta: a.hasta < e.target.value ? e.target.value : a.hasta }))} /><input type="date" className="inp" aria-label="Hasta" value={aus.hasta} min={aus.desde} onChange={e => setAus(a => ({ ...a, hasta: e.target.value }))} /></div>
+      <select className="inp" aria-label="Qué fue" value={aus.clase} onChange={e => setAus(a => ({ ...a, clase: e.target.value }))} style={{ marginBottom: 8 }}><option value="">¿Qué fue?</option>{Object.entries(CLASES_AUSENCIA).map(([k, v]) => <option key={k} value={k}>{v.nombre}</option>)}</select>
+      {aus.clase && <div className="text-xs text-muted" style={{ marginBottom: 8 }}>{aus.clase === "falta" ? "No se paga ese día. Si después trae justificación, se corrige aquí mismo y queda el historial." : aus.clase === "justificada" ? "Tú decides si se paga, y queda con tu nombre." : "Se paga el día completo."}</div>}
+      {aus.clase === "justificada" && <select className="inp" aria-label="Se paga" value={aus.paga} onChange={e => setAus(a => ({ ...a, paga: e.target.value }))} style={{ marginBottom: 8 }}><option value="">¿Se pagan esos días?</option><option value="si">Sí se pagan</option><option value="no">No se pagan</option></select>}
+      {aus.clase && aus.clase !== "falta" && <><input className="inp" aria-label="Causa" placeholder="Causa" value={aus.causa} onChange={e => setAus(a => ({ ...a, causa: e.target.value }))} style={{ marginBottom: 8 }} /><input className="inp" aria-label="Quién autorizó" placeholder="Quién lo autorizó" value={aus.autorizo} onChange={e => setAus(a => ({ ...a, autorizo: e.target.value }))} style={{ marginBottom: 8 }} /></>}
+      {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+      <div style={{ display: "flex", gap: 8 }}><button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setAus(null)}>No</button><button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarAus}>Guardar</button></div>
+    </div></div>}
+    {dec && <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setDec(null); }}><div className="modal-sheet">
+      <div className="card-title">{dec.caso.nombre} · {dec.caso.fecha}</div>
+      <div className="text-sm text-muted" style={{ marginBottom: 10 }}>Estuvo {horasDe(dec.caso.minutos)}. Su día es de {fmt(dec.caso.sueldo)}.</div>
+      <select className="inp" aria-label="Qué pasó" value={dec.situacion} onChange={e => setDec(d => ({ ...d, situacion: e.target.value, pago: d.pago || (["terminada", "autorizada"].includes(e.target.value) ? "completo" : "") }))} style={{ marginBottom: 8 }}><option value="">¿Qué pasó?</option>{Object.entries(SITUACIONES_SALIDA).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+      <select className="inp" aria-label="Cómo se paga" value={dec.pago} onChange={e => setDec(d => ({ ...d, pago: e.target.value }))} style={{ marginBottom: 8 }}><option value="">¿Cómo se paga ese día?</option>{Object.entries(PAGO_DE_JORNADA).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+      <input className="inp" aria-label="Por qué se decide así" placeholder="Por qué (queda escrito con tu nombre)" value={dec.motivo} onChange={e => setDec(d => ({ ...d, motivo: e.target.value }))} style={{ marginBottom: 10 }} />
+      {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+      <div style={{ display: "flex", gap: 8 }}><button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setDec(null)}>No</button><button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarDec}>Guardar decisión</button></div>
+    </div></div>}
+    {jus && <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setJus(null); }}><div className="modal-sheet">
+      <div className="card-title">Justificar la falta de {nombre(jus.evento.datos.trabajadorId)} del {jus.evento.fecha}</div>
+      <div className="text-sm text-muted" style={{ marginBottom: 10 }}>La falta no se borra: queda corregida, y se ve qué era antes.</div>
+      <input className="inp" aria-label="Justificación" placeholder="Justificación" value={jus.causa} onChange={e => setJus(j => ({ ...j, causa: e.target.value }))} style={{ marginBottom: 8 }} />
+      <input className="inp" aria-label="Quién la aceptó" placeholder="Quién la aceptó" value={jus.autorizo} onChange={e => setJus(j => ({ ...j, autorizo: e.target.value }))} style={{ marginBottom: 8 }} />
+      <select className="inp" aria-label="Se paga el día" value={jus.paga} onChange={e => setJus(j => ({ ...j, paga: e.target.value }))} style={{ marginBottom: 10 }}><option value="">¿Se paga ese día?</option><option value="si">Sí se paga</option><option value="no">No se paga</option></select>
+      {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+      <div style={{ display: "flex", gap: 8 }}><button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setJus(null)}>No</button><button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarJus}>Guardar</button></div>
+    </div></div>}
+  </>);
+}
+
+// Horas adicionales: registradas (salen solas), reconocidas (lo decide alguien) y sin tratar.
+function PanelHoras({ data, add, session, ini, fin }) {
+  const [alcance, setAlcance] = useState("semana"); const [rec, setRec] = useState(null); const [dice, setDice] = useState(""); const [abre, setAbre] = useState(null);
+  const hoy = today();
+  const r = alcance === "semana" ? { desde: ini, hasta: fin } : alcance === "mes" ? { desde: `${ini.slice(0, 7)}-01`, hasta: `${ini.slice(0, 7)}-31` } : { desde: `${ini.slice(0, 4)}-01-01`, hasta: `${ini.slice(0, 4)}-12-31` };
+  const todas = useMemo(() => manoDeObra(data.eventos, data.trabajadores || [], { desde: r.desde, hasta: r.hasta, hoy, ahora: new Date().toISOString() }).horasAdicionales, [data.eventos, data.trabajadores, r.desde, r.hasta]);
+  const gente = (data.trabajadores || []).map(t => ({ t, c: cuentaDeHoras(todas, data.eventos, { trabajadorId: t.id, desde: r.desde, hasta: r.hasta }) })).filter(x => x.c.registradas > 0 || x.c.reconocimientos.length > 0);
+  const guardar = () => { const x = reconocerHoras({ ...rec, quien: quienDe(session), cuando: new Date().toISOString(), fecha: hoy }); if (!x.ok) { setDice(x.dice); return; } add("eventos", x.evento); setRec(null); setDice(""); };
+  return (<>
+    <div className="tabs-pill">{[["semana", "Esta semana"], ["mes", "El mes"], ["anio", "El año"]].map(([v, t]) => <button key={v} className={`tab-pill${alcance === v ? " active" : ""}`} onClick={() => setAlcance(v)}>{t}</button>)}</div>
+    <div className="card"><div className="text-xs text-muted">Las horas adicionales salen solas del checador (lo que cada quien estuvo por encima de su horario). Registrarlas no cambia el pago ni las da por saldadas: reconocerlas, y qué se hace con ellas, es una decisión con nombre.</div></div>
+    {gente.length === 0 && <div className="card"><div className="text-sm text-muted">Nadie tiene horas adicionales en estas fechas.</div></div>}
+    {gente.map(({ t, c }) => (
+      <div key={t.id} className="card">
+        <div className="flex-b"><span className="card-title" style={{ marginBottom: 0 }}>{t.nombre}</span><b>{horasDe(c.registradas)}</b></div>
+        <div className="mo-act"><span>Registradas</span><span className="text-muted">{c.dias.length} día(s)</span><b>{horasDe(c.registradas)}</b></div>
+        <div className="mo-act"><span>Reconocidas</span><span /><b>{horasDe(c.reconocidas)}</b></div>
+        <div className="mo-act"><span>Sin tratar</span><span /><b style={{ color: c.sinTratar > 0 ? "var(--gold)" : undefined }}>{horasDe(c.sinTratar)}</b></div>
+        {c.reconocimientos.map(x => <div key={x.ev} className="text-xs text-muted">{x.desde} al {x.hasta}: {x.horas} h · {x.tratamiento} · autorizó {x.autorizo}</div>)}
+        <div className="jor-acc"><button onClick={() => setAbre(abre === t.id ? null : t.id)}>{abre === t.id ? "Ocultar fechas" : "Ver fechas"}</button>{quienDe(session).rol === "admin" && <button onClick={() => { setRec({ trabajadorId: t.id, desde: r.desde, hasta: r.hasta > hoy ? hoy : r.hasta, horas: "", tratamiento: "", autorizo: "" }); setDice(""); }}>Reconocer horas</button>}</div>
+        {abre === t.id && c.dias.map(d => <div key={d.fecha} className="text-xs text-muted">{d.fecha}: {horasDe(d.minutos)}{d.provisional ? " (sigue adentro)" : ""}</div>)}
+      </div>
+    ))}
+    {rec && <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setRec(null); }}><div className="modal-sheet">
+      <div className="card-title">Reconocer horas</div>
+      <div className="text-sm text-muted" style={{ marginBottom: 10 }}>Queda escrito cuántas se reconocen y qué se va a hacer con ellas. La app no las paga sola.</div>
+      <input className="inp" type="number" inputMode="decimal" aria-label="Horas que se reconocen" placeholder="¿Cuántas horas?" value={rec.horas} onChange={e => setRec(x => ({ ...x, horas: e.target.value }))} style={{ marginBottom: 8 }} />
+      <input className="inp" aria-label="Qué se hace con ellas" placeholder="Qué se va a hacer (se pagan, se compensan…)" value={rec.tratamiento} onChange={e => setRec(x => ({ ...x, tratamiento: e.target.value }))} style={{ marginBottom: 8 }} />
+      <input className="inp" aria-label="Quién autoriza las horas" placeholder="Quién lo autoriza" value={rec.autorizo} onChange={e => setRec(x => ({ ...x, autorizo: e.target.value }))} style={{ marginBottom: 10 }} />
+      {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+      <div style={{ display: "flex", gap: 8 }}><button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setRec(null)}>No</button><button className="btn btn-accent" style={{ flex: 1 }} onClick={guardar}>Guardar</button></div>
+    </div></div>}
+  </>);
+}
+
 function NominaSemanal({ data, add, upd, session, onClose }) {
   const [offset, setOffset] = useState(0);
+  const [tab, setTab] = useState("planta");
+  const [pagoA, setPagoA] = useState(null);       // renglón al que se le registra un pago
+  const [recibo, setRecibo] = useState(null);     // lo que se le pasa a <ReciboInterno>
+  const [avisosPago, setAvisosPago] = useState([]);
+  const [verDias, setVerDias] = useState(null);
   const [desc, setDesc] = useState({}); // descuento a préstamo por persona {id: monto}
   const [aplicados, setAplicados] = useState({}); // {id: monto ya aplicado esta sesión}
   const [verImprimir, setVerImprimir] = useState(false);
@@ -20324,14 +20570,20 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
     ...(data.encargados || []).map(e => ({ ...e, _tipo: "encargado" })),
   ];
 
+  // Lo que salió del checador esa semana (incluye el tiempo sin asignar y el de vehículos, que no están en ninguna parcela).
+  const moSemana = useMemo(() => manoDeObra(data.eventos, data.trabajadores || [], { desde: ini, hasta: fin, hoy: today(), ahora: new Date().toISOString() }), [data.eventos, data.trabajadores, ini, fin]);
+  const ausSemana = ausenciasDe(data.eventos, { desde: ini, hasta: fin });
+  const ETQ_DIA = { trabajo: "trabajó", ausencia_pagada: "ausencia pagada", ausencia_sin_pago: "ausencia sin pago", sin_registro: "no vino: falta decir por qué", no_le_toca: "no le toca", futuro: "" };
   // Renglón de nómina de una persona en la semana
   const renglon = (p) => {
     // actividadesContables trae el costoMO ya repartido por día (la misma lógica
     // de los reportes): 3 actividades en un día = UN sueldo diario, no tres.
     const acts = (data.actividadesContables || data.actividades || []).filter(a =>
       a.registradoPor?.id === p.id && a.fecha >= ini && a.fecha <= fin);
-    const mo = acts.reduce((s, a) => s + (a.costoMO || 0), 0);
-    const dias = new Set(acts.map(a => a.fecha)).size;
+    // UNA sola cuenta de lo que corresponde: día por día, del checador, de lo tecleado antes, o de una ausencia que se paga.
+    const sem = semanaDe({ trabajador: p, desde: ini, hasta: fin, hoy: today(), devengado: p._tipo === "planta" ? moSemana.devengado : [], actividades: data.actividadesContables || data.actividades || [], ausencias: p._tipo === "planta" ? ausSemana : [] });
+    const mo = sem.corresponde;
+    const dias = sem.trabajados;
     const prestamos = vivos(data.prestamos).filter(x => x.trabajadorId === p.id && x.estado === "activo");
     const saldoPrestamo = prestamos.reduce((s, x) => s + Math.max(0, (x.monto || 0) - (x.abonado || 0)), 0);
     // Retención del trabajador (porcentaje sobre lo ganado). Es COSTO de la
@@ -20339,10 +20591,21 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
     const retPct = parseFloat(p.retencion_pct) || 0;
     const retencion = Math.round(mo * retPct / 100 * 100) / 100;
     const descuento = Math.min(parseFloat(desc[p.id]) || 0, saldoPrestamo, Math.max(0, mo - retencion));
-    return { p, acts, mo, dias, saldoPrestamo, retPct, retencion, descuento, neto: mo - retencion - descuento };
+    const a = { tipo: p._tipo === "encargado" ? "encargado" : "trabajador", id: p.id, nombre: p.nombre };
+    const pagos = pagosA(data.eventos, a, { desde: ini, hasta: fin });
+    // Lo que no se le entrega aunque lo ganó: la retención, y los abonos a su préstamo que quedaron en un pago de esta semana.
+    const yaDescontado = sumarDinero(pagos.map(x => x.datos.descuento || 0));
+    const saldo = saldoDe({ corresponde: mo, descuentos: sumarDinero(retencion, yaDescontado, pagos.length ? 0 : descuento), pagos });
+    return { p, a, acts, mo, dias, sem, pagos, saldo, saldoPrestamo, retPct, retencion, descuento, neto: mo - retencion - descuento };
   };
 
-  const renglones = personas.map(renglon).filter(r => r.mo > 0 || r.saldoPrestamo > 0);
+  const todos = personas.map(renglon);
+  const renglones = todos.filter(r => r.mo > 0 || r.saldoPrestamo > 0 || r.sem.sinRegistro.length > 0 || r.sem.sinPago > 0);
+  const conceptosDe = (r) => r.sem.dias.filter(d => d.monto > 0 || d.estado === "ausencia_sin_pago").map(d => ({ fecha: d.fecha, monto: d.monto,
+    que: d.estado === "trabajo" ? "Día trabajado" : `${CLASES_AUSENCIA[d.clase]?.nombre || "Ausencia"}${d.causa ? `: ${d.causa}` : ""}`,
+    como: d.estado === "trabajo" ? (d.origen === "checador" ? `del checador${d.minutos ? `, ${horasDe(d.minutos)}` : ""}` : "de la actividad registrada") : d.estado === "ausencia_pagada" ? `se paga el día · autorizó ${d.autorizo}` : "no se paga" }));
+  const abrirReciboDe = (r) => setRecibo({ a: r.a, clase: "planta", conceptos: conceptosDe(r), saldo: r.saldo, pagos: r.pagos, autorizaciones: r.sem.dias.filter(d => d.autorizo).map(d => `${d.fecha}: ${d.autorizo}`), responsable: "" });
+  if (recibo) return <ReciboInterno {...recibo} desde={ini} hasta={fin} data={data} add={add} session={session} onClose={() => setRecibo(null)} />;
   const totalMO = renglones.reduce((s, r) => s + r.mo, 0);
   const totalRet = renglones.reduce((s, r) => s + r.retencion, 0);
   const totalDesc = renglones.reduce((s, r) => s + r.descuento, 0);
@@ -20436,7 +20699,10 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
     <div>
       <div className="top-bar">
         <button className="btn-ghost" onClick={onClose}>‹</button>
-        <h2>Nómina semanal</h2>
+        <h2>Pagos al personal</h2>
+      </div>
+      <div className="tabs-pill">
+        {[["planta", "Planta"], ["cuadrillas", "Cuadrillas y temporales"], ["asistencia", `Asistencia${moSemana.salidasPorRevisar.length + todos.reduce((n, r) => n + r.sem.sinRegistro.length, 0) ? ` (${moSemana.salidasPorRevisar.length + todos.reduce((n, r) => n + r.sem.sinRegistro.length, 0)})` : ""}`], ["horas", "Horas adicionales"]].map(([v, t]) => <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => setTab(v)}>{t}</button>)}
       </div>
       <div className="section-pad">
         {/* Navegación de semana */}
@@ -20449,8 +20715,13 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
           <button className="btn-num" onClick={() => setOffset(o => Math.min(0, o + 1))} disabled={offset >= 0}>›</button>
         </div>
 
+        {tab === "cuadrillas" && <PagosCuadrillas data={data} add={add} session={session} ini={ini} fin={fin} abrirRecibo={setRecibo} />}
+        {tab === "asistencia" && <PanelAsistencia data={data} add={add} upd={upd} session={session} ini={ini} fin={fin} semanas={todos.filter(r => r.p._tipo === "planta" && r.p.activo !== false)} mo={moSemana} />}
+        {tab === "horas" && <PanelHoras data={data} add={add} session={session} ini={ini} fin={fin} />}
+        {tab === "planta" && <>
+        {avisosPago.map((a, k) => <div key={k} className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">{a}</div></div>)}
         <div className="text-xs text-muted mb-2" style={{ paddingLeft: 4 }}>
-          Lo ganado sale de las actividades registradas (ya es el costo del cultivo — aquí no se duplica). El descuento abona al préstamo del trabajador al aplicarlo.
+          Lo que corresponde sale de lo ya registrado (checador, actividades y ausencias que se pagan): aquí no se captura otra vez y un pago no genera costo. El descuento abona al préstamo del trabajador al aplicarlo.
         </div>
 
         {renglones.length === 0 && (
@@ -20464,11 +20735,11 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
             <div className="flex-b">
               <div>
                 <div className="font-bold">{r.p.nombre}{r.p._tipo === "encargado" ? " · encargado" : ""}</div>
-                <div className="text-xs text-muted">{r.dias} día{r.dias === 1 ? "" : "s"} · {r.acts.length} actividad{r.acts.length === 1 ? "" : "es"}</div>
+                <div className="text-xs text-muted">{r.dias} día{r.dias === 1 ? "" : "s"} trabajado{r.dias === 1 ? "" : "s"}{r.sem.pagadosSinTrabajar ? ` · ${r.sem.pagadosSinTrabajar} de permiso o descanso pagado` : ""}{r.sem.sinPago ? ` · ${r.sem.sinPago} sin pago` : ""}{r.sem.sinRegistro.length ? ` · ${r.sem.sinRegistro.length} sin explicar` : ""}{r.sem.provisional ? " · hoy sigue adentro" : ""}</div>
               </div>
               <div style={{ textAlign: "right" }}>
                 <div className="li-val">{fmt(r.mo)}</div>
-                <div className="text-xs text-muted">ganado</div>
+                <div className="text-xs text-muted">le corresponde</div>
               </div>
             </div>
             {r.retencion > 0 && (
@@ -20489,7 +20760,16 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
             )}
             <div className="flex-b" style={{ marginTop: 10 }}>
               <span className="font-bold text-sm">Neto a pagar</span>
-              <span className="font-bold text-accent" style={{ fontSize: 17 }}>{fmt(r.neto)}</span>
+              <span className="font-bold text-accent" style={{ fontSize: 17 }}>{fmt(r.saldo.neto)}</span>
+            </div>
+            <div className="mo-act"><span>Entregado</span><span /><b>{fmt(r.saldo.entregado)}</b></div>
+            <div className="mo-act"><span>Pendiente</span><span /><b style={{ color: r.saldo.pendiente > 0 ? "var(--gold)" : r.saldo.pendiente < 0 ? "var(--red)" : undefined }}>{fmt(r.saldo.pendiente)}</b></div>
+            {r.pagos.map(x => <div key={x.id} className="text-xs text-muted">{x.fecha}: {fmt(x.datos.monto)} en {MEDIOS_DE_PAGO[x.datos.medio].toLowerCase()}{x.datos.comprobante ? "" : " · sin comprobante"}</div>)}
+            {verDias === r.p.id && r.sem.dias.filter(d => d.estado !== "futuro").map(d => <div key={d.fecha} className="text-xs text-muted">{d.fecha}: {ETQ_DIA[d.estado]}{d.clase ? ` (${CLASES_AUSENCIA[d.clase].nombre.toLowerCase()})` : ""}{d.monto ? ` · ${fmt(d.monto)}` : ""}</div>)}
+            <div className="jor-acc">
+              <button onClick={() => setVerDias(verDias === r.p.id ? null : r.p.id)}>{verDias === r.p.id ? "Ocultar días" : "Ver día por día"}</button>
+              {quienDe(session).rol === "admin" && r.saldo.neto > 0 && <button onClick={() => { setPagoA(r); setAvisosPago([]); }}>Registrar pago</button>}
+              {r.mo > 0 && <button onClick={() => abrirReciboDe(r)}>Recibo</button>}
             </div>
           </div>
         ))}
@@ -20503,7 +20783,9 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
             <button className="btn btn-accent mt-2" style={{ width: "100%" }} onClick={() => setVerImprimir(true)}><Ic e="🖨️" /> Nómina para imprimir (con firmas)</button>
           </div>
         )}
+        </>}
       </div>
+      {pagoA && <ModalPago a={pagoA.a} desde={ini} hasta={fin} pendiente={pagoA.saldo.pendiente} descuento={pagoA.pagos.length ? 0 : pagoA.descuento} data={data} add={add} session={session} onClose={(av) => { setPagoA(null); setAvisosPago(av || []); }} />}
     </div>
   );
 }

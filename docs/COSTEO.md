@@ -89,24 +89,21 @@ cargado a parcelas y lo que queda fuera siempre suman lo mismo.
 | Herramienta rota o perdida | Baja con responsable, causa, valor y evidencia; la decisión con el trabajador se escribe aparte y la app nunca descuenta | — (decidido el 19 nov) |
 
 
-## Siguiente entrega: faltas y permisos, pagos y recibos
+## Hecho el 19 nov: faltas y permisos, pagos y recibos
 
-**Qué se construye**
+Reglas que dio Luis y cómo quedaron: permiso o descanso autorizado se paga; falta sin justificar no se paga y se puede justificar después con historial; salir antes no descuenta nada solo (lo decide un administrador, con motivo); pago semanal con calendario de asistencia por persona; a la cuadrilla se le entrega al responsable sin dar por pagado a cada integrante; temporales independientes con pago directo; horas adicionales registradas, sin tratamiento automático; recibos internos con versiones que no sustituyen un CFDI.
 
-1. **Faltas, permisos y descansos con causa.** Un tipo de evento (`ausencia`): trabajador, día o rango, causa (falta, permiso con o sin goce, descanso autorizado, incapacidad, abandono de la jornada) y quién lo autoriza. No calcula descuentos solo: dice qué pasó y deja la decisión a quien paga.
-2. **Lo que corresponde, lo pagado y lo pendiente.** Un evento `pago_personal` por cada pago (a quién, periodo, importe, de qué bolsa, quién pagó). Lo que corresponde sale de la mano de obra que ya se calcula; lo pendiente es la resta. Una sola fuente: el pago no vuelve a generar costo.
-3. **Recibo interno en PDF** por trabajador y periodo: conceptos, cálculo, fecha, responsable y firmas; con versiones. Dice en su encabezado que es un recibo interno, no un comprobante fiscal.
-4. **Horas adicionales reconocidas**: de las que ya se acumulan, cuáles se reconocen y a cuánto, como decisión con nombre.
+## Siguiente entrega: prestaciones y centros de costo
 
-**Lo que necesito que decidas antes de construirlo**
+1. **A dónde se cargan los días pagados sin trabajar** (permisos, descansos) y el tiempo "por aclarar": hoy no están en ninguna parcela. Propuesta: una fuente de costo indirecto "Personal" con centros de costo (administración, taller, general), usando la misma estructura de costo directo y costo completo.
+2. **Prestaciones como provisión**: aguinaldo, vacaciones y prima vacacional se van acumulando por semana trabajada; al pagarse no vuelven a ser costo.
+3. **Cierre de semana y de mes**: congelar una copia de lo pagado y de los reportes, para que "lo original" no dependa de reconstruirlo.
+
+**Lo que necesito que decidas**
 
 | Tema | Pregunta |
 |---|---|
-| Permiso con goce | ¿Un trabajador de planta con permiso autorizado cobra su día? ¿Y con descanso autorizado? |
-| Falta | ¿La falta sin aviso descuenta el día completo, o lo decide quien paga cada vez? |
-| Abandono de la jornada | Si checó entrada y se fue a media mañana: ¿día completo, medio día, o por horas? |
-| Periodo de pago | ¿Semanal de lunes a sábado para todos, o hay quien cobra por quincena? |
-| Cuadrillas | ¿El pago se le entrega al responsable de la cuadrilla o a cada persona? ¿El recibo sale a nombre de quién? |
-| Horas adicionales | ¿Se pagan, se compensan con descanso, o sólo se registran? ¿A partir de cuántas? |
-
-**Riesgo a cuidar:** el reporte de nómina de siempre ya calcula sueldos por su lado. Antes de agregar pagos por eventos hay que dejar una sola fuente, igual que se hizo con cuadrillas y con insumos.
+| Días pagados sin trabajar | ¿Se reparten entre las parcelas donde esa persona trabajó esa semana, o van a un centro de costo general? |
+| Prestaciones | ¿Cuántos días de aguinaldo y de vacaciones usan como base? ¿Se provisionan para todos los de planta desde su fecha de ingreso? |
+| Encargados | ¿Deben checar como los demás, o se les sigue pagando por semana completa sin checador? |
+| Cierre | ¿Quién cierra la semana de pagos, y se puede reabrir? |

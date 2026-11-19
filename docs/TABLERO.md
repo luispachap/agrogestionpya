@@ -13,7 +13,7 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 
 ## Operación integral (etapa abierta el 19 nov) — modelo y orden en `EVENTOS.md`
 
-**Próxima entrega operativa:** faltas, permisos y descansos con causa; pagos, pendientes y recibos internos en PDF (el plan está en `docs/COSTEO.md`, "Siguiente entrega"). Antes: validar el almacén en el rancho con `docs/RECORRIDO-ALMACEN-RANCHO.md`.
+**Próxima entrega operativa:** prestaciones (aguinaldo, vacaciones, prima) como provisiones, y centros de costo para lo que no es de una parcela (permisos pagados, tiempo por aclarar). Antes: validar en el rancho el almacén (`docs/RECORRIDO-ALMACEN-RANCHO.md`) y una semana de pagos real.
 
 | Asunto | En rama | Probado | Publicado | Validado en el rancho |
 |---|---|---|---|---|
@@ -51,6 +51,13 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | El aviso de "cuándo se acaba" y las alertas de mínimo ven los movimientos nuevos | Sí | Sí | Sí | Falta |
 | Costo promedio calculado de las compras (no depende de qué teléfono subió al último); compra tardía = ajuste posterior a la vista, sin tocar el costo original | Sí | Sí (reglas, en dos órdenes) | Sí | **Falta: una compra real capturada tarde** |
 | Tres fechas por movimiento; la hora de recepción la pone el servidor; el desfase de cada teléfono se mide y se corrige a la vista | Sí | Sí (reglas y base aislada) | Sí; hoja 36 instalada | **Falta: un teléfono real con la hora mal puesta** |
+| Permisos y descansos autorizados (se pagan), faltas (no se pagan) y justificación posterior con historial | Sí | Sí | Sí | **Falta: una semana real** |
+| Calendario de asistencia por trabajador (quién no viene los sábados), separado del pago semanal | Sí | Sí | Sí | Falta |
+| Salida anticipada: sin descuento automático; queda por revisar y un administrador decide con motivo | Sí | Sí | Sí | **Falta: un caso real** |
+| Lo que corresponde, lo entregado y lo pendiente por trabajador; pago con medio y comprobante | Sí | Sí | Sí | Falta |
+| Cuadrillas: cuenta del responsable, entrega y saldo; temporales independientes con pago directo | Sí | Sí | Sí | Falta |
+| Recibo interno (planta, temporal) y constancia de entrega (cuadrilla), con versiones; se guarda como PDF desde Imprimir | Sí | Sí | Sí | **Falta: imprimir uno y que lo firmen** |
+| Horas adicionales por trabajador, semana, mes y año; reconocerlas es una decisión aparte | Sí | Sí las reglas; en pantalla sólo que abre | Sí | Falta |
 | Costo directo y costo completo en los reportes de siembra y de temporada, con desglose, explicación de cada importe y pendientes | Sí | Sí | Sí | **Falta: que Luis y Migue lean un reporte real** |
 | Almacén: entregar no es gastar; queda a cargo de quien lo recibe | Sí | Sí | Sí | **Falta: una semana de entregas reales** |
 | Cierre de lo entregado: se usó (ahí nace el costo), regresó, se quedó con otro, se rompió o perdió | Sí | Sí | Sí | Falta |
@@ -73,6 +80,10 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 **Problemas y riesgos abiertos**
 
 - **El cálculo recorre todos los eventos cada vez.** Con unos meses de marcas va bien; con años habrá que cerrar periodos y guardar su resumen. No urge, pero está anotado.
+- **Los días de permiso o descanso pagado no están en el costo de ninguna parcela.** Se le pagan al trabajador, pero ese dinero hoy sólo se ve en Pagos al personal: falta decidir a dónde se carga (es un costo indirecto de personal).
+- **Retención y abono a préstamo** siguen como estaban en la nómina; el abono al préstamo queda ligado al pago sólo si se registra el pago después de aplicarlo.
+- **El "PDF" del recibo se genera con Imprimir → Guardar como PDF** del teléfono o la computadora; la app no guarda el archivo PDF, guarda el contenido del recibo y sus versiones.
+- **Los encargados** siguen calculándose de las actividades registradas (no checan); sus ausencias no se llevan todavía.
 - **Un teléfono que NUNCA ha tenido señal desde que se instaló no sabe cuánto difiere su hora.** Sus movimientos entran con la hora que diga hasta que el servidor los recibe; ahí se acota (no pudo pasar después de recibido), pero un reloj ATRASADO en un teléfono así no se puede detectar. Se señalan como "hora sin comprobar".
 - **Las dos cifras están en el reporte de cada siembra y de cada temporada.** Las listas y tarjetas chicas (inicio, panel de parcelas, alertas de costo por hectárea) siguen enseñando el costo directo.
 - **"Ajustes posteriores" cubre hoy la valuación de insumos y lo indirecto capturado tarde.** Todavía no hay cierre de mes que congele una copia de cada reporte: lo "original" se reconstruye de las fechas de captura.

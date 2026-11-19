@@ -34,13 +34,16 @@ export const CRITERIOS_FLETE = {
 };
 
 // Registrar el día de una cuadrilla en UNA parcela y UNA actividad.
-export function registrarCuadrilla({ cuadrillaId, cuadrilla, responsable = "", parcelaId, actividad, modalidad, integrantes, destajo, precio, hectareas, nota = "", fecha, cuando, quien, capturado, azar }) {
+// `independiente`: trabajadores temporales que NO vienen con una cuadrilla ni con
+// un responsable. Se les paga a cada quien, directo.
+export function registrarCuadrilla({ independiente = false, cuadrillaId, cuadrilla, responsable = "", parcelaId, actividad, modalidad, integrantes, destajo, precio, hectareas, nota = "", fecha, cuando, quien, capturado, azar }) {
   if (!PUEDE.includes(quien?.rol)) return { ok: false, dice: "Sólo un encargado o un administrador registra una cuadrilla." };
-  if (!limpio(cuadrilla)) return { ok: false, dice: "Falta decir qué cuadrilla es." };
+  if (independiente && modalidad === "precio") return { ok: false, dice: "A un trabajador independiente se le paga por día o por destajo, a cada quien lo suyo." };
+  if (!independiente && !limpio(cuadrilla)) return { ok: false, dice: "Falta decir qué cuadrilla es." };
   if (!parcelaId) return { ok: false, dice: "Falta la parcela." };
   if (!limpio(actividad)) return { ok: false, dice: "Falta qué hicieron." };
   const base = { cuadrillaId: cuadrillaId || `sin-catalogo:${limpio(cuadrilla).toLowerCase()}`, cuadrilla: limpio(cuadrilla), responsable: limpio(responsable), parcelaId, actividad: limpio(actividad),
-    ...(Number(hectareas) > 0 ? { hectareas: Number(hectareas) } : {}), ...(limpio(nota) ? { nota: limpio(nota) } : {}) };
+    ...(independiente ? { independiente: true } : {}), ...(Number(hectareas) > 0 ? { hectareas: Number(hectareas) } : {}), ...(limpio(nota) ? { nota: limpio(nota) } : {}) };
   const sinRepetidos = (nombres) => new Set(nombres.map(n => n.toLowerCase())).size === nombres.length;
   if (modalidad === "dia") {
     const gente = (integrantes || []).map(i => ({ nombre: limpio(i.nombre), pagoDia: Number(i.pagoDia) })).filter(i => i.nombre);
@@ -119,7 +122,7 @@ export function costoDeCuadrillas(eventos, { desde, hasta, criterioFlete = "pers
   const traslados = vigentes(eventos).filter(e => e.tipo === TIPO_TRASLADO && enRango(e));
   const partes = []; const pendientes = []; const propios = [];
   for (const e of dias) {
-    for (const p of pagosDe(e)) partes.push({ clase: "pago", cuadrillaId: e.datos.cuadrillaId, cuadrilla: e.datos.cuadrilla, persona: p.persona, fecha: e.fecha,
+    for (const p of pagosDe(e)) partes.push({ clase: "pago", cuadrillaId: e.datos.cuadrillaId, cuadrilla: e.datos.cuadrilla, responsable: e.datos.responsable || "", independiente: !!e.datos.independiente, persona: p.persona, fecha: e.fecha,
       parcelaId: e.datos.parcelaId, actividad: e.datos.actividad, modalidad: e.datos.modalidad, unidades: p.unidades, unidad: e.datos.destajo?.unidad || null,
       monto: p.monto, parejo: p.parejo, grupo: !!p.grupo, personas: p.grupo ? personasDe(e) : 1, hectareas: e.datos.hectareas || 0, evs: [e.id] });
   }

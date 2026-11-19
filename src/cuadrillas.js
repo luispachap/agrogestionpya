@@ -59,6 +59,7 @@ export const AJUSTES = {
   alm_escala_largo_d: { defecto: 15, minimo: 2, maximo: 730, nombre: "Herramientas y uso prolongado: días para avisar al administrador" },
   criterio_traslado: { defecto: "personas", opciones: { personas: "Por las personas que llevó a cada parcela", viajes: "Parejo entre los viajes", parejo: "Parejo entre las parcelas a las que llevó gente" }, nombre: "Cómo se reparte el costo de transportar trabajadores en vehículo propio" },
   criterio_vehiculo: { defecto: "horas", opciones: { horas: "Por horas de uso", viajes: "Por viajes", km: "Por kilómetros", periodo: "Parejo entre lo que atendió en el periodo" }, nombre: "Cómo se reparten los costos compartidos de un vehículo (combustible, taller, depreciación)" },
+  tolerancia_salida_min: { defecto: 30, minimo: 0, maximo: 240, nombre: "Minutos antes de su horario que alguien puede salir sin que se pida revisar el caso" },
   horas_jornada: { defecto: 8, minimo: 4, maximo: 12, nombre: "Horas del horario habitual (de ahí en adelante son horas adicionales)" },
 };
 export function ajusteVigente(eventos, clave) {
@@ -233,9 +234,29 @@ export function tramosDeTrabajo(eventos, { desde, hasta, hoy, ahora } = {}) {
 //   dia     — vino, se devenga su día; se reparte entre lo que hizo según el tiempo.
 //   hora    — se devenga sólo el tiempo que se sabe.
 //   destajo — sólo lo que hizo a destajo; estar en el rancho no devenga.
+// Lo que se decidió pagar de un día en que alguien salió antes. NO hay regla
+// automática: mientras nadie decida, el día se paga completo y el caso queda
+// "por revisar". La decisión la toma una persona, con nombre y motivo.
+export const TIPO_DECISION = "decision_jornada";
+export const PAGO_DE_JORNADA = { completo: "Se paga el día completo", medio: "Se paga medio día", horas: "Se pagan las horas trabajadas", ninguno: "No se paga ese día" };
+export function decidirJornada({ trabajadorId, fecha, situacion, pago, motivo, quien, cuando, azar }) {
+  if (quien?.rol !== "admin") return { ok: false, dice: "Cómo se paga un día así lo decide un administrador." };
+  if (!trabajadorId || !fecha) return { ok: false, dice: "Falta decir de quién y de qué día." };
+  if (!situacion) return { ok: false, dice: "Falta decir qué pasó." };
+  if (!PAGO_DE_JORNADA[pago]) return { ok: false, dice: "Falta decidir cómo se paga ese día." };
+  if (!String(motivo || "").trim()) return { ok: false, dice: "Falta el porqué de la decisión: queda escrito con tu nombre." };
+  return { ok: true, evento: nuevoEvento({ tipo: TIPO_DECISION, cuando: `${fecha}T12:00:00-06:00`, fecha, capturado: cuando, quien, azar, datos: { trabajadorId, situacion, pago, motivo: String(motivo).trim() } }) };
+}
+export function decisionesDeJornada(eventos) {
+  const m = new Map();
+  for (const e of vigentes(eventos).filter(x => x.tipo === TIPO_DECISION).sort((a, b) => a.capturado.localeCompare(b.capturado))) m.set(`${e.datos.trabajadorId}|${e.fecha}`, e);
+  return m;
+}
 export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } = {}) {
   const { tramos, avisos } = tramosDeTrabajo(eventos, { desde, hasta, hoy, ahora });
   const horasJornada = ajusteVigente(eventos, "horas_jornada").valor;
+  const tolerancia = Number(ajusteVigente(eventos, "tolerancia_salida_min").valor) || 0;
+  const decisiones = decisionesDeJornada(eventos); const salidasPorRevisar = [];
   const porId = new Map((trabajadores || []).map(t => [t.id, t]));
   const partes = []; const devengado = [];
   const dias = new Map();
@@ -259,7 +280,7 @@ export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } =
     const sabidos = mios.filter(x => x.minutos != null && x.minutos > 0);
     const provisional = mios.some(x => x.corriendo);
     const misPartes = [...dest];
-    const evsDe = (x) => [x.evEntrada, x.evSalida, x.evAsignacion, x.evAclaracion].filter(Boolean);
+    const evsDe = (x) => [x.evEntrada, x.evSalida, x.evAsignacion, x.evAclaracion, x.evDecision].filter(Boolean);
     const extra = (x) => ({ vehiculoId: x.vehiculoId || null, vehiculo: x.vehiculo || "", beneficiaId: x.beneficiaId || null, causa: (x.parcelaId && !x.aclarado) || x.vehiculoId ? undefined : x.causa ?? null, nota: x.nota || "", desde: x.desde, hasta: x.hasta, aclarado: !!x.aclarado });
     if (!t) avisos.push({ clase: "sin_ficha", trabajadorId, fecha, dice: "Checó alguien que no está en el catálogo de este aparato: no se le puede poner costo." });
     else if (modalidad !== "destajo" && mios.length > 0) {
@@ -270,7 +291,13 @@ export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } =
         const montos = repartirDinero(total, sabidos.map(x => x.minutos));
         sabidos.forEach((x, i) => misPartes.push({ trabajadorId, fecha, parcelaId: x.parcelaId, actividad: x.actividad, modalidad: "hora", minutos: x.minutos, monto: montos[i], evs: evsDe(x), estimado: v.estimado === true, provisional: x.corriendo, ...extra(x) }));
       } else if (sabidos.length > 0) {
-        const montos = repartirDinero(v.sueldo, sabidos.map(x => x.minutos));
+        // Pago por día: completo, salvo que una persona haya decidido otra cosa para ESE día.
+        const min = sabidos.reduce((n, x) => n + x.minutos, 0); const dec = decisiones.get(k);
+        const factor = !dec ? 1 : dec.datos.pago === "medio" ? 0.5 : dec.datos.pago === "ninguno" ? 0 : dec.datos.pago === "horas" ? Math.min(1, min / (horasJornada * 60)) : 1;
+        if (!dec && !provisional && min < horasJornada * 60 - tolerancia) salidasPorRevisar.push({ trabajadorId, nombre: t.nombre, fecha, minutos: min, faltaron: Math.round(horasJornada * 60 - min), sueldo: v.sueldo });
+        const sueldoDelDia = Math.round(v.sueldo * factor * 100) / 100;
+        const montos = repartirDinero(sueldoDelDia, sabidos.map(x => x.minutos));
+        if (dec) sabidos.forEach(x => { x.evDecision = dec.id; });
         sabidos.forEach((x, i) => misPartes.push({ trabajadorId, fecha, parcelaId: x.parcelaId, actividad: x.actividad, modalidad: "dia", minutos: x.minutos, monto: montos[i], evs: evsDe(x), estimado: v.estimado === true, provisional, ...extra(x) }));
       } else {
         // Vino (checó entrada) pero no se sabe cuánto tiempo: su día se devenga, y
@@ -287,7 +314,7 @@ export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } =
   const asignado = partes.filter(p => p.parcelaId || p.vehiculoId); const suelto = partes.filter(p => !p.parcelaId && !p.vehiculoId);
   const enVehiculos = partes.filter(p => p.vehiculoId);
   return {
-    tramos, partes, devengado, avisos,
+    tramos, partes, devengado, avisos, salidasPorRevisar,
     // El tiempo de los operadores, por vehículo: sale de lo que ya ganan, no es otro pago.
     totalAParcelas: sumarDinero(partes.filter(p => p.parcelaId).map(p => p.monto)), totalAVehiculos: sumarDinero(enVehiculos.map(p => p.monto)),
     porVehiculo: agrupar(enVehiculos, ["vehiculoId"]).map(g => ({ ...g, vehiculo: g.partes.find(p => p.vehiculo)?.vehiculo || "" })),

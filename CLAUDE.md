@@ -150,6 +150,23 @@ Usuarios reales de la app:
   `explica`), `pendientes` (con su causa) y `noProduccion`. Los reportes lo
   enseñan con `<DosCifras>` (`r.completo`). **Una fuente nueva de indirectos se
   agrega a esa lista; nunca se mete a `actividadesContables` ni a los gastos.**
+- **`src/pagos.js`** (en pantalla: «Pagos al personal», la página `nomina`): lo
+  que CORRESPONDE se calcula de lo ya registrado (`semanaDe`: checador,
+  actividad tecleada o ausencia que se paga); lo ENTREGADO son eventos
+  `pago_personal`; lo PENDIENTE es la resta. **Un pago no genera costo.**
+  `ausencia` (permiso/descanso autorizado = se paga; falta = no se paga;
+  justificar después = `corregirEvento`, con historial). Quien no vino y nadie
+  explicó es `sin_registro`: una pregunta, no una falta. `diasAsistencia` es el
+  calendario de cada trabajador (hay quien no viene los sábados), distinto del
+  periodo de pago semanal. **Salir antes NO descuenta nada solo**: sale en
+  `salidasPorRevisar` y una persona decide (`decision_jornada`, que `manoDeObra`
+  aplica al día Y al costo de la parcela). Cuadrillas: una cuenta por
+  responsable (`cuentasDeCuadrillas`); entregarle no marca pagado a cada
+  integrante. Temporales independientes: `cuadrilla_dia` con `independiente`.
+  Recibos (`recibo_personal`): lo emitido es una foto y no se cambia; otro
+  recibo de la misma semana es una versión nueva con su motivo. Llevan la
+  leyenda de que NO sustituyen un CFDI de nómina. Horas adicionales:
+  registradas ≠ reconocidas (`horas_reconocidas`) ≠ pagadas.
 - Reglas ya decididas por Luis (19 nov): checar salida TERMINA la asignación
   (al volver queda sin asignar; se ofrece «continuar»); el tiempo sin asignar es
   «por aclarar» y nunca se distribuye solo; las horas adicionales se registran y
@@ -274,7 +291,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **119 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **120 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

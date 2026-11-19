@@ -22,7 +22,7 @@ with sync_playwright() as p:
     pg.locator(".mn-cab", has_text="Dinero").click(); pg.wait_for_timeout(200)
     caso("un grupo se despliega al tocarlo", pg.locator(".mn-hoja .mn-n", has_text="Banco").count() == 1)
     pg.get_by_placeholder("Buscar").fill("nomina"); pg.wait_for_timeout(200)
-    caso("buscar 'nomina' sin acento encuentra la nómina", pg.locator(".mn-hoja .mn-n").all_inner_texts() == ["Nómina semanal"])
+    caso("buscar 'nomina' sin acento encuentra la nómina", pg.locator(".mn-hoja .mn-n").all_inner_texts() == ["Pagos al personal"])
     pg.locator(".mn-hoja .mn-ir").first.click(); pg.wait_for_timeout(400)
     caso("tocar un renglón abre la pantalla y cierra el menú", pg.locator(".mn-hoja").count() == 0 and pg.get_by_text("Algo salió mal").count() == 0)
     pg.locator(".bn-item").first.click(); pg.locator(".acc-link", has_text="Acomodar").click(); pg.wait_for_timeout(300)
@@ -62,7 +62,7 @@ with sync_playwright() as p:
     for c in pg.locator(".mn-cab").all(): 
         if "−" not in c.inner_text(): c.click()
     nombres = pg.locator(".mn-hoja .mn-n").all_inner_texts()
-    caso("el encargado no ve Arranque, Nómina ni Seguridad en su menú", not any(x in nombres for x in ["Arranque", "Nómina semanal", "Seguridad", "Finanzas"]), len(nombres))
+    caso("el encargado no ve Arranque, Nómina ni Seguridad en su menú", not any(x in nombres for x in ["Arranque", "Pagos al personal", "Seguridad", "Finanzas"]), len(nombres))
     caso("ninguna pantalla tronó", not errs, errs)
     b.close()
 print(f"\n{sum(res)}/{len(res)}"); sys.exit(0 if all(res) else 1)
