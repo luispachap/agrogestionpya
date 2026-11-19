@@ -13,7 +13,7 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 
 ## Operación integral (etapa abierta el 19 nov) — modelo y orden en `EVENTOS.md`
 
-**Próxima entrega operativa:** prestaciones (aguinaldo, vacaciones, prima) como provisiones, y centros de costo para lo que no es de una parcela (permisos pagados, tiempo por aclarar). Antes: validar en el rancho el almacén (`docs/RECORRIDO-ALMACEN-RANCHO.md`) y una semana de pagos real.
+**Próxima entrega operativa:** cierre de mes (foto de los reportes de costo) y que la base —no sólo la app— vigile quién puede cerrar, determinar y pagar. Antes: validar en el rancho el almacén (`docs/RECORRIDO-ALMACEN-RANCHO.md`), los pagos al personal y las prestaciones con las fechas de ingreso reales.
 
 | Asunto | En rama | Probado | Publicado | Validado en el rancho |
 |---|---|---|---|---|
@@ -95,6 +95,22 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 - **Dos personas con el mismo PIN** no pueden checar con PIN (el checador lo dice). Hay que revisar los PIN al dar de alta a la gente.
 - Una prueba de la base falló dos veces de forma intermitente y no se ha podido repetir; la corrida completa ya guarda el detalle.
 
+| Prestaciones (aguinaldo, vacaciones, prima): se generan solas desde la fecha de ingreso; determinar y pagar no las cargan otra vez; condiciones por persona y mínimos de ley | Sí | Sí (13 reglas + navegador) | Sí | **Falta: capturar fechas de ingreso reales y comparar un aguinaldo contra el cálculo de siempre** |
+| Costo de personal que no es de una parcela (permisos, descansos, esperas, día de un encargado): indirecto, con causa y regla por concepto; lo que no se puede repartir queda pendiente | Sí | Sí | Sí | Falta |
+| Encargados: asistencia por calendario (por periodos), ausencias registrables, checador opcional | Sí | Sí | Sí | **Falta: decidir a quién se le activa** |
+| Cierre de la semana con versiones, reapertura con motivo, diferencias posteriores a la vista, y confirmación de pagos aparte | Sí | Sí | Sí | Falta: cerrar una semana real |
+| Abono a préstamo ligado a su semana sin importar el orden; recibo interno guardado también como PDF; tarjetas chicas dicen «costo directo»; horas adicionales probadas con una jornada de 10 h | Sí | Sí | Sí | Falta |
+
+**Lo que NO quedó cerrado en esta entrega (riesgos a la vista):**
+- Quién puede cerrar la semana, determinar una prestación o registrar un pago lo vigila la APP, no la base: alguien con cuenta de encargado y conocimientos técnicos podría mandar ese registro directo. Cerrarlo en la base choca con los teléfonos ligados a la cuenta de un encargado; hay que diseñarlo junto con `docs/auditoria/02-CONTENCION-P0.md`.
+- El abono a préstamo vive en el préstamo (no es evento): dos aparatos sin señal abonando al MISMO préstamo se pueden pisar. Pasar los préstamos a eventos lo resuelve.
+- Las prestaciones cuentan desde el primer día con registros en el sistema. Lo generado antes se enseña, pero no se carga a ningún periodo: si se quiere reconocer como saldo inicial, es decisión de Luis.
+- Los días de vacaciones pendientes de ANTES del sistema no se inventan: se capturan por persona (campo «días que traía pendientes»).
+- No hay finiquitos ni partes proporcionales al dar de baja: `fechaBaja` detiene lo que se genera, pero determinar y pagar es a mano.
+- No se calculan impuestos, cuotas del IMSS ni salario integrado. Son control interno, no nómina fiscal.
+- El PDF del recibo es de puro texto (sin logo). El de formato completo sigue saliendo por Imprimir.
+- Cierre de MES (foto de los reportes de costo): todavía no.
+
 ## Instalación en la infraestructura nueva
 
 | Asunto | Hecho | Comprobado en el proyecto real |
@@ -175,7 +191,7 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 
 | Batería | Resultado |
 |---|---|
-| Reglas, cálculos y nombres sin definir (`npm test`) | 664 de 664 |
+| Reglas, cálculos y nombres sin definir (`npm test`) | 869 de 869 |
 | La base armada desde cero y atacada directo (`npm run test:base`) | 49 de 49 |
 | Navegador, alta de cuentas y Arranque (`cuentas`) | 22 de 22 |
 | **Proyecto real**, sin sesión, desde internet (`real_sin_sesion`) | 6 de 6 |
@@ -186,7 +202,8 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | Navegador, fotos fuera de los registros (`archivos`) | 9 de 9 |
 | Navegador, captura de campo (`campo`) | 13 de 13 |
 | Navegador, arranque limpio (`arranque`) | 13 de 13 |
-| Compilación | correcta, 106 módulos, lector de PDF aparte |
+| Navegador, prestaciones, encargados y cierre de la semana (`prestaciones`) | 42 de 42 |
+| Compilación | correcta, 124 módulos, lector de PDF aparte |
 
 Todo junto: `sh pruebas/todo.sh`.
 

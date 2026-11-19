@@ -35,6 +35,8 @@ export const CLASES_AUSENCIA = {
   descanso: { nombre: "Descanso autorizado", paga: true, pideAutoriza: true },
   justificada: { nombre: "Ausencia justificada", paga: null, pideAutoriza: true },   // si se paga, lo dice quien la justifica
   falta: { nombre: "Falta sin justificar", paga: false, pideAutoriza: false },
+  // Se pagan en su semana, pero su costo NO nace ese día: se fue generando como prestación.
+  vacaciones: { nombre: "Vacaciones", paga: true, pideAutoriza: true, sinCausa: true },
 };
 export const SITUACIONES_SALIDA = { terminada: "Terminó su jornada", autorizada: "Salida autorizada", justificada: "Causa justificada", abandono: "Abandonó el trabajo", otra: "Otra situación" };
 export const MEDIOS_DE_PAGO = { efectivo: "Efectivo", transferencia: "Transferencia", cheque: "Cheque", otro: "Otro" };
@@ -45,6 +47,12 @@ export const CLASES_DE_PERSONAL = { planta: "Trabajador de planta", cuadrilla: "
 export const DIAS_DE_SIEMPRE = [1, 2, 3, 4, 5, 6];
 export const diaDeLaSemana = (fecha) => { const d = new Date(fecha + "T12:00:00Z").getUTCDay(); return d === 0 ? 7 : d; };
 export const leToca = (trabajador, fecha) => (Array.isArray(trabajador?.diasAsistencia) && trabajador.diasAsistencia.length ? trabajador.diasAsistencia : DIAS_DE_SIEMPRE).includes(diaDeLaSemana(fecha));
+// Asistencia por calendario (encargados): periodos { desde, hasta } en que su día se paga por estar en su calendario.
+// Apagarla cierra el periodo; lo anterior sigue valiendo como estaba.
+export const porCalendario = (persona, fecha) => (persona?.calendario || []).some(p => p?.desde && fecha >= p.desde && (!p.hasta || fecha <= p.hasta));
+export const calendarioActivo = (persona, hoy) => (persona?.calendario || []).find(p => p?.desde && !p.hasta || (p?.hasta && p.hasta >= hoy)) || null;
+export const alternarCalendario = (persona, hoy, ayer) => { const act = calendarioActivo(persona, hoy); const l = persona.calendario || [];
+  return { ...persona, calendario: act ? l.map(p => (p === act ? { ...p, hasta: ayer } : p)).filter(p => !p.hasta || p.hasta >= p.desde) : [...l, { desde: hoy }] }; };
 export const diasEntre = (desde, hasta) => { const l = []; for (let f = desde; f <= hasta && l.length < 400; f = sumarDias(f, 1)) l.push(f); return l; };
 
 // ── Ausencias ──────────────────────────────────────────────────────────────
@@ -55,7 +63,7 @@ export function registrarAusencia({ trabajadorId, desde, hasta, clase, paga, cau
   if (!c) return { ok: false, dice: "Falta decir qué fue: permiso, descanso, ausencia justificada o falta." };
   if (!desde || (hasta && hasta < desde)) return { ok: false, dice: "Faltan las fechas." };
   if (c.pideAutoriza && !limpio(autorizo)) return { ok: false, dice: "Falta decir quién lo autorizó." };
-  if (clase !== "falta" && !limpio(causa)) return { ok: false, dice: "Falta la causa." };
+  if (clase !== "falta" && !c.sinCausa && !limpio(causa)) return { ok: false, dice: "Falta la causa." };
   if (clase === "justificada" && typeof paga !== "boolean") return { ok: false, dice: "Falta decidir si esos días se pagan." };
   const sePaga = c.paga == null ? paga : c.paga; let k = 0;
   return { ok: true, eventos: diasEntre(desde, hasta || desde).map(fecha => nuevoEvento({ tipo: T_AUSENCIA, cuando: `${fecha}T12:00:00-06:00`, fecha, capturado: capturado || cuando, quien, azar: azar != null ? azar + (k++) / 1e9 : undefined,
@@ -76,7 +84,11 @@ export const ausenciasDe = (eventos, { desde, hasta } = {}) => vigentes(eventos)
 // ── La semana de una persona de planta, día por día ────────────────────────
 // `devengado`: lo que salió del checador (manoDeObra). `actividades`: las
 // tecleadas a mano de antes (su mano de obra ya viene en cero si ese día checó).
-export function semanaDe({ trabajador, desde, hasta, hoy, devengado = [], actividades = [], ausencias = [] }) {
+// `modo`: "checador" (planta: si le tocaba y no hay nada, es una pregunta) ·
+//         "calendario" (encargado con asistencia administrativa: el día de su
+//         calendario se paga salvo ausencia sin pago; si checó, manda el checador) ·
+//         "actividades" (lo de antes: sólo cuenta lo que registró; no se pregunta).
+export function semanaDe({ trabajador, desde, hasta, hoy, devengado = [], actividades = [], ausencias = [], modo = "checador" }) {
   const dias = diasEntre(desde, hasta).map(fecha => {
     const dev = devengado.filter(d => d.trabajadorId === trabajador.id && d.fecha === fecha);
     const acts = actividades.filter(a => !a._deEventos && a.registradoPor?.id === trabajador.id && a.fecha === fecha && (Number(a.costoMO) || 0) > 0);
@@ -89,11 +101,16 @@ export function semanaDe({ trabajador, desde, hasta, hoy, devengado = [], activi
       return { ...base, estado: aus.datos.paga ? "ausencia_pagada" : "ausencia_sin_pago", clase: aus.datos.clase, causa: aus.datos.causa, autorizo: aus.datos.autorizo, monto: aus.datos.paga ? v.sueldo : 0, estimado: aus.datos.paga && v.estimado, ev: aus.id, evs: [aus.id] };
     }
     if (fecha > hoy) return { ...base, estado: "futuro", monto: 0 };
+    if (modo === "calendario" && base.leToca && porCalendario(trabajador, fecha)) {
+      const v = sueldoVigente(trabajador, fecha);
+      return { ...base, estado: "calendario", monto: v.sueldo, estimado: v.estimado };
+    }
+    if (modo !== "checador") return { ...base, estado: "no_le_toca", monto: 0 };
     // No vino y nadie ha dicho qué pasó. NO es una falta todavía: es una pregunta.
     return { ...base, estado: base.leToca ? "sin_registro" : "no_le_toca", monto: 0 };
   });
   return { trabajadorId: trabajador.id, dias, corresponde: sumarDinero(dias.map(d => d.monto)), trabajados: dias.filter(d => d.estado === "trabajo").length,
-    pagadosSinTrabajar: dias.filter(d => d.estado === "ausencia_pagada").length, sinPago: dias.filter(d => d.estado === "ausencia_sin_pago").length,
+    pagadosSinTrabajar: dias.filter(d => d.estado === "ausencia_pagada").length, porCalendario: dias.filter(d => d.estado === "calendario").length, sinPago: dias.filter(d => d.estado === "ausencia_sin_pago").length,
     sinRegistro: dias.filter(d => d.estado === "sin_registro").map(d => d.fecha), provisional: dias.some(d => d.provisional) };
 }
 
@@ -137,13 +154,32 @@ export function saldoDe({ corresponde, descuentos = 0, pagos = [] }) {
   return { corresponde, descuentos, neto, entregado, pendiente, estado: entregado === 0 ? (neto > 0 ? "sin_pagar" : "nada") : pendiente > 0.004 ? "parcial" : pendiente < -0.004 ? "de_mas" : "pagado" };
 }
 
+// ── Abonos a un préstamo desde la semana ───────────────────────────────────
+// El abono vive EN el préstamo, con la semana a la que pertenece. Así lo que se
+// le descuenta en una semana sale de un solo lado y no depende de si el pago se
+// registró antes o después del abono.
+export function abonarPrestamos(prestamos, monto, { desde, hasta, fecha, id }) {
+  let resto = Math.round(Number(monto) * 100) / 100; const cambiados = [];
+  for (const pr of [...(prestamos || [])].sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""))) {
+    const saldo = Math.max(0, sumarDinero(pr.monto || 0, -(pr.abonado || 0))); const abono = Math.min(saldo, resto);
+    if (!(abono > 0)) continue;
+    const abonado = sumarDinero(pr.abonado || 0, abono);
+    cambiados.push({ ...pr, abonado, estado: abonado >= (pr.monto || 0) ? "pagado" : "activo", ultimoAbono: { fecha, monto: abono, nota: `Pago de la semana ${desde} a ${hasta}` },
+      abonos: [...(pr.abonos || []), { id: `${id}-${cambiados.length}`, fecha, monto: abono, semana: { desde, hasta } }] });
+    resto = sumarDinero(resto, -abono);
+  }
+  return { cambiados, abonado: sumarDinero(cambiados.map(c => c.ultimoAbono.monto)), sobrante: resto };
+}
+export const abonosDeSemana = (prestamos, trabajadorId, desde, hasta) => (prestamos || []).filter(p => p.trabajadorId === trabajadorId && !p.cancelado)
+  .flatMap(p => (p.abonos || []).filter(a => a.semana?.desde === desde && a.semana?.hasta === hasta).map(a => ({ ...a, prestamoId: p.id })));
+
 // ── Recibos internos ───────────────────────────────────────────────────────
 // Un recibo emitido no se modifica. Si algo cambia, se emite OTRO, con el
 // número de versión siguiente y diciendo a cuál sustituye; el anterior se queda.
 export const LEYENDA_RECIBO = "Recibo interno de control. No es un CFDI de nómina ni sustituye ningún comprobante o documento que la ley exija.";
 export const LEYENDA_CUADRILLA = "Constancia de entrega al responsable de la cuadrilla. No acredita el pago individual a cada integrante ni sustituye las obligaciones laborales o fiscales que correspondan.";
 export const recibosDe = (eventos, a, { desde, hasta } = {}) => vigentes(eventos).filter(e => e.tipo === T_RECIBO && e.datos.a.id === a.id && e.datos.a.tipo === a.tipo && (!desde || e.datos.desde === desde) && (!hasta || e.datos.hasta === hasta)).sort((x, y) => x.datos.version - y.datos.version);
-export function emitirRecibo({ eventos, a, clase, desde, hasta, conceptos, saldo, pagos = [], autorizaciones = [], responsable = "", motivo = "", quien, cuando, fecha, azar }) {
+export function emitirRecibo({ eventos, a, clase, desde, hasta, conceptos, saldo, pagos = [], autorizaciones = [], responsable = "", motivo = "", pdf = null, quien, cuando, fecha, azar }) {
   if (quien?.rol !== "admin") return { ok: false, dice: "Un recibo lo emite un administrador." };
   if (!a?.id || !CLASES_DE_PERSONAL[clase]) return { ok: false, dice: "Falta decir de quién es el recibo." };
   if (!Array.isArray(conceptos) || conceptos.length === 0) return { ok: false, dice: "No hay nada que recibir en esa semana." };
@@ -155,7 +191,9 @@ export function emitirRecibo({ eventos, a, clase, desde, hasta, conceptos, saldo
       // La foto del momento: lo que decía cuando se emitió. Lo que cambie después NO lo cambia.
       conceptos: conceptos.map(c => ({ fecha: c.fecha, que: c.que, monto: c.monto, como: c.como || "" })), saldo: { ...saldo },
       pagos: pagos.map(p => ({ ev: p.id, fecha: p.fecha, monto: p.datos.monto, medio: p.datos.medio, recibe: p.datos.recibe || "", comprobante: p.datos.comprobante || null })), autorizaciones,
-      leyenda: clase === "cuadrilla" ? LEYENDA_CUADRILLA : LEYENDA_RECIBO } }) };
+      leyenda: clase === "cuadrilla" ? LEYENDA_CUADRILLA : LEYENDA_RECIBO,
+      // El archivo PDF de ESTA versión (lo arma quien llama, con `pdf(datos)`): se guarda junto con la foto de los datos.
+      ...(typeof pdf === "function" ? { pdf: pdf({ version, sustituye: ultimo ? ultimo.datos.version : null, motivo: limpio(motivo) }) } : {}) } }) };
 }
 // ¿Lo que dice el último recibo sigue siendo lo que hoy se calcula? Si no, se avisa: el recibo NO se cambia solo.
 export function reciboAlDia(recibo, saldoHoy) {

@@ -88,7 +88,7 @@ with sync_playwright() as p:
     pg.locator(".bn-item").first.click(); pg.get_by_role("button", name="Salir").click(); pg.wait_for_timeout(500)
     g["entrar"](pg, "Admin", "7391"); pg.wait_for_timeout(600)
     caso("no se tecleó ninguna actividad", pg.evaluate("() => (JSON.parse(localStorage.getItem('agro_v8:local')).actividades || []).length") == 0)
-    caso("el costo de campo del inicio ya trae la mano de obra", "$715" in pg.locator(".stat-card", has_text="Costo de campo").inner_text(), pg.locator(".stat-card", has_text="Costo de campo").inner_text())
+    caso("el costo de campo del inicio ya trae la mano de obra", "$715" in pg.locator(".stat-card", has_text="Costo directo de campo").inner_text(), pg.locator(".stat-card", has_text="Costo directo de campo").inner_text())
     ir(pg, "mano-obra")
     texto = pg.locator(".section-pad").inner_text()
     caso("devengado $760: los dos días completos", "$760" in texto, texto[:160])

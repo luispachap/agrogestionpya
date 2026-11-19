@@ -84,7 +84,7 @@ with sync_playwright() as p:
     pg.get_by_label("Qué fue").select_option("falta"); modal(pg).get_by_role("button", name="Guardar").click(); pg.wait_for_timeout(400)
     tab(pg, "Planta")
     beto = tarjeta(pg, "BETO DE PRUEBA").inner_text()
-    caso("el permiso autorizado se paga y la falta no: a Beto le corresponden $400", "$400" in beto and "1 de permiso o descanso pagado" in beto and "1 sin pago" in beto, beto[:160].replace("\n", " | "))
+    caso("el permiso autorizado se paga y la falta no: a Beto le corresponden $400", "$400" in beto and "1 de permiso, descanso o vacaciones" in beto and "1 sin pago" in beto, beto[:160].replace("\n", " | "))
     tab(pg, "Asistencia")
     pg.locator(".card", has_text="Ausencias de la semana").get_by_role("button", name="Justificar").click()
     pg.get_by_label("Justificación").fill("TRAJO RECETA DE PRUEBA"); pg.get_by_label("Quién la aceptó").fill("MIGUE DE PRUEBA"); pg.get_by_label("Se paga el día").select_option("si")

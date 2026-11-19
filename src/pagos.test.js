@@ -129,3 +129,54 @@ test("las_horas_adicionales_registradas_no_estan_reconocidas_ni_saldadas_por_est
   const despues = cuentaDeHoras(ad, [r.evento], { trabajadorId: "t-ana", desde: L, hasta: D });
   assert.equal(despues.reconocidas, 120); assert.equal(despues.sinTratar, 30); assert.equal(despues.reconocimientos[0].autorizo, "Rodolfo");
 });
+
+// ── Encargados, vacaciones, abonos a préstamo y el PDF del recibo ──
+import { abonarPrestamos, abonosDeSemana, alternarCalendario, calendarioActivo, porCalendario } from "./pagos.js";
+test("un_encargado_por_calendario_cobra_su_dia_sin_checar_y_si_checa_manda_el_checador", () => {
+  const CHUY = { id: "en1", nombre: "Chuy", sueldo_dia: 600, historialSueldo: [{ desde: "2026-01-01", sueldo_dia: 600, anterior: 600 }], calendario: [{ desde: "2026-11-17" }] };
+  const falta = registrarAusencia({ trabajadorId: "en1", desde: "2026-11-19", clase: "falta", quien: ADMIN, cuando: c(HOY), azar: az() }).eventos;
+  const s = semanaDe({ trabajador: CHUY, desde: L, hasta: D, hoy: HOY, modo: "calendario", devengado: [dev(CHUY, "2026-11-18", 600, 300)], ausencias: falta });
+  assert.deepEqual(s.dias.map(d => d.estado), ["no_le_toca", "calendario", "trabajo", "ausencia_sin_pago", "calendario", "calendario", "futuro"], "el lunes todavía no tenía la modalidad: no se le inventa");
+  assert.equal(s.corresponde, 2400); assert.equal(s.porCalendario, 3); assert.equal(s.sinRegistro.length, 0, "a un encargado no se le pregunta por qué no checó");
+  const sin = semanaDe({ trabajador: { ...CHUY, calendario: [] }, desde: L, hasta: D, hoy: HOY, modo: "actividades" });
+  assert.equal(sin.corresponde, 0); assert.equal(sin.sinRegistro.length, 0);
+});
+
+test("apagar_la_asistencia_por_calendario_cierra_el_periodo_y_no_cambia_lo_anterior", () => {
+  let e = alternarCalendario({ id: "en1" }, "2026-11-10", "2026-11-09");
+  assert.ok(calendarioActivo(e, "2026-11-12"));
+  e = alternarCalendario(e, "2026-11-20", "2026-11-19");
+  assert.equal(calendarioActivo(e, "2026-11-20"), null); assert.equal(porCalendario(e, "2026-11-15"), true); assert.equal(porCalendario(e, "2026-11-20"), false);
+  e = alternarCalendario(e, "2026-12-01", "2026-11-30");
+  assert.equal(e.calendario.length, 2); assert.equal(porCalendario(e, "2026-11-15"), true); assert.equal(porCalendario(e, "2026-11-25"), false); assert.equal(porCalendario(e, "2026-12-02"), true);
+});
+
+test("las_vacaciones_se_pagan_en_su_semana_y_piden_quien_las_autorizo_pero_no_una_causa", () => {
+  assert.equal(registrarAusencia({ trabajadorId: "t-ana", desde: L, clase: "vacaciones", quien: ENC, cuando: c(HOY) }).ok, false);
+  const evs = aus({ desde: L, hasta: "2026-11-17", clase: "vacaciones", autorizo: "Rodolfo" });
+  const s = semana(ANA, { ausencias: evs });
+  assert.equal(s.corresponde, 800); assert.equal(s.dias[0].clase, "vacaciones");
+});
+
+test("el_abono_a_un_prestamo_queda_ligado_a_su_semana_sin_importar_si_el_pago_fue_antes_o_despues", () => {
+  const prestamos = [{ id: "p2", trabajadorId: "t-ana", fecha: "2026-10-01", monto: 1000, abonado: 0, estado: "activo" }, { id: "p1", trabajadorId: "t-ana", fecha: "2026-09-01", monto: 300, abonado: 100, estado: "activo" }];
+  const r = abonarPrestamos(prestamos, 500, { desde: L, hasta: D, fecha: HOY, id: "ab1" });
+  assert.deepEqual(r.cambiados.map(p => [p.id, p.abonado, p.estado]), [["p1", 300, "pagado"], ["p2", 300, "activo"]], "primero el más viejo");
+  assert.equal(r.abonado, 500); assert.equal(r.sobrante, 0);
+  const sem = abonosDeSemana(r.cambiados, "t-ana", L, D);
+  assert.equal(sem.reduce((s, a) => s + a.monto, 0), 500);
+  assert.equal(abonosDeSemana(r.cambiados, "t-ana", "2026-11-09", "2026-11-15").length, 0, "otra semana no lo ve");
+  // El saldo de la semana sale igual haya o no un pago registrado antes del abono.
+  const pagoAntes = registrarPago({ a: { tipo: "trabajador", id: "t-ana", nombre: "Ana" }, desde: L, hasta: D, monto: 1900, medio: "efectivo", comprobante: "x", quien: ADMIN, cuando: c(HOY), fecha: HOY, azar: az() }).evento;
+  assert.equal(saldoDe({ corresponde: 2400, descuentos: 500, pagos: [pagoAntes] }).pendiente, 0);
+  assert.equal(abonarPrestamos(r.cambiados, 5000, { desde: L, hasta: D, fecha: HOY, id: "ab2" }).sobrante, 4300, "no se abona más de lo que debe");
+});
+
+test("el_recibo_emitido_guarda_su_pdf_y_cada_version_el_suyo", () => {
+  const a = { tipo: "trabajador", id: "t-ana", nombre: "Ana" }, base = { a, clase: "planta", desde: L, hasta: D, conceptos: [{ fecha: L, que: "Día trabajado", monto: 400 }], saldo: { corresponde: 400, entregado: 0, pendiente: 400 }, quien: ADMIN, cuando: c(HOY), fecha: HOY };
+  const r1 = emitirRecibo({ ...base, eventos: [], pdf: (x) => `PDF v${x.version}`, azar: az() });
+  assert.equal(r1.evento.datos.pdf, "PDF v1");
+  const r2 = emitirRecibo({ ...base, eventos: [r1.evento], motivo: "se justificó una falta", pdf: (x) => `PDF v${x.version} sustituye ${x.sustituye}: ${x.motivo}`, azar: az() });
+  assert.equal(r2.evento.datos.pdf, "PDF v2 sustituye 1: se justificó una falta"); assert.equal(r1.evento.datos.pdf, "PDF v1", "el anterior no se toca");
+  assert.equal("pdf" in emitirRecibo({ ...base, eventos: [], azar: az() }).evento.datos, false);
+});

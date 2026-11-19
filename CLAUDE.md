@@ -167,6 +167,36 @@ Usuarios reales de la app:
   recibo de la misma semana es una versión nueva con su motivo. Llevan la
   leyenda de que NO sustituyen un CFDI de nómina. Horas adicionales:
   registradas ≠ reconocidas (`horas_reconocidas`) ≠ pagadas.
+- **`src/personal.js`**: lo que se paga y NO es una actividad en una parcela
+  (permiso, descanso, espera, el día de un encargado). Nace como costo
+  INDIRECTO de personal (fuente `personal` de `juntarFuentes`), con su causa y
+  la regla de su concepto (`ind_*` en `AJUSTES`: repartir por las actividades
+  de esa persona en el mes · pendiente · no es de producción). Sin datos no se
+  reparte; lo «por aclarar» nunca se reparte solo. `repartirPorActividades` es
+  el repartidor común (también de las prestaciones).
+- **`src/prestaciones.js`**: aguinaldo, vacaciones y prima. Lo que se va
+  generando SE CALCULA desde `fechaIngreso` (`provisionDe`); lo determinado y
+  lo pagado son eventos (`prestacion_determinada`, `pago_prestacion`).
+  **Al costo entra lo generado + el ajuste al determinar; pagar nunca es
+  costo.** La ley es el piso (`LEY`, `vacacionesDeLey`); el rancho lo sube con
+  `prest_*` y cada persona con `prestaciones` en su ficha (días, prima, base
+  por prestación). Sin fecha de ingreso o sin salario por día: «no se puede
+  calcular», nunca un cero. Lo generado antes del primer día con registros es
+  `previo`: se enseña y no va al costo. Las vacaciones disfrutadas son una
+  `ausencia` de clase `vacaciones`: se pagan en su semana y NO son costo nuevo.
+- **`src/cierres.js`**: cerrar la semana (`cierre_semana`, foto con versión) y,
+  APARTE, confirmar los pagos (`confirmacion_pagos`). Reabrir pide motivo
+  (`reapertura_semana`); la versión anterior se queda. Cerrar no congela los
+  hechos: lo que llegue después sale en `diferenciasDelCierre`. Cierra un
+  administrador o un encargado con `puedeCerrarSemana`.
+- **Encargados**: `calendario: [{desde, hasta}]` = periodos en que su día se
+  paga por calendario (`porCalendario`; apagar cierra el periodo, no cambia lo
+  anterior). Pueden checar (`quienesChecan`), pero no es obligatorio. Tienen
+  ausencias como cualquiera.
+- **Abono a préstamo desde la semana**: `abonarPrestamos` lo anota EN el
+  préstamo con su `semana`; `abonosDeSemana` lo lee. El pago ya no lleva
+  `descuento`. **`src/pdfSimple.js`** arma el PDF de texto del recibo
+  (`datos.pdf`), sin librerías.
 - Reglas ya decididas por Luis (19 nov): checar salida TERMINA la asignación
   (al volver queda sin asignar; se ofrece «continuar»); el tiempo sin asignar es
   «por aclarar» y nunca se distribuye solo; las horas adicionales se registran y
@@ -291,7 +321,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **120 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **124 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

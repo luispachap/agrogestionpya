@@ -82,7 +82,7 @@ with sync_playwright() as p:
     # ── 4 · Todo llega solo al costo de cada parcela ──
     pg.locator(".btn-ghost").first.click(); pg.get_by_role("button", name="Salir").click(); pg.wait_for_timeout(500)
     g["entrar"](pg, "Admin", "7391"); pg.wait_for_timeout(600)
-    caso("el costo de campo del inicio ya trae cuadrillas y flete, sin teclear actividades", "$2,550" in pg.locator(".stat-card", has_text="Costo de campo").inner_text() and pg.evaluate("() => (JSON.parse(localStorage.getItem('agro_v8:local')).actividades || []).length") == 0, pg.locator(".stat-card", has_text="Costo de campo").inner_text())
+    caso("el costo de campo del inicio ya trae cuadrillas y flete, sin teclear actividades", "$2,550" in pg.locator(".stat-card", has_text="Costo directo de campo").inner_text() and pg.evaluate("() => (JSON.parse(localStorage.getItem('agro_v8:local')).actividades || []).length") == 0, pg.locator(".stat-card", has_text="Costo directo de campo").inner_text())
     ir(pg, "mano-obra")
     uno, dos = pg.locator(".card", has_text="PARCELA UNO").last, pg.locator(".card", has_text="PARCELA DOS").last
     caso("parcela uno: $1,050 por día + $500 de destajo + $450 de flete = $2,000", "$2,000" in uno.inner_text(), uno.inner_text()[:80])
@@ -104,7 +104,7 @@ with sync_playwright() as p:
     d = de(pg, "cuadrilla_dia")
     caso("queda cancelado, con su motivo, y no se borró", len(d) == 3 and d[2]["estado"] == "cancelado" and d[2]["cancelado"]["motivo"].startswith("se capturó") and pg.get_by_text("CANCELADO por Administrador").count() == 1)
     pg.locator(".btn-ghost").first.click(); pg.wait_for_timeout(400)
-    caso("y su costo salió solo de la parcela", "$2,050" in pg.locator(".stat-card", has_text="Costo de campo").inner_text(), pg.locator(".stat-card", has_text="Costo de campo").inner_text())
+    caso("y su costo salió solo de la parcela", "$2,050" in pg.locator(".stat-card", has_text="Costo directo de campo").inner_text(), pg.locator(".stat-card", has_text="Costo directo de campo").inner_text())
     caso("ninguna pantalla tronó", not errs, errs)
     b.close()
 print(f"\n{sum(res)}/{len(res)} pasan"); sys.exit(0 if all(res) else 1)

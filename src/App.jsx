@@ -32,7 +32,12 @@ import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, 
 import { desfaseDe, selloDeReloj, estadoDelReloj } from "./reloj.js";
 // Pagos al personal: ausencias, lo que corresponde, lo entregado, lo pendiente y los recibos.
 import { registrarAusencia, justificarFalta, ausenciasDe, semanaDe, leToca, DIAS_DE_SIEMPRE, cuentasDeCuadrillas, registrarPago, pagosA, saldoDe, emitirRecibo, recibosDe, reciboAlDia,
-  reconocerHoras, cuentaDeHoras, CLASES_AUSENCIA, SITUACIONES_SALIDA, MEDIOS_DE_PAGO, CLASES_DE_PERSONAL, LEYENDA_RECIBO, LEYENDA_CUADRILLA } from "./pagos.js";
+  reconocerHoras, cuentaDeHoras, CLASES_AUSENCIA, SITUACIONES_SALIDA, MEDIOS_DE_PAGO, CLASES_DE_PERSONAL, LEYENDA_RECIBO, LEYENDA_CUADRILLA, abonarPrestamos, abonosDeSemana, calendarioActivo, alternarCalendario } from "./pagos.js";
+// Lo que se paga y no es una actividad en una parcela, las prestaciones y el cierre de la semana.
+import { CONCEPTOS_PERSONAL, POLITICAS, baseDePersonas, pagadoSinActividad, fuentePersonal, fuentePrestaciones } from "./personal.js";
+import { T_DETERMINADA, T_PAGO_PRESTACION, CONCEPTOS_PRESTACION, cuentaDe as cuentaDePrestaciones, renglonesAlCosto, proponer as proponerPrestacion, determinar as determinarPrestacion, pagarPrestacion, nombreDePeriodo, periodosDe as periodosDePrestacion, determinadasRepetidas } from "./prestaciones.js";
+import { estadoDeSemana, cerrarSemana, reabrirSemana, diferenciasDelCierre, confirmarPagos, puedeCerrar } from "./cierres.js";
+import { pdfComoDataUrl } from "./pdfSimple.js";
 import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, generarSQLCuentas, exportarPolizas, HOJAS } from "./excelLoader";
 // El estado de cuenta del banco: se valida solo antes de entrar.
 import {
@@ -94,7 +99,7 @@ import {
   fechaLocal, mesLocal, sumarDias, mesAnterior, diasEntre,
   saldoCredito, diasParaVencer, cubetaVencimiento, CUBETAS_VENCIMIENTO,
   estaCancelado, vivos, marcarCancelado, ganaAlSincronizar,
-  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia,
+  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente,
 } from "./calculos";
 // El lector de papeles: la cascada de gratis a caro (QR y XML sin costo,
 // patrón aprendido para lo ya conocido, IA sólo para un formato nuevo).
@@ -941,7 +946,7 @@ function genAlertas(data) {
   (data.actividadesContables || data.actividades).forEach(a => { cp[a.parcelaId] = (cp[a.parcelaId] || 0) + a.costoTotal; });
   Object.entries(cp).forEach(([pid, c]) => {
     const p = data.parcelas.find(x => x.id === pid);
-    if (p && c / p.hectareas > 6000) al.push({ tipo: "blue", titulo: `Costo/ha elevado: ${p.nombre}`, desc: `${fmt(c / p.hectareas)}/ha acumulado`, sec: "reportes" });
+    if (p && c / p.hectareas > 6000) al.push({ tipo: "blue", titulo: `Costo directo/ha elevado: ${p.nombre}`, desc: `${fmt(c / p.hectareas)}/ha acumulado de costo directo`, sec: "reportes" });
   });
   // Alertas inteligentes por siembra
   const hoyStr = today();
@@ -2421,7 +2426,7 @@ function normalizeData(d) {
   // mismos reportes de siempre, sin que nadie la teclee como actividad. No se
   // guarda: se calcula cada vez. Lo que no tiene parcela NO entra aquí.
   if (!Array.isArray(fix.eventos)) fix.eventos = [];
-  const __moEv = manoDeObra(fix.eventos, fix.trabajadores || [], { hoy: fechaLocal(), ahora: new Date().toISOString() });
+  const __moEv = manoDeObra(fix.eventos, quienesChecan(fix), { hoy: fechaLocal(), ahora: new Date().toISOString() });
   fix.manoDeObraEventos = __moEv;
   // UNA SOLA FUENTE. Mientras existan las capturas de antes (la cuadrilla con su
   // PIN, la actividad tecleada a mano), el dinero de un día sale de un solo
@@ -2450,11 +2455,35 @@ function normalizeData(d) {
     trabajo: __cq.partes.filter(p => p.clase === "pago").map(p => ({ fecha: p.fecha, cuadrillaId: p.cuadrillaId, parcelaId: p.parcelaId, personas: p.personas || 1 })),
     cuotas: vivos(fix.actividades || []).filter(a => a.maquinariaId), hoy: today(),
     criterioTraslado: ajusteVigente(fix.eventos, "criterio_traslado").valor, criterioVehiculo: ajusteVigente(fix.eventos, "criterio_vehiculo").valor });
-  fix.indirectos = juntarFuentes([fuenteVehiculos(fix.repartosVehiculos)]);
+  // PERSONAL: lo que se paga y no es una actividad en una parcela (permisos,
+  // descansos, esperas, el día de un encargado) y las prestaciones que se van
+  // generando. Nacen como costo indirecto, cada uno con su causa y su regla.
+  const __hoy = today();
+  const __personas = (fix.trabajadores || []).map(t => ({ ...t, _tipo: "planta" })).concat((fix.encargados || []).map(e => ({ ...e, _tipo: "encargado" })));
+  const __aus = ausenciasDe(fix.eventos);
+  const __base = baseDePersonas({ partes: __moEv.partes, actividades: __unaMo.actividades });
+  const __regla = {}; ["permiso", "descanso", "justificada", "espera", "traslado", "mantenimiento", "inactividad", "otra", "encargado", "prestaciones"].forEach(k => { __regla[k] = ajusteVigente(fix.eventos, `ind_${k}`).valor; });
+  fix.personalIndirecto = pagadoSinActividad({ personas: __personas, partes: __moEv.partes, actividades: __unaMo.actividades, ausencias: __aus, hoy: __hoy });
+  // Desde cuándo lleva la cuenta el sistema: el primer día con algo registrado. Lo generado antes es obligación, no costo de un periodo que aquí no se llevó.
+  let __inicio = __hoy;
+  for (const e of fix.eventos) if (e.fecha && e.fecha < __inicio) __inicio = e.fecha;
+  for (const a of fix.actividades || []) if (a.fecha && a.fecha < __inicio) __inicio = a.fecha;
+  const __evPrest = fix.eventos.filter(e => e.tipo === T_DETERMINADA || e.tipo === T_PAGO_PRESTACION);
+  const __reglasPrest = { aguinaldoDias: ajusteVigente(fix.eventos, "prest_aguinaldo_dias").valor, primaPct: ajusteVigente(fix.eventos, "prest_prima_pct").valor, vacExtra: ajusteVigente(fix.eventos, "prest_vac_extra").valor };
+  const __vac = __aus.filter(e => e.datos.clase === "vacaciones");
+  fix.prestaciones = { inicio: __inicio, reglas: __reglasPrest, repetidas: determinadasRepetidas(__evPrest),
+    cuentas: __personas.filter(p => p.activo !== false || p.fechaBaja).map(p => ({ ...cuentaDePrestaciones(p, __evPrest, { inicio: __inicio, hoy: __hoy, reglas: __reglasPrest,
+      vacacionesTomadas: __vac.filter(e => e.datos.trabajadorId === p.id).map(e => ({ fecha: e.fecha, monto: sueldoVigente(p, e.fecha).sueldo })) }), tipo: p._tipo })) };
+  fix.indirectos = juntarFuentes([fuenteVehiculos(fix.repartosVehiculos),
+    fuentePersonal({ items: fix.personalIndirecto.items, base: __base, politica: (c) => __regla[c] || "pendiente" }),
+    fuentePrestaciones({ renglones: renglonesAlCosto(fix.prestaciones.cuentas), base: __base, politica: __regla.prestaciones })]);
   // Lo que cambió después por una compra capturada tarde: aparte, sin tocar el costo original.
   fix.ajustesValuacion = ajustesDeValuacion(__alm);
   return fix;
 }
+
+// Quiénes pueden checar: los trabajadores y, si quieren, los encargados (para ellos no es obligatorio).
+const quienesChecan = (d) => (d.trabajadores || []).concat(d.encargados || []);
 
 /* ════════════ EL DÍA ════════════ */
 /* Tres cosas que parecen distintas y son la misma faena: planear el día.
@@ -6289,6 +6318,7 @@ function AppInner() {
     // Un cambio de sueldo se ANOTA (desde cuándo y cuánto ganaba antes): así
     // el costo de los meses pasados no se recalcula con el sueldo nuevo.
     if (sec === "trabajadores") item = anotarCambioDeSueldo(trabajadoresRef.current.find(t => t.id === item.id), item, today());
+    if (sec === "encargados") item = anotarCambioDeSueldo(encargadosRef.current.find(t => t.id === item.id), item, today());
     if (sec === "inventario") {
       // El catálogo no es por donde se mueve la existencia. Si una pantalla de
       // antes "le sumó" al número, esa diferencia se vuelve un MOVIMIENTO
@@ -6314,6 +6344,8 @@ function AppInner() {
   // nueva la foto del sueldo con que se costea ese día.
   const trabajadoresRef = useRef([]);
   trabajadoresRef.current = data.trabajadores || [];
+  const encargadosRef = useRef([]);
+  encargadosRef.current = data.encargados || [];
   // El catálogo tal como está guardado (sin lo que le suman los movimientos al enseñarlo).
   const inventarioRef = useRef([]);
   inventarioRef.current = rawData.inventario || [];
@@ -7604,7 +7636,8 @@ function LectorQR({ onLeer, pausado }) {
 // Entrada y salida desde la tableta de la nave (o desde el teléfono del
 // encargado cuando alguien llega directo a campo). Una lectura = una marca.
 function Checador({ data, add, session, onNav, onClose, listo = true, cerrado = null, onCerrar, onAbrir }) {
-  const trabajadores = data.trabajadores || [];
+  // En la lista del día salen los trabajadores, y los encargados sólo si ya checaron hoy: para ellos el checador no es obligatorio.
+  const trabajadores = (data.trabajadores || []).concat((data.encargados || []).filter(e => (data.eventos || []).some(x => x.tipo === "marca" && x.fecha === today() && x.datos?.trabajadorId === e.id)));
   const [lugarId, setLugarId] = useState("nave");
   const [pin, setPin] = useState("");
   const [aviso, setAviso] = useState(null);     // { tono, titulo, linea }
@@ -7624,7 +7657,7 @@ function Checador({ data, add, session, onNav, onClose, listo = true, cerrado = 
     eventosRef.current = [...eventosRef.current, guardado];   // la siguiente lectura ya la ve, aunque React no haya pintado
     decir({ tono: r.sentido, titulo: quienEs.trabajador.nombre, linea: `${r.sentido === "entrada" ? "ENTRADA" : "SALIDA"} · ${horaCorta(r.evento.cuando)}${lugar.tipo !== "nave" ? ` · ${lugar.nombre}` : ""}` });
   };
-  const conPin = () => { if (pin) { registrar(quienEsPorPin(pin, trabajadores)); setPin(""); } };
+  const conPin = () => { if (pin) { registrar(quienEsPorPin(pin, quienesChecan(data))); setPin(""); } };
   const hoy = today();
   const r = resumenDeAsistencia(data.eventos, trabajadores, { fecha: hoy, hoy, ahora: new Date().toISOString() });
   const sinCredencial = trabajadores.filter(t => t.activo !== false && !t.credencial?.codigo).length;
@@ -7677,7 +7710,7 @@ function Checador({ data, add, session, onNav, onClose, listo = true, cerrado = 
         </div>
         {lugar.tipo !== "nave" && <div className="text-xs" style={{ color: "var(--gold)", margin: "-4px 2px 10px" }}>Llegada directa a campo: queda registrado que la autorizó {session.nombre}.</div>}
 
-        <LectorQR onLeer={(texto) => registrar(quienEsPorQR(texto, trabajadores))} pausado={false} />
+        <LectorQR onLeer={(texto) => registrar(quienEsPorQR(texto, quienesChecan(data)))} pausado={false} />
 
         <div className={`chk-aviso ${aviso ? aviso.tono : "espera"}`} role="status" aria-live="polite">
           {aviso ? <><div className="chk-aviso-t">{aviso.titulo}</div><div className="chk-aviso-l">{aviso.linea}</div></>
@@ -7721,10 +7754,10 @@ function DibujoQR({ texto, lado = 132 }) {
 
 // Una credencial por trabajador, con su QR, para imprimir y enmicar.
 function Credenciales({ data, upd, session, onClose }) {
-  const activos = (data.trabajadores || []).filter(t => t.activo !== false).sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
-  const con = activos.filter(t => t.credencial?.codigo), sin = activos.filter(t => !t.credencial?.codigo);
+  const activos = (data.trabajadores || []).map(t => ({ ...t, _sec: "trabajadores" })).concat((data.encargados || []).map(t => ({ ...t, _sec: "encargados" }))).filter(t => t.activo !== false).sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
+  const con = activos.filter(t => t.credencial?.codigo), sin = activos.filter(t => !t.credencial?.codigo && t._sec === "trabajadores");   // a un encargado se le emite una por una: para él es opcional
   const [sel, setSel] = useState({});       // a quién imprimir; vacío = a todos los que tienen
-  const emitir = (t) => upd("trabajadores", emitirCredencial(t, { cuando: new Date().toISOString(), quien: quienDe(session) }));
+  const emitir = ({ _sec, ...t }) => upd(_sec, emitirCredencial(t, { cuando: new Date().toISOString(), quien: quienDe(session) }));
   const emitirFaltantes = () => sin.forEach(emitir);
   const otra = (t) => { if (window.confirm(`Se va a emitir OTRA credencial para ${t.nombre}. La que trae ahora deja de servir en cuanto este aparato y el checador sincronicen. ¿Seguro?`)) emitir(t); };
   const elegidos = con.filter(t => sel[t.id]);
@@ -8798,7 +8831,7 @@ function ManoDeObra({ data, add, session, onClose }) {
     if (!res.ok) { setDiceAclara(res.dice); return; }
     add("eventos", res.evento); setAclara(null); setRastro(null); setDiceAclara("");
   };
-  const r = useMemo(() => manoDeObra(data.eventos, data.trabajadores || [], { desde: rango.desde, hasta: rango.hasta, hoy, ahora: new Date().toISOString() }), [data.eventos, data.trabajadores, rango.desde, rango.hasta, hoy]);
+  const r = useMemo(() => manoDeObra(data.eventos, quienesChecan(data), { desde: rango.desde, hasta: rango.hasta, hoy, ahora: new Date().toISOString() }), [data.eventos, data.trabajadores, data.encargados, rango.desde, rango.hasta, hoy]);
   const dobles = capturasDobles(data.actividades, r.partes);
   // Las cuadrillas eventuales entran al mismo reporte: lo que cobró cada persona y el flete externo repartido.
   const cq = useMemo(() => costoDeCuadrillas(data.eventos, { desde: rango.desde, hasta: rango.hasta, criterioFlete: ajusteVigente(data.eventos, "criterio_flete").valor }), [data.eventos, rango.desde, rango.hasta]);
@@ -9243,7 +9276,7 @@ function AdminHome({ data, alertas, onNav, onLogout, pending, online }) {
           </div>
         </div>
         <div className="stat-row">
-          <div className="stat-card"><div className="stat-label">Costo de campo</div><div className="stat-val" style={{ fontSize: 18 }}>{fmt(cTotal)}</div><div className="stat-sub">{actsC.length} actividades</div></div>
+          <div className="stat-card"><div className="stat-label">Costo directo de campo</div><div className="stat-val" style={{ fontSize: 18 }}>{fmt(cTotal)}</div><div className="stat-sub">{actsC.length} actividades</div></div>
           <div className="stat-card"><div className="stat-label">Conexión</div><div className="stat-val" style={{ fontSize: 15, color: online ? "var(--safe)" : "var(--red)" }}>{online ? <><span className="dot-live" /> Online</> : <><span className="dot-live off" /> Offline</>}</div>{pending.length > 0 && <div className="stat-sub">{pending.length} por sync</div>}</div>
         </div>
         <AccesosInicio />
@@ -9874,7 +9907,7 @@ function AdminEquipo({ data, add, upd, del, onBack }) {
               <div className="li-right" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
                 <div className="li-val">{fmt(mo + bons)}</div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button className="btn-ghost" style={{ padding: 2, fontSize: 13 }} onClick={() => setEditItem({ seccion: "trabajadores", registro: t, titulo: t.nombre, campos: [["nombre", "Nombre", "text"], ["codigoNomina", "Código nómina", "text"], ["categoria", "Categoría", "select", [{ v: "jornalero", l: "jornalero" }, { v: "tractorista", l: "tractorista" }, { v: "dronero", l: "dronero" }, { v: "maquinista", l: "maquinista" }, { v: "supervisor", l: "supervisor" }, { v: "especialista", l: "especialista" }]], ["sueldo_dia", "Sueldo por día", "number"], ["retencion_pct", "Retención (%, 0 = íntegro)", "number"], ["pin", "PIN de acceso", "text"]] })}><Ic e="✏️" /></button>
+                  <button className="btn-ghost" style={{ padding: 2, fontSize: 13 }} onClick={() => setEditItem({ seccion: "trabajadores", registro: t, titulo: t.nombre, campos: [["nombre", "Nombre", "text"], ["fechaIngreso", "Fecha de ingreso", "date"], ["codigoNomina", "Código nómina", "text"], ["categoria", "Categoría", "select", [{ v: "jornalero", l: "general" }, { v: "tractorista", l: "tractorista" }, { v: "dronero", l: "dronero" }, { v: "maquinista", l: "maquinista" }, { v: "supervisor", l: "supervisor" }, { v: "especialista", l: "especialista" }]], ["sueldo_dia", "Sueldo por día", "number"], ["retencion_pct", "Retención (%, 0 = íntegro)", "number"], ["pin", "PIN de acceso", "text"]] })}><Ic e="✏️" /></button>
                   <button className="btn-ghost" style={{ padding: 2, fontSize: 13, opacity: t.cabo ? 1 : 0.35 }} title="Nombrar cabo (puede pasar lista de sus compañeros)" onClick={() => {
                     if (!t.cabo && !window.confirm(`¿Nombrar cabo a ${t.nombre}? Desde su propio acceso podrá pasar lista y registrar los días de sus compañeros.`)) return;
                     upd("trabajadores", { ...t, cabo: !t.cabo });
@@ -9926,9 +9959,11 @@ function AdminEquipo({ data, add, upd, del, onBack }) {
                 <div className="li-body">
                   <div className="li-title">{e.nombre}</div>
                   <div className="li-sub">Encargado / Capataz · PIN {e.pin}</div>
+                  <div className="li-sub">Asistencia: {calendarioActivo(e, today()) ? `por calendario desde el ${calendarioActivo(e, today()).desde}` : "por lo que registre o cheque"} · <button className="acc-link" onClick={() => upd("encargados", alternarCalendario(e, today(), sumarDias(today(), -1)))}>{calendarioActivo(e, today()) ? "Quitar calendario" : "Pagar por calendario"}</button></div>
+                  <div className="li-sub">Cerrar la semana de pagos: {e.puedeCerrarSemana ? "autorizado" : "no"} · <button className="acc-link" onClick={() => upd("encargados", { ...e, puedeCerrarSemana: !e.puedeCerrarSemana })}>{e.puedeCerrarSemana ? "Quitar permiso" : "Autorizar"}</button></div>
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button className="btn-ghost" style={{ padding: 4, fontSize: 14 }} onClick={() => setEditItem({ seccion: "encargados", registro: e, titulo: e.nombre, campos: [["nombre", "Nombre", "text"], ["pin", "PIN de acceso", "text"]] })}><Ic e="✏️" /></button>
+                  <button className="btn-ghost" style={{ padding: 4, fontSize: 14 }} onClick={() => setEditItem({ seccion: "encargados", registro: e, titulo: e.nombre, campos: [["nombre", "Nombre", "text"], ["pin", "PIN de acceso", "text"], ["sueldo_dia", "Sueldo por día", "number"], ["fechaIngreso", "Fecha de ingreso", "date"]] })}><Ic e="✏️" /></button>
                   <button className="btn-ghost" style={{ padding: 4, fontSize: 14, color: "var(--red)" }} onClick={() => del("encargados", e.id)}><Ic e="🗑" /></button>
                 </div>
               </div>
@@ -10962,7 +10997,7 @@ function AdminReportes({ data, navParam, setNavParam }) {
             </div>
           </div>
           <div className="stat-row">
-            <div className="stat-card"><div className="stat-label">Costo / hectárea</div><div className="stat-val" style={{ fontSize: 17 }}>{fmt(r.porHa)}</div></div>
+            <div className="stat-card"><div className="stat-label">Costo directo / hectárea</div><div className="stat-val" style={{ fontSize: 17 }}>{fmt(r.porHa)}</div></div>
             <div className="stat-card"><div className="stat-label">Ingresos</div><div className="stat-val" style={{ fontSize: 17, color: "var(--safe)" }}>{fmt(r.ingresoTotal)}</div></div>
           </div>
           <div className="stat-row">
@@ -11056,7 +11091,7 @@ function AdminReportes({ data, navParam, setNavParam }) {
             </div>
           </div>
           <div className="stat-row">
-            <div className="stat-card"><div className="stat-label">Costo / hectárea</div><div className="stat-val" style={{ fontSize: 17 }}>{fmt(t.porHa)}</div></div>
+            <div className="stat-card"><div className="stat-label">Costo directo / hectárea</div><div className="stat-val" style={{ fontSize: 17 }}>{fmt(t.porHa)}</div></div>
             <div className="stat-card"><div className="stat-label">Ingresos</div><div className="stat-val" style={{ fontSize: 17, color: "var(--safe)" }}>{fmt(t.ingresoTotal)}</div></div>
           </div>
           <div className="stat-row">
@@ -11187,7 +11222,7 @@ function AdminReportes({ data, navParam, setNavParam }) {
                         <div className="li-icon"><Ic e={(data.cultivos || []).find(c => c.id === s.cultivoId)?.emoji || "🌱"} /></div>
                         <div className="li-body">
                           <div className="li-title">{nombreSiembra(s)} {esActiva && <span className="badge badge-green" style={{ marginLeft: 4 }}>actual</span>}</div>
-                          <div className="li-sub">Costo {fmt(r.total)} · {s.estado}</div>
+                          <div className="li-sub">Costo directo {fmt(r.total)} · {s.estado}</div>
                         </div>
                         <div className="li-right">
                           <div className="li-val" style={{ color: r.utilidad >= 0 ? "var(--safe)" : "var(--red)" }}>{fmt(r.utilidad)}</div>
@@ -11266,7 +11301,7 @@ function AdminReportes({ data, navParam, setNavParam }) {
                         <span className="font-bold text-sm">{cul} {t.anio} ›</span>
                         <span className="text-xs text-muted">{t.parcelas.length} {t.parcelas.length === 1 ? "parcela" : "parcelas"} · {fmtN(t.hectareas)} ha</span>
                       </div>
-                      <div className="flex-b text-xs mb-1"><span className="text-muted">Costo total</span><span>{fmt(t.total)}</span></div>
+                      <div className="flex-b text-xs mb-1"><span className="text-muted">Costo directo</span><span>{fmt(t.total)}</span></div>
                       <div className="progress mb-2"><div className="progress-fill green" style={{ width: `${(t.total / maxCosto) * 100}%` }} /></div>
                       <div className="flex-b text-xs mb-1"><span className="text-muted">Rendimiento</span><span>{t.rendimientoHa > 0 ? `${fmtN(Math.round(t.rendimientoHa))} ${t.cosechaUnidad}/ha` : "—"}</span></div>
                       <div className="progress mb-2"><div className="progress-fill" style={{ width: `${(t.rendimientoHa / maxRend) * 100}%`, background: "var(--gold)" }} /></div>
@@ -13770,11 +13805,11 @@ function CosechaDetalle({ data, parcelaId, add, upd, session, onClose }) {
         </div>
         <div className="stat-row">
           <div className="stat-card"><div className="stat-label">Rendimiento/ha</div><div className="stat-val" style={{ fontSize: 16 }}>{fmtN(Math.round(r.porHa))} {r.unidad}</div></div>
-          <div className="stat-card"><div className="stat-label">Costo por {r.unidad}</div><div className="stat-val" style={{ fontSize: 16, color: "var(--accent)" }}>{fmt(r.costoPorUnidad)}</div></div>
+          <div className="stat-card"><div className="stat-label">Costo directo por {r.unidad}</div><div className="stat-val" style={{ fontSize: 16, color: "var(--accent)" }}>{fmt(r.costoPorUnidad)}</div></div>
         </div>
         <div className="stat-row">
           <div className="stat-card wide">
-            <div className="stat-label">Costo total de producción de la parcela</div>
+            <div className="stat-label">Costo directo de producción de la parcela</div>
             <div className="stat-val" style={{ fontSize: 18 }}>{fmt(r.costoTotal)}</div>
             <div className="stat-sub">{r.total > 0 ? `Producir cada ${r.unidad === "kg" ? "kilo" : r.unidad.replace(/s$/, "")} costó ${fmt(r.costoPorUnidad)}` : "Aún sin cosecha registrada"}</div>
           </div>
@@ -13944,7 +13979,7 @@ function GestionCiclos({ data, add, upd, del, onClose }) {
           </div>
           <div className="stat-row">
             <div className="stat-card"><div className="stat-label">Ingresos</div><div className="stat-val" style={{ fontSize: 16, color: "var(--safe)" }}>{fmt(r.ingresoTotal)}</div></div>
-            <div className="stat-card"><div className="stat-label">Costos</div><div className="stat-val" style={{ fontSize: 16, color: "var(--red)" }}>{fmt(r.costoTotal)}</div></div>
+            <div className="stat-card"><div className="stat-label">Costo directo</div><div className="stat-val" style={{ fontSize: 16, color: "var(--red)" }}>{fmt(r.costoTotal)}</div></div>
           </div>
           <div className="card">
             <div className="card-title">Desglose de costos de la temporada</div>
@@ -16147,7 +16182,7 @@ function DuenoHome({ data, session, onNav, onLogout }) {
             return (
               <div key={s.id} className="list-item">
                 <div className="li-icon"><Ic e={p?.emoji || "🌱"} /></div>
-                <div className="li-body"><div className="li-title">{nombreSiembra(s)}</div><div className="li-sub">{p?.nombre} · invertido {fmt(rep.total)}</div></div>
+                <div className="li-body"><div className="li-title">{nombreSiembra(s)}</div><div className="li-sub">{p?.nombre} · costo directo {fmt(rep.total)}</div></div>
               </div>
             );
           })}
@@ -17836,7 +17871,7 @@ function ReporteVariedades({ data, onClose }) {
                     <span className="text-sm text-muted">{r.parcela?.nombre || ""}</span>
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 13 }}>
-                    <span>Costo: <b>{fmt(r.total)}</b></span>
+                    <span>Costo directo: <b>{fmt(r.total)}</b></span>
                     {r.costoRepartido > 0 && <span className="text-muted">(incluye {fmt(r.costoRepartido)} repartido)</span>}
                     <span>Rendimiento: <b>{fmtRend(r.rendimiento)}</b></span>
                     {r.superficie > 0 && <span>Costo/ha: <b>{fmt(r.porHa)}</b></span>}
@@ -20346,6 +20381,209 @@ function ModalPago({ a, desde, hasta, pendiente, descuento = 0, esCuadrilla, res
   );
 }
 
+// Los renglones del PDF de un recibo: lo mismo que se ve en pantalla, en texto.
+const renglonesDeRecibo = (d, entrego, emitido) => [
+  { t: "AGROSELECTOS P&A", tam: 14, negrita: true },
+  { t: d.clase === "cuadrilla" ? "CONSTANCIA DE ENTREGA AL RESPONSABLE DE CUADRILLA" : "RECIBO INTERNO DE PAGO", tam: 11, negrita: true },
+  `${CLASES_DE_PERSONAL[d.clase]} · semana del ${d.desde} al ${d.hasta} · versión ${d.version}${d.sustituye ? ` (sustituye a la ${d.sustituye}: ${d.motivo})` : ""}`,
+  { t: `${d.clase === "cuadrilla" ? "Cuadrilla" : "Nombre"}: ${d.a.nombre}${d.responsable ? ` · Responsable: ${d.responsable}` : ""}`, negrita: true, espacio: 8 },
+  { t: "Día · Concepto y cómo se calculó · Importe", negrita: true, espacio: 8 },
+  ...d.conceptos.map(c => `${c.fecha} · ${c.que}${c.como ? ` (${c.como})` : ""} · ${fmt(c.monto)}`),
+  { t: `Lo que corresponde: ${fmt(d.saldo.corresponde)}`, negrita: true, espacio: 8 },
+  ...(d.saldo.descuentos > 0 ? [`Retención y abonos a préstamo: - ${fmt(d.saldo.descuentos)}`] : []),
+  `Entregado: ${fmt(d.saldo.entregado)}`,
+  { t: `Pendiente: ${fmt(d.saldo.pendiente)}`, negrita: true },
+  ...((d.pagos || []).length ? [{ t: `Entregas: ${d.pagos.map(p => `${p.fecha}: ${fmt(p.monto)} en ${(MEDIOS_DE_PAGO[p.medio] || p.medio).toLowerCase()}${p.recibe ? `, recibió ${p.recibe}` : ""}${p.comprobante ? " (con comprobante)" : " (sin comprobante)"}`).join(" · ")}`, espacio: 8 }] : []),
+  ...((d.autorizaciones || []).length ? [`Autorizaciones: ${d.autorizaciones.join(" · ")}`] : []),
+  { t: `Recibí: ______________________________        Entregó: ${entrego}`, espacio: 34 },
+  { t: `${d.leyenda} Emitido el ${emitido} por ${entrego}.`, tam: 8, espacio: 14 },
+];
+// El archivo PDF guardado de un recibo (puede vivir dentro del registro o en el almacén de comprobantes).
+function ArchivoPDF({ src, nombre }) {
+  const [enlace, setEnlace] = useState(esReferencia(src) ? null : src);
+  useEffect(() => { let vivo = true; if (!esReferencia(src)) { setEnlace(src); return undefined; } enlaceDeArchivo(src).then(u => { if (vivo) setEnlace(u || ""); }); return () => { vivo = false; }; }, [src]);
+  if (!src) return null;
+  if (enlace === "") return <div className="text-xs text-muted" style={{ marginBottom: 8 }}>El PDF de esta versión está guardado, pero no se puede abrir sin señal desde este teléfono.</div>;
+  if (!enlace) return null;
+  return <a className="btn btn-outline" style={{ width: "100%", marginBottom: 8, display: "block", textAlign: "center", textDecoration: "none" }} href={enlace} download={nombre}>Descargar el PDF de esta versión</a>;
+}
+
+// El cierre de la semana, y aparte la confirmación de los pagos. Cerrar guarda
+// una foto del cálculo; lo que cambie después se enseña como diferencia.
+function CierreSemana({ data, add, session, ini, fin, renglones }) {
+  const quien = quienDe(session);
+  const autorizados = (data.encargados || []).filter(e => e.puedeCerrarSemana).map(e => e.id);
+  const s = estadoDeSemana(data.eventos, ini, fin), puede = puedeCerrar(quien, autorizados);
+  const [motivo, setMotivo] = useState(""); const [nota, setNota] = useState(""); const [dice, setDice] = useState(""); const [hist, setHist] = useState(false);
+  const dif = diferenciasDelCierre(s.estado === "cerrada" ? s.cierre : null, renglones);
+  const base = () => ({ eventos: data.eventos, desde: ini, hasta: fin, quien, autorizados, cuando: new Date().toISOString(), fecha: today() });
+  const hacer = (r) => { if (!r.ok) { setDice(r.dice); return; } add("eventos", r.evento); setMotivo(""); setNota(""); setDice(""); };
+  const total = sumarDinero(renglones.map(r => r.corresponde));
+  if (s.estado === "abierta" && renglones.length === 0) return null;
+  const ultimaReap = s.reaperturas[s.reaperturas.length - 1];
+  return (
+    <div className="card" style={s.estado === "cerrada" ? { borderColor: "var(--accent)" } : undefined}>
+      <div className="flex-b"><div className="card-title" style={{ marginBottom: 0 }}>{s.estado === "cerrada" ? `Cálculo cerrado · versión ${s.cierre.version}` : s.estado === "reabierta" ? "Semana reabierta" : "Semana abierta"}</div><span className="font-bold">{fmt(s.estado === "cerrada" ? s.cierre.datos.total : total)}</span></div>
+      {s.estado === "abierta" && <div className="text-xs text-muted" style={{ margin: "6px 0 10px" }}>Cerrar guarda cómo quedó el cálculo de la semana. No registra ningún pago: los pagos se confirman después, aparte.</div>}
+      {s.estado === "reabierta" && <div className="text-xs text-muted" style={{ margin: "6px 0 10px" }}>La reabrió {ultimaReap.quien?.nombre} el {ultimaReap.fecha}: {ultimaReap.datos.motivo}. La versión {s.cierre.version} se conserva.</div>}
+      {s.estado === "cerrada" && <div className="text-xs text-muted" style={{ margin: "6px 0 10px" }}>Lo cerró {s.cierre.quien?.nombre} el {s.cierre.fecha}{s.cierre.datos.motivo ? ` · ${s.cierre.datos.motivo}` : ""}.</div>}
+      {dif.hay && <div style={{ borderLeft: "3px solid var(--gold)", paddingLeft: 10, marginBottom: 10 }}>
+        <div className="text-sm font-bold">Después del cierre cambió {fmt(dif.total)}</div>
+        {dif.lista.map(x => <div key={`${x.a.tipo}${x.a.id}`} className="text-xs text-muted">{x.a.nombre}: al cerrar eran {fmt(x.era)}, hoy son {fmt(x.es)}</div>)}
+        <div className="text-xs text-muted">El cierre no se cambia solo. O se reabre y se cierra otra vez, o esta diferencia queda a la vista como ajuste.</div>
+      </div>}
+      {s.estado === "cerrada" && (s.confirmacion
+        ? <div className="text-sm" style={{ marginBottom: 10 }}>Pagos confirmados por {s.confirmacion.quien?.nombre} el {s.confirmacion.fecha}: entregado {fmt(s.confirmacion.datos.entregado)}{s.confirmacion.datos.pendiente > 0 ? ` · quedó pendiente ${fmt(s.confirmacion.datos.pendiente)}` : ""}{s.confirmacion.datos.nota ? ` · ${s.confirmacion.datos.nota}` : ""}</div>
+        : <div className="text-sm" style={{ marginBottom: 10, color: "var(--gold)" }}>Los pagos de esta semana todavía no se han confirmado.</div>)}
+      {puede && s.estado !== "cerrada" && <>
+        {s.estado === "reabierta" && <input className="inp" aria-label="Qué cambió en este cierre" placeholder="Qué cambió respecto al cierre anterior" value={motivo} onChange={e => setMotivo(e.target.value)} style={{ marginBottom: 8 }} />}
+        <button className="btn btn-accent" style={{ width: "100%" }} onClick={() => hacer(cerrarSemana({ ...base(), renglones, motivo }))}>{s.estado === "reabierta" ? `Cerrar otra vez (versión ${s.cierres.length + 1})` : "Cerrar el cálculo de la semana"}</button>
+      </>}
+      {puede && s.estado === "cerrada" && <>
+        {!s.confirmacion && <><input className="inp" aria-label="Nota de la confirmación" placeholder="Nota (obligatoria si queda algo pendiente)" value={nota} onChange={e => setNota(e.target.value)} style={{ marginBottom: 8 }} />
+          <button className="btn btn-accent" style={{ width: "100%", marginBottom: 8 }} onClick={() => hacer(confirmarPagos({ ...base(), renglones, nota }))}>Confirmar los pagos de la semana</button></>}
+        <input className="inp" aria-label="Por qué se reabre" placeholder="Para reabrir: por qué" value={motivo} onChange={e => setMotivo(e.target.value)} style={{ marginBottom: 8 }} />
+        <button className="btn btn-outline" style={{ width: "100%" }} onClick={() => hacer(reabrirSemana({ ...base(), motivo }))}>Reabrir la semana</button>
+      </>}
+      {!puede && <div className="text-xs text-muted">La semana la cierra un administrador o alguien autorizado para eso.</div>}
+      {dice && <div className="text-sm" style={{ color: "var(--red)", marginTop: 8 }}>{dice}</div>}
+      {(s.cierres.length > 0) && <button className="acc-link" style={{ marginTop: 8 }} onClick={() => setHist(h => !h)}>{hist ? "Ocultar historial" : "Ver historial del cierre"}</button>}
+      {hist && [...s.cierres.map(c => ({ cuando: c.cuando, dice: `Cierre versión ${c.version}: ${fmt(c.datos.total)} · ${c.quien?.nombre} · ${c.fecha}${c.datos.motivo ? ` · ${c.datos.motivo}` : ""}` })),
+        ...s.reaperturas.map(c => ({ cuando: c.cuando, dice: `Reapertura: ${c.datos.motivo} · ${c.quien?.nombre} · ${c.fecha}` })),
+        ...s.confirmaciones.map(c => ({ cuando: c.cuando, dice: `Confirmación de pagos: entregado ${fmt(c.datos.entregado)}, pendiente ${fmt(c.datos.pendiente)} · ${c.quien?.nombre} · ${c.fecha}` }))]
+        .sort((a, b) => a.cuando.localeCompare(b.cuando)).map((h, k) => <div key={k} className="text-xs text-muted">{h.dice}</div>)}
+    </div>
+  );
+}
+
+// Prestaciones: lo que se va generando, lo determinado, lo pagado y los ajustes, por persona.
+function PanelPrestaciones({ data, add, upd, session }) {
+  const quien = quienDe(session), admin = quien.rol === "admin", hoy = today();
+  const pr = data.prestaciones || { cuentas: [], reglas: {}, inicio: hoy, repetidas: [] };
+  const [cond, setCond] = useState(null);     // { persona, sec, f }
+  const [det, setDet] = useState(null);       // { cuenta, persona, concepto, periodo, corte, monto, autorizo }
+  const [pago, setPago] = useState(null);     // { persona, d, monto, medio, nota }
+  const [abre, setAbre] = useState(null); const [dice, setDice] = useState(""); const [avisos, setAvisos] = useState([]);
+  const fichaDe = (c) => { const sec = c.tipo === "encargado" ? "encargados" : "trabajadores"; return { sec, persona: (data[sec] || []).find(x => x.id === c.personaId) }; };
+  const abrirCond = (c) => { const { sec, persona } = fichaDe(c); if (!persona) return; const p = persona.prestaciones || {};
+    setCond({ persona, sec, f: { fechaIngreso: persona.fechaIngreso || "", aguinaldoDias: p.aguinaldoDias ?? "", primaPct: p.primaPct ?? "", vacacionesDias: p.vacacionesDias ?? "", baseAguinaldo: p.baseAguinaldo ?? "", baseVacaciones: p.baseVacaciones ?? "", vacacionesPendientes: p.vacacionesPendientes ?? "", sin: !!p.sin } }); setDice(""); };
+  const guardarCond = () => {
+    const f = cond.f, num = (v) => (v === "" || v == null ? undefined : Number(v));
+    if (f.fechaIngreso && f.fechaIngreso > hoy) { setDice("La fecha de ingreso no puede ser después de hoy."); return; }
+    const { _tipo, ...persona } = cond.persona;
+    upd(cond.sec, { ...persona, fechaIngreso: f.fechaIngreso || undefined, prestaciones: { aguinaldoDias: num(f.aguinaldoDias), primaPct: num(f.primaPct), vacacionesDias: num(f.vacacionesDias), baseAguinaldo: num(f.baseAguinaldo), baseVacaciones: num(f.baseVacaciones), vacacionesPendientes: num(f.vacacionesPendientes), sin: f.sin || undefined } });
+    setCond(null);
+  };
+  const periodos = (d) => (d?.persona?.fechaIngreso && d.concepto ? periodosDePrestacion(d.persona.fechaIngreso, d.concepto, pr.inicio < d.persona.fechaIngreso ? d.persona.fechaIngreso : pr.inicio, hoy) : []);
+  const propuesta = det && det.concepto && det.periodo && det.corte ? proponerPrestacion(det.persona, det.concepto, det.periodo, det.corte, pr.reglas) : null;
+  const guardarDet = () => {
+    const r = determinarPrestacion({ eventos: data.eventos, persona: det.persona, concepto: det.concepto, periodo: det.periodo, corte: det.corte, monto: det.monto, dias: propuesta?.ok ? propuesta.dias : null, base: propuesta?.ok ? propuesta.base : null,
+      calculo: propuesta?.ok ? `Propuesta de la app: ${fmt(propuesta.monto)} = ${propuesta.explica}` : "", autorizo: det.autorizo, quien, cuando: new Date().toISOString(), fecha: hoy });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); setDet(null); setDice("");
+  };
+  const guardarPago = () => {
+    const r = pagarPrestacion({ eventos: data.eventos, persona: pago.persona, concepto: pago.d.datos.concepto, periodo: pago.d.datos.periodo, monto: pago.monto, medio: pago.medio, nota: pago.nota, comprobante: pago.foto || null, quien, cuando: new Date().toISOString(), fecha: hoy });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); setPago(null); setDice(""); setAvisos(r.avisos);
+  };
+  const foto = (e) => { const x = e.target.files?.[0]; if (!x) return; const fr = new FileReader(); fr.onload = () => setPago(v => ({ ...v, foto: fr.result })); fr.readAsDataURL(x); };
+  const N = CONCEPTOS_PRESTACION;
+  return (<>
+    <div className="text-xs text-muted mb-2" style={{ paddingLeft: 4 }}>Aguinaldo, vacaciones y prima vacacional se van generando día con día desde la fecha de ingreso; nadie los captura. Al costo entran conforme se generan: determinarlos o pagarlos después no los vuelve a cargar. La ley es el mínimo; cada persona puede tener mejores condiciones en su ficha. Es control interno: no sustituye la revisión de quien lleve las obligaciones con el personal.</div>
+    {avisos.map((a, k) => <div key={k} className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">{a}</div></div>)}
+    {pr.repetidas.length > 0 && <div className="card" style={{ borderColor: "var(--red)" }}><div className="text-sm">Hay {pr.repetidas.length} prestación(es) determinadas dos veces para el mismo periodo (se capturaron en dos aparatos). Cuenta la más reciente; hay que cancelar la otra.</div></div>}
+    {pr.cuentas.length === 0 && <div className="card"><div className="text-sm text-muted">Todavía no hay personal de planta dado de alta.</div></div>}
+    {pr.cuentas.map(c => (
+      <div key={c.personaId} className="card" style={{ padding: 14 }}>
+        <div className="flex-b"><div><div className="font-bold">{c.nombre}{c.tipo === "encargado" ? " · encargado" : ""}</div>
+          <div className="text-xs text-muted">{c.cond.ingreso ? `Ingresó el ${c.cond.ingreso} · ${c.antiguedad} año${c.antiguedad === 1 ? "" : "s"} cumplido${c.antiguedad === 1 ? "" : "s"}` : "Sin fecha de ingreso"}</div></div>
+          {!c.porque && <div style={{ textAlign: "right" }}><div className="li-val">{fmt(sumarDinero(Object.values(c.conceptos).map(x => x.provision)))}</div><div className="text-xs text-muted">generado sin determinar</div></div>}</div>
+        {c.porque && <div className="text-sm" style={{ color: "var(--gold)", marginTop: 6 }}>{c.porque}</div>}
+        {!c.porque && Object.keys(N).map(k => { const x = c.conceptos[k]; return (
+          <div key={k} style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border-soft)" }}>
+            <div className="mo-act"><span>{N[k]}{x.estimado ? " · con el sueldo de hoy" : ""}</span><span /><b>{fmt(x.generado)}</b></div>
+            <div className="text-xs text-muted">generado{x.antesDelSistema > 0 ? ` (de eso, ${fmt(x.antesDelSistema)} antes de que el sistema llevara la cuenta: no va al costo)` : ""}{x.determinado > 0 ? ` · determinado ${fmt(x.determinado)} · pagado ${fmt(x.pagado)} · por pagar ${fmt(x.porPagar)}` : ""}{x.ajustes !== 0 ? ` · ajuste ${fmt(x.ajustes)}` : ""}</div>
+            {x.determinadas.map(d => <div key={d.id} className="mo-act"><span className="text-xs">{nombreDePeriodo(d.datos.periodo)}: {fmt(d.datos.monto)} al {d.datos.corte} · autorizó {d.datos.autorizo}</span><span />{admin && <button className="acc-link" onClick={() => { setPago({ persona: fichaDe(c).persona, d, monto: "", medio: "efectivo", nota: "" }); setDice(""); }}>Pagar</button>}</div>)}
+          </div>); })}
+        {!c.porque && c.dias && <div className="text-xs text-muted" style={{ marginTop: 8 }}>Vacaciones: corre su año {c.dias.anioEnCurso} de servicio; al cumplirlo ({c.dias.cumple}) son {c.dias.delAnioEnCurso} días. Ha tomado {c.dias.tomados}. {c.dias.pendientes == null ? "No se sabe cuántos días traía pendientes de antes: se captura en sus condiciones." : `Le quedan ${c.dias.pendientes} día(s) por disfrutar.`}</div>}
+        {abre === c.personaId && c.renglones.filter(r => !r.previo).map((r, k) => <div key={k} className="text-xs text-muted">{r.mes} · {N[r.concepto]}{r.ajuste ? " (ajuste)" : ""}: {fmt(r.monto)} — {r.explica}</div>)}
+        <div className="jor-acc">
+          {!c.porque && <button onClick={() => setAbre(abre === c.personaId ? null : c.personaId)}>{abre === c.personaId ? "Ocultar la cuenta" : "Ver mes por mes"}</button>}
+          {admin && <button onClick={() => abrirCond(c)}>{c.cond.ingreso ? "Condiciones" : "Poner fecha de ingreso"}</button>}
+          {admin && !c.porque && <button onClick={() => { setDet({ persona: fichaDe(c).persona, concepto: "", periodo: "", corte: hoy, monto: "", autorizo: "" }); setDice(""); }}>Determinar</button>}
+        </div>
+      </div>
+    ))}
+    <ReglasDelRancho data={data} add={add} session={session} claves={["prest_aguinaldo_dias", "prest_prima_pct", "prest_vac_extra", "ind_prestaciones"]} />
+
+    {cond && <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setCond(null); }}><div className="modal-sheet">
+      <div className="card-title">Condiciones de {cond.persona.nombre}</div>
+      <div className="text-xs text-muted" style={{ marginBottom: 10 }}>Sólo se llena lo que sea distinto de la regla general. Lo que quede abajo del mínimo de ley no se toma en cuenta.</div>
+      {[["fechaIngreso", "Fecha de ingreso", "date"], ["aguinaldoDias", "Días de aguinaldo por año", "number"], ["vacacionesDias", "Días de vacaciones por año (si son fijos)", "number"], ["primaPct", "Prima vacacional (%)", "number"], ["baseAguinaldo", "Salario por día para el aguinaldo ($), si no es su sueldo", "number"], ["baseVacaciones", "Salario por día para vacaciones y prima ($), si no es su sueldo", "number"], ["vacacionesPendientes", "Días de vacaciones que traía pendientes al empezar", "number"]].map(([k, t, tipo]) =>
+        <div className="form-group" key={k}><label className="form-label" htmlFor={`pc-${k}`}>{t}</label><input id={`pc-${k}`} className="inp" type={tipo} inputMode={tipo === "number" ? "decimal" : undefined} value={cond.f[k]} onChange={e => setCond(v => ({ ...v, f: { ...v.f, [k]: e.target.value } }))} /></div>)}
+      <label className="text-sm" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}><input type="checkbox" checked={cond.f.sin} onChange={e => setCond(v => ({ ...v, f: { ...v.f, sin: e.target.checked } }))} /> Esta persona no genera prestaciones aquí</label>
+      {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+      <div style={{ display: "flex", gap: 8 }}><button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setCond(null)}>No</button><button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarCond}>Guardar</button></div>
+    </div></div>}
+    {det && <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setDet(null); }}><div className="modal-sheet">
+      <div className="card-title">Determinar una prestación de {det.persona.nombre}</div>
+      <div className="text-xs text-muted" style={{ marginBottom: 10 }}>Aquí se dice cuánto es en definitiva. Al costo sólo se agrega la diferencia contra lo que ya se había generado.</div>
+      <select className="inp" aria-label="Qué prestación" value={det.concepto} onChange={e => setDet(d => ({ ...d, concepto: e.target.value, periodo: "" }))} style={{ marginBottom: 8 }}><option value="">¿Qué prestación?</option>{Object.entries(N).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+      <select className="inp" aria-label="De qué periodo" value={det.periodo} onChange={e => setDet(d => ({ ...d, periodo: e.target.value }))} style={{ marginBottom: 8 }}><option value="">¿De qué periodo?</option>{periodos(det).map(p => <option key={p.periodo} value={p.periodo}>{nombreDePeriodo(p.periodo)} ({p.ini} a {p.fin})</option>)}</select>
+      <div className="form-group"><label className="form-label" htmlFor="pd-corte">Calculado hasta el día</label><input id="pd-corte" type="date" className="inp" value={det.corte} onChange={e => setDet(d => ({ ...d, corte: e.target.value }))} /></div>
+      {propuesta && (propuesta.ok ? <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Con sus condiciones saldrían {fmt(propuesta.monto)}: {propuesta.explica}.{propuesta.estimado ? " Se usó su sueldo de hoy porque no hay historial de esa fecha." : ""} <button className="acc-link" onClick={() => setDet(d => ({ ...d, monto: String(propuesta.monto) }))}>Usar esa cifra</button></div> : <div className="text-xs" style={{ color: "var(--gold)", marginBottom: 8 }}>{propuesta.dice}</div>)}
+      <div className="form-group"><label className="form-label" htmlFor="pd-monto">Importe determinado ($)</label><input id="pd-monto" className="inp" type="number" inputMode="decimal" value={det.monto} onChange={e => setDet(d => ({ ...d, monto: e.target.value }))} /></div>
+      <input className="inp" aria-label="Quién lo autoriza" placeholder="Quién lo autoriza" value={det.autorizo} onChange={e => setDet(d => ({ ...d, autorizo: e.target.value }))} style={{ marginBottom: 10 }} />
+      {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+      <div style={{ display: "flex", gap: 8 }}><button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setDet(null)}>No</button><button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarDet}>Guardar</button></div>
+    </div></div>}
+    {pago && <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setPago(null); }}><div className="modal-sheet">
+      <div className="card-title">Pago de {N[pago.d.datos.concepto].toLowerCase()} a {pago.persona.nombre}</div>
+      <div className="text-sm text-muted" style={{ marginBottom: 10 }}>{nombreDePeriodo(pago.d.datos.periodo)} · determinado en {fmt(pago.d.datos.monto)}. Un pago no es costo: el costo ya se fue generando.</div>
+      <div className="form-group"><label className="form-label" htmlFor="pp-monto">Cuánto se entregó ($)</label><input id="pp-monto" className="inp" type="number" inputMode="decimal" value={pago.monto} onChange={e => setPago(v => ({ ...v, monto: e.target.value }))} /></div>
+      <select className="inp" aria-label="Medio de pago de la prestación" value={pago.medio} onChange={e => setPago(v => ({ ...v, medio: e.target.value }))} style={{ marginBottom: 8 }}>{Object.entries(MEDIOS_DE_PAGO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+      <label className="text-xs text-muted" style={{ display: "block", marginBottom: 8 }}>Comprobante <input type="file" accept="image/*" capture="environment" aria-label="Comprobante de la prestación" onChange={foto} /></label>
+      {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+      <div style={{ display: "flex", gap: 8 }}><button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setPago(null)}>No</button><button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarPago}>Registrar pago</button></div>
+    </div></div>}
+  </>);
+}
+
+// Lo que se paga y no es una actividad en una parcela: a dónde fue cada peso y por qué.
+function PanelCostoPersonal({ data, add, session }) {
+  const ind = data.indirectos || { partes: [], pendientes: [], noProduccion: [] };
+  const [abre, setAbre] = useState(null);
+  const parcela = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "una parcela";
+  const fuentes = [["personal", "Días y ratos pagados sin actividad en parcela", "Permisos, descansos, esperas, traslados y los días de un encargado sin actividad registrada."], ["prestaciones", "Prestaciones", "Aguinaldo, vacaciones y prima que se van generando, y sus ajustes."]];
+  const sinSueldo = data.personalIndirecto?.sinSueldo || [];
+  return (<>
+    <div className="text-xs text-muted mb-2" style={{ paddingLeft: 4 }}>Esto se paga, así que es costo, pero no es trabajo hecho en una parcela. Aparece en los reportes como parte del costo completo, nunca dentro del costo directo. Lo que no se puede repartir con datos se queda pendiente, con su causa.</div>
+    {sinSueldo.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">{sinSueldo.length} día(s) pagados de personas sin sueldo capturado ({[...new Set(sinSueldo.map(x => x.nombre))].join(", ")}): no se les pudo poner importe. Un dato que falta no es un cero.</div></div>}
+    {fuentes.map(([f, titulo, sub]) => {
+      const partes = ind.partes.filter(p => p.fuente === f), pend = ind.pendientes.filter(p => p.fuente === f), fuera = ind.noProduccion.filter(p => p.fuente === f);
+      const rep = sumarDinero(partes.map(p => p.monto)), pen = sumarDinero(pend.map(p => p.monto)), fu = sumarDinero(fuera.map(p => p.monto));
+      const porParcela = {}; partes.forEach(p => { porParcela[p.parcelaId] = sumarDinero(porParcela[p.parcelaId] || 0, p.monto); });
+      return (
+        <div key={f} className="card">
+          <div className="card-title">{titulo}</div>
+          <div className="text-xs text-muted" style={{ marginBottom: 8 }}>{sub}</div>
+          {rep === 0 && pen === 0 && fu === 0 && <div className="text-sm text-muted">Todavía no hay nada.</div>}
+          {rep !== 0 && <div className="mo-act"><span>Repartido a parcelas</span><span /><b>{fmt(rep)}</b></div>}
+          {pen !== 0 && <div className="mo-act"><span>Pendiente de distribuir</span><span /><b style={{ color: "var(--gold)" }}>{fmt(pen)}</b></div>}
+          {fu !== 0 && <div className="mo-act"><span>No es de producción</span><span /><b>{fmt(fu)}</b></div>}
+          {(rep !== 0 || pen !== 0 || fu !== 0) && <button className="acc-link" onClick={() => setAbre(abre === f ? null : f)}>{abre === f ? "Ocultar el detalle" : "Ver de dónde sale cada importe"}</button>}
+          {abre === f && <>
+            {Object.entries(porParcela).map(([id, m]) => <div key={id} className="text-xs" style={{ marginTop: 6 }}><b>{parcela(id)}: {fmt(m)}</b>{partes.filter(p => p.parcelaId === id).slice(0, 40).map((p, k) => <div key={k} className="text-muted">{fmt(p.monto)} · {p.explica} · {p.base}</div>)}</div>)}
+            {pend.length > 0 && <div className="text-xs" style={{ marginTop: 6 }}><b>Pendiente</b>{pend.slice(0, 60).map((p, k) => <div key={k} className="text-muted">{fmt(p.monto)} · {p.que} — {p.porque}</div>)}</div>}
+            {fuera.flatMap(x => x.detalle).length > 0 && <div className="text-xs" style={{ marginTop: 6 }}><b>No es de producción</b>{fuera.flatMap(x => x.detalle).slice(0, 60).map((p, k) => <div key={k} className="text-muted">{fmt(p.monto)} · {p.que}</div>)}</div>}
+          </>}
+        </div>);
+    })}
+    <ReglasDelRancho data={data} add={add} session={session} claves={["ind_permiso", "ind_descanso", "ind_justificada", "ind_espera", "ind_traslado", "ind_mantenimiento", "ind_inactividad", "ind_otra", "ind_encargado"]} />
+  </>);
+}
+
 // El recibo interno. Lo emitido es una foto de ese momento y no se cambia: si
 // algo cambió, se emite otro (con qué cambió) y el anterior se queda en el historial.
 function ReciboInterno({ a, clase, desde, hasta, conceptos, saldo, pagos, autorizaciones, responsable, data, add, session, onClose }) {
@@ -20356,7 +20594,9 @@ function ReciboInterno({ a, clase, desde, hasta, conceptos, saldo, pagos, autori
   const d = rec ? rec.datos : { a, clase, desde, hasta, conceptos, saldo, pagos: pagos.map(p => ({ ev: p.id, fecha: p.fecha, monto: p.datos.monto, medio: p.datos.medio, recibe: p.datos.recibe })), autorizaciones, responsable, leyenda: clase === "cuadrilla" ? LEYENDA_CUADRILLA : LEYENDA_RECIBO, version: null };
   const alDia = reciboAlDia(emitidos[emitidos.length - 1], saldo);
   const emitir = () => {
-    const r = emitirRecibo({ eventos: data.eventos, a, clase, desde, hasta, conceptos, saldo, pagos, autorizaciones, responsable, motivo, quien: quienDe(session), cuando: new Date().toISOString(), fecha: today() });
+    const r = emitirRecibo({ eventos: data.eventos, a, clase, desde, hasta, conceptos, saldo, pagos, autorizaciones, responsable, motivo, quien: quienDe(session), cuando: new Date().toISOString(), fecha: today(),
+      // El archivo de ESTA versión: se guarda junto con sus datos y ya no cambia.
+      pdf: (x) => pdfComoDataUrl(renglonesDeRecibo({ ...d, ...x }, session.nombre || "", today())) });
     if (!r.ok) { setDice(r.dice); return; }
     add("eventos", r.evento); setVer(r.evento.id); setMotivo(""); setDice("");
   };
@@ -20399,7 +20639,9 @@ function ReciboInterno({ a, clase, desde, hasta, conceptos, saldo, pagos, autori
           {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
           <button className="btn btn-accent" style={{ width: "100%", marginBottom: 8 }} onClick={emitir}>{emitidos.length ? "Emitir una versión nueva" : "Emitir el recibo"}</button>
         </>}
-        {rec && <button className="btn btn-outline" style={{ width: "100%" }} onClick={() => window.print()}><Ic e="🖨️" /> Imprimir / guardar PDF</button>}
+        {rec && <ArchivoPDF src={rec.datos.pdf} nombre={`recibo-${d.a.nombre}-${d.desde}-v${d.version}.pdf`.replace(/\s+/g, "-")} />}
+        {rec && !rec.datos.pdf && <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Esta versión se emitió antes de que se guardara el archivo: quedó su contenido, y se puede imprimir.</div>}
+        {rec && <button className="btn btn-outline" style={{ width: "100%" }} onClick={() => window.print()}><Ic e="🖨️" /> Imprimir</button>}
       </div>
     </div>
   );
@@ -20437,13 +20679,13 @@ function PagosCuadrillas({ data, add, session, ini, fin, abrirRecibo }) {
 }
 
 // Asistencia de la semana: lo que alguien tiene que decir. Nada se decide solo.
-function PanelAsistencia({ data, add, upd, session, ini, fin, semanas, mo }) {
+function PanelAsistencia({ data, add, upd, session, ini, fin, semanas, mo, cerrada }) {
   const hoy = today(); const quien = quienDe(session);
   const [aus, setAus] = useState(null);       // { trabajadorId, desde, hasta, clase, paga, causa, autorizo }
   const [dec, setDec] = useState(null);       // { caso, situacion, pago, motivo }
   const [jus, setJus] = useState(null);       // { evento, causa, paga, autorizo }
   const [dice, setDice] = useState("");
-  const nombre = (id) => (data.trabajadores || []).find(t => t.id === id)?.nombre || "Alguien";
+  const nombre = (id) => quienesChecan(data).find(t => t.id === id)?.nombre || "Alguien";
   const ausencias = ausenciasDe(data.eventos, { desde: ini, hasta: fin });
   const sinRegistro = semanas.flatMap(s => s.sem.sinRegistro.map(f => ({ t: s.p, fecha: f })));
   const guardarAus = () => {
@@ -20463,7 +20705,8 @@ function PanelAsistencia({ data, add, upd, session, ini, fin, semanas, mo }) {
   };
   const alternaSabado = (t) => { const d = Array.isArray(t.diasAsistencia) && t.diasAsistencia.length ? t.diasAsistencia : DIAS_DE_SIEMPRE; upd("trabajadores", { ...t, diasAsistencia: d.includes(6) ? d.filter(x => x !== 6) : [...d, 6].sort() }); };
   return (<>
-    <button className="btn btn-accent" style={{ width: "100%", marginBottom: 12 }} onClick={() => { setAus({ trabajadorId: "", desde: hoy, hasta: hoy, clase: "", paga: "", causa: "", autorizo: "" }); setDice(""); }}>Registrar permiso, descanso o falta</button>
+    {cerrada && <div className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">Esta semana ya está cerrada. Lo que registres aquí no cambia el cierre: saldrá como diferencia contra él, hasta que alguien la reabra y la cierre otra vez.</div></div>}
+    <button className="btn btn-accent" style={{ width: "100%", marginBottom: 12 }} onClick={() => { setAus({ trabajadorId: "", desde: hoy, hasta: hoy, clase: "", paga: "", causa: "", autorizo: "" }); setDice(""); }}>Registrar permiso, descanso, vacaciones o falta</button>
     {mo.salidasPorRevisar.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}>
       <div className="card-title">Salieron antes: por revisar</div>
       <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Mientras nadie decida, su día se paga completo. No hay descuento automático.</div>
@@ -20486,11 +20729,11 @@ function PanelAsistencia({ data, add, upd, session, ini, fin, semanas, mo }) {
     <ReglasDelRancho data={data} add={add} session={session} claves={["tolerancia_salida_min"]} />
 
     {aus && <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setAus(null); }}><div className="modal-sheet">
-      <div className="card-title">Permiso, descanso o falta</div>
-      <select className="inp" aria-label="De quién" value={aus.trabajadorId} onChange={e => setAus(a => ({ ...a, trabajadorId: e.target.value }))} style={{ marginBottom: 8 }}><option value="">¿De quién?</option>{(data.trabajadores || []).filter(t => t.activo !== false).map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}</select>
+      <div className="card-title">Permiso, descanso, vacaciones o falta</div>
+      <select className="inp" aria-label="De quién" value={aus.trabajadorId} onChange={e => setAus(a => ({ ...a, trabajadorId: e.target.value }))} style={{ marginBottom: 8 }}><option value="">¿De quién?</option>{(data.trabajadores || []).filter(t => t.activo !== false).map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}{(data.encargados || []).filter(t => t.activo !== false).map(t => <option key={t.id} value={t.id}>{t.nombre} (encargado)</option>)}</select>
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}><input type="date" className="inp" aria-label="Desde" value={aus.desde} onChange={e => setAus(a => ({ ...a, desde: e.target.value, hasta: a.hasta < e.target.value ? e.target.value : a.hasta }))} /><input type="date" className="inp" aria-label="Hasta" value={aus.hasta} min={aus.desde} onChange={e => setAus(a => ({ ...a, hasta: e.target.value }))} /></div>
       <select className="inp" aria-label="Qué fue" value={aus.clase} onChange={e => setAus(a => ({ ...a, clase: e.target.value }))} style={{ marginBottom: 8 }}><option value="">¿Qué fue?</option>{Object.entries(CLASES_AUSENCIA).map(([k, v]) => <option key={k} value={k}>{v.nombre}</option>)}</select>
-      {aus.clase && <div className="text-xs text-muted" style={{ marginBottom: 8 }}>{aus.clase === "falta" ? "No se paga ese día. Si después trae justificación, se corrige aquí mismo y queda el historial." : aus.clase === "justificada" ? "Tú decides si se paga, y queda con tu nombre." : "Se paga el día completo."}</div>}
+      {aus.clase && <div className="text-xs text-muted" style={{ marginBottom: 8 }}>{aus.clase === "falta" ? "No se paga ese día. Si después trae justificación, se corrige aquí mismo y queda el historial." : aus.clase === "justificada" ? "Tú decides si se paga, y queda con tu nombre." : aus.clase === "vacaciones" ? "Se pagan en su semana y se descuentan de sus días. Su costo ya se fue generando como prestación: no se carga otra vez." : "Se paga el día completo."}</div>}
       {aus.clase === "justificada" && <select className="inp" aria-label="Se paga" value={aus.paga} onChange={e => setAus(a => ({ ...a, paga: e.target.value }))} style={{ marginBottom: 8 }}><option value="">¿Se pagan esos días?</option><option value="si">Sí se pagan</option><option value="no">No se pagan</option></select>}
       {aus.clase && aus.clase !== "falta" && <><input className="inp" aria-label="Causa" placeholder="Causa" value={aus.causa} onChange={e => setAus(a => ({ ...a, causa: e.target.value }))} style={{ marginBottom: 8 }} /><input className="inp" aria-label="Quién autorizó" placeholder="Quién lo autorizó" value={aus.autorizo} onChange={e => setAus(a => ({ ...a, autorizo: e.target.value }))} style={{ marginBottom: 8 }} /></>}
       {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
@@ -20522,8 +20765,8 @@ function PanelHoras({ data, add, session, ini, fin }) {
   const [alcance, setAlcance] = useState("semana"); const [rec, setRec] = useState(null); const [dice, setDice] = useState(""); const [abre, setAbre] = useState(null);
   const hoy = today();
   const r = alcance === "semana" ? { desde: ini, hasta: fin } : alcance === "mes" ? { desde: `${ini.slice(0, 7)}-01`, hasta: `${ini.slice(0, 7)}-31` } : { desde: `${ini.slice(0, 4)}-01-01`, hasta: `${ini.slice(0, 4)}-12-31` };
-  const todas = useMemo(() => manoDeObra(data.eventos, data.trabajadores || [], { desde: r.desde, hasta: r.hasta, hoy, ahora: new Date().toISOString() }).horasAdicionales, [data.eventos, data.trabajadores, r.desde, r.hasta]);
-  const gente = (data.trabajadores || []).map(t => ({ t, c: cuentaDeHoras(todas, data.eventos, { trabajadorId: t.id, desde: r.desde, hasta: r.hasta }) })).filter(x => x.c.registradas > 0 || x.c.reconocimientos.length > 0);
+  const todas = useMemo(() => manoDeObra(data.eventos, quienesChecan(data), { desde: r.desde, hasta: r.hasta, hoy, ahora: new Date().toISOString() }).horasAdicionales, [data.eventos, data.trabajadores, data.encargados, r.desde, r.hasta]);
+  const gente = quienesChecan(data).map(t => ({ t, c: cuentaDeHoras(todas, data.eventos, { trabajadorId: t.id, desde: r.desde, hasta: r.hasta }) })).filter(x => x.c.registradas > 0 || x.c.reconocimientos.length > 0);
   const guardar = () => { const x = reconocerHoras({ ...rec, quien: quienDe(session), cuando: new Date().toISOString(), fecha: hoy }); if (!x.ok) { setDice(x.dice); return; } add("eventos", x.evento); setRec(null); setDice(""); };
   return (<>
     <div className="tabs-pill">{[["semana", "Esta semana"], ["mes", "El mes"], ["anio", "El año"]].map(([v, t]) => <button key={v} className={`tab-pill${alcance === v ? " active" : ""}`} onClick={() => setAlcance(v)}>{t}</button>)}</div>
@@ -20571,9 +20814,9 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
   ];
 
   // Lo que salió del checador esa semana (incluye el tiempo sin asignar y el de vehículos, que no están en ninguna parcela).
-  const moSemana = useMemo(() => manoDeObra(data.eventos, data.trabajadores || [], { desde: ini, hasta: fin, hoy: today(), ahora: new Date().toISOString() }), [data.eventos, data.trabajadores, ini, fin]);
+  const moSemana = useMemo(() => manoDeObra(data.eventos, quienesChecan(data), { desde: ini, hasta: fin, hoy: today(), ahora: new Date().toISOString() }), [data.eventos, data.trabajadores, data.encargados, ini, fin]);
   const ausSemana = ausenciasDe(data.eventos, { desde: ini, hasta: fin });
-  const ETQ_DIA = { trabajo: "trabajó", ausencia_pagada: "ausencia pagada", ausencia_sin_pago: "ausencia sin pago", sin_registro: "no vino: falta decir por qué", no_le_toca: "no le toca", futuro: "" };
+  const ETQ_DIA = { calendario: "día de su calendario", trabajo: "trabajó", ausencia_pagada: "ausencia pagada", ausencia_sin_pago: "ausencia sin pago", sin_registro: "no vino: falta decir por qué", no_le_toca: "no le toca", futuro: "" };
   // Renglón de nómina de una persona en la semana
   const renglon = (p) => {
     // actividadesContables trae el costoMO ya repartido por día (la misma lógica
@@ -20581,7 +20824,8 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
     const acts = (data.actividadesContables || data.actividades || []).filter(a =>
       a.registradoPor?.id === p.id && a.fecha >= ini && a.fecha <= fin);
     // UNA sola cuenta de lo que corresponde: día por día, del checador, de lo tecleado antes, o de una ausencia que se paga.
-    const sem = semanaDe({ trabajador: p, desde: ini, hasta: fin, hoy: today(), devengado: p._tipo === "planta" ? moSemana.devengado : [], actividades: data.actividadesContables || data.actividades || [], ausencias: p._tipo === "planta" ? ausSemana : [] });
+    const sem = semanaDe({ trabajador: p, desde: ini, hasta: fin, hoy: today(), devengado: moSemana.devengado, actividades: data.actividadesContables || data.actividades || [], ausencias: ausSemana,
+      modo: p._tipo === "planta" ? "checador" : (p.calendario || []).length ? "calendario" : "actividades" });
     const mo = sem.corresponde;
     const dias = sem.trabajados;
     const prestamos = vivos(data.prestamos).filter(x => x.trabajadorId === p.id && x.estado === "activo");
@@ -20590,49 +20834,41 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
     // empresa de todos modos, pero no se le entrega al trabajador.
     const retPct = parseFloat(p.retencion_pct) || 0;
     const retencion = Math.round(mo * retPct / 100 * 100) / 100;
-    const descuento = Math.min(parseFloat(desc[p.id]) || 0, saldoPrestamo, Math.max(0, mo - retencion));
     const a = { tipo: p._tipo === "encargado" ? "encargado" : "trabajador", id: p.id, nombre: p.nombre };
     const pagos = pagosA(data.eventos, a, { desde: ini, hasta: fin });
-    // Lo que no se le entrega aunque lo ganó: la retención, y los abonos a su préstamo que quedaron en un pago de esta semana.
-    const yaDescontado = sumarDinero(pagos.map(x => x.datos.descuento || 0));
-    const saldo = saldoDe({ corresponde: mo, descuentos: sumarDinero(retencion, yaDescontado, pagos.length ? 0 : descuento), pagos });
-    return { p, a, acts, mo, dias, sem, pagos, saldo, saldoPrestamo, retPct, retencion, descuento, neto: mo - retencion - descuento };
+    // Lo que no se le entrega aunque lo ganó: la retención y los abonos a su préstamo de ESTA semana.
+    // El abono vive en el préstamo con su semana: da igual si el pago se registró antes o después.
+    const abonosSem = abonosDeSemana(vivos(data.prestamos), p.id, ini, fin);
+    const yaDescontado = abonosSem.length ? sumarDinero(abonosSem.map(x => x.monto)) : sumarDinero(pagos.map(x => x.datos.descuento || 0));
+    const descuento = Math.min(parseFloat(desc[p.id]) || 0, saldoPrestamo, Math.max(0, mo - retencion - yaDescontado));
+    const saldo = saldoDe({ corresponde: mo, descuentos: sumarDinero(retencion, yaDescontado, descuento), pagos });
+    return { p, a, acts, mo, dias, sem, pagos, saldo, saldoPrestamo, retPct, retencion, descuento, yaDescontado, neto: mo - retencion - yaDescontado - descuento };
   };
 
   const todos = personas.map(renglon);
-  const renglones = todos.filter(r => r.mo > 0 || r.saldoPrestamo > 0 || r.sem.sinRegistro.length > 0 || r.sem.sinPago > 0);
+  // Lo que entra al cierre de la semana: planta, encargados, y las cuentas de cuadrillas y temporales.
+  const cqSemana = useMemo(() => cuentasDeCuadrillas(costoDeCuadrillas(data.eventos, { desde: ini, hasta: fin, criterioFlete: ajusteVigente(data.eventos, "criterio_flete").valor }).partes, { desde: ini, hasta: fin }), [data.eventos, ini, fin]);
+  const paraCierre = todos.filter(r => r.mo > 0 || r.pagos.length > 0).map(r => ({ a: r.a, corresponde: r.mo, descuentos: r.saldo.descuentos, neto: r.saldo.neto, entregado: r.saldo.entregado, pendiente: r.saldo.pendiente }))
+    .concat(cqSemana.map(c => { const sd = saldoDe({ corresponde: c.corresponde, pagos: pagosA(data.eventos, c.a, { desde: ini, hasta: fin }) }); return { a: c.a, corresponde: c.corresponde, descuentos: 0, neto: sd.neto, entregado: sd.entregado, pendiente: sd.pendiente }; }));
+  const renglones = todos.filter(r => r.mo > 0 || r.saldoPrestamo > 0 || r.yaDescontado > 0 || r.sem.sinRegistro.length > 0 || r.sem.sinPago > 0);
   const conceptosDe = (r) => r.sem.dias.filter(d => d.monto > 0 || d.estado === "ausencia_sin_pago").map(d => ({ fecha: d.fecha, monto: d.monto,
-    que: d.estado === "trabajo" ? "Día trabajado" : `${CLASES_AUSENCIA[d.clase]?.nombre || "Ausencia"}${d.causa ? `: ${d.causa}` : ""}`,
-    como: d.estado === "trabajo" ? (d.origen === "checador" ? `del checador${d.minutos ? `, ${horasDe(d.minutos)}` : ""}` : "de la actividad registrada") : d.estado === "ausencia_pagada" ? `se paga el día · autorizó ${d.autorizo}` : "no se paga" }));
+    que: d.estado === "trabajo" ? "Día trabajado" : d.estado === "calendario" ? "Día de su calendario" : `${CLASES_AUSENCIA[d.clase]?.nombre || "Ausencia"}${d.causa ? `: ${d.causa}` : ""}`,
+    como: d.estado === "calendario" ? "asistencia por calendario, sin registro de horario" : d.estado === "trabajo" ? (d.origen === "checador" ? `del checador${d.minutos ? `, ${horasDe(d.minutos)}` : ""}` : "de la actividad registrada") : d.estado === "ausencia_pagada" ? `se paga el día · autorizó ${d.autorizo}` : "no se paga" }));
   const abrirReciboDe = (r) => setRecibo({ a: r.a, clase: "planta", conceptos: conceptosDe(r), saldo: r.saldo, pagos: r.pagos, autorizaciones: r.sem.dias.filter(d => d.autorizo).map(d => `${d.fecha}: ${d.autorizo}`), responsable: "" });
   if (recibo) return <ReciboInterno {...recibo} desde={ini} hasta={fin} data={data} add={add} session={session} onClose={() => setRecibo(null)} />;
   const totalMO = renglones.reduce((s, r) => s + r.mo, 0);
   const totalRet = renglones.reduce((s, r) => s + r.retencion, 0);
-  const totalDesc = renglones.reduce((s, r) => s + r.descuento, 0);
+  const totalDesc = renglones.reduce((s, r) => s + r.descuento + r.yaDescontado, 0);
   const totalNeto = renglones.reduce((s, r) => s + r.neto, 0);
 
   // Aplica el descuento como abono a los préstamos del trabajador (el más viejo primero).
   // Cada préstamo es un registro distinto: una actualización por cada uno (sin pisarse).
   const aplicarDescuento = (r) => {
-    let resto = r.descuento;
-    if (resto <= 0) { alert("Captura un descuento mayor a cero"); return; }
-    const activos = vivos(data.prestamos)
-      .filter(x => x.trabajadorId === r.p.id && x.estado === "activo")
-      .sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""));
-    let abonado = 0;
-    for (const pr of activos) {
-      if (resto <= 0) break;
-      const saldo = Math.max(0, (pr.monto || 0) - (pr.abonado || 0));
-      const abono = Math.min(saldo, resto);
-      if (abono <= 0) continue;
-      const nuevoAbonado = (pr.abonado || 0) + abono;
-      upd("prestamos", {
-        ...pr, abonado: nuevoAbonado,
-        estado: nuevoAbonado >= (pr.monto || 0) ? "pagado" : "activo",
-        ultimoAbono: { fecha: today(), monto: abono, nota: `Nómina ${ini} a ${fin}` },
-      });
-      resto -= abono; abonado += abono;
-    }
+    if (r.descuento <= 0) { alert("Captura un descuento mayor a cero"); return; }
+    // El abono se anota EN el préstamo, con la semana a la que pertenece: de ahí lo toma el cálculo de la semana.
+    const ab = abonarPrestamos(vivos(data.prestamos).filter(x => x.trabajadorId === r.p.id && x.estado === "activo"), r.descuento, { desde: ini, hasta: fin, fecha: today(), id: `ab${Date.now()}` });
+    ab.cambiados.forEach(pr => upd("prestamos", pr));
+    const abonado = ab.abonado;
     setAplicados(a => ({ ...a, [r.p.id]: (a[r.p.id] || 0) + abonado }));
     setDesc(d => ({ ...d, [r.p.id]: "" }));
   };
@@ -20668,7 +20904,7 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
                     <td style={{ textAlign: "right", padding: "8px 6px", border: "1px solid #ddd" }}>{r.dias}</td>
                     <td style={{ textAlign: "right", padding: "8px 6px", border: "1px solid #ddd" }}>{fmt(r.mo)}</td>
                     <td style={{ textAlign: "right", padding: "8px 6px", border: "1px solid #ddd" }}>{r.retencion > 0 ? `− ${fmt(r.retencion)}` : "—"}</td>
-                    <td style={{ textAlign: "right", padding: "8px 6px", border: "1px solid #ddd" }}>{r.descuento > 0 ? `− ${fmt(r.descuento)}` : "—"}</td>
+                    <td style={{ textAlign: "right", padding: "8px 6px", border: "1px solid #ddd" }}>{r.descuento + r.yaDescontado > 0 ? `− ${fmt(r.descuento + r.yaDescontado)}` : "—"}</td>
                     <td style={{ textAlign: "right", padding: "8px 6px", border: "1px solid #ddd", fontWeight: 700 }}>{fmt(r.neto)}</td>
                     <td style={{ border: "1px solid #ddd" }}></td>
                   </tr>
@@ -20702,7 +20938,7 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
         <h2>Pagos al personal</h2>
       </div>
       <div className="tabs-pill">
-        {[["planta", "Planta"], ["cuadrillas", "Cuadrillas y temporales"], ["asistencia", `Asistencia${moSemana.salidasPorRevisar.length + todos.reduce((n, r) => n + r.sem.sinRegistro.length, 0) ? ` (${moSemana.salidasPorRevisar.length + todos.reduce((n, r) => n + r.sem.sinRegistro.length, 0)})` : ""}`], ["horas", "Horas adicionales"]].map(([v, t]) => <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => setTab(v)}>{t}</button>)}
+        {[["planta", "Planta"], ["cuadrillas", "Cuadrillas y temporales"], ["asistencia", `Asistencia${moSemana.salidasPorRevisar.length + todos.reduce((n, r) => n + r.sem.sinRegistro.length, 0) ? ` (${moSemana.salidasPorRevisar.length + todos.reduce((n, r) => n + r.sem.sinRegistro.length, 0)})` : ""}`], ["horas", "Horas adicionales"], ["prestaciones", "Prestaciones"], ["costo", "Costo sin parcela"]].map(([v, t]) => <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => setTab(v)}>{t}</button>)}
       </div>
       <div className="section-pad">
         {/* Navegación de semana */}
@@ -20716,9 +20952,12 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
         </div>
 
         {tab === "cuadrillas" && <PagosCuadrillas data={data} add={add} session={session} ini={ini} fin={fin} abrirRecibo={setRecibo} />}
-        {tab === "asistencia" && <PanelAsistencia data={data} add={add} upd={upd} session={session} ini={ini} fin={fin} semanas={todos.filter(r => r.p._tipo === "planta" && r.p.activo !== false)} mo={moSemana} />}
+        {tab === "asistencia" && <PanelAsistencia data={data} add={add} upd={upd} session={session} ini={ini} fin={fin} semanas={todos.filter(r => r.p.activo !== false)} mo={moSemana} cerrada={estadoDeSemana(data.eventos, ini, fin).estado === "cerrada"} />}
+        {tab === "prestaciones" && <PanelPrestaciones data={data} add={add} upd={upd} session={session} />}
+        {tab === "costo" && <PanelCostoPersonal data={data} add={add} session={session} />}
         {tab === "horas" && <PanelHoras data={data} add={add} session={session} ini={ini} fin={fin} />}
         {tab === "planta" && <>
+        <CierreSemana data={data} add={add} session={session} ini={ini} fin={fin} renglones={paraCierre} />
         {avisosPago.map((a, k) => <div key={k} className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">{a}</div></div>)}
         <div className="text-xs text-muted mb-2" style={{ paddingLeft: 4 }}>
           Lo que corresponde sale de lo ya registrado (checador, actividades y ausencias que se pagan): aquí no se captura otra vez y un pago no genera costo. El descuento abona al préstamo del trabajador al aplicarlo.
@@ -20735,7 +20974,7 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
             <div className="flex-b">
               <div>
                 <div className="font-bold">{r.p.nombre}{r.p._tipo === "encargado" ? " · encargado" : ""}</div>
-                <div className="text-xs text-muted">{r.dias} día{r.dias === 1 ? "" : "s"} trabajado{r.dias === 1 ? "" : "s"}{r.sem.pagadosSinTrabajar ? ` · ${r.sem.pagadosSinTrabajar} de permiso o descanso pagado` : ""}{r.sem.sinPago ? ` · ${r.sem.sinPago} sin pago` : ""}{r.sem.sinRegistro.length ? ` · ${r.sem.sinRegistro.length} sin explicar` : ""}{r.sem.provisional ? " · hoy sigue adentro" : ""}</div>
+                <div className="text-xs text-muted">{r.dias} día{r.dias === 1 ? "" : "s"} trabajado{r.dias === 1 ? "" : "s"}{r.sem.porCalendario ? ` · ${r.sem.porCalendario} por calendario` : ""}{r.sem.pagadosSinTrabajar ? ` · ${r.sem.pagadosSinTrabajar} de permiso, descanso o vacaciones` : ""}{r.sem.sinPago ? ` · ${r.sem.sinPago} sin pago` : ""}{r.sem.sinRegistro.length ? ` · ${r.sem.sinRegistro.length} sin explicar` : ""}{r.sem.provisional ? " · hoy sigue adentro" : ""}</div>
               </div>
               <div style={{ textAlign: "right" }}>
                 <div className="li-val">{fmt(r.mo)}</div>
@@ -20750,7 +20989,7 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
             )}
             {r.saldoPrestamo > 0 && (
               <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
-                <div className="text-xs mb-1" style={{ color: "var(--gold)" }}>💸 Debe {fmt(r.saldoPrestamo)} de préstamo{aplicados[r.p.id] ? ` · abonado hoy ${fmt(aplicados[r.p.id])}` : ""}</div>
+                <div className="text-xs mb-1" style={{ color: "var(--gold)" }}>💸 Debe {fmt(r.saldoPrestamo)} de préstamo{r.yaDescontado ? ` · abonado esta semana ${fmt(r.yaDescontado)}` : ""}</div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <input type="number" className="inp" placeholder="Descuento" value={desc[r.p.id] || ""} onChange={e => setDesc(d => ({ ...d, [r.p.id]: e.target.value }))} style={{ flex: 1, padding: "8px 10px" }} />
                   <button className="btn btn-outline btn-sm" onClick={() => aplicarDescuento(renglon(r.p))} disabled={(parseFloat(desc[r.p.id]) || 0) <= 0}>Abonar a préstamo</button>
@@ -20785,7 +21024,7 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
         )}
         </>}
       </div>
-      {pagoA && <ModalPago a={pagoA.a} desde={ini} hasta={fin} pendiente={pagoA.saldo.pendiente} descuento={pagoA.pagos.length ? 0 : pagoA.descuento} data={data} add={add} session={session} onClose={(av) => { setPagoA(null); setAvisosPago(av || []); }} />}
+      {pagoA && <ModalPago a={pagoA.a} desde={ini} hasta={fin} pendiente={pagoA.saldo.pendiente} data={data} add={add} session={session} onClose={(av) => { setPagoA(null); setAvisosPago(av || []); }} />}
     </div>
   );
 }

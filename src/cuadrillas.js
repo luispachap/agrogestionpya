@@ -50,6 +50,7 @@ const min = (a, b) => Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000
 
 // ── Las reglas del rancho que se pueden cambiar ────────────────────────────
 // Un ajuste es un evento: queda dicho quién cambió la regla, cuándo y cuánto valía.
+const POLITICA_PERSONAL = { actividades: "Repartir según el costo de las actividades de esa persona en el mes", pendiente: "Dejarlo pendiente de distribuir", fuera: "No es de producción: no se reparte" };
 export const AJUSTES = {
   ventana_repetida_min: { defecto: 15, minimo: 1, maximo: 120, nombre: "Minutos para tomar una segunda lectura como repetida" },
   criterio_flete: { defecto: "personas", opciones: { personas: "Entre las personas transportadas", pagado: "En proporción a lo que cobró cada grupo", parejo: "Parejo entre las parcelas donde trabajaron" }, nombre: "Cómo se reparte un flete externo de cuadrilla" },
@@ -60,6 +61,19 @@ export const AJUSTES = {
   criterio_traslado: { defecto: "personas", opciones: { personas: "Por las personas que llevó a cada parcela", viajes: "Parejo entre los viajes", parejo: "Parejo entre las parcelas a las que llevó gente" }, nombre: "Cómo se reparte el costo de transportar trabajadores en vehículo propio" },
   criterio_vehiculo: { defecto: "horas", opciones: { horas: "Por horas de uso", viajes: "Por viajes", km: "Por kilómetros", periodo: "Parejo entre lo que atendió en el periodo" }, nombre: "Cómo se reparten los costos compartidos de un vehículo (combustible, taller, depreciación)" },
   tolerancia_salida_min: { defecto: 30, minimo: 0, maximo: 240, nombre: "Minutos antes de su horario que alguien puede salir sin que se pida revisar el caso" },
+  ind_permiso: { defecto: "actividades", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Permisos pagados: qué se hace con ese importe" },
+  ind_descanso: { defecto: "actividades", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Descansos pagados: qué se hace con ese importe" },
+  ind_justificada: { defecto: "actividades", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Ausencias justificadas que se pagan: qué se hace con ese importe" },
+  ind_espera: { defecto: "actividades", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Esperas por instrucciones: qué se hace con ese importe" },
+  ind_traslado: { defecto: "actividades", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Traslados del personal: qué se hace con ese importe" },
+  ind_mantenimiento: { defecto: "actividades", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Mantenimiento o limpieza general: qué se hace con ese importe" },
+  ind_inactividad: { defecto: "pendiente", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Inactividad confirmada: qué se hace con ese importe" },
+  ind_otra: { defecto: "pendiente", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Tiempo pagado por otra causa: qué se hace con ese importe" },
+  ind_encargado: { defecto: "actividades", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Días de un encargado sin actividad registrada: qué se hace con ese importe" },
+  ind_prestaciones: { defecto: "actividades", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Prestaciones (aguinaldo, vacaciones y prima): qué se hace con ese importe" },
+  prest_aguinaldo_dias: { defecto: 15, minimo: 15, maximo: 120, nombre: "Prestaciones · días de aguinaldo por año (la ley pide 15 como mínimo)" },
+  prest_prima_pct: { defecto: 25, minimo: 25, maximo: 100, nombre: "Prestaciones · prima vacacional, en % (la ley pide 25 como mínimo)" },
+  prest_vac_extra: { defecto: 0, minimo: 0, maximo: 30, nombre: "Prestaciones · días de vacaciones adicionales a los de la ley" },
   horas_jornada: { defecto: 8, minimo: 4, maximo: 12, nombre: "Horas del horario habitual (de ahí en adelante son horas adicionales)" },
 };
 export function ajusteVigente(eventos, clave) {

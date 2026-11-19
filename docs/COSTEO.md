@@ -93,17 +93,23 @@ cargado a parcelas y lo que queda fuera siempre suman lo mismo.
 
 Reglas que dio Luis y cómo quedaron: permiso o descanso autorizado se paga; falta sin justificar no se paga y se puede justificar después con historial; salir antes no descuenta nada solo (lo decide un administrador, con motivo); pago semanal con calendario de asistencia por persona; a la cuadrilla se le entrega al responsable sin dar por pagado a cada integrante; temporales independientes con pago directo; horas adicionales registradas, sin tratamiento automático; recibos internos con versiones que no sustituyen un CFDI.
 
-## Siguiente entrega: prestaciones y centros de costo
+## Personal que no es de una parcela, prestaciones y cierre (entregado el 19 nov)
 
-1. **A dónde se cargan los días pagados sin trabajar** (permisos, descansos) y el tiempo "por aclarar": hoy no están en ninguna parcela. Propuesta: una fuente de costo indirecto "Personal" con centros de costo (administración, taller, general), usando la misma estructura de costo directo y costo completo.
-2. **Prestaciones como provisión**: aguinaldo, vacaciones y prima vacacional se van acumulando por semana trabajada; al pagarse no vuelven a ser costo.
-3. **Cierre de semana y de mes**: congelar una copia de lo pagado y de los reportes, para que "lo original" no dependa de reconstruirlo.
+Decidido por Luis y ya construido:
 
-**Lo que necesito que decidas**
+| Tema | Cómo quedó | Dónde |
+|---|---|---|
+| Días pagados sin trabajar | Costo indirecto de personal, con su causa. Regla por concepto (`ind_permiso`, `ind_descanso`, `ind_justificada`, `ind_espera`, `ind_traslado`, `ind_mantenimiento`, `ind_inactividad`, `ind_otra`, `ind_encargado`): repartir según el costo de las actividades de ESA persona en el mes · dejar pendiente · no es de producción. Sin datos → pendiente. Lo «por aclarar» nunca se reparte solo. | `src/personal.js` |
+| Prestaciones | Se generan día con día desde la fecha de ingreso (no se capturan). Separado: generado (provisión), determinado, pagado, ajuste, y lo que fue al costo. Determinar sólo agrega la diferencia; pagar no es costo. Mínimos de ley (15 días, 12 días + 2 por año…, 25 %), mejorables por rancho (`prest_*`) y por persona (ficha). La base salarial puede ser distinta por prestación. | `src/prestaciones.js` |
+| Vacaciones disfrutadas | Ausencia de clase `vacaciones`: se paga en su semana y baja sus días; NO es costo nuevo. | `src/pagos.js`, `src/personal.js` |
+| Encargados | Asistencia por calendario en periodos (`calendario: [{desde, hasta}]`), ausencias, y checador opcional. Su día sin actividad registrada es costo de personal (`ind_encargado`), no una parcela inventada. | `src/pagos.js` |
+| Cierre semanal | `cierre_semana` (foto, con versión), `reapertura_semana` (motivo), `confirmacion_pagos` (aparte). Cerrar no congela los hechos: lo posterior se enseña como diferencia. | `src/cierres.js` |
 
-| Tema | Pregunta |
-|---|---|
-| Días pagados sin trabajar | ¿Se reparten entre las parcelas donde esa persona trabajó esa semana, o van a un centro de costo general? |
-| Prestaciones | ¿Cuántos días de aguinaldo y de vacaciones usan como base? ¿Se provisionan para todos los de planta desde su fecha de ingreso? |
-| Encargados | ¿Deben checar como los demás, o se les sigue pagando por semana completa sin checador? |
-| Cierre | ¿Quién cierra la semana de pagos, y se puede reabrir? |
+Valores que escogí yo y Luis puede cambiar en «Pagos al personal»: todos los conceptos se reparten por actividades salvo inactividad confirmada y «otra causa» (pendientes); prestaciones se reparten por actividades; aguinaldo 15 días, prima 25 %, cero días extra de vacaciones.
+
+## Siguiente entrega
+
+1. **Cierre de mes**: foto de los reportes de costo, igual que la semana.
+2. **Que la base vigile** quién cierra, determina y paga (hoy lo vigila la app).
+3. **Préstamos como eventos** (abonos sin pisarse entre aparatos).
+4. **Bajas**: partes proporcionales al terminar la relación de trabajo.
