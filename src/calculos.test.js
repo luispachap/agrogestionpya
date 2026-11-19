@@ -19,7 +19,7 @@ import {
   fechaLocal, mesLocal, sumarDias, mesAnterior, diasEntre,
   saldoCredito, diasParaVencer, cubetaVencimiento,
   estaCancelado, vivos, marcarCancelado, ganaAlSincronizar,
-  formatearTelefonoMX, totalCosecha, calcularCostoManoObra, distKm,
+  formatearTelefonoMX, totalCosecha, calcularCostoManoObra, sellarSueldoDelDia, distKm,
 } from "./calculos.js";
 
 /* ════════════ LA REMISIÓN QUE SE LE ENTREGA AL CLIENTE ════════════ */
@@ -285,6 +285,49 @@ test("las_horas_de_bodega_se_cargan_al_cultivo_no_a_una_parcela", () => {
   const acts = [{ id: "a1", fecha: "2026-09-08", esBodega: true, cultivoBodega: "Ajo", horas: 8, trabajadorId: "t1" }];
   const trab = [{ id: "t1", nombre: "Juan", sueldo_dia: 400 }];
   assert.equal(calcularCostoManoObra(acts, trab).costoPorParcela["bodega:Ajo"], 400);
+});
+
+/* ════════════ EL COSTO PASADO NO SE MUEVE ════════════ */
+
+test("subirle_el_sueldo_a_alguien_no_reescribe_lo_que_costaron_los_meses_pasados", () => {
+  const catalogo = [{ id: "t1", nombre: "PRUEBA UNO", sueldo_dia: 400 }];
+  const act = sellarSueldoDelDia({ id: "a1", fecha: "2026-03-10", parcelaId: "R01", horas: 8, trabajadorId: "t1" }, catalogo);
+  assert.equal(calcularCostoManoObra([act], catalogo).costoPorParcela.R01, 400);
+  // En agosto se le sube a $500. Marzo sigue costando $400.
+  const despues = [{ id: "t1", nombre: "PRUEBA UNO", sueldo_dia: 500 }];
+  assert.equal(calcularCostoManoObra([act], despues).costoPorParcela.R01, 400);
+  // Y lo que se capture desde hoy sí va con el sueldo nuevo.
+  const hoy = sellarSueldoDelDia({ id: "a2", fecha: "2026-08-10", parcelaId: "R01", horas: 8, trabajadorId: "t1" }, despues);
+  assert.equal(calcularCostoManoObra([act, hoy], despues).costoPorParcela.R01, 900);
+});
+
+test("dar_de_baja_a_un_trabajador_no_borra_lo_que_ya_costo", () => {
+  const catalogo = [{ id: "t1", nombre: "PRUEBA UNO", sueldo_dia: 400 }];
+  const act = sellarSueldoDelDia({ id: "a1", fecha: "2026-03-10", parcelaId: "R01", horas: 8, trabajadorId: "t1" }, catalogo);
+  const r = calcularCostoManoObra([act], []); // ya no está en el catálogo
+  assert.equal(r.costoPorParcela.R01, 400);
+  assert.equal(r.desglosePorParcela.R01[0].trabajadorNombre, "PRUEBA UNO");
+  assert.deepEqual(r.sinSueldo, []);
+});
+
+test("un_dia_viejo_de_alguien_que_ya_no_esta_no_desaparece_callado_se_avisa", () => {
+  // Registro anterior a la foto del sueldo, y la persona ya fue borrada.
+  const viejo = { id: "a1", fecha: "2025-11-03", parcelaId: "R01", horas: 8, trabajadorId: "t9" };
+  const r = calcularCostoManoObra([viejo], []);
+  assert.deepEqual(r.costoPorParcela, {}); // no se inventa un costo...
+  assert.deepEqual(r.sinSueldo, [{ trabajadorId: "t9", fecha: "2025-11-03", horas: 8, actividades: ["a1"] }]); // ...pero se dice
+});
+
+test("lo_que_captura_una_cuadrilla_no_sale_como_sueldo_faltante", () => {
+  const act = { id: "a1", fecha: "2026-03-10", parcelaId: "R01", horas: 8, registradoPor: { id: "cq1", tipo: "cuadrilla" } };
+  assert.deepEqual(calcularCostoManoObra([act], []).sinSueldo, []);
+});
+
+test("la_foto_del_sueldo_no_se_pisa_ni_se_inventa", () => {
+  const cat = [{ id: "t1", nombre: "PRUEBA UNO", sueldo_dia: 400 }];
+  assert.equal(sellarSueldoDelDia({ trabajadorId: "t1", sueldoDia: 350 }, cat).sueldoDia, 350);
+  assert.equal(sellarSueldoDelDia({ trabajadorId: "nadie" }, cat).sueldoDia, undefined);
+  assert.equal(sellarSueldoDelDia({ registradoPor: { id: "t1" } }, cat).sueldoDia, 400);
 });
 
 /* ════════════ COSECHA, TELÉFONO Y DISTANCIA ════════════ */

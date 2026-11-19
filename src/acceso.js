@@ -74,3 +74,20 @@ export function planDeRecarga({ tokenNube, tokenLocal, pendientes, fallidas }) {
   if (sinSubir > 0) return { accion: "posponer", sinSubir };
   return { accion: "limpiar", claves: ["agro_v7"] };
 }
+
+// ── La cuenta manda la pantalla ─────────────────────────────────────────────
+// En la base, Luis y Migue son "superadmin": cada uno con su cuenta y con las
+// mismas facultades. En las pantallas ese rol abre lo mismo que abría "admin".
+// Un rol que la app no conoce NO entra como algo parecido: no entra.
+const ROLES_DE_CUENTA = ["superadmin", "admin", "dueno", "finanzas", "encargado", "agronomo"];
+export function sesionDeCuenta(perfil) {
+  if (!perfil || !perfil.id || !ROLES_DE_CUENTA.includes(perfil.rol)) return null;
+  const superadmin = perfil.rol === "superadmin";
+  return {
+    role: superadmin ? "admin" : perfil.rol,
+    nombre: perfil.nombre || "",
+    id: perfil.id,
+    cuenta: true,
+    superadmin,
+  };
+}

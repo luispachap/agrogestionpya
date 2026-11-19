@@ -64,3 +64,24 @@ test("C-6 · misma orden ya aplicada, o sin orden: no hace nada", () => {
   assert.equal(planDeRecarga({ tokenNube: "a", tokenLocal: "a", pendientes: [] }).accion, "nada");
   assert.equal(planDeRecarga({ tokenNube: undefined, tokenLocal: "a" }).accion, "nada");
 });
+
+// ── Superadministradores: cada quien su cuenta, mismas facultades ───────────
+import { sesionDeCuenta } from "./acceso.js";
+test("el_superadministrador_abre_las_pantallas_de_administrador_con_su_propio_nombre", () => {
+  const a = sesionDeCuenta({ id: "u1", nombre: "Prueba Uno", rol: "superadmin" });
+  const b = sesionDeCuenta({ id: "u2", nombre: "Prueba Dos", rol: "superadmin" });
+  assert.equal(a.role, "admin"); assert.equal(b.role, "admin");
+  assert.equal(a.superadmin, true); assert.equal(b.superadmin, true);
+  assert.notEqual(a.id, b.id); // dos identidades, no una contraseña compartida
+});
+test("un_rol_que_la_app_no_conoce_no_entra_como_nada", () => {
+  assert.equal(sesionDeCuenta({ id: "u1", nombre: "x", rol: "jefe" }), null);
+  assert.equal(sesionDeCuenta({ id: "u1", nombre: "x" }), null);
+  assert.equal(sesionDeCuenta(null), null);
+});
+test("los_demas_roles_entran_como_lo_que_son_y_no_como_superadministrador", () => {
+  for (const rol of ["dueno", "finanzas", "encargado", "agronomo"]) {
+    const s = sesionDeCuenta({ id: "u", nombre: "x", rol });
+    assert.equal(s.role, rol); assert.equal(s.superadmin, false);
+  }
+});

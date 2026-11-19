@@ -416,6 +416,61 @@ export function criteriosCoincidencia(a, b, { toleranciaDias = 5 } = {}) {
   };
 }
 
+/* ════════════ EL MISMO PAPEL DOS VECES ════════════ */
+
+// El ticket que Migue fotografió el lunes y el encargado volvió a fotografiar
+// el jueves son DOS lecturas, y cada una se podía aplicar: el gasto entraba
+// doble. Esto busca lo parecido y lo dice con el criterio en palabras.
+//
+// No decide: dos compras del mismo importe al mismo proveedor el mismo día
+// existen. Lo único que no admite duda es el folio fiscal —es único por ley—,
+// y por eso va marcado aparte como `seguro`.
+export function papelesParecidos(campos, { lecturas = [], egresos = [], exceptoLectura = null } = {}) {
+  const c = campos || {};
+  const uuid = c.uuid ? String(c.uuid).toUpperCase() : null;
+  // "1,240.50" escrito a mano y 1240.5 leído del XML son el mismo importe.
+  const cent = (v) => aCentavos(typeof v === "string" ? aNumero(v) : v);
+  const total = cent(c.total ?? c.monto);
+  const emisor = normalizar(c.emisor ?? c.proveedor);
+  const fecha = c.fecha || null;
+  const mismo = (o) => {
+    const ou = o.uuid ? String(o.uuid).toUpperCase() : null;
+    if (uuid && ou && uuid === ou) return { seguro: true, criterio: "mismo folio fiscal" };
+    // Si los dos traen folio y son distintos, son dos facturas: no se parecen.
+    if (uuid && ou) return null;
+    const ot = cent(o.total ?? o.monto), oe = normalizar(o.emisor ?? o.proveedor);
+    if (total && emisor && fecha && ot === total && oe === emisor && o.fecha === fecha) {
+      return { seguro: false, criterio: "mismo proveedor + importe exacto + mismo día" };
+    }
+    return null;
+  };
+  const hallados = [];
+  for (const l of lecturas || []) {
+    if (!l || l.id === exceptoLectura) continue;
+    const r = mismo({ ...(l.campos || {}) });
+    if (r) hallados.push({ ...r, donde: "papel", id: l.id, aplicado: !!(l.aplicado && l.aplicado.id), fecha: (l.campos || {}).fecha || l.fecha || null });
+  }
+  for (const e of egresos || []) {
+    // El egreso que salió de ESTE papel no es un duplicado: es él mismo.
+    if (!e || e.cancelado || (exceptoLectura && e.origenLectura === exceptoLectura)) continue;
+    const r = mismo(e);
+    if (r) hallados.push({ ...r, donde: "egreso", id: e.id, aplicado: true, fecha: e.fecha || null });
+  }
+  return hallados;
+}
+
+// El aviso, en palabras. Vacío si no hay nada parecido.
+export function avisoDeParecidos(hallados) {
+  if (!hallados || hallados.length === 0) return "";
+  const seguro = hallados.find(h => h.seguro);
+  const egresos = hallados.filter(h => h.donde === "egreso").length;
+  const papeles = hallados.filter(h => h.donde === "papel").length;
+  const que = [egresos ? `${egresos} egreso(s) ya registrado(s)` : "", papeles ? `${papeles} papel(es) en el buzón` : ""].filter(Boolean).join(" y ");
+  return seguro
+    ? `OJO: es LA MISMA FACTURA. Ya hay ${que} con el mismo folio fiscal. Registrarla otra vez duplica el gasto.`
+    : `OJO: ya hay ${que} que se parece(n): ${hallados[0].criterio}. Puede ser el mismo ticket fotografiado dos veces, o dos compras iguales — eso lo sabes tú.`;
+}
+
 /* ════════════ LA FOTO ════════════ */
 
 // Avisa de la foto borrosa ANTES de gastar en leerla, pero JAMÁS bloquea:

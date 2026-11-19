@@ -536,3 +536,56 @@ test("lo_que_bloquea_y_lo_que_no_se_sabe_van_por_separado", () => {
   assert.equal(v.sinDato.length, 1);
   assert.notEqual(v.noEntrar[0].parcelaId, v.sinDato[0].parcelaId);
 });
+
+
+/* ════════════ EL MISMO PAPEL DOS VECES ════════════ */
+import { papelesParecidos, avisoDeParecidos } from "./lectura.js";
+
+test("el_mismo_ticket_fotografiado_dos_veces_se_avisa_antes_de_duplicar_el_gasto", () => {
+  const ticket = { emisor: "Agroquímicos de Prueba", fecha: "2026-08-12", total: "1,240.50" };
+  const yaEnBuzon = [{ id: "l1", campos: { emisor: "AGROQUIMICOS DE PRUEBA", fecha: "2026-08-12", total: 1240.5 }, aplicado: { id: "e1" } }];
+  const egresos = [{ id: "e1", origenLectura: "l1", proveedor: "Agroquímicos de Prueba", fecha: "2026-08-12", monto: 1240.5 }];
+  const h = papelesParecidos(ticket, { lecturas: yaEnBuzon, egresos, exceptoLectura: "l2" });
+  assert.equal(h.length, 2);
+  assert.equal(h[0].seguro, false);
+  assert.match(avisoDeParecidos(h), /mismo proveedor \+ importe exacto \+ mismo día/);
+  assert.match(avisoDeParecidos(h), /eso lo sabes tú/); // informa, no decide
+});
+
+test("el_mismo_folio_fiscal_es_la_misma_factura_sin_lugar_a_dudas", () => {
+  const u = "3F2504E0-4F89-11D3-9A0C-0305E82C3301";
+  const h = papelesParecidos({ uuid: u.toLowerCase(), emisor: "X", fecha: "2026-08-01", total: 10 },
+    { egresos: [{ id: "e9", uuid: u, proveedor: "Otro nombre", fecha: "2026-07-30", monto: 99 }] });
+  assert.equal(h.length, 1); assert.equal(h[0].seguro, true);
+  assert.match(avisoDeParecidos(h), /LA MISMA FACTURA/);
+});
+
+test("un_papel_no_es_duplicado_de_si_mismo_ni_de_su_propio_egreso", () => {
+  const c = { emisor: "Prueba", fecha: "2026-08-12", total: 500 };
+  const h = papelesParecidos(c, {
+    lecturas: [{ id: "l1", campos: c }],
+    egresos: [{ id: "e1", origenLectura: "l1", proveedor: "Prueba", fecha: "2026-08-12", monto: 500 }],
+    exceptoLectura: "l1",
+  });
+  assert.deepEqual(h, []);
+  assert.equal(avisoDeParecidos(h), "");
+});
+
+test("lo_que_no_se_parece_no_alarma", () => {
+  const base = { emisor: "Prueba", fecha: "2026-08-12", total: 500 };
+  const otros = [
+    { id: "a", campos: { ...base, total: 501 } },            // otro importe
+    { id: "b", campos: { ...base, fecha: "2026-08-13" } },   // otro día
+    { id: "c", campos: { ...base, emisor: "Otro" } },        // otro proveedor
+    { id: "d", campos: { ...base, uuid: "AAAAAAAA-0000-0000-0000-000000000001" } }, // sin folio de este lado: sí se parece
+  ];
+  const h = papelesParecidos(base, { lecturas: otros });
+  assert.deepEqual(h.map(x => x.id), ["d"]);
+  // dos facturas con folios distintos son dos facturas, aunque todo lo demás coincida
+  const dos = papelesParecidos({ ...base, uuid: "AAAAAAAA-0000-0000-0000-000000000002" }, { lecturas: otros });
+  assert.deepEqual(dos, []);
+  // un egreso cancelado no cuenta
+  assert.deepEqual(papelesParecidos(base, { egresos: [{ id: "e", proveedor: "Prueba", fecha: "2026-08-12", monto: 500, cancelado: { motivo: "x" } }] }), []);
+  // sin datos no se inventa parecido
+  assert.deepEqual(papelesParecidos({}, { lecturas: [{ id: "z", campos: {} }] }), []);
+});

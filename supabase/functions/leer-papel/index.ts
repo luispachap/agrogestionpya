@@ -92,9 +92,38 @@ REGLAS QUE NO SE ROMPEN:
 
 Responde solamente con el JSON del formato indicado.`;
 
+async function tienePerfil(autorizacion: string | null): Promise<{ ok: boolean; estado: number; dice: string }> {
+  const base = Deno.env.get("SUPABASE_URL");
+  const publica = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!autorizacion || !base || !publica) {
+    return { ok: false, estado: 401, dice: "Hay que iniciar sesión con tu cuenta para leer papeles con IA. Se puede capturar a mano." };
+  }
+  try {
+    const r = await fetch(`${base}/rest/v1/rpc/tiene_perfil`, {
+      method: "POST",
+      headers: { Authorization: autorizacion, apikey: publica, "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (r.ok && (await r.json()) === true) return { ok: true, estado: 200, dice: "" };
+    return { ok: false, estado: 403, dice: "Tu cuenta no tiene permiso para leer papeles con IA. Se puede capturar a mano." };
+  } catch {
+    // Si no se pudo comprobar, NO se deja pasar.
+    return { ok: false, estado: 503, dice: "No se pudo comprobar tu cuenta. Intenta de nuevo o captura a mano." };
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return responder({ error: "Usa POST" }, 405);
+
+  // ¿Quién llama? Sin esto, cualquiera con la llave pública de la app (que
+  // viene dentro de la app) podía mandar fotos aquí y gastar la lectura con IA.
+  // Sólo pasa quien tiene sesión Y perfil en el rancho; se le pregunta a la
+  // propia base con la sesión de quien llama.
+  const quien = await tienePerfil(req.headers.get("Authorization"));
+  if (!quien.ok) {
+    return responder({ error: "sin_permiso", dice: quien.dice }, quien.estado);
+  }
 
   const llave = Deno.env.get("ANTHROPIC_API_KEY");
   if (!llave) {

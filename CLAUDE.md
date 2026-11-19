@@ -134,7 +134,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **89 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **100 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.
@@ -469,6 +469,18 @@ y un gasto duplicado se descubre tarde y mal.
 - Lo que sigue después está en `ARRANQUE-CLAUDE.md` (sección 9) y en
   `LO-QUE-FALTA-CONSTRUIR.md`: titulares y bolsas, lectura de estados de cuenta,
   cuenta corriente entre socios, el ganado.
+
+## Permisos: la pantalla no es la puerta
+
+Lo que una pantalla esconde no está protegido: cualquiera con la llave pública
+puede llamar directo a la base. Los permisos de verdad viven en
+`supabase/24-permisos-por-rol.sql` (tabla `permisos_rol` + `puede()`), y se
+prueban atacando una base aislada: `npm run test:base`. Reglas que no se rompen:
+nadie se da perfil ni se asciende solo; el dinero no se borra y la bitácora no
+se toca **ni siendo superadministrador**; nunca queda el rancho sin
+superadministrador. Si agregas una tabla, agrégale sus renglones en
+`permisos_rol` — lo que no está ahí, está negado. `pruebas/recorrido_navegador.py`
+abre todas las pantallas de todos los roles (corre contra `npx vite`).
 
 ## Secretos
 

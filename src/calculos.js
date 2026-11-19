@@ -281,19 +281,37 @@ export function calcularCostoManoObra(actividades, trabajadores) {
     if (rol === "admin" || rol === "dueno" || rol === "finanzas") return;
     const k = `${trabajadorId}|${a.fecha}`;
     if (!porTrabajadorDia[k]) porTrabajadorDia[k] = [];
-    porTrabajadorDia[k].push({ parcelaId: claveParcela, horas, actividadId: a.id });
+    porTrabajadorDia[k].push({
+      parcelaId: claveParcela, horas, actividadId: a.id,
+      sueldoDia: parseFloat(a.sueldoDia) || 0, trabajadorNombre: a.trabajadorNombre || "",
+      // ¿Es de alguien de planta? (una cuadrilla o un encargado también capturan,
+      // pero su costo no es sueldo por día y no debe salir como "faltante").
+      dePlanta: !!a.trabajadorId || rol === "trabajador" || rol === "planta",
+    });
   });
 
   // Calcular costo por parcela
   const costoPorParcela = {};   // parcelaId -> costoTotal
   const desglosePorParcela = {}; // parcelaId -> [{trabajadorId, fecha, horas, costo}]
+  const sinSueldo = [];          // días trabajados que no se pudieron costear
 
   Object.entries(porTrabajadorDia).forEach(([k, acts]) => {
     const [trabajadorId, fecha] = k.split("|");
-    const trabajador = (trabajadores || []).find(t => t.id === trabajadorId);
-    if (!trabajador) return;
-    const sueldoDiario = parseFloat(trabajador.sueldo_dia) || 0;
-    if (sueldoDiario <= 0) return;
+    const enCatalogo = (trabajadores || []).find(t => t.id === trabajadorId);
+    // El sueldo que vale es el que tenía ESE DÍA (la foto que se guardó al
+    // capturar). Sólo si el registro es viejo y no trae foto se usa el del
+    // catálogo de hoy. Así un aumento no reescribe los meses pasados, y dar de
+    // baja a alguien no borra lo que ya costó.
+    const foto = acts.find(a => a.sueldoDia > 0);
+    const sueldoDiario = foto ? foto.sueldoDia : (parseFloat(enCatalogo && enCatalogo.sueldo_dia) || 0);
+    const trabajador = enCatalogo || { nombre: (acts.find(a => a.trabajadorNombre) || {}).trabajadorNombre || "(ya no está en el catálogo)" };
+    if (sueldoDiario <= 0) {
+      // Un dato que falta no es un cero: se dice cuáles días quedaron sin costo.
+      // (Quien sí está en el catálogo pero sin sueldo —un encargado que captura,
+      // por ejemplo— no entra aquí: ése nunca tuvo costo por día.)
+      if (!enCatalogo && acts.some(a => a.dePlanta)) sinSueldo.push({ trabajadorId, fecha, horas: acts.reduce((t, a) => t + a.horas, 0), actividades: acts.map(a => a.actividadId) });
+      return;
+    }
     const horasTotalesDelDia = acts.reduce((s, a) => s + a.horas, 0);
     if (horasTotalesDelDia <= 0) return;
     const costoPorHora = sueldoDiario / horasTotalesDelDia;
@@ -310,5 +328,17 @@ export function calcularCostoManoObra(actividades, trabajadores) {
     });
   });
 
-  return { costoPorParcela, desglosePorParcela };
+  return { costoPorParcela, desglosePorParcela, sinSueldo };
+}
+
+// La foto del sueldo: al capturar una actividad se le pega el sueldo diario que
+// la persona tiene HOY y su nombre. No cambia cuánto se le paga a nadie; sólo
+// deja escrito con qué sueldo se costeó ese día. Si ya trae foto, no se toca.
+export function sellarSueldoDelDia(actividad, trabajadores) {
+  if (!actividad || parseFloat(actividad.sueldoDia) > 0) return actividad;
+  const id = actividad.trabajadorId || (actividad.registradoPor && actividad.registradoPor.id);
+  const t = id && (trabajadores || []).find(x => x.id === id);
+  const sueldo = parseFloat(t && t.sueldo_dia) || 0;
+  if (!t || sueldo <= 0) return actividad;
+  return { ...actividad, sueldoDia: sueldo, trabajadorNombre: actividad.trabajadorNombre || t.nombre || "" };
 }

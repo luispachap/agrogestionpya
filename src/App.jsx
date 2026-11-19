@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component } from "react";
 import { supabase, supabaseListo } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
-import { verificarPinDireccion, sesionRestaurable, planDeRecarga } from "./acceso.js";
+import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta } from "./acceso.js";
 import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion } from "./dataApi";
 import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, generarSQLCuentas, exportarPolizas, HOJAS } from "./excelLoader";
 // El estado de cuenta del banco: se valida solo antes de entrar.
@@ -74,6 +74,7 @@ import {
 import {
   tasaSobrevivencia, proponerAplicacion, yaSeAplico, renglonesAplicables,
   emparejarConInventario, costoUnitarioDe, costoPromedio, ventanasDeSeguridad,
+  papelesParecidos, avisoDeParecidos,
 } from "./lectura.js";
 import { revisarHorometro, compararConsumo, consumoPorHora } from "./maquinaria.js";
 
@@ -5483,7 +5484,11 @@ function BuzonPapeles({ data, add, upd, setInv, session, onClose }) {
     if (prop.seccion === "egresos") {
       const rs = renglonesAplicables(lec);
       const detalle = rs.sirven.map(r => `· ${r.cantidad} ${r.unidad || ""} ${r.concepto}`).join("\n");
+      // ¿Ya entró este mismo papel? Se avisa con el criterio en palabras y
+      // se espera el sí: dos compras iguales el mismo día también existen.
+      const parecidos = avisoDeParecidos(papelesParecidos(lec.campos, { lecturas: data.lecturas, egresos: data.egresos, exceptoLectura: lec.id }));
       const aviso = [
+        parecidos ? parecidos + "\n" : "",
         `Se va a registrar un EGRESO de ${fmt(b.monto)} del ${b.fecha}, a nombre de ${b.proveedor || "sin proveedor"}.`,
         b.tieneComprobanteFiscal ? "Tiene folio fiscal." : "NO trae folio fiscal: queda registrado como gasto sin comprobante fiscal, que es distinto de no registrarlo.",
         detalle ? `\nLo que trae el papel:\n${detalle}` : "",
@@ -5908,8 +5913,8 @@ function AppInner() {
         if (!ses || !activo) return;
         const { data: perfil } = await supabase.from("perfiles")
           .select("id, nombre, rol").eq("id", ses.user.id).maybeSingle();
-        if (perfil && activo) {
-          setSession({ role: perfil.rol, nombre: perfil.nombre, id: perfil.id, cuenta: true });
+        if (sesionDeCuenta(perfil) && activo) {
+          setSession(sesionDeCuenta(perfil));
         }
       } catch { /* sin conexión: el usuario puede seguir usando PIN */ }
     })();
@@ -6010,6 +6015,9 @@ function AppInner() {
   }, [session?.id, session?.cuenta]);
 
   const setPage = useCallback(p => { setPageRaw(p); setNavParam(null); }, []);
+  // Sólo al desarrollar: deja que la prueba de recorrido abra cada pantalla.
+  // Vite quita este bloque entero de la versión que se publica.
+  useEffect(() => { if (import.meta.env.DEV) window.__agroIr = setPage; }, [setPage]);
 
   // Botón "atrás" del navegador/teléfono: retrocede dentro de la app en vez de salir.
   // Cuando se entra a una página que no es "home", se agrega una entrada al historial;
@@ -6080,7 +6088,12 @@ function AppInner() {
     replicarANube("upd", sec, it);
   }, [setData, replicarANube]);
 
+  // El catálogo de trabajadores al momento, para pegarle a cada actividad
+  // nueva la foto del sueldo con que se costea ese día.
+  const trabajadoresRef = useRef([]);
+  trabajadoresRef.current = data.trabajadores || [];
   const add = useCallback((sec, item) => {
+    if (sec === "actividades") item = sellarSueldoDelDia(item, trabajadoresRef.current);
     const ni = marcarTocado({ ...item, id: item.id || `${sec[0]}${Date.now()}${Math.floor(Math.random() * 1000)}` });
     setData(d => ({ ...d, [sec]: [...(Array.isArray(d[sec]) ? d[sec] : []), ni] }));
     replicarANube("add", sec, ni);
@@ -6577,12 +6590,12 @@ function LoginScreen({ data, add, upd, onLogin }) {
         // Buscar el perfil para saber el rol real
         const { data: perfil, error: errP } = await supabase
           .from("perfiles").select("id, nombre, rol").eq("id", auth.user.id).maybeSingle();
-        if (errP || !perfil) {
+        if (errP || !sesionDeCuenta(perfil)) {
           setError("Tu cuenta entró pero no tiene un perfil asignado. Avisa al administrador.");
           await supabase.auth.signOut();
           setCargando(false); return;
         }
-        onLogin({ role: perfil.rol, nombre: perfil.nombre, id: perfil.id, cuenta: true });
+        onLogin(sesionDeCuenta(perfil));
         setCargando(false);
         return;
       } catch (e) {
@@ -7502,7 +7515,7 @@ function AdminEquipo({ data, add, upd, del, onBack }) {
                     if (!t.cabo && !window.confirm(`¿Nombrar cabo a ${t.nombre}? Desde su propio acceso podrá pasar lista y registrar los días de sus compañeros.`)) return;
                     upd("trabajadores", { ...t, cabo: !t.cabo });
                   }}><Ic e="📋" /></button>
-                  <button className="btn-ghost" style={{ padding: 2, fontSize: 13, color: "var(--red)" }} onClick={() => { if (window.confirm(`¿Borrar a ${t.nombre}?\n\nSus días ya registrados dejarán de contar en los costos y la nómina. Si sólo ya no trabaja aquí, mejor no lo borres.\n\nQueda anotado en la bitácora.`)) del("trabajadores", t.id); }}><Ic e="🗑" /></button>
+                  <button className="btn-ghost" aria-label={`Borrar a ${t.nombre}`} style={{ padding: 2, fontSize: 13, color: "var(--red)" }} onClick={() => { if (window.confirm(`¿Borrar a ${t.nombre}?\n\nSus días ya registrados dejarán de contar en los costos y la nómina. Si sólo ya no trabaja aquí, mejor no lo borres.\n\nQueda anotado en la bitácora.`)) del("trabajadores", t.id); }}><Ic e="🗑" /></button>
                 </div>
               </div>
             </div>
