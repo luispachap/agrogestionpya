@@ -243,21 +243,44 @@ Usuarios reales de la app:
 - **`src/bajas.js`**: terminar la relación de trabajo. `CAUSAS_DE_BAJA` dice
   si la causa da finiquito o liquidación; `proponerBaja` propone concepto por
   concepto con su cuenta y su fundamento y marca `aplica: si | revisar | no`
-  — **la app propone, una persona confirma** (`registrarBaja`, con quién
-  autoriza, permiso `determinar_prestaciones`). Lo ya generado de aguinaldo,
-  vacaciones y prima NO se vuelve a cargar: al costo sólo va la diferencia
-  (`cuentaDe(...).liquidacion`). Prima de antigüedad e indemnizaciones son
-  costo nuevo de ese día, fuente `bajas` (`fuenteBajas`, regla `ind_bajas`,
-  por defecto pendiente). `pago_baja` paga y no es costo. La persona queda
-  inactiva por CÁLCULO (`_porBaja`), no porque se escriba en su ficha. Lo de
-  sus semanas se paga en Pagos al personal, no aquí. La prima de antigüedad
-  necesita `salario_minimo_dia` en las reglas; sin él queda por revisar.
+  y `sugerido` (si entra de entrada) — **la app propone, una persona
+  confirma** (`registrarBaja`, con quién autoriza, permiso
+  `determinar_prestaciones`; guarda `bases`: con qué salarios se calculó).
+  **Cada cosa con su salario**: prima de antigüedad = salario por día, ni
+  menos que el mínimo ni más que el doble, con el mínimo DEL DÍA DE LA BAJA;
+  indemnizaciones = salario integrado (`salarioIntegrado`: cuota diaria +
+  parte de aguinaldo y prima vacacional; avisa que falta sumar otras
+  percepciones fijas, por eso siempre «por revisar»). **Los veinte días por
+  año NO entran de entrada en un despido** (sólo cuando el trabajador
+  rescinde, art. 52); en relación por temporada u obra no se propone cifra.
+  Lo ya generado de aguinaldo, vacaciones y prima NO se vuelve a cargar: al
+  costo sólo va la diferencia (`cuentaDe(...).liquidacion`). Prima de
+  antigüedad e indemnizaciones son **gasto laboral general** (fuente `bajas`,
+  regla `ind_bajas`, por defecto `general`): no van a parcelas ni quedan
+  pendientes; salen en los gastos generales del cierre de mes con su persona,
+  causa y evento. `pago_baja` paga y no es costo. La persona queda inactiva
+  por CÁLCULO (`_porBaja`). Lo de sus semanas se paga en Pagos al personal.
+- **`src/salariosMinimos.js`**: el catálogo oficial, año por año, general y
+  Zona Libre de la Frontera Norte (`CATALOGO_OFICIAL`, cada renglón con su
+  publicación en el DOF). `salarioMinimoEn(fecha, zona, eventos)` da el
+  vigente EN ESA FECHA; **si el año no está en el catálogo devuelve
+  `monto: null` — nunca el del año pasado**. Se agrega o corrige con el
+  evento `salario_minimo` (sensible, permiso `cambiar_reglas`, hoja 40), que
+  pide la publicación oficial; lo anterior queda en `anteriores`. La zona del
+  rancho es la regla `zona_salario_minimo` (general). **Cada diciembre hay
+  que capturar el del año siguiente** (pantalla Pagos al personal →
+  Prestaciones → «Salarios mínimos oficiales»). No metas cifras a
+  `CATALOGO_OFICIAL` sin haberlas leído en la publicación oficial.
 - **Gastos generales en el cierre de mes** (`costoDelMes().generales`): los
   egresos sin parcela ni vehículo, por categoría. Van APARTE, no se reparten
   a parcelas (falta una política, y es decisión de Luis). Las compras de
   insumos para el almacén tampoco son gasto del mes (`paraAlmacen`): su costo
   nace al consumirse. `rancho` = completo + pendiente + no producción +
-  generales, sin contar nada dos veces.
+  generales, sin contar nada dos veces. El cierre enseña tres bloques que no
+  se mezclan: 1) directos de producción, 2) indirectos atribuibles a
+  producción (repartidos + pendientes), 3) gastos generales de operación y
+  administración (aquí entra lo que una fuente marca `general`, como las
+  bajas). **Un gasto general nunca sube el costo de una parcela.**
 - Reglas ya decididas por Luis (19 nov): checar salida TERMINA la asignación
   (al volver queda sin asignar; se ofrece «continuar»); el tiempo sin asignar es
   «por aclarar» y nunca se distribuye solo; las horas adicionales se registran y
@@ -382,7 +405,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **127 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **128 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

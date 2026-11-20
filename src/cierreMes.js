@@ -42,10 +42,13 @@ export function costoDelMes({ mes, parcelas = [], actividades = [], egresos = []
   const sueltos = egresos.filter(e => enMes(e.fecha) && !e.parcelaId && !e.vehiculoId);
   const porCat = new Map();
   for (const e of sueltos.filter(e => e.categoria !== "insumos")) { const k = e.categoria || "otro"; const x = porCat.get(k) || { categoria: k, monto: 0, n: 0 }; x.monto = sumarDinero(x.monto, Number(e.monto) || 0); x.n++; porCat.set(k, x); }
+  // También es gasto general lo que una fuente de indirectos clasificó así (hoy: prima de antigüedad e indemnizaciones de una baja).
+  const todoFuera = (indirectos?.noProduccion || []).flatMap(x => x.detalle || []).filter(p => enMes(p.fecha));
+  for (const p of todoFuera.filter(p => p.general)) { const k = p.categoria || "laboral"; const x = porCat.get(k) || { categoria: k, monto: 0, n: 0 }; x.monto = sumarDinero(x.monto, p.monto); x.n++; porCat.set(k, x); }
   const generales = { porCategoria: [...porCat.values()].sort((a, b) => b.monto - a.monto), total: sumarDinero([...porCat.values()].map(x => x.monto)) };
   const paraAlmacen = sumarDinero(sueltos.filter(e => e.categoria === "insumos").map(e => Number(e.monto) || 0));
   const pend = (indirectos?.pendientes || []).filter(p => enMes(p.fecha));
-  const fuera = (indirectos?.noProduccion || []).flatMap(x => x.detalle || []).filter(p => enMes(p.fecha));
+  const fuera = todoFuera.filter(p => !p.general);
   const k = { mes, renglones, directo: sumarDinero(renglones.map(r => r.directo)), indirecto: sumarDinero(renglones.map(r => r.indirecto)), completo: sumarDinero(renglones.map(r => r.completo)),
     pendiente: sumarDinero(pend.map(p => p.monto)), pendientes: pend.length, noProduccion: sumarDinero(fuera.map(p => p.monto)), generales, paraAlmacen };
   // Lo que costó mantener funcionando TODO el rancho ese mes. Cada peso está en un solo renglón.

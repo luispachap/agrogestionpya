@@ -40,6 +40,7 @@ import { estadoDeSemana, cerrarSemana, reabrirSemana, diferenciasDelCierre, conf
 import { pdfComoDataUrl } from "./pdfSimple.js";
 import { costoDelMes, cerrarMes, reabrirMes, estadoDeMes, ajustesPosteriores } from "./cierreMes.js";
 import { solicitarPrestamo, autorizarPrestamo, rechazarPrestamo, entregarPrestamo, prestamosDe, ESTADOS_DE_PRESTAMO } from "./prestamos.js";
+import { T_SALARIO_MINIMO, ZONAS as ZONAS_SM, catalogoDe as catalogoSM, salarioMinimoEn, capturarSalarioMinimo } from "./salariosMinimos.js";
 import { T_BAJA, T_PAGO_BAJA, CAUSAS_DE_BAJA, CONCEPTOS_DE_BAJA, NOMBRE_DE as NOMBRE_DE_BAJA, proponerBaja, registrarBaja, pagarBaja, bajasDe, pagosDeBaja, renglonesDeBajas } from "./bajas.js";
 import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, generarSQLCuentas, exportarPolizas, HOJAS } from "./excelLoader";
 // El estado de cuenta del banco: se valida solo antes de entrar.
@@ -2477,7 +2478,7 @@ function normalizeData(d) {
   const __evPrest = fix.eventos.filter(e => e.tipo === T_DETERMINADA || e.tipo === T_PAGO_PRESTACION || e.tipo === T_SALDO_INICIAL);
   // Bajas: cuando ya terminó la relación de trabajo. Deja de generar ese día, y de lo ya generado sólo va al costo la diferencia.
   const __evBaja = fix.eventos.filter(e => e.tipo === T_BAJA || e.tipo === T_PAGO_BAJA), __bajas = bajasDe(__evBaja);
-  const __reglasPrest = { aguinaldoDias: ajusteVigente(fix.eventos, "prest_aguinaldo_dias").valor, primaPct: ajusteVigente(fix.eventos, "prest_prima_pct").valor, vacExtra: ajusteVigente(fix.eventos, "prest_vac_extra").valor, diasPromedio: ajusteVigente(fix.eventos, "prest_dias_promedio").valor, salarioMinimo: ajusteVigente(fix.eventos, "salario_minimo_dia").valor };
+  const __reglasPrest = { aguinaldoDias: ajusteVigente(fix.eventos, "prest_aguinaldo_dias").valor, primaPct: ajusteVigente(fix.eventos, "prest_prima_pct").valor, vacExtra: ajusteVigente(fix.eventos, "prest_vac_extra").valor, diasPromedio: ajusteVigente(fix.eventos, "prest_dias_promedio").valor, zonaSM: ajusteVigente(fix.eventos, "zona_salario_minimo").valor };
   // Lo que ganó cada quien por día trabajado: de ahí sale la base de quien no tiene un sueldo fijo por día.
   const __rem = remuneracionesDe({ devengado: __moEv.devengado, actividades: __unaMo.actividades });
   const __vac = __aus.filter(e => e.datos.clase === "vacaciones");
@@ -7629,7 +7630,7 @@ let PERMISOS = null;
 const puedeOp = (op) => (!supabaseListo ? undefined : !!PERMISOS && (PERMISOS.rol === "superadmin" || (PERMISOS.operaciones || []).includes(op)));
 // ¿Se ofrece el botón? Con base: el permiso de la cuenta. Sin base (un aparato suelto): el perfil con que se entró.
 const seOfrece = (session, op) => { const p = puedeOp(op); return p === undefined ? session.role === "admin" : p; };
-const NOMBRE_DE_OPERACION = { cierre_semana: "Cierre de la semana", reapertura_semana: "Reapertura de la semana", confirmacion_pagos: "Confirmación de pagos", prestacion_determinada: "Prestación determinada", prestacion_saldo_inicial: "Saldo inicial de prestaciones",
+const NOMBRE_DE_OPERACION = { salario_minimo: "Salario mínimo oficial", cierre_semana: "Cierre de la semana", reapertura_semana: "Reapertura de la semana", confirmacion_pagos: "Confirmación de pagos", prestacion_determinada: "Prestación determinada", prestacion_saldo_inicial: "Saldo inicial de prestaciones",
   cierre_mes: "Cierre de mes", reapertura_mes: "Reapertura de mes", prestamo_autorizacion: "Autorización de un préstamo", prestamo_rechazo: "Rechazo de un préstamo", prestamo_entrega: "Entrega de un préstamo", baja_personal: "Baja de personal", pago_baja: "Pago de un finiquito o liquidación", pago_personal: "Pago", pago_prestacion: "Pago de una prestación", abono_prestamo: "Abono a un préstamo", recibo_personal: "Recibo", decision_jornada: "Decisión sobre cómo se paga un día", horas_reconocidas: "Horas reconocidas", ajuste: "Cambio de una regla" };
 // Lo capturado que todavía no cuenta: lo que no ha llegado a la base, y lo que la base no autorizó.
 function PorValidar({ data }) {
@@ -11052,7 +11053,7 @@ function CuadHistorial({ data, upd, session, onLogout }) {
   );
 }
 
-const NOMBRE_DE_GASTO = { servicios: "servicios", maquinaria: "renta de maquinaria", mano_obra: "mano de obra externa", transporte: "transporte", administrativo: "administrativo", financiero: "financiero", caja_chica: "caja chica", otro: "otros" };
+const NOMBRE_DE_GASTO = { laboral_bajas: "laborales por bajas (prima de antigüedad e indemnizaciones)", servicios: "servicios", maquinaria: "renta de maquinaria", mano_obra: "mano de obra externa", transporte: "transporte", administrativo: "administrativo", financiero: "financiero", caja_chica: "caja chica", otro: "otros" };
 // El cierre de mes: la foto de los costos. Lo que cambie después se ve como ajuste posterior; la foto no se toca.
 function CierreDeMes({ data, add, session }) {
   const hoy = today(), mesPasado = sumarDias(`${hoy.slice(0, 7)}-01`, -1).slice(0, 7);
@@ -11065,11 +11066,12 @@ function CierreDeMes({ data, add, session }) {
   const foto = ver ? s.cierres.find(c => c.id === ver) : null;
   const tabla = (rs, tot) => (<>
     {rs.map(r => <div key={r.parcelaId} className="mo-act"><span>{r.nombre}<div className="text-xs text-muted">directo {fmt(r.directo)} · indirecto {fmt(r.indirecto)}</div></span><span /><b>{fmt(r.completo)}</b></div>)}
-    <div className="mo-act" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}><span><b>Costo de producción (parcelas)</b><div className="text-xs text-muted">directo {fmt(tot.directo)} · indirecto distribuido {fmt(tot.indirecto)}</div></span><span /><b>{fmt(tot.completo)}</b></div>
-    <div className="mo-act"><span>Costos pendientes de distribuir<div className="text-xs text-muted">son de producción, pero falta el dato o la regla para repartirlos</div></span><span /><b>{fmt(tot.pendiente || 0)}</b></div>
-    {(tot.noProduccion || 0) !== 0 && <div className="mo-act"><span>Costos que no son de producción</span><span /><b>{fmt(tot.noProduccion)}</b></div>}
-    <div className="mo-act"><span>Gastos generales<div className="text-xs text-muted">{(tot.generales?.porCategoria || []).length ? tot.generales.porCategoria.map(g => `${NOMBRE_DE_GASTO[g.categoria] || g.categoria} ${fmt(g.monto)}`).join(" · ") : "sin gastos que no sean de una parcela"} · no se reparten a las parcelas</div></span><span /><b>{fmt(tot.generales?.total || 0)}</b></div>
-    <div className="mo-act" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}><span><b>Total de costos y gastos del rancho</b><div className="text-xs text-muted">cada peso está en un solo renglón de arriba</div></span><span /><b>{fmt(tot.rancho ?? tot.completo)}</b></div>
+    <div className="mo-act" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}><span><b>Costo de producción (parcelas)</b><div className="text-xs text-muted">lo que costó cada parcela, ya con lo indirecto que le toca</div></span><span /><b>{fmt(tot.completo)}</b></div>
+    <div className="mo-act"><span>1. Costos directos de producción<div className="text-xs text-muted">trabajo, insumos y gastos hechos en una parcela</div></span><span /><b>{fmt(tot.directo)}</b></div>
+    <div className="mo-act"><span>2. Costos indirectos atribuibles a producción<div className="text-xs text-muted">repartidos a parcelas {fmt(tot.indirecto)} · pendientes de distribuir {fmt(tot.pendiente || 0)} (falta el dato o la regla para repartirlos)</div></span><span /><b>{fmt(sumarDinero(tot.indirecto, tot.pendiente || 0))}</b></div>
+    <div className="mo-act"><span>3. Gastos generales de operación y administración<div className="text-xs text-muted">{(tot.generales?.porCategoria || []).length ? tot.generales.porCategoria.map(g => `${NOMBRE_DE_GASTO[g.categoria] || g.categoria} ${fmt(g.monto)}`).join(" · ") : "sin gastos que no sean de una parcela"} · no se reparten a las parcelas ni suben su costo</div></span><span /><b>{fmt(tot.generales?.total || 0)}</b></div>
+    {(tot.noProduccion || 0) !== 0 && <div className="mo-act"><span>Otros costos que no son de producción<div className="text-xs text-muted">así los clasificó una regla del rancho</div></span><span /><b>{fmt(tot.noProduccion)}</b></div>}
+    <div className="mo-act" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}><span><b>Total de costos y gastos del rancho</b><div className="text-xs text-muted">1 + 2 + 3{(tot.noProduccion || 0) !== 0 ? " + otros" : ""} · cada peso está en un solo renglón</div></span><span /><b>{fmt(tot.rancho ?? tot.completo)}</b></div>
     {(tot.paraAlmacen || 0) > 0 && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Aparte se compraron {fmt(tot.paraAlmacen)} de insumos para el almacén. No están en el total: se vuelven costo cuando se usan.</div>}
   </>);
   return (
@@ -20625,6 +20627,43 @@ function CierreSemana({ data, add, session, ini, fin, renglones }) {
 }
 
 // Prestaciones: saldo inicial, lo generado después del corte, ajustes, pagos y lo pendiente, por persona.
+// El catálogo oficial de salarios mínimos: se ve año por año, con la publicación de donde sale, y se le agrega el del año nuevo.
+function SalariosMinimos({ data, add, session }) {
+  const hoy = today(), cat = catalogoSM(data.eventos), zona = ajusteVigente(data.eventos, "zona_salario_minimo").valor, hoyVale = salarioMinimoEn(hoy, zona, data.eventos);
+  const [f, setF] = useState(null); const [dice, setDice] = useState(""); const [avisos, setAvisos] = useState([]); const [todo, setTodo] = useState(false);
+  const puede = add && seOfrece(session, "cambiar_reglas");
+  const guardar = () => {
+    const r = capturarSalarioMinimo({ permitido: puedeOp("cambiar_reglas"), eventos: data.eventos, ...f, quien: quienDe(session), cuando: new Date().toISOString(), fecha: hoy });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); setF(null); setDice(""); setAvisos(r.avisos || []);
+  };
+  const filas = todo ? [...cat].reverse() : [...cat].reverse().slice(0, 3);
+  return (
+    <div className="card" style={hoyVale.monto == null ? { borderColor: "var(--gold)" } : undefined}>
+      <div className="card-title">Salarios mínimos oficiales</div>
+      <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Los fija cada año la Comisión Nacional de los Salarios Mínimos y se publican en el Diario Oficial. Cada cálculo usa el vigente en su fecha, no el de hoy. Al rancho le toca: <b>{ZONAS_SM[zona]}</b>.</div>
+      {hoyVale.monto == null
+        ? <div className="text-sm" style={{ color: "var(--gold)", marginBottom: 8 }}>{hoyVale.dice} Mientras tanto, lo que dependa de él (la prima de antigüedad) queda por revisar.</div>
+        : <div className="mo-act"><span><b>Vigente hoy</b><div className="text-xs text-muted">desde el {hoyVale.desde} · {hoyVale.fuente}</div></span><span /><b>{fmt(hoyVale.monto)}</b></div>}
+      {filas.map(c => (
+        <div key={c.desde} className="mo-act">
+          <span>Desde el {c.desde}<div className="text-xs text-muted">frontera norte {fmt(c.frontera)} · {c.fuente}{c.origen === "capturado" ? ` · lo capturó ${c.por} el ${c.capturado}` : c.verificado === "tabla" ? " · cotejado con la tabla de la Comisión" : ""}{c.anteriores.length ? ` · antes decía ${c.anteriores.map(a => fmt(a.general)).join(", ")}` : ""}</div></span><span /><b>{fmt(c.general)}</b>
+        </div>))}
+      {cat.length > 3 && <button className="acc-link" onClick={() => setTodo(!todo)}>{todo ? "Ver sólo los últimos" : `Ver los ${cat.length} años`}</button>}
+      {avisos.map((a, k) => <div key={k} className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>{a}</div>)}
+      {puede && !f && <div className="acc-row" style={{ marginTop: 8 }}><button onClick={() => { setF({ desde: `${Number(cat[cat.length - 1].desde.slice(0, 4)) + 1}-01-01`, general: "", frontera: "", fuente: "" }); setDice(""); setAvisos([]); }}>Agregar o corregir un año</button></div>}
+      {f && <div style={{ marginTop: 8 }}>
+        <div className="form-group"><label className="form-label" htmlFor="sm-desde">Rige desde</label><input id="sm-desde" type="date" className="inp" value={f.desde} onChange={e => setF(x => ({ ...x, desde: e.target.value }))} /></div>
+        <div className="form-group"><label className="form-label" htmlFor="sm-gral">Salario mínimo general por día ($)</label><input id="sm-gral" type="number" inputMode="decimal" className="inp" value={f.general} onChange={e => setF(x => ({ ...x, general: e.target.value }))} /></div>
+        <div className="form-group"><label className="form-label" htmlFor="sm-front">Zona Libre de la Frontera Norte por día ($)</label><input id="sm-front" type="number" inputMode="decimal" className="inp" value={f.frontera} onChange={e => setF(x => ({ ...x, frontera: e.target.value }))} /></div>
+        <div className="form-group"><label className="form-label" htmlFor="sm-fuente">Publicación oficial de donde sale</label><input id="sm-fuente" className="inp" placeholder="Ej: Resolución de la CONASAMI, DOF 09/12/2026" value={f.fuente} onChange={e => setF(x => ({ ...x, fuente: e.target.value }))} /></div>
+        <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Copia los importes de la publicación oficial, no de una nota. Lo que había para esa fecha no se borra: queda como historial.</div>
+        {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 6 }}>{dice}</div>}
+        <div className="acc-row"><button onClick={guardar}>Guardar en el catálogo</button><button onClick={() => { setF(null); setDice(""); }}>Cancelar</button></div>
+      </div>}
+    </div>);
+}
+
 function PanelPrestaciones({ data, add, upd, session }) {
   const quien = quienDe(session), hoy = today();
   const puedeDet = seOfrece(session, "determinar_prestaciones"), puedePagar = seOfrece(session, "autorizar_pagos"), admin = session.role === "admin";
@@ -20637,11 +20676,12 @@ function PanelPrestaciones({ data, add, upd, session }) {
   const [abre, setAbre] = useState(null); const [dice, setDice] = useState(""); const [avisos, setAvisos] = useState([]);
   const [bj, setBj] = useState(null);         // { c, persona, causa, ultimoDia, detalle, autorizo, filas, fotos }
   const [pb, setPb] = useState(null);         // { c, monto, medio, recibe, foto }
-  const propuestaDe = (b) => (b.causa && b.ultimoDia ? proponerBaja({ persona: b.persona, causa: b.causa, fecha: b.ultimoDia, cuenta: b.c, reglas: pr.reglas, remuneraciones: remDe(b.persona.id) }) : null);
-  const ponBaja = (cambio) => setBj(b => { const n = { ...b, ...cambio }; const p = propuestaDe(n); return { ...n, filas: p?.ok ? p.conceptos.map(k => ({ clave: k.clave, incluir: k.aplica !== "no", monto: k.monto == null ? "" : String(k.monto), nota: "" })) : [] }; });
+  const propuestaDe = (b) => (b.causa && b.ultimoDia ? proponerBaja({ persona: b.persona, causa: b.causa, fecha: b.ultimoDia, cuenta: b.c, reglas: pr.reglas, remuneraciones: remDe(b.persona.id), minimo: salarioMinimoEn(b.ultimoDia, pr.reglas.zonaSM, data.eventos) }) : null);
+  const ponBaja = (cambio) => setBj(b => { const n = { ...b, ...cambio }; const p = propuestaDe(n); return { ...n, filas: p?.ok ? p.conceptos.map(k => ({ clave: k.clave, incluir: k.sugerido ?? k.aplica !== "no", monto: k.monto == null ? "" : String(k.monto), nota: "" })) : [] }; });
   const propB = bj ? propuestaDe(bj) : null;
   const renglonesDeBaja = (d) => [{ t: "AGROSELECTOS P&A", tam: 14, negrita: true }, { t: `${NOMBRE_DE_BAJA[d.da].split(" (")[0].toUpperCase()} — CÁLCULO INTERNO`, tam: 11, negrita: true },
     { t: `${d.nombre} · ${CAUSAS_DE_BAJA[d.causa].nombre}${d.detalle ? ` (${d.detalle})` : ""} · último día de trabajo: ${d.fecha}`, espacio: 8 },
+    ...(d.bases ? [`Bases del cálculo: salario por día ${d.bases.salarioDia == null ? "sin dato" : fmt(d.bases.salarioDia)} · salario integrado ${d.bases.salarioIntegrado == null ? "sin dato" : fmt(d.bases.salarioIntegrado)} · salario mínimo vigente ese día ${d.bases.salarioMinimo == null ? "sin dato" : fmt(d.bases.salarioMinimo)} · ${d.bases.anios} años de servicio`] : []),
     { t: "Concepto · importe confirmado · lo que propuso la app y en qué se apoya", negrita: true, espacio: 8 },
     ...d.conceptos.map(k => `${k.nombre}${k.nota ? ` (${k.nota})` : ""}: ${fmt(k.monto)} · propuesto ${k.propuesto == null ? "sin cifra" : fmt(k.propuesto)}${k.fundamento ? ` · ${k.fundamento}` : ""}${k.aplica === "revisar" ? " · marcado por revisar" : ""}${k.explica ? ` · ${k.explica}` : ""}`),
     { t: `Total: ${fmt(d.total)}`, negrita: true, espacio: 8 }, `Autorizó: ${d.autorizo}`,
@@ -20729,7 +20769,8 @@ function PanelPrestaciones({ data, add, upd, session }) {
           {puedeDet && !c.liquidacion && <button onClick={() => { setBj({ c, persona: fichaDe(c).persona, causa: "", ultimoDia: hoy, detalle: "", autorizo: "", filas: [], fotos: [] }); setDice(""); }}>Dar de baja</button>}
         </div>
       </div>); })}
-    <ReglasDelRancho data={data} add={add} session={session} claves={["prest_corte", "prest_aguinaldo_dias", "prest_prima_pct", "prest_vac_extra", "prest_dias_promedio", "salario_minimo_dia", "ind_prestaciones", "ind_bajas"]} />
+    <ReglasDelRancho data={data} add={add} session={session} claves={["prest_corte", "prest_aguinaldo_dias", "prest_prima_pct", "prest_vac_extra", "prest_dias_promedio", "ind_prestaciones", "ind_bajas", "zona_salario_minimo"]} />
+    <SalariosMinimos data={data} add={add} session={session} />
 
     {bj && <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setBj(null); }}><div className="modal-sheet">
       <div className="card-title">Dar de baja a {bj.persona.nombre}</div>
@@ -20739,7 +20780,8 @@ function PanelPrestaciones({ data, add, upd, session }) {
       <input className="inp" aria-label="Detalle de la causa" placeholder="Detalle (obligatorio si es «otra causa»)" value={bj.detalle} onChange={e => setBj(b => ({ ...b, detalle: e.target.value }))} style={{ marginBottom: 8 }} />
       {propB && !propB.ok && <div className="text-sm" style={{ color: "var(--gold)", marginBottom: 8 }}>{propB.dice}</div>}
       {propB?.ok && <>
-        <div className="text-sm font-bold" style={{ marginBottom: 6 }}>Corresponde: {NOMBRE_DE_BAJA[propB.tipo].toLowerCase()} · {propB.anios} años de servicio</div>
+        <div className="text-sm font-bold" style={{ marginBottom: 2 }}>Corresponde: {NOMBRE_DE_BAJA[propB.tipo].toLowerCase()} · {propB.anios} años de servicio</div>
+        <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Salario por día: {propB.base == null ? "sin dato" : fmt(propB.base)} · salario integrado (para indemnizaciones): {propB.integrado == null ? "sin dato" : fmt(propB.integrado)} · salario mínimo de ese día: {propB.minimo == null ? "sin dato" : fmt(propB.minimo)}</div>
         {propB.conceptos.map(k => { const f = bj.filas.find(x => x.clave === k.clave) || { incluir: false, monto: "" }; const fijo = !!CONCEPTOS_PRESTACION[k.clave]; return (
           <div key={k.clave} style={{ padding: "8px 0", borderTop: "1px solid var(--border-soft)" }}>
             <label className="text-sm" style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" aria-label={`Incluir ${k.nombre}`} checked={f.incluir} disabled={fijo} onChange={e => setBj(b => ({ ...b, filas: b.filas.map(x => (x.clave === k.clave ? { ...x, incluir: e.target.checked } : x)) }))} /> <b>{k.nombre}</b> <span className="text-xs" style={{ color: k.aplica === "si" ? "var(--safe)" : k.aplica === "revisar" ? "var(--gold)" : "var(--text-muted)" }}>{k.aplica === "si" ? "procede" : k.aplica === "revisar" ? "hay que revisarlo" : "no procede en esta causa"}</span></label>
@@ -20820,28 +20862,31 @@ function PanelCostoPersonal({ data, add, session }) {
   const ind = data.indirectos || { partes: [], pendientes: [], noProduccion: [] };
   const [abre, setAbre] = useState(null);
   const parcela = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "una parcela";
-  const fuentes = [["personal", "Días y ratos pagados sin actividad en parcela", "Permisos, descansos, esperas, traslados y los días de un encargado sin actividad registrada."], ["prestaciones", "Prestaciones", "Aguinaldo, vacaciones y prima que se van generando, y sus ajustes."], ["bajas", "Terminaciones de la relación de trabajo", "Prima de antigüedad e indemnizaciones. Lo ya generado de aguinaldo, vacaciones y prima no está aquí: va arriba, sólo por su diferencia."]];
+  const fuentes = [["personal", "Días y ratos pagados sin actividad en parcela", "Permisos, descansos, esperas, traslados y los días de un encargado sin actividad registrada."], ["prestaciones", "Prestaciones", "Aguinaldo, vacaciones y prima que se van generando, y sus ajustes."], ["bajas", "Terminaciones de la relación de trabajo", "Prima de antigüedad e indemnizaciones: son gasto laboral general, no costo de una parcela. Lo ya generado de aguinaldo, vacaciones y prima no está aquí: va arriba, sólo por su diferencia."]];
   const sinSueldo = data.personalIndirecto?.sinSueldo || [];
   return (<>
     <div className="text-xs text-muted mb-2" style={{ paddingLeft: 4 }}>Esto se paga, así que es costo, pero no es trabajo hecho en una parcela. Aparece en los reportes como parte del costo completo, nunca dentro del costo directo. Lo que no se puede repartir con datos se queda pendiente, con su causa.</div>
     {sinSueldo.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">{sinSueldo.length} día(s) pagados de personas sin sueldo capturado ({[...new Set(sinSueldo.map(x => x.nombre))].join(", ")}): no se les pudo poner importe. Un dato que falta no es un cero.</div></div>}
     {fuentes.map(([f, titulo, sub]) => {
       const partes = ind.partes.filter(p => p.fuente === f), pend = ind.pendientes.filter(p => p.fuente === f), fuera = ind.noProduccion.filter(p => p.fuente === f);
-      const rep = sumarDinero(partes.map(p => p.monto)), pen = sumarDinero(pend.map(p => p.monto)), fu = sumarDinero(fuera.map(p => p.monto));
+      const gral = fuera.flatMap(x => x.detalle).filter(p => p.general), noProd = fuera.flatMap(x => x.detalle).filter(p => !p.general);
+      const rep = sumarDinero(partes.map(p => p.monto)), pen = sumarDinero(pend.map(p => p.monto)), ge = sumarDinero(gral.map(p => p.monto)), fu = sumarDinero(sumarDinero(fuera.map(p => p.monto)), -ge);
       const porParcela = {}; partes.forEach(p => { porParcela[p.parcelaId] = sumarDinero(porParcela[p.parcelaId] || 0, p.monto); });
       return (
         <div key={f} className="card">
           <div className="card-title">{titulo}</div>
           <div className="text-xs text-muted" style={{ marginBottom: 8 }}>{sub}</div>
-          {rep === 0 && pen === 0 && fu === 0 && <div className="text-sm text-muted">Todavía no hay nada.</div>}
+          {rep === 0 && pen === 0 && fu === 0 && ge === 0 && <div className="text-sm text-muted">Todavía no hay nada.</div>}
           {rep !== 0 && <div className="mo-act"><span>Repartido a parcelas</span><span /><b>{fmt(rep)}</b></div>}
           {pen !== 0 && <div className="mo-act"><span>Pendiente de distribuir</span><span /><b style={{ color: "var(--gold)" }}>{fmt(pen)}</b></div>}
           {fu !== 0 && <div className="mo-act"><span>No es de producción</span><span /><b>{fmt(fu)}</b></div>}
-          {(rep !== 0 || pen !== 0 || fu !== 0) && <button className="acc-link" onClick={() => setAbre(abre === f ? null : f)}>{abre === f ? "Ocultar el detalle" : "Ver de dónde sale cada importe"}</button>}
+          {ge !== 0 && <div className="mo-act"><span>Gasto laboral general<div className="text-xs text-muted">no se reparte a las parcelas; sale en el cierre de mes como gasto general</div></span><span /><b>{fmt(ge)}</b></div>}
+          {(rep !== 0 || pen !== 0 || fu !== 0 || ge !== 0) && <button className="acc-link" onClick={() => setAbre(abre === f ? null : f)}>{abre === f ? "Ocultar el detalle" : "Ver de dónde sale cada importe"}</button>}
           {abre === f && <>
             {Object.entries(porParcela).map(([id, m]) => <div key={id} className="text-xs" style={{ marginTop: 6 }}><b>{parcela(id)}: {fmt(m)}</b>{partes.filter(p => p.parcelaId === id).slice(0, 40).map((p, k) => <div key={k} className="text-muted">{fmt(p.monto)} · {p.explica} · {p.base}</div>)}</div>)}
             {pend.length > 0 && <div className="text-xs" style={{ marginTop: 6 }}><b>Pendiente</b>{pend.slice(0, 60).map((p, k) => <div key={k} className="text-muted">{fmt(p.monto)} · {p.que} — {p.porque}</div>)}</div>}
-            {fuera.flatMap(x => x.detalle).length > 0 && <div className="text-xs" style={{ marginTop: 6 }}><b>No es de producción</b>{fuera.flatMap(x => x.detalle).slice(0, 60).map((p, k) => <div key={k} className="text-muted">{fmt(p.monto)} · {p.que}</div>)}</div>}
+            {noProd.length > 0 && <div className="text-xs" style={{ marginTop: 6 }}><b>No es de producción</b>{noProd.slice(0, 60).map((p, k) => <div key={k} className="text-muted">{fmt(p.monto)} · {p.que}</div>)}</div>}
+            {gral.length > 0 && <div className="text-xs" style={{ marginTop: 6 }}><b>Gasto laboral general</b>{gral.slice(0, 60).map((p, k) => <div key={k} className="text-muted">{fmt(p.monto)} · {p.fecha} · {p.que}</div>)}</div>}
           </>}
         </div>);
     })}

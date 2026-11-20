@@ -38,7 +38,7 @@ test("ni_escribiendo_el_sello_a_mano_se_autoriza_solo", async () => {
 
 test("todos_los_tipos_sensibles_se_rechazan_sin_permiso_y_se_autorizan_al_superadministrador", async () => {
   const tipos = (await verdad(db, "select tipo from operaciones_sensibles order by tipo")).map(x => x.tipo);
-  assert.equal(tipos.length, 19);
+  assert.equal(tipos.length, 20);
   for (const t of tipos) {
     const datos = { ...PAGO };
     assert.ok((await mete("encargado", `s-no-${t}`, t, datos)).ok); assert.equal((await fila(`s-no-${t}`)).validacion, "rechazado", t);
@@ -162,4 +162,11 @@ test("dar_de_baja_y_pagar_un_finiquito_piden_cada_uno_su_permiso", async () => {
   await mete("encargado", "s-pbaja-enc", "pago_baja", { bajaId: "s-baja", monto: 5000 });
   await mete("luis", "s-pbaja", "pago_baja", { bajaId: "s-baja", monto: 5000 });
   assert.deepEqual([(await fila("s-baja-enc")).validacion, (await fila("s-baja")).validacion, (await fila("s-pbaja-enc")).validacion, (await fila("s-pbaja")).validacion], ["rechazado", "autorizado", "rechazado", "autorizado"]);
+});
+
+test("el_catalogo_de_salarios_minimos_no_lo_cambia_un_encargado_ni_escribiendo_directo", async () => {
+  await mete("encargado", "s-sm-enc", "salario_minimo", { desde: "2027-01-01", general: 1, frontera: 2, fuente: "inventada" });
+  await mete("luis", "s-sm-luis", "salario_minimo", { desde: "2027-01-01", general: 350, frontera: 470, fuente: "Resolución de prueba, DOF" });
+  const r = await verdad(db, "select id, validacion, validacion_dice from eventos where id in ('s-sm-enc', 's-sm-luis') order by id");
+  assert.deepEqual(r.map(x => [x.id, x.validacion, x.validacion_dice]), [["s-sm-enc", "rechazado", "sin_permiso"], ["s-sm-luis", "autorizado", null]]);
 });

@@ -129,3 +129,9 @@ Valores que escogí yo y Luis puede cambiar en «Pagos al personal»: todos los 
 - **Total del rancho** = costo completo de parcelas + pendiente de distribuir + lo que no es de producción + gastos generales. Cada peso está en un solo renglón.
 - **Bajas**: de aguinaldo, vacaciones y prima sólo va al costo la diferencia contra lo ya generado. Prima de antigüedad e indemnizaciones son costo nuevo del día de la baja, fuente `bajas`, regla `ind_bajas` (por defecto: pendiente de distribuir).
 - **Préstamos**: nunca son costo. Entregar es una cuenta por cobrar; abonar la baja.
+
+## Decisiones del 19 nov (20:38)
+
+- Tres bloques que no se mezclan: **directos de producción**, **indirectos atribuibles a producción** (repartidos + pendientes) y **gastos generales de operación y administración**. Un gasto general nunca sube el costo de una parcela.
+- **Bajas**: la prima de antigüedad y las indemnizaciones son gasto laboral general (regla `ind_bajas` = `general`). Se puede cambiar la regla, pero no se reparten solas.
+- **Salario mínimo**: sale del catálogo oficial por fecha (`salariosMinimos.js`), no de una regla tecleada.

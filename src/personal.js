@@ -98,13 +98,14 @@ export function repartirPorActividades(item, base) {
 }
 
 // Arma una fuente de indirectos con la política de cada concepto.
-//   politica(concepto) → "actividades" | "pendiente" | "fuera"
-function armar({ fuente, nombre, items, base, politica, texto }) {
+//   politica(concepto) → "actividades" | "pendiente" | "fuera" | "general"
+function armar({ fuente, nombre, items, base, politica, texto, categoriaGeneral = "" }) {
   const partes = [], pendientes = [], detalle = []; let fuera = 0;
   for (const it of items) {
     const item = { ...it, explica: texto(it) };
     const pol = it.concepto === "por_aclarar" ? "pendiente" : politica(it.concepto);
-    if (pol === "fuera") { fuera = sumarDinero(fuera, it.monto); detalle.push({ mes: it.fecha.slice(0, 7), fecha: it.fecha, persona: it.nombre, concepto: it.concepto, monto: it.monto, que: item.explica }); continue; }
+    // "general": gasto general del rancho (no de producción y no se reparte). Va con lo que no es de producción, marcado, y con a quién y a qué evento corresponde.
+    if (pol === "fuera" || pol === "general") { fuera = sumarDinero(fuera, it.monto); detalle.push({ mes: it.fecha.slice(0, 7), fecha: it.fecha, persona: it.nombre, personaId: it.personaId, concepto: it.concepto, monto: it.monto, que: item.explica, evs: it.evs || [], ...(it.causa ? { causa: it.causa } : {}), ...(pol === "general" ? { general: true, categoria: categoriaGeneral || fuente } : {}) }); continue; }
     const r = pol === "actividades" ? repartirPorActividades(item, base) : { partes: [], porque: it.concepto === "por_aclarar" ? "Falta aclarar qué hizo en ese tiempo. Mientras no se aclare, no se reparte." : "La regla del rancho para este concepto es dejarlo pendiente." };
     if (r.partes.length) partes.push(...r.partes);
     else pendientes.push({ fecha: it.fecha, mes: it.fecha.slice(0, 7), monto: it.monto, personaId: it.personaId, persona: it.nombre, concepto: it.concepto, porque: r.porque, que: item.explica, evs: it.evs || [] });
@@ -118,5 +119,5 @@ export const fuentePrestaciones = ({ renglones, base, politica }) => armar({ fue
   texto: (it) => `${it.nombre || "Alguien"} · ${it.que} · ${it.detalle}` });
 // Lo que nace al terminar una relación de trabajo y NO es una prestación que ya se venía generando
 // (prima de antigüedad, indemnizaciones). `renglones`: los de `renglonesDeBajas`. Regla: `ind_bajas`.
-export const fuenteBajas = ({ renglones, base, politica }) => armar({ fuente: "bajas", nombre: "Terminaciones de la relación de trabajo", items: renglones, base, politica: () => politica,
+export const fuenteBajas = ({ renglones, base, politica }) => armar({ fuente: "bajas", nombre: "Terminaciones de la relación de trabajo", items: renglones, base, politica: () => politica, categoriaGeneral: "laboral_bajas",
   texto: (it) => `${it.nombre || "Alguien"} · ${it.que} · ${it.detalle}` });
