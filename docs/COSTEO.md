@@ -118,6 +118,6 @@ Valores que escogí yo y Luis puede cambiar en «Pagos al personal»: todos los 
 
 ## Siguiente entrega
 
-1. **Cierre de mes**: foto de los reportes de costo, igual que la semana.
-2. **Instalar la hoja 37 en la base real** y repetir ahí los ataques.
-3. **Bajas**: partes proporcionales al terminar la relación de trabajo.
+1. **Bajas**: partes proporcionales al terminar la relación de trabajo.
+2. **Dar un préstamo** también como operación con permiso (decisión de Luis).
+3. Que el cierre de mes incluya lo que no tiene parcela (gastos generales), si se decide repartirlo.

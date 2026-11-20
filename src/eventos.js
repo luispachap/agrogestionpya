@@ -85,6 +85,7 @@ export const OPERACION_DE = {
   pago_personal: "autorizar_pagos", pago_prestacion: "autorizar_pagos", abono_prestamo: "autorizar_pagos", recibo_personal: "autorizar_pagos",
   decision_jornada: "decidir_asistencia", horas_reconocidas: "decidir_asistencia",
   ajuste: "cambiar_reglas",
+  cierre_mes: "cerrar_mes", reapertura_mes: "cerrar_mes",
 };
 export const OPERACIONES = {
   cerrar_semana: "Cerrar y reabrir la semana, y confirmar sus pagos",
@@ -92,6 +93,7 @@ export const OPERACIONES = {
   autorizar_pagos: "Registrar pagos, abonos a préstamos y recibos",
   decidir_asistencia: "Decidir cómo se paga un día y reconocer horas adicionales",
   cambiar_reglas: "Cambiar las reglas del rancho",
+  cerrar_mes: "Cerrar y reabrir el mes de costos",
 };
 // Sin servidor (un aparato que no está conectado a ninguna nube, o las pruebas) no hay quién valide:
 // ahí mandan las reglas de la app. Con servidor, se exige el sello. Lo prende la app al arrancar.

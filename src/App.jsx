@@ -38,6 +38,7 @@ import { CONCEPTOS_PERSONAL, POLITICAS, baseDePersonas, pagadoSinActividad, fuen
 import { T_DETERMINADA, T_PAGO_PRESTACION, CONCEPTOS_PRESTACION, cuentaDe as cuentaDePrestaciones, renglonesAlCosto, proponer as proponerPrestacion, determinar as determinarPrestacion, pagarPrestacion, nombreDePeriodo, periodosDe as periodosDePrestacion, determinadasRepetidas, T_SALDO_INICIAL, capturarSaldoInicial, CONCEPTOS_DE_SALDO, RELACIONES, remuneracionesDe } from "./prestaciones.js";
 import { estadoDeSemana, cerrarSemana, reabrirSemana, diferenciasDelCierre, confirmarPagos } from "./cierres.js";
 import { pdfComoDataUrl } from "./pdfSimple.js";
+import { costoDelMes, cerrarMes, reabrirMes, estadoDeMes, ajustesPosteriores } from "./cierreMes.js";
 import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, generarSQLCuentas, exportarPolizas, HOJAS } from "./excelLoader";
 // El estado de cuenta del banco: se valida solo antes de entrar.
 import {
@@ -6776,7 +6777,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
             {isAdmin && <>
               {page === "home" && <AdminHome data={data} alertas={alertas} onNav={setPage} onLogout={cerrarSesion} pending={pending} online={online} />}
               {page === "movimientos" && <AdminMovimientos data={data} add={add} upd={upd} del={del} setInv={setInv} />}
-              {page === "reportes" && <AdminReportes data={data} navParam={navParam} setNavParam={setNavParam} />}
+              {page === "reportes" && <AdminReportes data={data} navParam={navParam} setNavParam={setNavParam} add={add} session={session} />}
               {page === "contabilidad" && <AdminContabilidad data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} setInv={setInv} onNav={setPage} />}
               {page === "papeles" && <BuzonPapeles data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "banco" && <EstadoDeCuenta data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
@@ -6914,7 +6915,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "mano-obra" && <ManoDeObra data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "home" && <DuenoHome data={data} session={session} onNav={setPage} onLogout={cerrarSesion} />}
               {page === "panel-financiero" && <PanelFinanciero data={data} onClose={() => setPage("home")} />}
-              {page === "reportes" && <AdminReportes data={data} soloLectura={true} />}
+              {page === "reportes" && <AdminReportes data={data} soloLectura={true} session={session} />}
               {page === "panel-parcelas" && <PanelParcelas data={data} add={add} del={del} session={session} onClose={() => setPage("home")} />}
               {page === "resumen" && <ResumenSemanal data={data} onClose={() => setPage("home")} />}
               {page === "operacion" && <PanelOperacion data={data} onClose={() => setPage("home")} />}
@@ -7617,7 +7618,7 @@ const puedeOp = (op) => (!supabaseListo ? undefined : !!PERMISOS && (PERMISOS.ro
 // ¿Se ofrece el botón? Con base: el permiso de la cuenta. Sin base (un aparato suelto): el perfil con que se entró.
 const seOfrece = (session, op) => { const p = puedeOp(op); return p === undefined ? session.role === "admin" : p; };
 const NOMBRE_DE_OPERACION = { cierre_semana: "Cierre de la semana", reapertura_semana: "Reapertura de la semana", confirmacion_pagos: "Confirmación de pagos", prestacion_determinada: "Prestación determinada", prestacion_saldo_inicial: "Saldo inicial de prestaciones",
-  pago_personal: "Pago", pago_prestacion: "Pago de una prestación", abono_prestamo: "Abono a un préstamo", recibo_personal: "Recibo", decision_jornada: "Decisión sobre cómo se paga un día", horas_reconocidas: "Horas reconocidas", ajuste: "Cambio de una regla" };
+  cierre_mes: "Cierre de mes", reapertura_mes: "Reapertura de mes", pago_personal: "Pago", pago_prestacion: "Pago de una prestación", abono_prestamo: "Abono a un préstamo", recibo_personal: "Recibo", decision_jornada: "Decisión sobre cómo se paga un día", horas_reconocidas: "Horas reconocidas", ajuste: "Cambio de una regla" };
 // Lo capturado que todavía no cuenta: lo que no ha llegado a la base, y lo que la base no autorizó.
 function PorValidar({ data }) {
   const s = data.sinValidar || { pendientes: [], rechazados: [] };
@@ -11039,7 +11040,48 @@ function CuadHistorial({ data, upd, session, onLogout }) {
   );
 }
 
-function AdminReportes({ data, navParam, setNavParam }) {
+// El cierre de mes: la foto de los costos. Lo que cambie después se ve como ajuste posterior; la foto no se toca.
+function CierreDeMes({ data, add, session }) {
+  const hoy = today(), mesPasado = sumarDias(`${hoy.slice(0, 7)}-01`, -1).slice(0, 7);
+  const [mes, setMes] = useState(mesPasado); const [motivo, setMotivo] = useState(""); const [dice, setDice] = useState(""); const [avisos, setAvisos] = useState([]); const [ver, setVer] = useState(null);
+  const costo = useMemo(() => costoDelMes({ mes, parcelas: data.parcelas || [], actividades: data.actividadesContables || data.actividades || [], egresos: vivos(data.egresos), compras: data.compras || [], indirectos: data.indirectos }), [data, mes]);
+  const s = estadoDeMes(data.eventos, mes), puede = add && seOfrece(session, "cerrar_mes");
+  const aj = ajustesPosteriores(s.estado === "cerrado" ? s.cierre : null, costo);
+  const base = () => ({ permitido: puedeOp("cerrar_mes"), eventos: data.eventos, quien: quienDe(session), cuando: new Date().toISOString(), fecha: hoy });
+  const hacer = (r) => { if (!r.ok) { setDice(r.dice); return; } add("eventos", r.evento); setMotivo(""); setDice(""); setAvisos(r.avisos || []); };
+  const foto = ver ? s.cierres.find(c => c.id === ver) : null;
+  const tabla = (rs, tot) => (<>
+    {rs.map(r => <div key={r.parcelaId} className="mo-act"><span>{r.nombre}<div className="text-xs text-muted">directo {fmt(r.directo)} · indirecto {fmt(r.indirecto)}</div></span><span /><b>{fmt(r.completo)}</b></div>)}
+    <div className="mo-act" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}><span><b>Costo completo del mes</b><div className="text-xs text-muted">directo {fmt(tot.directo)} · indirecto {fmt(tot.indirecto)}{tot.pendiente ? ` · pendiente de distribuir ${fmt(tot.pendiente)}` : ""}{tot.noProduccion ? ` · no es de producción ${fmt(tot.noProduccion)}` : ""}</div></span><span /><b>{fmt(tot.completo)}</b></div>
+  </>);
+  return (
+    <div className="card" style={s.estado === "cerrado" ? { borderColor: "var(--accent)" } : undefined}>
+      <div className="flex-b"><div className="card-title" style={{ marginBottom: 0 }}>Cierre de mes</div><input type="month" className="inp" aria-label="Mes que se cierra" style={{ width: 150 }} value={mes} max={hoy.slice(0, 7)} onChange={e => { setMes(e.target.value || mesPasado); setDice(""); setAvisos([]); setVer(null); }} /></div>
+      <div className="text-xs text-muted" style={{ margin: "6px 0 10px" }}>{s.estado === "cerrado" ? `Cerrado · versión ${s.cierre.version} · lo cerró ${s.cierre.quien?.nombre} el ${s.cierre.fecha}${s.cierre.datos.motivo ? ` · ${s.cierre.datos.motivo}` : ""}. Abajo están las cifras de ese día.` : s.estado === "reabierto" ? `Reabierto por ${s.reaperturas[s.reaperturas.length - 1].quien?.nombre}: ${s.reaperturas[s.reaperturas.length - 1].datos.motivo}. La versión ${s.cierre.version} se conserva.` : "Abierto. Estas cifras se calculan de lo registrado y todavía pueden moverse; cerrar guarda cómo quedaron."}</div>
+      {costo.renglones.length === 0 && s.estado !== "cerrado" ? <div className="text-sm text-muted">Ese mes no tiene costos registrados.</div> : s.estado === "cerrado" ? tabla(s.cierre.datos.renglones, s.cierre.datos) : tabla(costo.renglones, costo)}
+      {aj.hay && <div style={{ borderLeft: "3px solid var(--gold)", paddingLeft: 10, margin: "10px 0" }}>
+        <div className="text-sm font-bold">Ajustes posteriores al cierre: {fmt(aj.total)}</div>
+        {aj.lista.map(x => <div key={x.parcelaId} className="text-xs text-muted">{x.nombre}: al cerrar eran {fmt(x.era)}, hoy son {fmt(x.es)}{x.directo ? ` · directo ${fmt(x.directo)}` : ""}{x.indirecto ? ` · indirecto ${fmt(x.indirecto)}` : ""}</div>)}
+        {aj.pendiente !== 0 && <div className="text-xs text-muted">Lo pendiente de distribuir cambió en {fmt(aj.pendiente)}.</div>}
+        <div className="text-xs text-muted">Es algo que se registró o se aclaró después. Las cifras del cierre no se cambian solas: o se reabre el mes y se cierra otra vez, o esto queda a la vista como ajuste.</div>
+      </div>}
+      {avisos.map((a, k) => <div key={k} className="text-xs" style={{ color: "var(--gold)", marginTop: 6 }}>{a}</div>)}
+      {puede && s.estado !== "cerrado" && costo.renglones.length > 0 && <>
+        {s.estado === "reabierto" && <input className="inp" aria-label="Qué cambió en este cierre de mes" placeholder="Qué cambió respecto al cierre anterior" value={motivo} onChange={e => setMotivo(e.target.value)} style={{ margin: "8px 0" }} />}
+        <button className="btn btn-accent" style={{ width: "100%", marginTop: 8 }} onClick={() => hacer(cerrarMes({ ...base(), costo, hoy, motivo }))}>{s.estado === "reabierto" ? `Cerrar otra vez (versión ${s.cierres.length + 1})` : "Cerrar el mes"}</button>
+      </>}
+      {puede && s.estado === "cerrado" && <>
+        <input className="inp" aria-label="Por qué se reabre el mes" placeholder="Para reabrir: por qué" value={motivo} onChange={e => setMotivo(e.target.value)} style={{ margin: "8px 0" }} />
+        <button className="btn btn-outline" style={{ width: "100%" }} onClick={() => hacer(reabrirMes({ ...base(), mes, motivo }))}>Reabrir el mes</button>
+      </>}
+      {dice && <div className="text-sm" style={{ color: "var(--red)", marginTop: 8 }}>{dice}</div>}
+      {s.cierres.length > 1 && <div style={{ marginTop: 8 }}>{s.cierres.slice(0, -1).map(c => <button key={c.id} className="acc-link" style={{ marginRight: 10 }} onClick={() => setVer(ver === c.id ? null : c.id)}>{ver === c.id ? "Ocultar" : "Ver"} la versión {c.version}</button>)}</div>}
+      {foto && <div style={{ marginTop: 8, opacity: 0.85 }}><div className="text-xs text-muted">Versión {foto.version} · {foto.quien?.nombre} · {foto.fecha}{foto.datos.motivo ? ` · ${foto.datos.motivo}` : ""}</div>{tabla(foto.datos.renglones, foto.datos)}</div>}
+    </div>
+  );
+}
+
+function AdminReportes({ data, navParam, setNavParam, add, session }) {
   // navParam: null | {tipo:"siembra", valor:siembraId}
   const [vista, setVista] = useState("parcelas");
 
@@ -11258,11 +11300,12 @@ function AdminReportes({ data, navParam, setNavParam }) {
     <div>
       <div className="top-bar"><h2>Reportes</h2></div>
       <div className="tabs-pill">
-        {[["parcelas", "Por parcela"], ["cultivos", "Por cultivo"], ["comparar", "Comparar"]].map(([v, lb]) => (
+        {[["parcelas", "Por parcela"], ["cultivos", "Por cultivo"], ["comparar", "Comparar"], ["mes", "Cierre de mes"]].map(([v, lb]) => (
           <button key={v} className={`tab-pill${vista === v ? " active" : ""}`} onClick={() => setVista(v)}>{lb}</button>
         ))}
       </div>
       <div className="section-pad">
+        {vista === "mes" && <><PorValidar data={data} /><CierreDeMes data={data} add={add} session={session || { role: "dueno" }} /></>}
         {vista === "parcelas" && (
           <>
             <div className="text-xs text-muted mb-3" style={{ paddingLeft: 4 }}>Cada parcela muestra su ciclo actual y los anteriores. Toca un ciclo para ver su reporte.</div>

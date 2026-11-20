@@ -218,6 +218,11 @@ Usuarios reales de la app:
   evento nuevo que mueva dinero o reglas se agrega a `OPERACION_DE` Y a la
   hoja SQL.** Cancelar/corregir algo sensible sin permiso: la base deja el
   renglón como estaba y anota `cambio_rechazado` (`juntarEventos` lo deshace).
+- **`src/cierreMes.js`**: `costoDelMes` (por parcela: directo, indirecto,
+  completo; lo pendiente aparte) y su foto (`cierre_mes`, con versión;
+  `reapertura_mes` con motivo). Lo que cambie después sale en
+  `ajustesPosteriores`; la foto no se toca. Está en Reportes → «Cierre de mes».
+  Permiso propio: `cerrar_mes`.
 - **Saldos iniciales de prestaciones** (`prestacion_saldo_inicial`): lo que ya
   se debía al corte (`prest_corte`, regla con fecha), con importe, periodo,
   fundamento, responsable y evidencia. NUNCA va al costo ni a una parcela. Al
@@ -350,7 +355,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **124 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **125 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

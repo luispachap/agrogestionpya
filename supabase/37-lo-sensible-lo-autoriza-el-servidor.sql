@@ -43,7 +43,9 @@ insert into operaciones_sensibles (tipo, operacion) values
   ('recibo_personal',          'autorizar_pagos'),
   ('decision_jornada',         'decidir_asistencia'),
   ('horas_reconocidas',        'decidir_asistencia'),
-  ('ajuste',                   'cambiar_reglas')
+  ('ajuste',                   'cambiar_reglas'),
+  ('cierre_mes',               'cerrar_mes'),
+  ('reapertura_mes',           'cerrar_mes')
 on conflict (tipo) do update set operacion = excluded.operacion;
 alter table operaciones_sensibles enable row level security;
 drop policy if exists "leer operaciones sensibles" on operaciones_sensibles;
