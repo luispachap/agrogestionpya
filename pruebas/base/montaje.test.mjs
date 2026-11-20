@@ -91,7 +91,9 @@ test("el_almacen_es_privado_con_tope_por_archivo_y_solo_imagenes_y_pdf", async (
   const b = await uno("select public, file_size_limit, allowed_mime_types from storage.buckets where id = 'comprobantes'");
   assert.equal(b.public, false);
   assert.equal(Number(b.file_size_limit), 3 * 1024 * 1024);
-  assert.deepEqual(b.allowed_mime_types, ["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+  assert.deepEqual(b.allowed_mime_types.slice(0, 4), ["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+  assert.ok(b.allowed_mime_types.includes("application/xml") && b.allowed_mime_types.includes("text/csv"), "los originales de la importación también caben (hoja 43)");
+  assert.ok(!b.allowed_mime_types.some(t => /html|javascript|octet|zip|exe/.test(t)), "nada que se pueda ejecutar");
 });
 test("sin_sesion_o_sin_perfil_no_se_sube_ni_se_ve_un_comprobante", async () => {
   assert.equal((await subir("encargado", "aaa.jpg", 300000)).ok, true);

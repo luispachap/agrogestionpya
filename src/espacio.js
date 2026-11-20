@@ -41,6 +41,8 @@ export function llavesDe(espacio) {
     eventos: `agro_eventos_v8:${e}`, checador: `agro_checador_v8:${e}`, reloj: `agro_reloj_v8:${e}`,
     // Lo que la base dijo que puede la cuenta de este aparato (para no ofrecer lo que va a rechazar). Decide la base, no esto.
     permisos: `agro_permisos_v8:${e}`,
+    // Las propuestas de los documentos importados que todavía no confirma nadie (IndexedDB; no suben hasta confirmarse).
+    importacion: `agro_importacion_v8:${e}`,
   };
 }
 // Lo que se puede borrar al "reiniciar este teléfono": SÓLO lo de este espacio.

@@ -64,6 +64,7 @@ export const FUNCIONES = {
   movimientos: f("dinero", "🗂️", "Movimientos", "Todo lo capturado"),
   caja: f("dinero", "💵", "Caja chica", "Gastos y movimientos"),
   papeles: f("dinero", "📷", "Papeles", "Foto de ticket o factura"),
+  importar: f("dinero", "🗂️", "Importar documentos", "Muchos papeles de un jalón: facturas, hojas, PDF"),
   banco: f("dinero", "🏦", "Banco", "Estado de cuenta"),
   socios: f("dinero", "👥", "Socios", "Quién puso y quién sacó"),
   deudas: f("dinero", "🏦", "Deudas", "Créditos y pagos"),
@@ -103,7 +104,7 @@ export const FUNCIONES = {
 // Qué puede abrir cada perfil. Tiene que coincidir con lo que App.jsx sabe
 // pintarle a ese perfil: una prueba lo compara contra el propio App.jsx.
 export const PANTALLAS_DE = {
-  admin: ["checador", "reparto", "cuadrillas-dia", "mano-obra", "jornadas", "credenciales", "aldia", "aplicaciones", "aprobacion-externos", "arranque", "asistencia", "banco", "bitacora", "caja", "calendario", "chat", "ciclos", "comercializacion", "compras", "compras-insumos", "consignaciones", "contabilidad", "contpaqi", "corrida", "cosechas", "deudas", "dictado", "dron", "eldia", "embarque", "equipo", "estibas", "fito", "ganado", "indicaciones", "inventario", "mis", "movimientos", "nomina", "operacion", "panel-financiero", "panel-parcelas", "papeles", "parcelas", "pase-lista", "personal", "proveedores", "proyeccion", "registrar-actividad", "registro-masivo", "rendimiento-parcelas", "reporte", "reporte-variedades", "reportes", "respaldo", "resumen", "seguridad", "socios", "solicitudes", "subir-nube", "tareas", "terminados", "entregas", "vales", "variedades"],
+  admin: ["checador", "reparto", "cuadrillas-dia", "mano-obra", "jornadas", "credenciales", "aldia", "aplicaciones", "aprobacion-externos", "arranque", "asistencia", "banco", "bitacora", "caja", "calendario", "chat", "ciclos", "comercializacion", "compras", "compras-insumos", "consignaciones", "contabilidad", "contpaqi", "corrida", "cosechas", "deudas", "dictado", "dron", "eldia", "embarque", "equipo", "estibas", "fito", "ganado", "importar", "indicaciones", "inventario", "mis", "movimientos", "nomina", "operacion", "panel-financiero", "panel-parcelas", "papeles", "parcelas", "pase-lista", "personal", "proveedores", "proyeccion", "registrar-actividad", "registro-masivo", "rendimiento-parcelas", "reporte", "reporte-variedades", "reportes", "respaldo", "resumen", "seguridad", "socios", "solicitudes", "subir-nube", "tareas", "terminados", "entregas", "vales", "variedades"],
   encargado: ["checador", "reparto", "cuadrillas-dia", "jornadas", "credenciales", "aldia", "aprobacion-externos", "asistencia", "banco", "bitacora", "caja", "chat", "corrida", "cosechas", "dictado", "dron", "eldia", "estibas", "fito", "ganado", "operacion", "papeles", "pase-lista", "personal", "registrar-actividad", "registro-masivo", "socios", "solicitudes", "tareas", "entregas", "vales"],
   trabajador: ["compras", "mis", "pase-lista", "reporte", "solicitudes"],
   cuadrilla: ["compras", "mis", "reporte"],

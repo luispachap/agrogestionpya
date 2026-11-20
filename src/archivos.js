@@ -15,8 +15,11 @@
 // ════════════════════════════════════════════════════════════════════════
 
 export const TOPE_ARCHIVO_BYTES = 3 * 1024 * 1024;       // el mismo tope del almacén (hoja SQL 26)
-export const TIPOS_ACEPTADOS = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
+// Fotos y PDF (los comprobantes de siempre) y, desde la importación de documentos, los originales que se suben por
+// montones: el XML de una factura, un Excel, un CSV o un Word. La misma lista está en la hoja SQL 43.
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const TIPOS_ACEPTADOS = ["image/jpeg", "image/png", "image/webp", "application/pdf", "application/xml", "text/xml", "text/csv", "text/plain", XLSX_MIME, "application/vnd.ms-excel", DOCX_MIME];
+const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf", "application/xml": "xml", "text/xml": "xml", "text/csv": "csv", "text/plain": "txt", [XLSX_MIME]: "xlsx", "application/vnd.ms-excel": "xls", [DOCX_MIME]: "docx" };
 const PREFIJO = "archivo:";
 // Menos de esto no vale la pena sacarlo: un icono chico no es un comprobante.
 const MINIMO_PARA_SACAR = 4000;
@@ -83,7 +86,7 @@ export function leerReferencia(v) {
   return { id: ruta.replace(/\.[a-z0-9]+$/i, ""), ruta };
 }
 const esArchivoIncrustado = (v) =>
-  typeof v === "string" && v.length >= MINIMO_PARA_SACAR && /^data:(image\/|application\/pdf)/i.test(v);
+  typeof v === "string" && v.length >= MINIMO_PARA_SACAR && /^data:(image\/|application\/pdf|application\/xml|text\/xml|text\/csv|text\/plain|application\/vnd\.openxmlformats-officedocument\.|application\/vnd\.ms-excel)/i.test(v);
 
 // Saca de un registro todo archivo incrustado y deja en su lugar la referencia.
 // Devuelve el registro ya ligero y la lista de archivos que hay que guardar.

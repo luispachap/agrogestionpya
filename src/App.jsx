@@ -45,6 +45,8 @@ import { PERIODOS as PERIODOS_PERCEPCION, CLASES_PERCEPCION, validarPercepcion, 
 import { conciliarMes } from "./conciliacion.js";
 import { estadoDeCompra, repartoDeCompras, posibleDuplicado, esParaAlmacen, seguimientoDeCompras } from "./compras.js";
 import { T_BONO, CLASES_DE_BONO, TRATAMIENTOS_DE_BONO, NOMBRE_DE_ESTADO as ESTADO_DE_BONO, INTEGRA, decidirIntegracion, otorgarBono, pagarBono, bonosDe, renglonesDeBonos } from "./bonos.js";
+import { ESTADOS as ESTADOS_DOC, CLASES as CLASES_DOC, CAMPOS_DE, NOMBRE_DE_CAMPO, esBasura, proponer, refrescar, recibirDocumento, anotarLectura, confirmarIncorporacion, descartarDocumento, eventoDeAprendizaje, bandejaDe, historicoDe, aprendidosDe, resumenDeBandeja, resumenDelHistorico } from "./importacion.js";
+import { abrirArchivo, originalDe, guardarPropuesta, leerPropuesta, olvidarPropuesta } from "./importador.js";
 import { resultadoDelRancho, flujoDeEfectivo, NOMBRE_DE_FLUJO, DESTINOS_DE_INSUMO, insumosPorClasificar } from "./resultado.js";
 // El resultado y el flujo del rancho: TODAS las pantallas los sacan de aquí, para que digan lo mismo.
 // Cada ajuste de valuación sigue a su consumo: a la parcela, al uso general, o al vehículo (que lo lleva en su propia cuenta).
@@ -5474,6 +5476,234 @@ function Foto({ src, alt = "", ...resto }) {
   return <img src={enlace} alt={alt} {...resto} />;
 }
 
+// ════════════════════════════════════════════════════════════════════════
+//  IMPORTAR DOCUMENTOS: muchos papeles de un jalón (sueltos, por montones o
+//  una carpeta entera). Cada uno se abre EN ESTE APARATO, se dice qué es y se
+//  propone qué hacer con él; nada entra hasta que una persona lo confirma.
+//  Las reglas viven en importacion.js; aquí sólo se enseñan y se guardan.
+// ════════════════════════════════════════════════════════════════════════
+let __inicioSabido;   // la fecha de inicio de operaciones, ya preguntada a la base en esta sesión
+function useInicioDeOperaciones() {
+  const [v, setV] = useState(__inicioSabido !== undefined ? { sabido: true, inicio: __inicioSabido } : { sabido: false, inicio: null });
+  useEffect(() => {
+    if (v.sabido) return; let vivo = true;
+    (async () => {
+      if (import.meta.env.DEV && typeof window !== "undefined" && window.__agroInicio !== undefined) { __inicioSabido = window.__agroInicio; if (vivo) setV({ sabido: true, inicio: __inicioSabido }); return; }
+      if (!supabaseListo) { if (vivo) setV({ sabido: true, inicio: null, sinNube: true }); return; }
+      try {
+        const { data: o, error } = await supabase.from("operacion").select("inicio_operaciones").maybeSingle();
+        if (error) throw error;
+        __inicioSabido = o?.inicio_operaciones || null; if (vivo) setV({ sabido: true, inicio: __inicioSabido });
+      } catch { if (vivo) setV({ sabido: false, inicio: null, falla: true }); }
+    })();
+    return () => { vivo = false; };
+  }, [v.sabido]);
+  return v;
+}
+const NOMBRE_DE_DESTINO = { egresos: "Gasto por registrar", historico: "Al histórico (no crea nada de hoy)", trabajadores: "Persona para el catálogo", proveedores: "Proveedor para el catálogo" };
+const CLASE_HISTORICA = { gasto: "Compras y gastos", nomina: "Pagos al personal", combustible: "Combustible", actividad: "Actividades", venta: "Ventas", otro: "Otros comprobantes" };
+function ImportarDocumentos({ data, add, session, onClose }) {
+  const hoy = today(), quien = quienDe(session);
+  const docs = useMemo(() => bandejaDe(data.eventos), [data.eventos]);
+  const historico = useMemo(() => historicoDe(data.eventos), [data.eventos]);
+  const aprendidos = useMemo(() => aprendidosDe(data.eventos), [data.eventos]);
+  const ini = useInicioDeOperaciones();
+  const [tab, setTab] = useState("bandeja");
+  const [filtro, setFiltro] = useState("atender");
+  const [avance, setAvance] = useState(null);          // { total, hechas, actual }
+  const [aviso, setAviso] = useState([]);
+  const [abierto, setAbierto] = useState(null);        // { doc, resultado, marcadas:Set, falta }
+  const [ensena, setEnsena] = useState(null);          // { hoja, clase, mapa } — decir qué es una hoja
+  const [motivo, setMotivo] = useState("");
+  const [dice, setDice] = useState("");
+  const trabajando = useRef(false);
+  const archivosRef = useRef(null), carpetaRef = useRef(null);
+  const datosRef = useRef(data); datosRef.current = data;
+  const contexto = (extra = {}) => { const d = datosRef.current; return { inicio: ini.inicio, rfcsPropios: (d.titulares || []).map(t => t.rfc).filter(Boolean), egresos: d.egresos || [], historico: historicoDe(d.eventos), trabajadores: d.trabajadores || [], encargados: d.encargados || [], proveedores: d.proveedores || [], maquinaria: d.maquinaria || [], parcelas: d.parcelas || [], documentos: bandejaDe(d.eventos), aprendidos: aprendidosDe(d.eventos), ...extra }; };
+  const sello = () => ({ quien, cuando: new Date().toISOString(), fecha: hoy });
+  const cede = () => new Promise(r => setTimeout(r, 0));
+
+  // Lee un documento ya abierto y anota lo que salió. Las propuestas se quedan en este aparato hasta confirmarse.
+  const leerYAnotar = async (doc, abiertoDeArchivo, vistos) => {
+    if (abiertoDeArchivo.error) { add("eventos", anotarLectura({ doc, error: abiertoDeArchivo.error, ...sello() })); return { estado: "error", error: abiertoDeArchivo.error }; }
+    const res = proponer({ ...doc, ...abiertoDeArchivo, id: doc.id }, contexto({ documentos: vistos || bandejaDe(datosRef.current.eventos) }));
+    await guardarPropuesta(LLAVES.importacion, doc.id, res);
+    add("eventos", anotarLectura({ doc, resultado: res, ...sello() }));
+    return { estado: res.estado, res };
+  };
+  const recibir = async (lista) => {
+    if (trabajando.current) return;
+    const archivos = [...lista].filter(f => !esBasura(f.webkitRelativePath || f.name));
+    if (archivos.length === 0) return;
+    if (!ini.sabido) { setAviso(["Todavía no se sabe la fecha de inicio de operaciones (hace falta señal para preguntarla). Sin ella no se puede decidir qué es histórico: intenta de nuevo cuando haya conexión."]); return; }
+    trabajando.current = true; setAviso([]); setDice("");
+    const lote = `L${Date.now()}`, notas = []; let repetidos = 0, sinOriginal = 0;
+    const vistos = bandejaDe(datosRef.current.eventos).slice(), huellas = new Set(vistos.map(d => d.huella));
+    for (let i = 0; i < archivos.length; i++) {
+      const f = archivos[i]; setAvance({ total: archivos.length, hechas: i, actual: f.name }); await cede();
+      const a = await abrirArchivo(f);
+      if (!a.huella) { notas.push(`${f.name}: ${a.error}`); continue; }
+      if (huellas.has(a.huella)) { repetidos++; continue; }
+      const conOriginal = almacenListo(); if (!conOriginal) sinOriginal++;
+      const r = recibirDocumento({ huella: a.huella, nombre: a.nombre, ruta: a.ruta, formato: a.formato, bytes: a.bytes, lote, original: conOriginal ? originalDe(a) : null, eventos: [], ...sello() });
+      if (!r.ok) { notas.push(`${f.name}: ${r.dice}`); continue; }
+      const guardado = add("eventos", r.evento) || r.evento; huellas.add(a.huella);
+      const doc = { id: r.evento.id, ...r.evento.datos, original: guardado?.datos?.original || null, estado: "recibido", intentos: 0, fecha: hoy, recibido: r.evento.cuando };
+      const { _bytes, ...limpio } = a;
+      const leido = await leerYAnotar(doc, limpio, vistos);
+      vistos.push({ ...doc, estado: leido.estado, uuid: limpio.cfdi?.uuid || leido.res?.uuid || null });
+    }
+    if (repetidos) notas.unshift(`${repetidos} archivo(s) ya se habían recibido antes: no se recibieron otra vez.`);
+    if (sinOriginal) notas.push(`Este aparato no deja guardar archivos (¿modo privado?): de ${sinOriginal} documento(s) se guardó lo leído, pero no el original.`);
+    setAviso(notas); setAvance(null); trabajando.current = false; setFiltro("atender");
+  };
+  // Volver a leer uno que se quedó a medias, que tronó, o después de enseñarle una hoja: desde su original guardado.
+  const releer = async (d) => {
+    if (!d.original) return { estado: "sin_original" };
+    const contenido = await contenidoDeArchivo(d.original);
+    if (!contenido) return { estado: "sin_original" };
+    const blob = await (await fetch(contenido)).blob();
+    const a = await abrirArchivo(new File([blob], d.nombre, { type: blob.type }));
+    const { _bytes, ...limpio } = a;
+    return leerYAnotar(d, limpio);
+  };
+  const releerVarios = async (lista) => {
+    if (trabajando.current || lista.length === 0) return; trabajando.current = true; let faltan = 0;
+    for (let i = 0; i < lista.length; i++) { setAvance({ total: lista.length, hechas: i, actual: lista[i].nombre }); await cede(); if ((await releer(lista[i])).estado === "sin_original") faltan++; }
+    setAvance(null); trabajando.current = false;
+    setAviso(faltan ? [`${faltan} documento(s) no se pudieron volver a leer porque su original no está en este aparato ni en la nube. Vuelve a subirlos.`] : []);
+  };
+  const abrir = async (d) => {
+    setDice(""); setMotivo(""); setEnsena(null);
+    let res = await leerPropuesta(LLAVES.importacion, d.id);
+    if (res) res = refrescar(res, contexto());
+    setAbierto({ doc: d, resultado: res, marcadas: new Set((res?.propuestas || []).filter(p => p.accion !== "duplicado").map(p => p.llave)) });
+  };
+  const confirmar = () => {
+    const { doc, resultado, marcadas } = abierto;
+    const c = confirmarIncorporacion({ doc, resultado: refrescar(resultado, contexto()), escogidas: [...marcadas], ...sello(), azar: Math.random });
+    if (!c.ok) { setDice(c.dice); return; }
+    for (const o of c.registros) add(o.sec, o.item);
+    for (const e of c.eventos) add("eventos", e);
+    olvidarPropuesta(LLAVES.importacion, doc.id);
+    const partes = Object.entries(c.cuenta).map(([k, n]) => `${n} ${({ egresos: "gasto(s)", historico: "renglón(es) al histórico", trabajadores: "persona(s)", proveedores: "proveedor(es)" })[k] || k}`);
+    setAbierto(null); setAviso([`«${doc.nombre}» incorporado: ${partes.join(" · ")}.${c.cuenta.egresos ? " Los gastos quedaron en Finanzas; los de «insumos» hay que decir qué fueron." : ""}`]);
+  };
+  const descartar = () => {
+    const r = descartarDocumento({ doc: abierto.doc, motivo, ...sello() });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); olvidarPropuesta(LLAVES.importacion, abierto.doc.id); setAbierto(null);
+  };
+  const ensenar = async () => {
+    const r = eventoDeAprendizaje({ aprendidos, encabezados: ensena.hoja.encabezadosVistos, clase: ensena.clase, mapa: Object.fromEntries(Object.entries(ensena.mapa).filter(([, v]) => v !== "" && v != null).map(([k, v]) => [k, Number(v)])), ...sello() });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); const d = abierto.doc; setEnsena(null); setDice("");
+    await cede(); await cede(); const r2 = await releer(d);
+    if (r2.estado === "sin_original") { setDice("Quedó aprendido para las siguientes, pero este documento no se pudo volver a leer: su original no está en este aparato. Vuelve a subirlo."); return; }
+    abrir({ ...d, estado: r2.estado, resumen: r2.res?.resumen || "", error: r2.error || "", excepciones: r2.res?.excepciones || [] });
+  };
+
+  const res = resumenDeBandeja(docs);
+  const FILTROS = { atender: ["propuesto", "por_revisar", "necesita_lectura", "error", "recibido"], incorporado: ["incorporado"], duplicado: ["duplicado", "sin_uso", "descartado"], todos: null };
+  const lista = docs.filter(d => !FILTROS[filtro] || FILTROS[filtro].includes(d.estado));
+  const colorDe = (e) => ({ propuesto: "var(--accent)", incorporado: "var(--safe)", por_revisar: "var(--gold)", necesita_lectura: "var(--gold)", error: "var(--red)" })[e] || "var(--muted)";
+  const pendientesDeLeer = docs.filter(d => d.estado === "recibido"), conError = docs.filter(d => d.estado === "error");
+  const rh = resumenDelHistorico(historico), mesesH = [...new Set(rh.map(x => x.mes))].sort().reverse();
+  const soltar = (ev) => { ev.preventDefault(); if (ev.dataTransfer?.files?.length) recibir(ev.dataTransfer.files); };
+  return (
+    <div className="section-pad">
+      <div className="flex-b mb-3"><div className="font-syne font-bold" style={{ fontSize: 18 }}>Importar documentos</div>{onClose && <button className="btn-ghost" onClick={onClose}>Cerrar</button>}</div>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", marginBottom: 10 }}>{[["bandeja", `Bandeja${res.porAtender ? ` (${res.porAtender})` : ""}`], ["historico", "Histórico"], ["como", "Qué lee y qué no"]].map(([k, t]) => <button key={k} className={`tab-pill${tab === k ? " active" : ""}`} onClick={() => setTab(k)}>{t}</button>)}</div>
+
+      {tab === "bandeja" && <>
+        <div className="card" onDragOver={e => e.preventDefault()} onDrop={soltar} style={{ borderStyle: "dashed" }}>
+          <div className="card-title">Subir documentos</div>
+          <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Uno, muchos a la vez o una carpeta completa: facturas en XML, hojas de Excel o CSV, PDF, Word y fotos. Se abren aquí mismo, en este aparato; nada entra a la operación hasta que tú lo confirmes.</div>
+          <input ref={archivosRef} type="file" multiple style={{ display: "none" }} aria-label="Escoger archivos para importar" onChange={e => { recibir(e.target.files); e.target.value = ""; }} />
+          <input ref={carpetaRef} type="file" multiple webkitdirectory="" directory="" style={{ display: "none" }} aria-label="Escoger una carpeta para importar" onChange={e => { recibir(e.target.files); e.target.value = ""; }} />
+          <div className="acc-row"><button disabled={!!avance} onClick={() => archivosRef.current?.click()}>Escoger archivos</button><button disabled={!!avance} onClick={() => carpetaRef.current?.click()}>Escoger una carpeta</button></div>
+          {avance && <div style={{ marginTop: 10 }}><div className="text-sm">Leyendo {avance.hechas + 1} de {avance.total}: {avance.actual}</div><div className="progress"><div className="progress-fill green" style={{ width: `${Math.round(avance.hechas / avance.total * 100)}%` }} /></div><div className="text-xs text-muted" style={{ marginTop: 4 }}>Si se cierra la app a la mitad, lo ya recibido no se pierde: al volver se sigue con lo que falte.</div></div>}
+          {!ini.sabido && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 8 }}>Falta señal para saber la fecha de inicio de operaciones. Sin ella no se puede separar lo histórico de lo de hoy.</div>}
+          {ini.sabido && !ini.inicio && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 8 }}>Todavía no se declara la fecha de inicio de operaciones (se declara en Arranque). Mientras tanto, TODO lo que se importe entra como histórico: sirve para consultar y comparar, y no crea gastos, pagos ni existencias.</div>}
+          {ini.sabido && ini.inicio && <div className="text-xs text-muted" style={{ marginTop: 8 }}>La operación arrancó el {ini.inicio}. Lo anterior a esa fecha entra como histórico (no crea nada de hoy); lo posterior se propone como gasto por confirmar.</div>}
+          {aviso.map((a, i) => <div key={i} className="text-sm" style={{ color: "var(--gold)", marginTop: 6 }}>{a}</div>)}
+          {(pendientesDeLeer.length > 0 || conError.length > 0) && !avance && <div className="acc-row" style={{ marginTop: 8 }}>
+            {pendientesDeLeer.length > 0 && <button onClick={() => releerVarios(pendientesDeLeer)}>Seguir leyendo los {pendientesDeLeer.length} que faltan</button>}
+            {conError.length > 0 && <button onClick={() => releerVarios(conError)}>Reintentar los {conError.length} que fallaron</button>}
+          </div>}
+        </div>
+        <div className="card">
+          <div className="flex-b"><span className="card-title" style={{ marginBottom: 0 }}>Bandeja</span><span className="text-xs text-muted">{res.total} documento(s)</span></div>
+          <div className="text-xs text-muted" style={{ margin: "4px 0 8px" }}>{Object.entries(res.por).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${ESTADOS_DOC[k].split(":")[0].toLowerCase()}`).join(" · ") || "Todavía no se ha subido nada."}</div>
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 8 }}>{[["atender", `Por atender (${res.porAtender + res.pendientes})`], ["incorporado", `Incorporados (${res.por.incorporado || 0})`], ["duplicado", `Duplicados y sin uso (${(res.por.duplicado || 0) + (res.por.sin_uso || 0) + (res.por.descartado || 0)})`], ["todos", "Todos"]].map(([k, t]) => <button key={k} className={`tab-pill${filtro === k ? " active" : ""}`} style={{ padding: "5px 12px", fontSize: 12 }} onClick={() => setFiltro(k)}>{t}</button>)}</div>
+          {lista.length === 0 && <div className="text-sm text-muted" style={{ padding: "12px 0" }}>Nada aquí.</div>}
+          {lista.slice(0, 200).map(d => <div key={d.id} role="button" tabIndex={0} aria-label={`Abrir ${d.nombre}`} onClick={() => abrir(d)} onKeyDown={e => e.key === "Enter" && abrir(d)} style={{ borderTop: "1px solid var(--border-soft)", padding: "8px 0", cursor: "pointer" }}>
+            <div className="flex-b"><b className="text-sm" style={{ wordBreak: "break-word" }}>{d.nombre}</b><span className="text-xs" style={{ color: colorDe(d.estado), whiteSpace: "nowrap", marginLeft: 8 }}>{ESTADOS_DOC[d.estado].split(":")[0]}</span></div>
+            <div className="text-xs text-muted">{d.ruta ? `${d.ruta} · ` : ""}{d.estado === "error" ? d.error : d.resumen || ESTADOS_DOC[d.estado]}</div>
+          </div>)}
+          {lista.length > 200 && <div className="text-xs text-muted" style={{ marginTop: 6 }}>Se enseñan los 200 más recientes de {lista.length}.</div>}
+        </div>
+      </>}
+
+      {tab === "historico" && <div className="card">
+        <div className="card-title">Histórico importado</div>
+        <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Lo de antes del arranque (y lo que quedó sólo como referencia). Sirve para consultar y comparar. NO está en los costos, ni en el resultado, ni en el flujo, ni en el almacén, ni le debe nada a nadie.</div>
+        {historico.length === 0 && <div className="text-sm text-muted">Todavía no hay nada en el histórico.</div>}
+        {mesesH.slice(0, 60).map(m => <div key={m} style={{ borderTop: "1px solid var(--border-soft)", padding: "6px 0" }}>
+          <div className="text-sm font-bold">{m}</div>
+          {rh.filter(x => x.mes === m).map(x => <div key={x.clase} className="flex-b text-sm"><span className="text-muted">{CLASE_HISTORICA[x.clase] || x.clase} · {x.n} renglón(es)</span><span>{x.monto ? fmt(x.monto) : "—"}</span></div>)}
+        </div>)}
+      </div>}
+
+      {tab === "como" && <div className="card">
+        <div className="card-title">Qué lee y qué no</div>
+        <div className="text-sm" style={{ marginBottom: 8 }}><b>Lee solo, exacto y sin costo</b> (en este aparato, sin mandar el documento a ningún lado): el XML de una factura o de un recibo de nómina; hojas de Excel y CSV de personal, pagos al personal, combustible, actividades, compras y gastos, y proveedores; tablas dentro de un PDF con texto o de un Word.</div>
+        <div className="text-sm" style={{ marginBottom: 8 }}><b>Guarda pero no lee todavía:</b> fotos, escaneos y PDF que son una foto. Para leerlos hace falta la lectura con IA, que es un gasto y no está activada. Quedan en la bandeja como «falta leerlo», con su original guardado.</div>
+        <div className="text-sm" style={{ marginBottom: 8 }}><b>No adivina:</b> un renglón sin fecha o sin importe legible no se inventa: se dice cuál es. De una factura en PDF no saca el total (por eso pide su XML). Una hoja que no reconoce te pregunta qué es y cuáles son sus columnas, y lo aprende para la siguiente.</div>
+        <div className="text-sm" style={{ marginBottom: 8 }}><b>No duplica:</b> el mismo archivo no se recibe dos veces; la misma factura (mismo folio fiscal) tampoco, aunque llegue como XML y como PDF; y un renglón igual a algo ya registrado no se propone otra vez.</div>
+        <div className="text-sm"><b>Nunca crea solo:</b> pagos al personal, préstamos, deudas, existencias del almacén ni actividades. Lo anterior al arranque entra al histórico; de lo posterior sólo propone gastos, y personas y proveedores para el catálogo, y espera tu sí.</div>
+      </div>}
+
+      {abierto && <div className="modal-overlay" onClick={() => setAbierto(null)}><div className="modal-sheet" onClick={e => e.stopPropagation()}>
+        <div className="flex-b mb-3"><div className="font-syne font-bold" style={{ fontSize: 16, wordBreak: "break-word" }}>{abierto.doc.nombre}</div><button className="btn-ghost" aria-label="Cerrar documento" onClick={() => setAbierto(null)} style={{ fontSize: 20 }}>✕</button></div>
+        <div className="text-sm" style={{ color: colorDe(abierto.doc.estado) }}>{ESTADOS_DOC[abierto.doc.estado]}</div>
+        <div className="text-xs text-muted" style={{ marginBottom: 8 }}>{abierto.doc.resumen || abierto.doc.error}{abierto.doc.recibio ? ` · lo subió ${abierto.doc.recibio} el ${abierto.doc.fecha}` : ""}{abierto.doc.incorporo ? ` · lo incorporó ${abierto.doc.incorporo}` : ""}{abierto.doc.motivo ? ` · ${abierto.doc.motivo}` : ""}</div>
+        {(abierto.resultado?.excepciones || abierto.doc.excepciones || []).map((x, i) => <div key={i} className="text-sm" style={{ color: "var(--gold)", marginBottom: 6 }}>{x}</div>)}
+        {abierto.doc.estado === "propuesto" && !abierto.resultado && <div className="text-sm" style={{ color: "var(--gold)" }}>Las propuestas de este documento se quedaron en el aparato donde se subió. Ábrelo ahí, o vuelve a leerlo aquí.</div>}
+        {abierto.resultado && ["propuesto", "por_revisar"].includes(abierto.doc.estado) && <>
+          {(abierto.resultado.hojas || []).filter(h => h.clase === "desconocido").map((h, i) => <div key={i} className="card" style={{ borderColor: "var(--gold)" }}>
+            <div className="text-sm"><b>La hoja «{h.nombre}» no se reconoce.</b> Dime qué es y cuáles son sus columnas; queda aprendido para las siguientes que vengan igual.</div>
+            {ensena?.hoja.nombre === h.nombre ? <>
+              <select className="inp" style={{ marginTop: 6 }} aria-label="Qué es esta hoja" value={ensena.clase} onChange={e => setEnsena(x => ({ ...x, clase: e.target.value, mapa: {} }))}><option value="">¿Qué es?</option>{["gastos", "nomina", "personal", "combustible", "actividades", "proveedores"].map(k => <option key={k} value={k}>{CLASES_DOC[k]}</option>)}</select>
+              {ensena.clase && CAMPOS_DE(ensena.clase).map(c => <label key={c} className="text-xs text-muted" style={{ display: "block", marginTop: 6 }}>{NOMBRE_DE_CAMPO[c]}<select className="inp" aria-label={`Columna de ${NOMBRE_DE_CAMPO[c]}`} value={ensena.mapa[c] ?? ""} onChange={e => setEnsena(x => ({ ...x, mapa: { ...x.mapa, [c]: e.target.value } }))}><option value="">(no viene)</option>{ensena.hoja.encabezadosVistos.map((t, k) => t ? <option key={k} value={k}>{t}</option> : null)}</select></label>)}
+              <div className="acc-row" style={{ marginTop: 8 }}><button onClick={ensenar}>Guardar y volver a leer</button><button onClick={() => { setEnsena(null); setDice(""); }}>Cancelar</button></div>
+            </> : <div className="acc-row" style={{ marginTop: 6 }}><button onClick={() => { setEnsena({ hoja: { ...h, encabezadosVistos: h.primeraFila || [] }, clase: "", mapa: {} }); setDice(""); }}>Decir qué es</button></div>}
+          </div>)}
+          {abierto.resultado.propuestas.length > 0 && <>
+            <div className="text-sm font-bold" style={{ marginTop: 6 }}>Lo que se propone ({abierto.marcadas.size} marcado(s) de {abierto.resultado.propuestas.filter(p => p.accion !== "duplicado").length})</div>
+            {abierto.resultado.propuestas.slice(0, 150).map((p, i) => <label key={i} className="text-sm" style={{ display: "flex", gap: 8, alignItems: "flex-start", borderTop: "1px solid var(--border-soft)", padding: "6px 0", opacity: p.accion === "duplicado" ? 0.55 : 1 }}>
+              <input type="checkbox" disabled={p.accion === "duplicado"} aria-label={`Incorporar ${p.datos.concepto || p.datos.nombre || p.datos.contraparte || p.llave}`} checked={p.accion !== "duplicado" && abierto.marcadas.has(p.llave)} onChange={e => setAbierto(a => { const m = new Set(a.marcadas); e.target.checked ? m.add(p.llave) : m.delete(p.llave); return { ...a, marcadas: m }; })} />
+              <span style={{ flex: 1 }}>{p.datos.nombre || (p.destino === "historico" ? p.datos.contraparte || p.datos.concepto : p.datos.concepto || p.datos.proveedor) || "Renglón"}{p.datos.monto != null ? <b> · {fmt(p.datos.monto)}</b> : null}<div className="text-xs text-muted">{[p.datos.fecha, p.destino === "historico" ? (p.datos.contraparte ? p.datos.concepto : "") : p.datos.proveedor, p.datos.puesto, p.datos.litros ? `${p.datos.litros} L` : "", p.datos.parcela].filter(Boolean).join(" · ")}</div><div className="text-xs" style={{ color: p.accion === "duplicado" ? "var(--muted)" : p.destino === "historico" ? "var(--muted)" : "var(--accent)" }}>{p.accion === "duplicado" ? p.nota : `${NOMBRE_DE_DESTINO[p.destino]}${p.datos.referencia ? " · posterior al arranque: sólo referencia" : ""}${p.destino === "egresos" && p.datos.categoria ? ` · ${p.datos.categoria}` : ""}`}</div></span>
+            </label>)}
+            {abierto.resultado.propuestas.length > 150 && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Se enseñan 150 de {abierto.resultado.propuestas.length}; al incorporar entran todos los marcados.</div>}
+          </>}
+          {(abierto.resultado.descartadas || []).length > 0 && <div style={{ marginTop: 8 }}><div className="text-sm font-bold">Renglones que no se pudieron leer ({abierto.resultado.descartadas.length})</div>{abierto.resultado.descartadas.slice(0, 15).map((x, i) => <div key={i} className="text-xs text-muted">{x.hoja ? `${x.hoja}, ` : ""}renglón {x.renglon}: {x.porque} {x.vista ? `(${x.vista})` : ""}</div>)}</div>}
+        </>}
+        {dice && <div className="text-sm" style={{ color: "var(--red)", margin: "8px 0" }}>{dice}</div>}
+        <div className="acc-row" style={{ marginTop: 10 }}>
+          {abierto.resultado && abierto.doc.estado === "propuesto" && <button onClick={confirmar}>Incorporar lo marcado</button>}
+          {["error", "recibido", "por_revisar", "necesita_lectura"].includes(abierto.doc.estado) && abierto.doc.original && <button onClick={async () => { const d = abierto.doc; setAbierto(null); await releerVarios([d]); }}>Volver a leer</button>}
+        </div>
+        {!["incorporado", "descartado"].includes(abierto.doc.estado) && <div style={{ marginTop: 10 }}>
+          <input className="inp" aria-label="Motivo para descartar el documento" placeholder="Para descartarlo: por qué (no es del rancho, ya está capturado…)" value={motivo} onChange={e => setMotivo(e.target.value)} />
+          <div className="acc-row" style={{ marginTop: 6 }}><button onClick={descartar}>Descartar este documento</button></div>
+        </div>}
+        {abierto.doc.original && <div className="text-xs text-muted" style={{ marginTop: 8 }}>El original está guardado{abierto.doc.bytes > 3 * 1024 * 1024 ? " sólo en el aparato donde se subió (pesa más de 3 MB)" : ""}.</div>}
+      </div></div>}
+    </div>
+  );
+}
+
 function BuzonPapeles({ data, add, upd, setInv, session, onClose }) {
   const fileRef = useRef(null);
   const [foto, setFoto] = useState(null);          // dataURL
@@ -6765,6 +6995,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "movimientos" && <AdminMovimientos data={data} add={add} upd={upd} del={del} setInv={setInv} />}
               {page === "reportes" && <AdminReportes data={data} navParam={navParam} setNavParam={setNavParam} add={add} session={session} />}
               {page === "contabilidad" && <AdminContabilidad data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} setInv={setInv} onNav={setPage} session={session} />}
+              {page === "importar" && <ImportarDocumentos data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "papeles" && <BuzonPapeles data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "banco" && <EstadoDeCuenta data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "socios" && <SociosYBolsas data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
