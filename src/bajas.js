@@ -66,7 +66,7 @@ const dias = (a, b) => Math.round((Date.UTC(+b.slice(0, 4), +b.slice(5, 7) - 1, 
 // La propuesta. `cuenta`: la de prestaciones de esa persona calculada HASTA el día de la baja.
 // `minimo`: lo que devuelve `salarioMinimoEn(fecha, zona, eventos)` — el salario mínimo vigente ESE día. Sin él no se propone la prima de antigüedad.
 // Cada concepto: aplica "si" | "revisar" | "no", sugerido (si entra de entrada en la baja), monto (o null si no se puede calcular), explica, fundamento.
-export function proponerBaja({ persona, causa, fecha, cuenta, reglas = {}, remuneraciones = [], minimo = null, bonificaciones = [] }) {
+export function proponerBaja({ persona, causa, fecha, cuenta, reglas = {}, remuneraciones = [], minimo = null, bonificaciones = [], bonos = [] }) {
   const def = CAUSAS_DE_BAJA[causa];
   if (!def) return { ok: false, dice: "Falta la causa de la terminación." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || "")) return { ok: false, dice: "Falta el último día de trabajo." };
@@ -76,7 +76,7 @@ export function proponerBaja({ persona, causa, fecha, cuenta, reglas = {}, remun
   const base = cond.baseDe("aguinaldo", fecha), anios = dias(cond.ingreso, fecha) / 365, completos = Math.floor(anios);
   const sinBase = base.monto == null ? `no hay con qué calcular su salario por día (${base.revisar})` : "";
   // El salario integrado: por partes, con lo fijo y lo variable que se sabe. Si falta información es un piso y lo dice.
-  const sdi = integrar({ cond, diario: base.monto, n: completos + 1, fecha, persona, remuneraciones, bonificaciones });
+  const sdi = integrar({ cond, diario: base.monto, n: completos + 1, fecha, persona, remuneraciones, bonificaciones, bonos });
   const conceptos = [];
   // 1. Lo que ya ganó: siempre.
   for (const c of Object.keys(CONCEPTOS_PRESTACION)) {

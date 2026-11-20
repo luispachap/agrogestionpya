@@ -18,12 +18,28 @@ Recorrido de punta a punta entre personal, actividades, cuadrillas, vehículos, 
 | 10 | Capturar como gasto de «mano de obra» el pago a una cuadrilla lo contaba dos veces sin aviso | Aviso al escoger esa categoría | `cruces` |
 | 11 | El corredor de pruebas dejaba pasar una prueba que tronaba a medias | Corregido | — |
 
+## Decisiones de Luis del 20 de noviembre (ya aplicadas)
+
+| Decisión | Cómo quedó | Prueba |
+|---|---|---|
+| Maquinaria: cuota por hora y costo real nunca se suman | La cuota es el costo aplicado; a los costos sólo entra además la diferencia contra el real, con su tratamiento (`maq_diferencia`). El cierre enseña aplicado, real y diferencia por máquina | `vehiculos.test.js`, `escenario.test.js`, `decisiones` |
+| Insumos: costo al consumirse | Resultados cuenta consumos, uso general, mermas y ajustes de valuación; las compras son inventario; el flujo las cuenta al pagarse | `resultado.test.js`, `escenario.test.js` |
+| Bonificaciones dentro de Pagos al personal | Pestaña «Bonos»: otorgar (costo) y pagar (no costo); la pantalla vieja ya no captura y sus registros se conservan | `bonos.test.js`, `decisiones` |
+| Compras del personal para el almacén | Aprobar ya no mete al almacén; se recibe (con o sin precio) y se valúa; sin precio queda pendiente de valoración | `movimientos.test.js`, `compras.test.js`, `decisiones` |
+
+## Riesgos que quedan a la vista
+
+- **Una compra de almacén que nunca se registra como entrada** se queda en «inventario» o «por valuar» para siempre y nunca llega a costo. La app lo enseña (pendientes de recibir o de valuar), pero alguien tiene que cerrarlo.
+- **Una máquina con cuota y sin ningún costo real capturado** no se concilia: se queda con lo aplicado y lo dice. Si nadie captura diésel ni taller, la cuota nunca se corrige.
+- **La depreciación** sale de `depreciacion_mes` en la ficha de la máquina. Hoy ninguna la tiene: mientras no se capture, el costo real no la incluye.
+- **Bonos que integran**: la app marca por defecto que el de productividad cuenta para el salario integrado y el extraordinario no. Es un criterio, no un dictamen.
+- **Ajustes de valuación de un consumo hecho desde una actividad** van a la parcela de la actividad sólo si el movimiento la traía; los de vehículo salen como gasto general de almacén, no dentro del costo del vehículo.
+- Lo anotado en la pantalla vieja de bonificaciones no entra a nada. Si alguno fue un bono real, hay que otorgarlo en la pestaña nueva.
+
 ## Lo que se encontró y NO se cambió (pide decisión o un caso real)
 
-- **Maquinaria propia**: la actividad carga el costo por hora de la máquina y, aparte, sus gastos reales (diésel, taller) se capturan como gastos. En la utilidad cuentan los dos. Falta decidir cuál manda.
-- **Compras que captura el personal con artículos para el almacén**: los artículos entran sin precio (la compra sólo trae el total). El dinero sí cuenta; el costo por parcela de ese insumo no.
-- **Bonificaciones (pantalla vieja)**: lo anotado ahí no entra a costos, pagos ni flujo, y se puede borrar. Falta decidir si se retira o se convierte en un pago con evento.
-- **Insumos en la utilidad**: cuentan cuando se compran, no cuando se usan (el cierre de mes sí los cuenta al usarse). Son dos criterios; hay que decir cuál se quiere ver en Resultados.
+- (Maquinaria propia, compras del personal, bonificaciones e insumos en la utilidad: ya decididos y aplicados; ver arriba.)
+- **Qué hacer con la diferencia de maquinaria**: hoy queda pendiente de distribuir. Falta escoger: repartirla con la misma base de la cuota, o mandarla a gasto general.
 - **Vacaciones disfrutadas en la conciliación**: se restan por el total, no por fecha.
 - Un gasto con parcela Y vehículo a la vez se contaría dos veces; la pantalla no lo permite, pero una importación sí podría.
 

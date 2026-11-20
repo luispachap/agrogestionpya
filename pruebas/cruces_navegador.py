@@ -46,7 +46,7 @@ with sync_playwright() as p:
     res_t = pg.locator(".card", has_text="Estado de resultados").first.inner_text()
     # ingresos 10,000 − (mano de obra 400 + 300 + 150) − compra del personal 300 − luz 900 = 7,950
     caso("la utilidad del inicio es la misma que la de Finanzas", "$7,950" in heroe and "$7,950" in res_t, plano(heroe) + " /// " + plano(res_t)[:400])
-    caso("el estado de resultados desglosa de dónde sale cada costo", "Mano de obra en parcelas y bodega" in res_t and "$850" in res_t and "Compras hechas por el personal" in res_t and "Otros gastos capturados" in res_t)
+    caso("el estado de resultados desglosa de dónde sale cada costo", "Mano de obra en parcelas y bodega" in res_t and "$850" in res_t and "Compras del personal que no son mercancía" in res_t and "Gastos capturados" in res_t and "Costos de producción" in res_t and "Gastos generales" in res_t)
     cul = pg.locator(".card", has_text="Resultado por cultivo").first.inner_text()
     caso("el trabajo general de bodega no se le reparte a ningún cultivo: se dice aparte", "Los trabajos generales de bodega ($150) no se reparten entre los cultivos" in cul, plano(cul)[:300])
     costo_ajo = pg.evaluate("() => { const d = window.__agroDatos; return (d.actividadesContables || d.actividades).filter(a => a.parcelaId === 'p1' || (a.esBodega && a.cultivoBodega === 'Ajo')).reduce((s, a) => s + a.costoTotal, 0); }")

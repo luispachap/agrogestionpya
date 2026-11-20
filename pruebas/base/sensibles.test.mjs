@@ -38,7 +38,7 @@ test("ni_escribiendo_el_sello_a_mano_se_autoriza_solo", async () => {
 
 test("todos_los_tipos_sensibles_se_rechazan_sin_permiso_y_se_autorizan_al_superadministrador", async () => {
   const tipos = (await verdad(db, "select tipo from operaciones_sensibles order by tipo")).map(x => x.tipo);
-  assert.equal(tipos.length, 20);
+  assert.equal(tipos.length, 22);
   for (const t of tipos) {
     const datos = { ...PAGO };
     assert.ok((await mete("encargado", `s-no-${t}`, t, datos)).ok); assert.equal((await fila(`s-no-${t}`)).validacion, "rechazado", t);
@@ -169,4 +169,13 @@ test("el_catalogo_de_salarios_minimos_no_lo_cambia_un_encargado_ni_escribiendo_d
   await mete("luis", "s-sm-luis", "salario_minimo", { desde: "2027-01-01", general: 350, frontera: 470, fuente: "Resolución de prueba, DOF" });
   const r = await verdad(db, "select id, validacion, validacion_dice from eventos where id in ('s-sm-enc', 's-sm-luis') order by id");
   assert.deepEqual(r.map(x => [x.id, x.validacion, x.validacion_dice]), [["s-sm-enc", "rechazado", "sin_permiso"], ["s-sm-luis", "autorizado", null]]);
+});
+
+test("un_encargado_no_otorga_ni_paga_bonos_y_un_bono_de_cero_no_pasa", async () => {
+  await mete("encargado", "s-bono-enc", "bono_personal", { monto: 500, personaId: "t1" });
+  await mete("encargado", "s-pbono-enc", "pago_bono", { monto: 500, bonoId: "s-bono-enc" });
+  await mete("luis", "s-bono-luis", "bono_personal", { monto: 500, personaId: "t1" });
+  await mete("luis", "s-bono-cero", "bono_personal", { monto: 0, personaId: "t1" });
+  const r = await verdad(db, "select id, validacion, validacion_dice from eventos where id like 's-bono-%' or id like 's-pbono-%' order by id");
+  assert.deepEqual(r.map(x => [x.id, x.validacion, x.validacion_dice]), [["s-bono-cero", "rechazado", "importe"], ["s-bono-enc", "rechazado", "sin_permiso"], ["s-bono-luis", "autorizado", null], ["s-pbono-enc", "rechazado", "sin_permiso"]]);
 });

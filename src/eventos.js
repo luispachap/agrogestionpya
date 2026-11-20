@@ -86,7 +86,7 @@ export const OPERACION_DE = {
   pago_personal: "autorizar_pagos", pago_prestacion: "autorizar_pagos", pago_baja: "autorizar_pagos", abono_prestamo: "autorizar_pagos", prestamo_entrega: "autorizar_pagos", recibo_personal: "autorizar_pagos",
   prestamo_autorizacion: "autorizar_prestamos", prestamo_rechazo: "autorizar_prestamos",
   decision_jornada: "decidir_asistencia", horas_reconocidas: "decidir_asistencia",
-  ajuste: "cambiar_reglas", salario_minimo: "cambiar_reglas",
+  ajuste: "cambiar_reglas", salario_minimo: "cambiar_reglas", bono_personal: "autorizar_pagos", pago_bono: "autorizar_pagos",
 };
 export const OPERACIONES = {
   cerrar_semana: "Cerrar y reabrir la semana, y confirmar sus pagos",

@@ -67,3 +67,12 @@ test("una_percepcion_sin_valor_o_mal_capturada_no_entra", () => {
   assert.match(sdi(con([v.percepcion])).falta[0], /falta el valor de «Habitación o ayuda de renta»/);
   assert.deepEqual(percepcionesDe({}).lista, []);
 });
+
+test("los_incentivos_de_productividad_de_sus_ultimos_treinta_dias_trabajados_integran_y_los_viejos_no", () => {
+  const treinta = Array.from({ length: 30 }, (_, i) => ({ fecha: `2026-10-${String(i + 1).padStart(2, "0")}`, monto: 365 }));
+  const bonos = [{ monto: 900, hasta: "2026-10-15", motivo: "Meta de cajas" }, { monto: 600, hasta: "2026-10-29", motivo: "Meta de cajas" }, { monto: 5000, hasta: "2026-08-01", motivo: "Viejo" }];
+  const r = sdi(con([]), { remuneraciones: treinta, bonos });
+  assert.equal(de(r, "variable:bonos").porDia, 50, "1,500 entre 30 días trabajados"); assert.equal(r.monto, 434); assert.equal(r.completo, true);
+  const sinDias = sdi(con([]), { bonos: [{ monto: 900, hasta: "2026-11-10", motivo: "Meta" }] });
+  assert.equal(de(sinDias, "variable:bonos").porDia, 30); assert.equal(sinDias.completo, false); assert.match(sinDias.falta[0], /no hay días trabajados registrados/);
+});

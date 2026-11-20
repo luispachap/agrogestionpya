@@ -135,3 +135,10 @@ Valores que escogí yo y Luis puede cambiar en «Pagos al personal»: todos los 
 - Tres bloques que no se mezclan: **directos de producción**, **indirectos atribuibles a producción** (repartidos + pendientes) y **gastos generales de operación y administración**. Un gasto general nunca sube el costo de una parcela.
 - **Bajas**: la prima de antigüedad y las indemnizaciones son gasto laboral general (regla `ind_bajas` = `general`). Se puede cambiar la regla, pero no se reparten solas.
 - **Salario mínimo**: sale del catálogo oficial por fecha (`salariosMinimos.js`), no de una regla tecleada.
+
+## Decisiones del 20 nov
+
+- **Maquinaria**: cuota por hora = costo aplicado (provisional, ya en actividades y parcelas). Costo real = operador + combustible + mantenimiento + depreciación. A los costos entra, además de la cuota, sólo la diferencia; tratamiento por la regla `maq_diferencia` (pendiente · con la base de la cuota · gasto general).
+- **Insumos**: costo al consumirse. Comprar = inventario (y flujo al pagarse). Lo que cambia después de consumido = ajuste de valuación, aparte.
+- **Bonos**: costo al otorgarse, con el tratamiento que se le dio (a las parcelas donde trabajó · gasto general · pendiente). Pagar no es costo.
+- **Compras del personal**: mercancía = inventario cuando está recibida y valuada; lo que no es mercancía = gasto general; lo que falta por recibir o valuar = «por valuar».

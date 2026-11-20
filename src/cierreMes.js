@@ -13,6 +13,7 @@
 import { nuevoEvento, vigentes, negado } from "./eventos.js";
 import { sumarDinero } from "./calculos.js";
 import { indirectoDe } from "./indirectos.js";
+import { estadoDeCompra } from "./compras.js";
 
 export const T_CIERRE_MES = "cierre_mes", T_REAPERTURA_MES = "reapertura_mes";
 const limpio = (s) => String(s || "").trim();
@@ -23,18 +24,31 @@ const finDe = (mes) => `${mes}-${String(new Date(Date.UTC(+mes.slice(0, 4), +mes
 //   actividades   las que ya cuentan (`actividadesContables`), con `costoTotal`
 //   egresos       los vivos (sin cancelados);  compras: las aprobadas
 //   indirectos    lo que devuelve `juntarFuentes`
-export function costoDelMes({ mes, parcelas = [], actividades = [], egresos = [], compras = [], indirectos = null }) {
+//   recibidas          `estadoDelAlmacen(...).recibidas`: lo que de cada compra del personal ya entró al almacén y con qué precio
+//   consumosGenerales  consumos del almacén de «uso general del rancho», ya con su costo: { fecha, costo }
+//   ajustesValuacion   la lista de `ajustesDeValuacion`: consumos cuyo costo se supo o cambió después
+//   mermas             mermas y faltantes del almacén ya valuados: { fecha, valor }
+//   maquinaria         lo de `conciliarMaquinaria(repartos, mes)`: se guarda para enseñar aplicado, real y diferencia
+export function costoDelMes({ mes, parcelas = [], actividades = [], egresos = [], compras = [], indirectos = null, recibidas = [], consumosGenerales = [], ajustesValuacion = [], mermas = [], maquinaria = null }) {
   const desde = `${mes}-01`, hasta = finDe(mes), enMes = (f) => !!f && f >= desde && f <= hasta;
   const dir = new Map();
   const pon = (id, monto) => { if (id && monto) dir.set(id, sumarDinero(dir.get(id) || 0, monto)); };
   for (const a of actividades) if (enMes(a.fecha)) pon(a.parcelaId, Number(a.costoTotal) || 0);
   for (const e of egresos) if (enMes(e.fecha)) pon(e.parcelaId, Number(e.monto) || 0);
   for (const c of compras) if (c.estado === "aprobada" && enMes(c.fecha)) pon(c.parcelaId, Number(c.monto) || 0);
+  // AJUSTES DE VALUACIÓN: un consumo cuyo costo se supo o cambió después (una compra recibida sin precio, una compra capturada
+  // tarde). Van al mes del consumo y a su parcela, como renglón aparte: el consumo original no se toca.
+  const ajPorParcela = new Map(); let ajOtros = 0;
+  for (const a of ajustesValuacion) {
+    if (!enMes(a.fecha) || !a.diferencia) continue;
+    if (a.destino?.tipo === "parcela" && a.destino.id) { pon(a.destino.id, a.diferencia); ajPorParcela.set(a.destino.id, sumarDinero(ajPorParcela.get(a.destino.id) || 0, a.diferencia)); }
+    else ajOtros = sumarDinero(ajOtros, a.diferencia);
+  }
   const ids = new Set([...dir.keys(), ...(indirectos?.partes || []).filter(p => enMes(p.fecha)).map(p => p.parcelaId)]);
   const nombre = new Map(parcelas.map(p => [p.id, p.nombre]));
   const renglones = [...ids].map(id => {
     const directo = dir.get(id) || 0, indirecto = indirectoDe(indirectos, { parcelaIds: [id], desde, hasta }).total;
-    return { parcelaId: id, nombre: nombre.get(id) || "Parcela que ya no está en el catálogo", directo, indirecto, completo: sumarDinero(directo, indirecto) };
+    return { parcelaId: id, nombre: nombre.get(id) || "Parcela que ya no está en el catálogo", directo, indirecto, completo: sumarDinero(directo, indirecto), ...(ajPorParcela.get(id) ? { ajusteValuacion: ajPorParcela.get(id) } : {}) };
   }).sort((a, b) => a.nombre.localeCompare(b.nombre));
   // GASTOS GENERALES: lo que el rancho gastó y no es de ninguna parcela ni de un vehículo (lo del vehículo ya
   // viene en los indirectos). No se reparten a parcelas: se enseñan aparte. Las compras de insumos para el
@@ -53,15 +67,20 @@ export function costoDelMes({ mes, parcelas = [], actividades = [], egresos = []
     else if (a.esBodega && a.cultivoBodega) { const x = porCultivo.get(a.cultivoBodega) || { cultivo: a.cultivoBodega, monto: 0, n: 0 }; x.monto = sumarDinero(x.monto, m); x.n++; porCultivo.set(a.cultivoBodega, x); }
     else { sueltas = sumarDinero(sueltas, m); nSueltas++; }
   }
-  // COMPRAS DEL PERSONAL ya aprobadas y sin parcela: tampoco entraban al cierre. Si son artículos para el almacén, van
-  // con las compras del almacén (su costo nace al usarse); si no, son un gasto general más.
-  let comprasAlmacen = 0;
+  // COMPRAS DEL PERSONAL ya aprobadas y sin parcela. Lo que es mercancía del almacén NO es gasto del mes (se vuelve costo
+  // al usarse); lo que no lo es (un flete, una refacción puesta directo) es gasto general; y mientras la mercancía no esté
+  // recibida y valuada no se sabe cuánto es de cada cosa: queda «por valuar», ni gasto ni cero.
+  let comprasAlmacen = 0, comprasPorValuar = 0;
+  const gen = (k, m) => { if (!m) return; const x = porCat.get(k) || { categoria: k, monto: 0, n: 0 }; x.monto = sumarDinero(x.monto, m); x.n++; porCat.set(k, x); };
   for (const c of compras) {
     if (c.estado !== "aprobada" || !enMes(c.fecha) || c.parcelaId) continue;
-    const m = Number(c.monto) || 0; if (!m) continue;
-    if (c.afectaInventario && (c.items || []).some(i => i.insumoId)) comprasAlmacen = sumarDinero(comprasAlmacen, m);
-    else { const x = porCat.get("compras_personal") || { categoria: "compras_personal", monto: 0, n: 0 }; x.monto = sumarDinero(x.monto, m); x.n++; porCat.set("compras_personal", x); }
+    const e = estadoDeCompra(c, recibidas);
+    gen("compras_personal", e.gasto || 0); comprasAlmacen = sumarDinero(comprasAlmacen, e.inventario); comprasPorValuar = sumarDinero(comprasPorValuar, e.porValuar);
   }
+  // Del almacén, lo que no fue a una parcela ni a un vehículo: uso general, mermas y faltantes, y ajustes de valuación sin parcela.
+  gen("almacen_uso_general", sumarDinero(consumosGenerales.filter(c => enMes(c.fecha)).map(c => Number(c.costo) || 0)));
+  gen("almacen_mermas", sumarDinero(mermas.filter(m => enMes(m.fecha)).map(m => Number(m.valor) || 0)));
+  gen("almacen_ajustes", ajOtros);
   const bodega = { porCultivo: [...porCultivo.values()].sort((a, b) => a.cultivo.localeCompare(b.cultivo)), total: sumarDinero([...porCultivo.values()].map(x => x.monto)) };
   const sinParcela = { total: sueltas, n: nSueltas };
   // También es gasto general lo que una fuente de indirectos clasificó así (hoy: prima de antigüedad e indemnizaciones de una baja).
@@ -72,7 +91,7 @@ export function costoDelMes({ mes, parcelas = [], actividades = [], egresos = []
   const pend = (indirectos?.pendientes || []).filter(p => enMes(p.fecha));
   const fuera = todoFuera.filter(p => !p.general);
   const k = { mes, renglones, directo: sumarDinero(renglones.map(r => r.directo)), indirecto: sumarDinero(renglones.map(r => r.indirecto)), completo: sumarDinero(renglones.map(r => r.completo)),
-    pendiente: sumarDinero(pend.map(p => p.monto)), pendientes: pend.length, noProduccion: sumarDinero(fuera.map(p => p.monto)), generales, paraAlmacen, bodega, sinParcela };
+    pendiente: sumarDinero(pend.map(p => p.monto)), pendientes: pend.length, noProduccion: sumarDinero(fuera.map(p => p.monto)), generales, paraAlmacen, porValuar: comprasPorValuar, ajustesValuacion: sumarDinero([...ajPorParcela.values()]), maquinaria, bodega, sinParcela };
   // Lo que costó mantener funcionando TODO el rancho ese mes. Cada peso está en un solo renglón.
   return { ...k, rancho: sumarDinero(k.completo, bodega.total, sinParcela.total, k.pendiente, k.noProduccion, generales.total) };
 }
@@ -100,7 +119,9 @@ export function cerrarMes({ permitido, eventos, costo, hoy, motivo = "", concili
   return { ok: true, avisos, evento: nuevoEvento({ tipo: T_CIERRE_MES, cuando, fecha, quien, azar, origen: s.cierre?.id || null, relacion: s.cierre ? "sustituye" : null,
     datos: { mes: costo.mes, motivo: limpio(motivo), renglones: costo.renglones.map(r => ({ parcelaId: r.parcelaId, nombre: r.nombre, directo: r.directo, indirecto: r.indirecto, completo: r.completo })),
       directo: costo.directo, indirecto: costo.indirecto, completo: costo.completo, pendiente: costo.pendiente, noProduccion: costo.noProduccion,
-      generales: costo.generales, paraAlmacen: costo.paraAlmacen, bodega: costo.bodega, sinParcela: costo.sinParcela, rancho: costo.rancho,
+      generales: costo.generales, paraAlmacen: costo.paraAlmacen, porValuar: costo.porValuar || 0, ajustesValuacion: costo.ajustesValuacion || 0,
+      ...(costo.maquinaria ? { maquinaria: { aplicado: costo.maquinaria.aplicado, real: costo.maquinaria.real, diferencia: costo.maquinaria.diferencia, sinConciliar: costo.maquinaria.sinConciliar, filas: costo.maquinaria.filas.map(f => ({ vehiculoId: f.vehiculoId, nombre: f.nombre, aplicado: f.aplicado, real: f.real, diferencia: f.diferencia, tratamiento: f.tratamiento, sinReal: f.sinReal })) } } : {}),
+      bodega: costo.bodega, sinParcela: costo.sinParcela, rancho: costo.rancho,
       ...(conciliacion ? { personal: { alCosto: conciliacion.alCosto, generado: conciliacion.generado, ajustes: conciliacion.ajustes, nuevo: conciliacion.nuevo, pagado: conciliacion.pagado, porPagar: conciliacion.porPagar, cuadra: conciliacion.cuadra, porRevisar: (conciliacion.problemas || []).map(p => p.dice) } } : {}) } }) };
 }
 export function reabrirMes({ permitido, eventos, mes, motivo, quien, cuando, fecha, azar }) {

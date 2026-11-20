@@ -379,3 +379,59 @@ test("lo_capturado_de_un_dia_anterior_no_se_corrige_con_el_desfase_y_un_conteo_s
   const k = contar({ articulo: UREA, contado: 55, existencia: 55, quien: ADMIN, cuando: c("12:00"), fecha: D, azar: az() }).evento;
   assert.equal(est([k]).conteosSinHora.length, 1); assert.equal(est([{ ...k, reloj: { desfase: 1200 } }]).conteosSinHora.length, 0);
 });
+
+// ── Compras del personal: se recibe sin precio, se valúa después ───────────
+import { recibirCompra, valuar, idDeRecepcion, valorDelInventario, costoDeConsumos as costoDeConsumos2, ajustesDeValuacion as ajustesDeValuacion2 } from "./movimientos.js";
+const COMPRA = { id: "co1", estado: "aprobada", descripcion: "Hilo y urea", proveedor: "La Central", monto: 1500, fecha: D };
+const HILO = { id: "i-x", nombre: "Hilo", unidad: "rollo", existencia: 0 };
+const recibe = (mas = {}) => recibirCompra({ compra: COMPRA, i: 0, articulo: HILO, cantidad: 10, quien: ENC, cuando: c("09:00"), fecha: D, ...mas });
+
+test("lo_que_compra_un_trabajador_sin_saber_el_precio_entra_pendiente_de_valoracion_no_en_cero", () => {
+  const r = recibe(); assert.ok(r.ok, r.dice);
+  const e = est([r.evento], [HILO]);
+  assert.equal(nave([r.evento], HILO, [HILO]), 10, "la mercancía sí entra: ya está en el estante");
+  assert.deepEqual(e.porValuar.map(p => [p.articulo, p.cantidad, p.ref.id]), [["Hilo", 10, "co1"]]);
+  assert.equal(e.promedios.get("i-x"), undefined, "no tiene costo: ni cero ni inventado");
+  const v = valorDelInventario(e, [HILO]);
+  assert.equal(v.valor, 0); assert.deepEqual(v.sinValor.map(x => [x.articulo, x.cantidad, x.porValuar]), [["Hilo", 10, true]], "y el inventario dice que hay algo sin valor, no que vale cero");
+  assert.equal(recibirCompra({ compra: { ...COMPRA, estado: "pendiente" }, i: 0, articulo: HILO, cantidad: 10, quien: ENC, cuando: c(), fecha: D }).ok, false, "sin aprobar no se recibe");
+  assert.equal(recibe({ cantidad: 0 }).ok, false); assert.match(recibe({ costoUnit: 0 }).dice, /déjalo vacío/);
+});
+
+test("recibir_dos_veces_la_misma_partida_de_la_misma_compra_no_la_mete_doble", () => {
+  const a = recibe().evento, b = recibe({ quien: ADMIN, cuando: c("09:05") }).evento;
+  assert.equal(a.id, idDeRecepcion("co1", 0)); assert.equal(a.id, b.id, "es el mismo evento aunque lo capturen dos personas");
+  assert.equal(nave([a, b], HILO, [HILO]), 10);
+});
+
+test("al_valuar_el_precio_vale_desde_que_entro_y_lo_ya_consumido_sale_como_ajuste_aparte", () => {
+  const ent = recibe().evento;
+  const uso = consumirDirecto({ articulo: HILO, cantidad: 4, destino: P7, quien: ENC, cuando: c("11:00"), fecha: D, azar: az() });
+  assert.ok(uso.ok, uso.dice);
+  const antes = est([ent, uso.evento], [HILO]);
+  assert.equal(costoDeConsumos2(antes).total, 0); assert.equal(costoDeConsumos2(antes).pendientesDeValuacion.length, 1, "ese consumo no costó cero: está pendiente de valoración");
+  const v = valuar({ entrada: antes.porValuar[0], costoUnit: 50, quien: ADMIN, cuando: c("10:00", "2026-11-21"), fecha: "2026-11-21", azar: az() });
+  assert.ok(v.ok, v.dice);
+  const despues = est([ent, uso.evento, v.evento], [HILO]);
+  assert.equal(despues.porValuar.length, 0); assert.equal(despues.promedios.get("i-x"), 50);
+  assert.equal(valorDelInventario(despues, [HILO]).valor, 300, "quedan 6 rollos a $50");
+  const aj = ajustesDeValuacion2(despues);
+  assert.equal(aj.total, 200, "los 4 rollos ya usados: $200 que la parcela no traía"); assert.equal(aj.lista[0].original, null); assert.equal(aj.lista[0].destino.id, "p7"); assert.match(aj.lista[0].porque, /no tenía costo/);
+  assert.equal(despues.consumos[0].costo, null, "el consumo original no se toca");
+  assert.deepEqual(despues.recibidas.map(x => [x.compraId, x.valor]), [["co1", 500]]);
+});
+
+test("corregir_una_valoracion_deja_la_anterior_como_historial", () => {
+  const ent = recibe().evento, p = est([ent], [HILO]).porValuar[0];
+  const v1 = valuar({ entrada: p, costoUnit: 50, quien: ENC, cuando: c("10:00"), fecha: D, azar: az() }).evento;
+  const v2 = valuar({ entrada: p, costoUnit: 55, nota: "venía en la factura", quien: ADMIN, cuando: c("12:00"), fecha: D, azar: az() }).evento;
+  const e = est([ent, v1, v2], [HILO]);
+  assert.equal(e.promedios.get("i-x"), 55); assert.deepEqual(e.recibidas[0].valuacion.anteriores, [{ costoUnit: 50, por: "Encargado", fecha: D }]);
+  assert.equal(valuar({ entrada: p, costoUnit: 0, quien: ADMIN, cuando: c(), fecha: D }).ok, false);
+});
+
+test("si_al_recibir_ya_se_sabe_el_precio_entra_valuada_de_una_vez", () => {
+  const r = recibe({ costoUnit: 48 });
+  const e = est([r.evento], [HILO]);
+  assert.equal(e.porValuar.length, 0); assert.equal(e.promedios.get("i-x"), 48); assert.equal(e.recibidas[0].valor, 480);
+});

@@ -78,9 +78,12 @@ test("el_trabajo_de_bodega_entra_al_cierre_el_de_un_cultivo_como_directo_y_el_ge
 
 test("una_compra_del_personal_sin_parcela_tambien_entra_al_cierre_como_gasto_general_o_como_compra_del_almacen", () => {
   const compras = [{ fecha: "2026-11-06", monto: 300, estado: "aprobada", descripcion: "Refacciones" }, { fecha: "2026-11-07", monto: 999, estado: "pendiente" }, { fecha: "2026-11-08", monto: 250, estado: "aprobada", parcelaId: "p1" },
-    { fecha: "2026-11-09", monto: 5000, estado: "aprobada", afectaInventario: true, items: [{ insumoId: "urea", cantidad: 10 }] }];
+    { id: "co-urea", fecha: "2026-11-09", monto: 5000, estado: "aprobada", afectaInventario: true, items: [{ insumoId: "urea", cantidad: 10 }] }];
   const k = costoDelMes({ mes: "2026-11", parcelas: [{ id: "p1", nombre: "Uno" }], compras });
   assert.equal(k.directo, 250, "la que trae parcela sigue siendo directa de esa parcela");
   assert.deepEqual(k.generales.porCategoria, [{ categoria: "compras_personal", monto: 300, n: 1 }], "la pendiente no cuenta; la aprobada sin parcela es gasto general");
-  assert.equal(k.paraAlmacen, 5000, "lo que se compró para el almacén no es gasto del mes"); assert.equal(k.rancho, 550);
+  assert.equal(k.porValuar, 5000, "la mercancía que todavía no se recibe ni se valúa no es gasto ni inventario: está por valuar"); assert.equal(k.paraAlmacen, 0); assert.equal(k.rancho, 550);
+  const ya = costoDelMes({ mes: "2026-11", parcelas: [{ id: "p1", nombre: "Uno" }], compras, recibidas: [{ compraId: compras[3].id, i: 0, cantidad: 10, costoUnit: 480, valor: 4800 }] });
+  assert.equal(ya.paraAlmacen, 4800, "ya recibida y valuada: es inventario"); assert.equal(ya.porValuar, 0);
+  assert.equal(ya.generales.porCategoria.find(g => g.categoria === "compras_personal").monto, 500, "y lo que sobra del comprobante (un flete) es gasto general");
 });

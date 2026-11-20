@@ -103,7 +103,7 @@ function armar({ fuente, nombre, items, base, politica, texto, categoriaGeneral 
   const partes = [], pendientes = [], detalle = []; let fuera = 0;
   for (const it of items) {
     const item = { ...it, explica: texto(it) };
-    const pol = it.concepto === "por_aclarar" ? "pendiente" : politica(it.concepto);
+    const pol = it.concepto === "por_aclarar" ? "pendiente" : politica(it.concepto, it);
     // "general": gasto general del rancho (no de producción y no se reparte). Va con lo que no es de producción, marcado, y con a quién y a qué evento corresponde.
     if (pol === "fuera" || pol === "general") { fuera = sumarDinero(fuera, it.monto); detalle.push({ mes: it.fecha.slice(0, 7), fecha: it.fecha, persona: it.nombre, personaId: it.personaId, concepto: it.concepto, monto: it.monto, que: item.explica, evs: it.evs || [], ...(it.causa ? { causa: it.causa } : {}), ...(pol === "general" ? { general: true, categoria: categoriaGeneral || fuente } : {}) }); continue; }
     const r = pol === "actividades" ? repartirPorActividades(item, base) : { partes: [], porque: it.concepto === "por_aclarar" ? "Falta aclarar qué hizo en ese tiempo. Mientras no se aclare, no se reparte." : "La regla del rancho para este concepto es dejarlo pendiente." };
@@ -120,4 +120,7 @@ export const fuentePrestaciones = ({ renglones, base, politica }) => armar({ fue
 // Lo que nace al terminar una relación de trabajo y NO es una prestación que ya se venía generando
 // (prima de antigüedad, indemnizaciones). `renglones`: los de `renglonesDeBajas`. Regla: `ind_bajas`.
 export const fuenteBajas = ({ renglones, base, politica }) => armar({ fuente: "bajas", nombre: "Terminaciones de la relación de trabajo", items: renglones, base, politica: () => politica, categoriaGeneral: "laboral_bajas",
+  texto: (it) => `${it.nombre || "Alguien"} · ${it.que} · ${it.detalle}` });
+// Bonos e incentivos (`renglones`: los de `renglonesDeBonos`). Cada bono trae SU tratamiento de costo, que se decidió al otorgarlo.
+export const fuenteBonos = ({ renglones, base }) => armar({ fuente: "bonos", nombre: "Bonos e incentivos al personal", items: renglones, base, politica: (_c, it) => it.tratamiento, categoriaGeneral: "bonos",
   texto: (it) => `${it.nombre || "Alguien"} · ${it.que} · ${it.detalle}` });

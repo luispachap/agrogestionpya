@@ -69,7 +69,8 @@ export function validarPercepcion(p, hoy) {
 //   n               el año de servicio que corría (de ahí salen sus días de vacaciones)
 //   remuneraciones  [{ fecha, monto }] lo que la app tiene registrado que ganó cada día trabajado
 //   bonificaciones  las de la pantalla vieja de esa persona (sólo para avisar: no traen fecha)
-export function integrar({ cond, diario, n, fecha, persona = null, remuneraciones = [], bonificaciones = [] }) {
+//   bonos           los bonos e incentivos de esa persona que se dijo que integran (`bonos.js`): { monto, hasta, motivo }
+export function integrar({ cond, diario, n, fecha, persona = null, remuneraciones = [], bonificaciones = [], bonos = [] }) {
   if (diario == null) return { monto: null, factor: null, cuota: null, partes: [], completo: false, falta: ["no hay con qué calcular su salario por día"], explica: "" };
   const partes = [], falta = [];
   const pon = (clave, nombre, porDia, base) => { if (porDia > 0) partes.push({ clave, nombre, porDia: centavos(porDia), base }); };
@@ -102,6 +103,18 @@ export function integrar({ cond, diario, n, fecha, persona = null, remuneracione
         pon("variable:registrado", "Lo que ganó por encima de su sueldo por día", extra, `promedio de ${centavos(prom)} en sus últimos ${dias.length} días trabajados (${dias[0].fecha} a ${dias[dias.length - 1].fecha}), menos su sueldo por día`);
         if (dias.length < DIAS_VARIABLE) falta.push(`lo variable sale de sólo ${dias.length} día${dias.length === 1 ? "" : "s"} trabajado${dias.length === 1 ? "" : "s"}; la ley pide ${DIAS_VARIABLE}`);
       }
+    }
+  }
+  // Los incentivos que integran: los que premian un periodo que terminó dentro de sus últimos 30 días trabajados.
+  {
+    const dias = (remuneraciones || []).filter(r => r.fecha <= fecha).slice(-DIAS_VARIABLE);
+    const desde = dias.length ? dias[0].fecha : new Date(new Date(`${fecha}T12:00:00Z`).getTime() - 30 * 86400000).toISOString().slice(0, 10);
+    const mios = (bonos || []).filter(b => b.hasta >= desde && b.hasta <= fecha && Number(b.monto) > 0);
+    if (mios.length) {
+      const total = sumarDinero(mios.map(b => b.monto)), entre = dias.length || DIAS_VARIABLE;
+      pon("variable:bonos", "Incentivos y bonos que integran", total / entre, `${total} en ${mios.length} bono(s) del ${desde} al ${fecha}, entre ${entre} días ${dias.length ? "trabajados" : "(no hay días trabajados registrados: se usó 30)"}`);
+      if (!dias.length) falta.push("sus bonos se repartieron entre 30 días porque no hay días trabajados registrados");
+      else if (dias.length < DIAS_VARIABLE && !falta.some(f => /la ley pide/.test(f))) falta.push(`sus bonos se promediaron con sólo ${dias.length} días trabajados; la ley pide ${DIAS_VARIABLE}`);
     }
   }
   if (!per.revisado) falta.push("nadie ha revisado en su ficha si recibe otras percepciones fijas o variables (bonos, despensa, habitación, comisiones, premios)");

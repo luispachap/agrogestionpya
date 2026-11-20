@@ -291,14 +291,49 @@ Usuarios reales de la app:
   los indirectos por las fuentes `prestaciones` y `bajas`**: si alguien mete
   un costo por otro lado, aquí truena. El resumen se guarda en la foto del
   cierre (`datos.personal`).
-- **`src/resultado.js`: UNA cuenta de utilidad y UNA de flujo.**
-  `resultadoDelRancho` (lo causado: la mano de obra el día que se trabajó, más
-  lo del personal que no es de parcela, prestaciones, bajas y operadores) y
-  `flujoDeEfectivo` (lo movido: la gente el día que se le PAGA, préstamos
-  entregados, abonos aparte). El inicio y Finanzas leen de `resultadoDe(data)`
-  / `flujoDe(data)`: **no sumes ingresos y egresos por tu lado en una pantalla
-  nueva.** La pantalla de socios enseña «ingresos menos gastos capturados»,
-  que es otra cosa y ya no se llama utilidad.
+- **`src/resultado.js`: RESULTADO, INVENTARIO y FLUJO son tres cifras.**
+  Decidido por Luis (20 nov): los **insumos son costo cuando se CONSUMEN**,
+  no cuando se compran; comprar aumenta el inventario y, al pagarse, mueve el
+  flujo. `resultadoDelRancho` (lo causado) trae `produccion` y `generales`,
+  y aparte `inventario` (valor a costo promedio, lo comprado, lo por valuar y
+  lo que no tiene precio — que NO vale cero). `flujoDeEfectivo` cuenta el
+  dinero el día que se mueve. El inicio y Finanzas leen de `resultadoDe(data)`
+  / `flujoDe(data)`: **no sumes ingresos y egresos por tu lado.** Un gasto de
+  categoría «insumos» sin parcela ni vehículo es compra de almacén
+  (`esCompraDeAlmacen`): inventario, no gasto. Los gastos de un vehículo NO
+  se suman como gasto: ya vienen en la fuente de vehículos.
+- **Maquinaria: cuota APLICADA contra costo REAL, nunca sumados**
+  (`vehiculos.js`). La cuota por hora que cargan las actividades es el costo
+  aplicado (provisional). El real es operador + combustible + mantenimiento +
+  depreciación. De una máquina con cuota, a los indirectos sólo entra la
+  DIFERENCIA (real − aplicado, puede ser negativa), con el tratamiento de la
+  regla `maq_diferencia`: `pendiente` (defecto) · `aplicado` (a las mismas
+  parcelas, en la proporción de la cuota) · `general`. Sin ningún costo real
+  capturado ese mes no hay diferencia (`sinReal`): no se supone cero.
+  `conciliarMaquinaria(repartos, mes)` es lo que enseña el cierre de mes.
+- **`src/compras.js` + recepción en `movimientos.js`: una compra, un camino.**
+  El trabajador registra y entrega el ticket (sin precios). Aprobar es sólo
+  validar el gasto: **ya NO mete nada al almacén**. Lo que es mercancía entra
+  con `recibirCompra` (id fijo `alm_entrada-compra-<compra>-<i>`: recibirla
+  dos veces es el mismo evento) y, si no se sabe el precio, queda
+  `porValuar` — **pendiente de valoración, no en cero**. `valuar`
+  (`alm_valuacion`) le pone precio DESDE QUE ENTRÓ; lo ya consumido sale en
+  `ajustesDeValuacion`, aparte. `estadoDeCompra` parte el dinero: mercancía =
+  inventario; lo demás (un flete) = gasto; mientras falte recibir o valuar =
+  `porValuar`, ni lo uno ni lo otro. `posibleDuplicado` avisa (no bloquea) si
+  el mismo importe ya está capturado en esos días por otro lado.
+- **`src/bonos.js`: los bonos viven en Pagos al personal.** `bono_personal`
+  (se otorga: importe, motivo, beneficiario, periodo, quién autoriza,
+  tratamiento de costo, si integra) es el COSTO, el último día del periodo;
+  `pago_bono` paga y no es costo. Los dos son sensibles (`autorizar_pagos`,
+  hoja 41). Un motivo de aguinaldo/vacaciones/finiquito se rechaza: eso es de
+  Prestaciones. El costo va por la fuente `bonos` con el tratamiento de cada
+  bono. Los que `integra` cuentan en el salario integrado. **La pantalla vieja
+  de bonificaciones ya no captura** (la base tampoco lo permite): sus
+  registros se conservan y se enseñan aparte, sin sumarse a nada.
+- **`src/escenario.test.js`**: un mes completo de punta a punta (compra,
+  recepción, consumo, valuación, máquina, bono, pagos). Si cambias cómo se
+  cuenta algo, esta prueba dice en qué apartado se movió.
 - **Lo que no tiene parcela también entra al cierre de mes**: trabajo de
   bodega de un cultivo (`bodega`, directo de producción, no de una parcela),
   trabajo general de bodega y compras del personal sin parcela (gastos
@@ -441,7 +476,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **131 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **133 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

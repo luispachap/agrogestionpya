@@ -88,3 +88,52 @@ test("la_depreciacion_se_reparte_por_el_periodo_y_no_es_un_gasto_pagado", () => 
   const r = repartirVehiculos({ vehiculos: [{ ...CAMION, depreciacion_mes: 3040 }], costos: base(), trabajo, desde: DESDE, hasta: HASTA })[0];
   assert.equal(r.depreciacion, 3000, "30 días de un mes de 30.4"); assert.equal(r.costoReal, 6770); assert.ok(r.cuadra);
 });
+
+// ── Cuota por hora (aplicado) contra costo real ────────────────────────────
+import { vehiculosPorMes, fuenteVehiculos, conciliarMaquinaria } from "./vehiculos.js";
+import { juntarFuentes } from "./indirectos.js";
+const TRACTOR = { id: "m-tractor", nombre: "Tractor 3", depreciacion_mes: 3040 };
+const cuotasT = [{ maquinariaId: "m-tractor", fecha: "2026-11-10", parcelaId: "p7", costoMaq: 3000 }, { maquinariaId: "m-tractor", fecha: "2026-11-12", parcelaId: "p8", costoMaq: 1000 }];
+const realT = { partes: [{ trabajadorId: "t-ana", fecha: "2026-11-10", vehiculoId: "m-tractor", actividad: "Barbecho", minutos: 300, monto: 500, evs: ["o1"] }],
+  consumos: [{ fecha: "2026-11-10", destino: { tipo: "vehiculo", id: "m-tractor" }, articulo: "Diésel", unidad: "L", cantidad: 80, costo: 2000, evs: ["d1"] }],
+  egresos: [{ id: "eg9", fecha: "2026-11-15", vehiculoId: "m-tractor", concepto: "Servicio", monto: 1500 }] };
+const mesT = (mas = {}) => vehiculosPorMes({ vehiculos: [TRACTOR], ...realT, cuotas: cuotasT, hoy: "2026-11-30", ...mas });
+
+test("la_cuota_por_hora_y_el_costo_real_no_se_suman_solo_entra_la_diferencia", () => {
+  const [r] = mesT();
+  // real: operador 500 + diésel 2,000 + servicio 1,500 + depreciación 3,000 = 7,000; aplicado por cuota: 4,000
+  assert.equal(r.modo, "cuota"); assert.equal(r.aplicado, 4000); assert.equal(r.costoReal, 7000); assert.equal(r.diferencia, 3000);
+  assert.deepEqual(r.componentes, { operador: 500, combustible: 2000, mantenimiento: 1500, depreciacion: 3000 });
+  const f = juntarFuentes([fuenteVehiculos([r])]);
+  assert.equal(f.repartido + f.pendiente + f.fuera, 3000, "a los costos, por fuera de la cuota, sólo entra la diferencia"); assert.equal(f.pendiente, 3000, "y mientras no se decida, queda pendiente de distribuir");
+  const k = conciliarMaquinaria([r], "2026-11");
+  assert.equal(k.aplicado, 4000); assert.equal(k.real, 7000); assert.equal(k.diferencia, 3000); assert.equal(k.enCostos, 7000, "aplicado + diferencia = costo real: la máquina cuesta una sola vez");
+});
+
+test("la_diferencia_se_puede_repartir_con_la_misma_base_de_la_cuota_o_mandarse_a_gasto_general", () => {
+  const [a] = mesT({ tratamientoDiferencia: "aplicado" });
+  assert.deepEqual(a.partes.map(p => [p.parcelaId, p.monto]), [["p7", 2250], ["p8", 750]], "3/4 y 1/4, como se aplicó la cuota");
+  assert.match(a.partes[0].explica, /en la proporción en que se les aplicó la cuota/); assert.ok(a.cuadra);
+  const [g] = mesT({ tratamientoDiferencia: "general" });
+  const f = fuenteVehiculos([g]);
+  assert.equal(f.noProduccion, 3000); assert.equal(f.detalleNoProduccion[0].general, true); assert.equal(f.detalleNoProduccion[0].categoria, "maquinaria_diferencia"); assert.equal(f.partes.length, 0);
+});
+
+test("si_la_cuota_aplico_de_mas_la_diferencia_es_negativa_y_tambien_cuenta", () => {
+  const [r] = mesT({ vehiculos: [{ id: "m-tractor", nombre: "Tractor 3" }], egresos: [], tratamientoDiferencia: "aplicado" });
+  assert.equal(r.costoReal, 2500); assert.equal(r.diferencia, -1500);
+  assert.deepEqual(r.partes.map(p => [p.parcelaId, p.monto]), [["p7", -1125], ["p8", -375]]);
+  assert.equal(conciliarMaquinaria([r], "2026-11").enCostos, 2500);
+});
+
+test("una_maquina_con_cuota_y_sin_ningun_costo_real_capturado_no_se_concilia_no_se_supone_que_costo_cero", () => {
+  const [r] = vehiculosPorMes({ vehiculos: [{ id: "m-tractor", nombre: "Tractor 3" }], cuotas: cuotasT, hoy: "2026-11-30" });
+  assert.equal(r.sinReal, true); assert.equal(r.diferencia, 0); assert.equal(r.pendientes.length, 0); assert.match(r.dice, /no quiere decir que costó cero/);
+  const k = conciliarMaquinaria([r], "2026-11");
+  assert.equal(k.sinConciliar, 1); assert.equal(k.enCostos, 4000, "se queda con lo aplicado");
+});
+
+test("la_cuota_aplicada_en_una_actividad_sin_parcela_deja_esa_parte_de_la_diferencia_pendiente", () => {
+  const [r] = mesT({ cuotas: [...cuotasT, { maquinariaId: "m-tractor", fecha: "2026-11-20", parcelaId: "", costoMaq: 1000 }], tratamientoDiferencia: "aplicado" });
+  assert.equal(r.diferencia, 2000); assert.equal(r.repartido, 1600); assert.equal(r.pendiente, 400); assert.ok(r.cuadra);
+});

@@ -34,6 +34,7 @@
     "37-lo-sensible-lo-autoriza-el-servidor",
     "38-rls-auto-enable-no-se-llama-desde-fuera",
     "39-prestamos-y-bajas-con-permiso",
-    "40-catalogo-de-salarios-minimos"
+    "40-catalogo-de-salarios-minimos",
+    "41-bonos-con-permiso"
   ]
 }

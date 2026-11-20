@@ -20,7 +20,8 @@ import {
   estadoDelAlmacen, porCerrar, avisosPara, porRevisar, costoDeConsumos, actividadesDeAlmacen, resumenDeAjustes, salidasParaPrediccion,
   conExistenciaReal, paraGuardarArticulo, textoDeArticulo, leerArticulo, CAUSAS_BAJA, CAUSAS_AJUSTE, PLAZOS, NAVE as ALMACEN_PRINCIPAL,
 } from "./movimientos.js";
-import { costoDeVehiculos, indirectoPorParcela, vehiculosPorMes, fuenteVehiculos } from "./vehiculos.js";
+import { recibirCompra, valuar as valuarEntrada, valorDelInventario, resumenDeAjustes as resumenDeAjustesAlm, costoDeConsumos as costoDeConsumosAlm } from "./movimientos.js";
+import { costoDeVehiculos, indirectoPorParcela, vehiculosPorMes, fuenteVehiculos, conciliarMaquinaria } from "./vehiculos.js";
 // Costo directo y costo completo: la estructura general para cualquier costo indirecto.
 import { juntarFuentes, indirectoDe, costoCompleto, capturadoDespues } from "./indirectos.js";
 // Encontrar las cosas: grupos, lo de cada perfil, lo anclado y lo que más se usa.
@@ -34,7 +35,7 @@ import { desfaseDe, selloDeReloj, estadoDelReloj } from "./reloj.js";
 import { registrarAusencia, justificarFalta, ausenciasDe, semanaDe, leToca, DIAS_DE_SIEMPRE, cuentasDeCuadrillas, registrarPago, pagosA, saldoDe, emitirRecibo, recibosDe, reciboAlDia,
   reconocerHoras, cuentaDeHoras, CLASES_AUSENCIA, SITUACIONES_SALIDA, MEDIOS_DE_PAGO, CLASES_DE_PERSONAL, LEYENDA_RECIBO, LEYENDA_CUADRILLA, abonar, abonosDeSemana, saldosDePrestamos, paraGuardarPrestamo, T_ABONO, calendarioActivo, activarCalendario, cerrarCalendario } from "./pagos.js";
 // Lo que se paga y no es una actividad en una parcela, las prestaciones y el cierre de la semana.
-import { CONCEPTOS_PERSONAL, POLITICAS, baseDePersonas, pagadoSinActividad, fuentePersonal, fuentePrestaciones, fuenteBajas } from "./personal.js";
+import { CONCEPTOS_PERSONAL, POLITICAS, baseDePersonas, pagadoSinActividad, fuentePersonal, fuentePrestaciones, fuenteBajas, fuenteBonos } from "./personal.js";
 import { T_DETERMINADA, T_PAGO_PRESTACION, CONCEPTOS_PRESTACION, cuentaDe as cuentaDePrestaciones, renglonesAlCosto, proponer as proponerPrestacion, determinar as determinarPrestacion, pagarPrestacion, nombreDePeriodo, periodosDe as periodosDePrestacion, determinadasRepetidas, T_SALDO_INICIAL, capturarSaldoInicial, CONCEPTOS_DE_SALDO, RELACIONES, remuneracionesDe } from "./prestaciones.js";
 import { estadoDeSemana, cerrarSemana, reabrirSemana, diferenciasDelCierre, confirmarPagos } from "./cierres.js";
 import { pdfComoDataUrl } from "./pdfSimple.js";
@@ -42,9 +43,17 @@ import { costoDelMes, cerrarMes, reabrirMes, estadoDeMes, ajustesPosteriores } f
 import { solicitarPrestamo, autorizarPrestamo, rechazarPrestamo, entregarPrestamo, prestamosDe, ESTADOS_DE_PRESTAMO } from "./prestamos.js";
 import { PERIODOS as PERIODOS_PERCEPCION, CLASES_PERCEPCION, validarPercepcion, percepcionesDe } from "./salarioIntegrado.js";
 import { conciliarMes } from "./conciliacion.js";
+import { estadoDeCompra, repartoDeCompras, posibleDuplicado, esParaAlmacen } from "./compras.js";
+import { T_BONO, CLASES_DE_BONO, TRATAMIENTOS_DE_BONO, NOMBRE_DE_ESTADO as ESTADO_DE_BONO, integraPorDefecto, otorgarBono, pagarBono, bonosDe, renglonesDeBonos } from "./bonos.js";
 import { resultadoDelRancho, flujoDeEfectivo, NOMBRE_DE_FLUJO } from "./resultado.js";
 // El resultado y el flujo del rancho: TODAS las pantallas los sacan de aquí, para que digan lo mismo.
-const resultadoDe = (data) => resultadoDelRancho({ ingresos: data.ingresos, egresos: data.egresos, compras: data.compras || [], entradas_inv: data.entradas_inv || [], actividades: data.actividadesContables || data.actividades || [], indirectos: data.indirectos, partesMO: data.manoDeObraEventos?.partes || [] });
+const almacenEnDinero = (data) => {
+  const alm = data.almacen; if (!alm) return { consumoGeneral: 0, ajustesValuacion: 0, mermas: 0, valor: 0, sinValor: [] };
+  const inv = valorDelInventario(alm, data.inventario || []), aj = resumenDeAjustesAlm(alm, data.inventario || []);
+  return { consumoGeneral: costoDeConsumosAlm(alm).general, ajustesValuacion: data.ajustesValuacion?.total || 0, mermas: sumarDinero(aj.faltante, sumarDinero((alm.bajas || []).map(b => b.valor || 0))), valor: inv.valor, sinValor: inv.sinValor };
+};
+const resultadoDe = (data) => resultadoDelRancho({ ingresos: data.ingresos, egresos: data.egresos, entradas_inv: data.entradas_inv || [], actividades: data.actividadesContables || data.actividades || [], indirectos: data.indirectos,
+  compras: repartoDeCompras(data.compras || [], data.almacen?.recibidas || []), almacen: almacenEnDinero(data) });
 const flujoDe = (data) => flujoDeEfectivo({ ingresos: data.ingresos, egresos: data.egresos, compras: data.compras || [], entradas_inv: data.entradas_inv || [], creditos: data.creditos || [], eventos: data.eventos || [], prestamos: data.prestamos || [], hoy: today() });
 import { T_SALARIO_MINIMO, ZONAS as ZONAS_SM, catalogoDe as catalogoSM, salarioMinimoEn, capturarSalarioMinimo, alertaDeSalarioMinimo } from "./salariosMinimos.js";
 import { T_BAJA, T_PAGO_BAJA, CAUSAS_DE_BAJA, CONCEPTOS_DE_BAJA, NOMBRE_DE as NOMBRE_DE_BAJA, proponerBaja, registrarBaja, pagarBaja, bajasDe, pagosDeBaja, renglonesDeBajas } from "./bajas.js";
@@ -2412,7 +2421,7 @@ function normalizeData(d) {
   fix.repartosVehiculos = vehiculosPorMes({ vehiculos: fix.maquinaria || [], partes: __moEv.partes, consumos: __alm.consumos.filter(c => !c.enActividad), egresos: fix.egresos || [], viajes: __cq.propios,
     trabajo: __cq.partes.filter(p => p.clase === "pago").map(p => ({ fecha: p.fecha, cuadrillaId: p.cuadrillaId, parcelaId: p.parcelaId, personas: p.personas || 1 })),
     cuotas: vivos(fix.actividades || []).filter(a => a.maquinariaId), hoy: today(),
-    criterioTraslado: ajusteVigente(fix.eventos, "criterio_traslado").valor, criterioVehiculo: ajusteVigente(fix.eventos, "criterio_vehiculo").valor });
+    criterioTraslado: ajusteVigente(fix.eventos, "criterio_traslado").valor, criterioVehiculo: ajusteVigente(fix.eventos, "criterio_vehiculo").valor, tratamientoDiferencia: ajusteVigente(fix.eventos, "maq_diferencia").valor });
   // PERSONAL: lo que se paga y no es una actividad en una parcela (permisos,
   // descansos, esperas, el día de un encargado) y las prestaciones que se van
   // generando. Nacen como costo indirecto, cada uno con su causa y su regla.
@@ -2443,7 +2452,10 @@ function normalizeData(d) {
   fix.indirectos = juntarFuentes([fuenteVehiculos(fix.repartosVehiculos),
     fuentePersonal({ items: fix.personalIndirecto.items, base: __base, politica: (c) => __regla[c] || "pendiente" }),
     fuentePrestaciones({ renglones: renglonesAlCosto(fix.prestaciones.cuentas), base: __base, politica: __regla.prestaciones }),
-    fuenteBajas({ renglones: renglonesDeBajas(__evBaja), base: __base, politica: ajusteVigente(fix.eventos, "ind_bajas").valor })]);
+    fuenteBajas({ renglones: renglonesDeBajas(__evBaja), base: __base, politica: ajusteVigente(fix.eventos, "ind_bajas").valor }),
+    // Bonos e incentivos: cada uno con el tratamiento de costo que se le dio al otorgarlo.
+    fuenteBonos({ renglones: renglonesDeBonos(fix.eventos), base: __base })]);
+  fix.bonos = bonosDe(fix.eventos);
   // Quien ya tiene una baja registrada deja de salir como activo. No se escribe en su ficha: sale del evento.
   const __conBaja = (l) => (l || []).map(t => (__bajas.has(t.id) ? { ...t, activo: false, fechaBaja: __bajas.get(t.id).datos.fecha, _porBaja: true, _activoBase: t.activo, _fechaBajaBase: t.fechaBaja } : t));
   fix.trabajadores = __conBaja(fix.trabajadores); fix.encargados = __conBaja(fix.encargados);
@@ -6748,7 +6760,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "home" && <AdminHome data={data} alertas={alertas} onNav={setPage} onLogout={cerrarSesion} pending={pending} online={online} />}
               {page === "movimientos" && <AdminMovimientos data={data} add={add} upd={upd} del={del} setInv={setInv} />}
               {page === "reportes" && <AdminReportes data={data} navParam={navParam} setNavParam={setNavParam} add={add} session={session} />}
-              {page === "contabilidad" && <AdminContabilidad data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} setInv={setInv} onNav={setPage} />}
+              {page === "contabilidad" && <AdminContabilidad data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} setInv={setInv} onNav={setPage} session={session} />}
               {page === "papeles" && <BuzonPapeles data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "banco" && <EstadoDeCuenta data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "socios" && <SociosYBolsas data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
@@ -6896,7 +6908,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "home" && <FinanzasHome data={data} session={session} onNav={setPage} onLogout={cerrarSesion} />}
               {page === "proyeccion" && <ProyeccionSemanal data={data} onClose={() => setPage("home")} />}
               {page === "deudas" && <GestionDeudas data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} session={session} onClose={() => setPage("home")} />}
-              {page === "contabilidad" && <AdminContabilidad data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} setInv={setInv} />}
+              {page === "contabilidad" && <AdminContabilidad data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} setInv={setInv} session={session} />}
               {page === "solicitudes" && <SolicitudesCompra data={data} add={add} upd={upd} del={del} setInv={setInv} aplicarLote={aplicarLote} session={session} onClose={() => setPage("home")} />}
               {page === "operacion" && <PanelOperacion data={data} onClose={() => setPage("home")} />}
               {page === "contpaqi" && <ExportarContPAQi data={data} upd={upd} add={add} session={session} onClose={() => setPage("home")} />}
@@ -7587,7 +7599,7 @@ let PERMISOS = null;
 const puedeOp = (op) => (!supabaseListo ? undefined : !!PERMISOS && (PERMISOS.rol === "superadmin" || (PERMISOS.operaciones || []).includes(op)));
 // ¿Se ofrece el botón? Con base: el permiso de la cuenta. Sin base (un aparato suelto): el perfil con que se entró.
 const seOfrece = (session, op) => { const p = puedeOp(op); return p === undefined ? session.role === "admin" : p; };
-const NOMBRE_DE_OPERACION = { salario_minimo: "Salario mínimo oficial", cierre_semana: "Cierre de la semana", reapertura_semana: "Reapertura de la semana", confirmacion_pagos: "Confirmación de pagos", prestacion_determinada: "Prestación determinada", prestacion_saldo_inicial: "Saldo inicial de prestaciones",
+const NOMBRE_DE_OPERACION = { salario_minimo: "Salario mínimo oficial", bono_personal: "Bono otorgado", pago_bono: "Pago de bono", cierre_semana: "Cierre de la semana", reapertura_semana: "Reapertura de la semana", confirmacion_pagos: "Confirmación de pagos", prestacion_determinada: "Prestación determinada", prestacion_saldo_inicial: "Saldo inicial de prestaciones",
   cierre_mes: "Cierre de mes", reapertura_mes: "Reapertura de mes", prestamo_autorizacion: "Autorización de un préstamo", prestamo_rechazo: "Rechazo de un préstamo", prestamo_entrega: "Entrega de un préstamo", baja_personal: "Baja de personal", pago_baja: "Pago de un finiquito o liquidación", pago_personal: "Pago", pago_prestacion: "Pago de una prestación", abono_prestamo: "Abono a un préstamo", recibo_personal: "Recibo", decision_jornada: "Decisión sobre cómo se paga un día", horas_reconocidas: "Horas reconocidas", ajuste: "Cambio de una regla" };
 // Lo capturado que todavía no cuenta: lo que no ha llegado a la base, y lo que la base no autorizó.
 function PorValidar({ data }) {
@@ -8471,6 +8483,55 @@ function AvisoEntregas({ data, session, onNav }) {
 // El almacén por movimientos: entregar NO es gastar. Lo que sale queda con
 // alguien hasta que se cierra: se usó (y ahí nace el costo, una vez), regresó,
 // se quedó con otra persona, o se dio de baja con su causa.
+// Lo que compró el personal para el almacén: alguien confirma que LLEGÓ (y cuánto) y, si lo sabe, su precio.
+// Sin precio queda pendiente de valoración —no en cero— y aquí mismo se completa después.
+function RecepcionDeCompras({ data, add, session = {} }) {
+  const hoy = today(), recibidas = data.almacen?.recibidas || [];
+  const porRecibir = (data.compras || []).filter(c => c.estado === "aprobada" && esParaAlmacen(c)).map(c => ({ c, e: estadoDeCompra(c, recibidas) })).filter(x => x.e.estado === "por_recibir");
+  const porValuar = data.almacen?.porValuar || [];
+  const [f, setF] = useState({}); const [dice, setDice] = useState("");
+  const puede = !!add && ["admin", "encargado"].includes(session.role);
+  if (!porRecibir.length && !porValuar.length) return null;
+  const pon = (k, cambio) => setF(v => ({ ...v, [k]: { ...(v[k] || {}), ...cambio } }));
+  const recibir = (c, p) => {
+    const k = `${c.id}|${p.i}`, v = f[k] || {}, articulo = (data.inventario || []).find(a => a.id === p.insumoId);
+    const r = recibirCompra({ compra: c, i: p.i, articulo, cantidad: v.cantidad ?? p.pedida, costoUnit: v.precio === undefined || v.precio === "" ? null : v.precio, quien: quienDe(session), cuando: new Date().toISOString(), fecha: hoy });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); setDice("");
+  };
+  const valua = (p) => {
+    const r = valuarEntrada({ entrada: p, costoUnit: f[p.ev]?.precio, quien: quienDe(session), cuando: new Date().toISOString(), fecha: hoy });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); setDice("");
+  };
+  return (
+    <div className="card" style={{ borderColor: "var(--gold)" }}>
+      <div className="card-title">Compras del personal para el almacén</div>
+      {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 6 }}>{dice}</div>}
+      {porRecibir.length > 0 && <>
+        <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Ya están aprobadas. Falta que alguien confirme que la mercancía llegó, y cuánto. Si no se sabe el precio de cada cosa, déjalo vacío: queda pendiente de valoración, no en cero.</div>
+        {porRecibir.map(({ c, e }) => <div key={c.id} style={{ borderTop: "1px solid var(--border-soft)", padding: "8px 0" }}>
+          <div className="text-sm"><b>{c.descripcion}</b> · {c.fecha} · {fmt(c.monto)}{c.proveedor ? ` · ${c.proveedor}` : ""}</div>
+          {e.partidas.filter(p => p.recibida == null).map(p => { const k = `${c.id}|${p.i}`; return (
+            <div key={k} style={{ display: "flex", gap: 6, alignItems: "flex-end", marginTop: 6 }}>
+              <label className="text-xs text-muted" style={{ flex: 1 }}>{p.nombre}: llegaron<input className="inp" type="number" inputMode="decimal" aria-label={`Cantidad recibida de ${p.nombre}`} value={f[k]?.cantidad ?? p.pedida} onChange={ev => pon(k, { cantidad: ev.target.value })} /></label>
+              <label className="text-xs text-muted" style={{ flex: 1 }}>Precio por {p.unidad || "unidad"} ($)<input className="inp" type="number" inputMode="decimal" placeholder="si se sabe" aria-label={`Precio de ${p.nombre}`} value={f[k]?.precio ?? ""} onChange={ev => pon(k, { precio: ev.target.value })} /></label>
+              {puede && <button className="btn btn-accent btn-sm" aria-label={`Recibir ${p.nombre}`} onClick={() => recibir(c, p)}>Recibir</button>}
+            </div>); })}
+        </div>)}
+      </>}
+      {porValuar.length > 0 && <>
+        <div className="text-sm font-bold" style={{ marginTop: 8 }}>Pendiente de valoración</div>
+        <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Ya están en el almacén y se pueden usar, pero no se sabe cuánto costaron. Mientras tanto no le cargan costo a nadie; al poner el precio, lo que ya se haya usado se ajusta solo, aparte y con su causa.</div>
+        {porValuar.map(p => <div key={p.ev} style={{ display: "flex", gap: 6, alignItems: "flex-end", marginTop: 6 }}>
+          <span className="text-sm" style={{ flex: 1 }}>{fmtN(p.cantidad)} {p.unidad} de {p.articulo}<div className="text-xs text-muted">{p.fecha} · recibió {p.recibio}</div></span>
+          <label className="text-xs text-muted" style={{ width: 120 }}>Precio por {p.unidad || "unidad"} ($)<input className="inp" type="number" inputMode="decimal" aria-label={`Precio por valuar de ${p.articulo}`} value={f[p.ev]?.precio ?? ""} onChange={ev => pon(p.ev, { precio: ev.target.value })} /></label>
+          {puede && <button className="btn btn-accent btn-sm" aria-label={`Valuar ${p.articulo}`} onClick={() => valua(p)}>Guardar precio</button>}
+        </div>)}
+      </>}
+    </div>);
+}
+
 function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
   const hoy = today();
   const quien = quienDe(session);
@@ -8606,6 +8667,7 @@ function EntregasAlmacen({ data, add, upd, session, onNav, onClose }) {
             {listo.avisos.map((a, i) => <div key={i} className="text-xs" style={{ color: "var(--gold)", marginTop: 6 }}>{a}</div>)}
           </div>
         )}
+        <RecepcionDeCompras data={data} add={add} session={session} />
         {articulos.length === 0 && <div className="card"><div className="text-sm text-muted">Todavía no hay artículos en el inventario. Se dan de alta en Inventario, con su conteo inicial.</div></div>}
 
         {tab === "entregar" && articulos.length > 0 && (
@@ -8987,7 +9049,7 @@ function ManoDeObra({ data, add, session, onClose }) {
               <div key={`${v.vehiculoId}-${v.mes}`} style={{ marginBottom: 12 }}>
                 <div className="flex-b"><b>{v.nombre} · {v.mes}</b><b>{fmt(v.costoReal)}</b></div>
                 {v.depreciacion > 0 && <div className="mo-act"><span>Incluye depreciación del periodo (calculada, no pagada)</span><span /><b>{fmt(v.depreciacion)}</b></div>}
-                {v.modo === "cuota" ? <div className="text-sm" style={{ marginTop: 4 }}>Ya carga cuota por hora en las actividades: <b>{fmt(v.cuota)}</b> en estas fechas. Su costo real no se reparte encima, para no cobrarlo dos veces. Costo real contra cuota: {fmt(v.costoReal - v.cuota)} de diferencia.</div> : <>
+                {v.modo === "cuota" ? <div className="text-sm" style={{ marginTop: 4 }}>{v.dice}</div> : <>
                   <div className="mo-act"><span>Repartido a parcelas</span><span /><b>{fmt(v.repartido)}</b></div>
                   {v.noProduccion > 0 && <div className="mo-act"><span>Usos que no fueron para una parcela</span><span /><b>{fmt(v.noProduccion)}</b></div>}
                   {v.pendiente > 0 && <div className="mo-act"><span style={{ color: "var(--gold)" }}>Pendiente de repartir</span><span /><b>{fmt(v.pendiente)}</b></div>}
@@ -9046,7 +9108,7 @@ function ManoDeObra({ data, add, session, onClose }) {
             </div>
           );
         })}
-        <ReglasDelRancho data={data} add={add} session={session} claves={["horas_jornada", "criterio_flete", "criterio_traslado", "criterio_vehiculo"]} />
+        <ReglasDelRancho data={data} add={add} session={session} claves={["horas_jornada", "criterio_flete", "criterio_traslado", "criterio_vehiculo", "maq_diferencia"]} />
       </div>
 
       {rastro && (
@@ -9856,7 +9918,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
         <button className="btn btn-accent btn-sm" onClick={() => setShowAdd(v => !v)}>{showAdd ? "✕" : "+"}</button>
       </div>
       <div className="tabs-pill">
-        {["planta", "externos", "encargados", "cuadrillas", "maquinaria", "bonific.", "incid."].map(t => <button key={t} className={`tab-pill${tab === t ? " active" : ""}`} onClick={() => setTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
+        {["planta", "externos", "encargados", "cuadrillas", "maquinaria", "incid."].map(t => <button key={t} className={`tab-pill${tab === t ? " active" : ""}`} onClick={() => setTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
       </div>
       {showAdd && tab === "encargados" && (
         <div className="section-pad">
@@ -11008,12 +11070,15 @@ function CuadHistorial({ data, upd, session, onLogout }) {
   );
 }
 
-const NOMBRE_DE_GASTO = { compras_personal: "compras hechas por el personal", bodega_general: "trabajos generales de bodega", laboral_bajas: "laborales por bajas (prima de antigüedad e indemnizaciones)", servicios: "servicios", maquinaria: "renta de maquinaria", mano_obra: "mano de obra externa", transporte: "transporte", administrativo: "administrativo", financiero: "financiero", caja_chica: "caja chica", otro: "otros" };
+const NOMBRE_DE_GASTO = { almacen_uso_general: "insumos de uso general del rancho", almacen_mermas: "mermas y faltantes del almacén", almacen_ajustes: "ajustes de valuación de insumos sin parcela", bonos: "bonos al personal", maquinaria_diferencia: "maquinaria: diferencia entre cuota y costo real", vehiculos: "vehículos: usos que no fueron para una parcela", compras_personal: "compras hechas por el personal", bodega_general: "trabajos generales de bodega", laboral_bajas: "laborales por bajas (prima de antigüedad e indemnizaciones)", servicios: "servicios", maquinaria: "renta de maquinaria", mano_obra: "mano de obra externa", transporte: "transporte", administrativo: "administrativo", financiero: "financiero", caja_chica: "caja chica", otro: "otros" };
 // El cierre de mes: la foto de los costos. Lo que cambie después se ve como ajuste posterior; la foto no se toca.
 function CierreDeMes({ data, add, session }) {
   const hoy = today(), mesPasado = sumarDias(`${hoy.slice(0, 7)}-01`, -1).slice(0, 7);
   const [mes, setMes] = useState(mesPasado); const [motivo, setMotivo] = useState(""); const [dice, setDice] = useState(""); const [avisos, setAvisos] = useState([]); const [ver, setVer] = useState(null);
-  const costo = useMemo(() => costoDelMes({ mes, parcelas: data.parcelas || [], actividades: data.actividadesContables || data.actividades || [], egresos: vivos(data.egresos), compras: data.compras || [], indirectos: data.indirectos }), [data, mes]);
+  const costo = useMemo(() => costoDelMes({ mes, parcelas: data.parcelas || [], actividades: data.actividadesContables || data.actividades || [], egresos: vivos(data.egresos), compras: data.compras || [], indirectos: data.indirectos,
+    recibidas: data.almacen?.recibidas || [], consumosGenerales: (data.almacen?.consumos || []).filter(c => !c.enActividad && c.destino?.tipo === "general" && c.costo != null), ajustesValuacion: data.ajustesValuacion?.lista || [],
+    mermas: data.almacen ? [...resumenDeAjustesAlm(data.almacen, data.inventario || []).lista.filter(a => a.diferencia < 0), ...(data.almacen.bajas || []).filter(b => b.valor)] : [],
+    maquinaria: conciliarMaquinaria(data.repartosVehiculos || [], mes) }), [data, mes]);
   const conc = useMemo(() => conciliarMes({ mes, cuentas: data.prestaciones?.cuentas || [], indirectos: data.indirectos }), [data, mes]);
   const s = estadoDeMes(data.eventos, mes), puede = add && seOfrece(session, "cerrar_mes");
   const aj = ajustesPosteriores(s.estado === "cerrado" ? s.cierre : null, costo);
@@ -11028,7 +11093,18 @@ function CierreDeMes({ data, add, session }) {
     <div className="mo-act"><span>3. Gastos generales de operación y administración<div className="text-xs text-muted">{(tot.generales?.porCategoria || []).length ? tot.generales.porCategoria.map(g => `${NOMBRE_DE_GASTO[g.categoria] || g.categoria} ${fmt(g.monto)}`).join(" · ") : "sin gastos que no sean de una parcela"} · no se reparten a las parcelas ni suben su costo</div></span><span /><b>{fmt(tot.generales?.total || 0)}</b></div>
     {(tot.noProduccion || 0) !== 0 && <div className="mo-act"><span>Otros costos que no son de producción<div className="text-xs text-muted">así los clasificó una regla del rancho</div></span><span /><b>{fmt(tot.noProduccion)}</b></div>}
     <div className="mo-act" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}><span><b>Total de costos y gastos del rancho</b><div className="text-xs text-muted">1 + 2 + 3{(tot.noProduccion || 0) !== 0 ? " + otros" : ""} · cada peso está en un solo renglón</div></span><span /><b>{fmt(tot.rancho ?? tot.completo)}</b></div>
+    {(tot.ajustesValuacion || 0) !== 0 && <div className="text-xs text-muted" style={{ marginTop: 4 }}>El costo directo de las parcelas incluye {fmt(tot.ajustesValuacion)} de ajustes de valuación: insumos cuyo costo se supo o cambió después de usarlos. El consumo original no se tocó.</div>}
     {(tot.paraAlmacen || 0) > 0 && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Aparte se compraron {fmt(tot.paraAlmacen)} de insumos para el almacén. No están en el total: se vuelven costo cuando se usan.</div>}
+    {(tot.porValuar || 0) > 0 && <div className="text-xs" style={{ marginTop: 4, color: "var(--gold)" }}>Hay {fmt(tot.porValuar)} de compras del personal pendientes de recibir o de valuar. Todavía no son gasto ni inventario; no se cuentan en cero: falta su precio.</div>}
+    {tot.maquinaria && tot.maquinaria.filas.length > 0 && <div style={{ marginTop: 10, borderTop: "1px solid var(--border)", paddingTop: 6 }}>
+      <div className="text-sm font-bold">Maquinaria: lo aplicado por cuota contra lo que costó de verdad</div>
+      <div className="text-xs text-muted" style={{ marginBottom: 4 }}>La cuota por hora es el costo que ya traen las actividades y las parcelas, provisional. El costo real es operador, combustible, mantenimiento y depreciación. Nunca se suman los dos: a los costos sólo entra, además de la cuota, la diferencia.</div>
+      {tot.maquinaria.filas.map(f => <div key={f.vehiculoId} className="mo-act"><span>{f.nombre}<div className="text-xs text-muted">{f.modo === "reparto" || f.aplicado === 0
+        ? `sin cuota por hora: su costo real (${fmt(f.real)}) se reparte por sus usos`
+        : f.sinReal ? `aplicado por cuota ${fmt(f.aplicado)} · este mes no tiene ningún costo real capturado: no se pudo conciliar (no quiere decir que costó cero)`
+        : `aplicado por cuota ${fmt(f.aplicado)} · real ${fmt(f.real)}${f.componentes ? ` (operador ${fmt(f.componentes.operador)}, combustible ${fmt(f.componentes.combustible)}, mantenimiento ${fmt(f.componentes.mantenimiento)}, depreciación ${fmt(f.componentes.depreciacion)})` : ""} · ${f.diferencia === 0 ? "coinciden" : `${f.diferencia > 0 ? "la cuota se quedó corta" : "la cuota aplicó de más"}: ${({ pendiente: "queda pendiente de distribuir", aplicado: "repartida a las mismas parcelas, en proporción a la cuota", general: "va como gasto general de maquinaria" })[f.tratamiento] || ""}`}`}</div></span><span /><b>{f.sinReal || f.diferencia == null ? "—" : fmt(f.diferencia)}</b></div>)}
+      {tot.maquinaria.aplicado !== 0 && <div className="mo-act"><span><b>Total</b><div className="text-xs text-muted">aplicado {fmt(tot.maquinaria.aplicado)} · real {fmt(tot.maquinaria.real)}{tot.maquinaria.sinConciliar ? ` · ${tot.maquinaria.sinConciliar} sin conciliar` : ""}</div></span><span /><b>{fmt(tot.maquinaria.diferencia)}</b></div>}
+    </div>}
   </>);
   return (<>
     <div className="card" style={s.estado === "cerrado" ? { borderColor: "var(--accent)" } : undefined}>
@@ -11459,7 +11535,7 @@ function AdminReportes({ data, navParam, setNavParam, add, session }) {
 }
 
 /* ════════════ ADMIN — CONTABILIDAD ════════════ */
-function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, onNav }) {
+function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, onNav, session = {} }) {
   const [tab, setTab] = useState("flujo");
   const [showForm, setShowForm] = useState(null); // "ingreso" | "egreso" | null
   const FORM_ING = { fecha: today(), concepto: "", categoria: "venta_cosecha", parcelaId: "", cultivo: "", monto: 0, cantidad: 0, unidad: "ton", cliente: "", metodo: "transferencia", costoVenta: 0, conceptoCostoVenta: "" };
@@ -11615,6 +11691,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
               </div>
             )}
             <div className="form-group"><label className="form-label">Monto ($)</label><input type="number" className="inp" value={egForm.monto || ""} onChange={e => setEgForm(f => ({ ...f, monto: e.target.value }))} /></div>
+            {(() => { const d = posibleDuplicado({ fecha: egForm.fecha, monto: egForm.monto }, { compras: data.compras || [], egresos: data.egresos || [], entradas_inv: data.entradas_inv || [] }); return d.length ? <div className="text-xs" style={{ color: "var(--gold)", marginBottom: 8 }}>Ojo: ya hay algo capturado por ese mismo importe en esos días ({d.slice(0, 3).map(x => `${x.donde} del ${x.fecha}${x.que ? `: ${x.que}` : ""}`).join("; ")}). Si es lo mismo, no lo captures otra vez: se contaría dos veces.</div> : null; })()}
             <div className="form-group"><label className="form-label">Proveedor</label><input className="inp" value={egForm.proveedor} onChange={e => setEgForm(f => ({ ...f, proveedor: e.target.value }))} /></div>
             <div className="form-group"><label className="form-label">Fecha</label><input type="date" className="inp" value={egForm.fecha} onChange={e => setEgForm(f => ({ ...f, fecha: e.target.value }))} /></div>
             <div className="form-group"><label className="form-label">Método de pago</label>
@@ -11691,13 +11768,26 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
               <div className="card-title">Estado de resultados — General</div>
               <div className="flex-b" style={{ padding: "6px 0" }}><span className="text-sm">Ingresos totales</span><span className="text-sm font-bold" style={{ color: "var(--safe)" }}>{fmt(totalIngresos)}</span></div>
               <div className="divider" style={{ margin: "8px 0" }} />
-              {resultado.lineas.filter(l => l.monto !== 0).map(l => <div key={l.clave} className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">{l.nombre}{l.nota ? <div className="text-xs">{l.nota}</div> : null}</span><span className="text-sm">{fmt(l.monto)}</span></div>)}
+              <div className="text-xs font-bold" style={{ marginTop: 6 }}>Costos de producción</div>
+              {resultado.produccion.filter(l => l.monto !== 0).map(l => <div key={l.clave} className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">{l.nombre}{l.nota ? <div className="text-xs">{l.nota}</div> : null}</span><span className="text-sm">{fmt(l.monto)}</span></div>)}
+              <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm">Suma de costos de producción</span><span className="text-sm font-bold">{fmt(resultado.costos)}</span></div>
+              <div className="text-xs font-bold" style={{ marginTop: 6 }}>Gastos generales</div>
+              {resultado.generales.filter(l => l.monto !== 0).map(l => <div key={l.clave} className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">{l.nombre}{l.nota ? <div className="text-xs">{l.nota}</div> : null}</span><span className="text-sm">{fmt(l.monto)}</span></div>)}
+              <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm">Suma de gastos generales</span><span className="text-sm font-bold">{fmt(resultado.gastos)}</span></div>
               <div className="divider" style={{ margin: "8px 0" }} />
               <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm font-bold">Costos y gastos totales</span><span className="text-sm font-bold" style={{ color: "var(--red)" }}>{fmt(totalEgresos)}</span></div>
               <div className="flex-b" style={{ padding: "10px 0 2px", borderTop: "2px solid var(--accent)", marginTop: 6 }}>
                 <span className="font-bold font-syne">Utilidad neta</span>
                 <span className="font-bold font-syne" style={{ fontSize: 18, color: utilidadNeta >= 0 ? "var(--safe)" : "var(--red)" }}>{fmt(utilidadNeta)}</span>
               </div>
+            </div>
+            <div className="card">
+              <div className="card-title">Inventario del almacén</div>
+              <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Comprar no es gastar: lo comprado está aquí hasta que se usa, y entonces pasa a los costos de arriba. Utilidad, inventario y flujo de efectivo son tres cifras distintas.</div>
+              <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">Lo que hay hoy, a su costo promedio</span><span className="text-sm font-bold">{fmt(resultado.inventario.valor)}</span></div>
+              <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">Comprado para el almacén (ya salió del flujo, no es gasto)</span><span className="text-sm">{fmt(resultado.inventario.comprado)}</span></div>
+              {resultado.inventario.porValuar > 0 && <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm" style={{ color: "var(--gold)" }}>Compras del personal pendientes de recibir o de valuar<div className="text-xs">todavía no son gasto ni inventario: falta confirmar que llegaron o su precio</div></span><span className="text-sm">{fmt(resultado.inventario.porValuar)}</span></div>}
+              {resultado.inventario.sinValor.length > 0 && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>Hay {resultado.inventario.sinValor.length} artículo(s) con existencia y sin precio ({resultado.inventario.sinValor.slice(0, 4).map(x => `${fmtN(x.cantidad)} ${x.unidad || ""} de ${x.articulo}`).join(", ")}). No valen cero: no se sabe cuánto valen, y no están en la cifra de arriba.</div>}
             </div>
             <div className="card">
               <div className="card-title">Resultado por cultivo</div>
@@ -11773,6 +11863,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
         {tab === "compras" && (
           <>
             <div className="text-xs text-muted mb-3" style={{ paddingLeft: 4 }}>Compras registradas por los trabajadores a nombre del rancho</div>
+            <RecepcionDeCompras data={data} add={add} session={session} />
             {(data.compras || []).length === 0 && <div className="text-muted text-sm" style={{ textAlign: "center", padding: "32px 0" }}>Sin compras registradas</div>}
             {[...(data.compras || [])].sort((a, b) => b.fecha.localeCompare(a.fecha)).map(c => {
               const trab = data.trabajadores.find(t => t.id === c.trabajadorId)?.nombre || data.cuadrillas.find(q => q.id === c.trabajadorId)?.nombre || "—";
@@ -11791,11 +11882,14 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
                     </div>
                   )}
                   {c.ticket && <Foto src={c.ticket} alt="ticket" style={{ width: "100%", borderRadius: 10, marginBottom: 8, maxHeight: 200, objectFit: "cover" }} />}
+                  {c.estado === "aprobada" && esParaAlmacen(c) && (() => { const e = estadoDeCompra(c, data.almacen?.recibidas || []); return <div className="text-xs" style={{ marginBottom: 8, color: e.estado === "completa" ? "var(--safe)" : "var(--gold)" }}>{e.estado === "por_recibir" ? "Falta confirmar que la mercancía llegó al almacén." : e.estado === "por_valuar" ? `Recibida. Pendiente de valoración: falta el precio de ${e.sinValuar} artículo(s).` : `Recibida y valuada: ${fmt(e.inventario)} al inventario${e.gasto ? ` y ${fmt(e.gasto)} de gasto (lo que no era mercancía)` : ""}.`}</div>; })()}
+                  {c.estado === "pendiente" && (() => { const d = posibleDuplicado({ id: c.id, fecha: c.fecha, monto: c.monto }, { compras: data.compras || [], egresos: data.egresos || [], entradas_inv: data.entradas_inv || [] }); return d.length ? <div className="text-xs" style={{ color: "var(--gold)", marginBottom: 8 }}>Ojo antes de aprobar: ya hay algo por ese mismo importe en esos días ({d.slice(0, 3).map(x => `${x.donde} del ${x.fecha}${x.que ? `: ${x.que}` : ""}`).join("; ")}). Si es la misma compra, recházala: se contaría dos veces.</div> : null; })()}
                   {c.estado === "pendiente" ? (
                     <div className="gap-row">
                       <button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={() => {
+                        // Aprobar es sólo decir que el gasto es bueno. Lo que es para el almacén entra cuando alguien confirma que llegó
+                        // (abajo, «Recibir en el almacén»): así no entra dos veces ni entra con un costo inventado.
                         upd("compras", { ...c, estado: "aprobada" });
-                        if (c.afectaInventario && c.items) c.items.forEach(it => { if (it.insumoId) setInv(it.insumoId, it.cantidad, null, { fecha: c.fecha, concepto: `Compra${c.proveedor ? ` a ${c.proveedor}` : ""}`, costoUnit: Number(it.costo_unit) > 0 ? Number(it.costo_unit) : Number(it.costo) > 0 && Number(it.cantidad) > 0 ? Number(it.costo) / Number(it.cantidad) : null }); });
                       }}>✓ Aprobar</button>
                       <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={() => upd("compras", { ...c, estado: "rechazada" })}>✕ Rechazar</button>
                     </div>
@@ -20675,7 +20769,7 @@ function PanelPrestaciones({ data, add, upd, session }) {
   const [abre, setAbre] = useState(null); const [dice, setDice] = useState(""); const [avisos, setAvisos] = useState([]);
   const [bj, setBj] = useState(null);         // { c, persona, causa, ultimoDia, detalle, autorizo, filas, fotos }
   const [pb, setPb] = useState(null);         // { c, monto, medio, recibe, foto }
-  const propuestaDe = (b) => (b.causa && b.ultimoDia ? proponerBaja({ persona: b.persona, causa: b.causa, fecha: b.ultimoDia, cuenta: b.c, reglas: pr.reglas, remuneraciones: remDe(b.persona.id), minimo: salarioMinimoEn(b.ultimoDia, pr.reglas.zonaSM, data.eventos), bonificaciones: (data.bonificaciones || []).filter(x => x.trabajadorId === b.persona.id) }) : null);
+  const propuestaDe = (b) => (b.causa && b.ultimoDia ? proponerBaja({ persona: b.persona, causa: b.causa, fecha: b.ultimoDia, cuenta: b.c, reglas: pr.reglas, remuneraciones: remDe(b.persona.id), minimo: salarioMinimoEn(b.ultimoDia, pr.reglas.zonaSM, data.eventos), bonificaciones: (data.bonificaciones || []).filter(x => x.trabajadorId === b.persona.id), bonos: (data.bonos || []).filter(x => x.personaId === b.persona.id && x.integra) }) : null);
   const ponBaja = (cambio) => setBj(b => { const n = { ...b, ...cambio }; const p = propuestaDe(n); return { ...n, filas: p?.ok ? p.conceptos.map(k => ({ clave: k.clave, incluir: k.sugerido ?? k.aplica !== "no", monto: k.monto == null ? "" : String(k.monto), nota: "" })) : [] }; });
   const propB = bj ? propuestaDe(bj) : null;
   const renglonesDeBaja = (d) => [{ t: "AGROSELECTOS P&A", tam: 14, negrita: true }, { t: `${NOMBRE_DE_BAJA[d.da].split(" (")[0].toUpperCase()} — CÁLCULO INTERNO`, tam: 11, negrita: true },
@@ -20893,11 +20987,76 @@ function PanelPrestaciones({ data, add, upd, session }) {
 }
 
 // Lo que se paga y no es una actividad en una parcela: a dónde fue cada peso y por qué.
+// Bonos e incentivos: se otorgan (ahí nace el costo) y se pagan (eso no es costo). No son aguinaldo ni prestaciones.
+function PanelBonos({ data, add, session }) {
+  const hoy = today(), bonos = data.bonos || [], personas = (data.trabajadores || []).concat(data.encargados || []).filter(p => p.activo !== false);
+  const puede = add && seOfrece(session, "autorizar_pagos");
+  const NUEVO = { personaId: "", clase: "productividad", motivo: "", monto: "", desde: hoy, hasta: hoy, autorizo: "", tratamiento: "actividades", integra: true };
+  const [f, setF] = useState(null); const [pago, setPago] = useState(null); const [dice, setDice] = useState(""); const [avisos, setAvisos] = useState([]);
+  const base = () => ({ permitido: puedeOp("autorizar_pagos"), eventos: data.eventos, quien: quienDe(session), cuando: new Date().toISOString(), fecha: hoy });
+  const guardar = () => {
+    const r = otorgarBono({ ...base(), ...f, persona: personas.find(p => p.id === f.personaId) });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); setF(null); setDice(""); setAvisos(r.avisos || []);
+  };
+  const pagar = () => {
+    const r = pagarBono({ ...base(), bono: pago.bono, monto: pago.monto, medio: pago.medio });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); setPago(null); setDice("");
+  };
+  const viejas = data.bonificaciones || [], nombreDe = (id) => personas.find(p => p.id === id)?.nombre || (data.trabajadores || []).concat(data.encargados || []).find(p => p.id === id)?.nombre || "Alguien";
+  const porPagar = sumarDinero(bonos.map(b => b.pendiente));
+  return (<>
+    <PorValidar data={data} tipos={[T_BONO, "pago_bono"]} />
+    <div className="card">
+      <div className="card-title">Bonos e incentivos</div>
+      <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Lo que el rancho decide darle a alguien además de lo que ganó por su trabajo. El costo cuenta cuando se otorga; pagarlo después no es otro costo. El aguinaldo, las vacaciones y la prima no van aquí: están en Prestaciones.</div>
+      {bonos.length > 0 && <div className="mo-act"><span>Otorgados y todavía por pagar</span><span /><b>{fmt(porPagar)}</b></div>}
+      {avisos.map((a, k) => <div key={k} className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>{a}</div>)}
+      {puede && !f && <div className="acc-row" style={{ marginTop: 8 }}><button onClick={() => { setF(NUEVO); setDice(""); setAvisos([]); }}>Otorgar un bono</button></div>}
+      {f && <div style={{ marginTop: 8 }}>
+        <div className="form-group"><label className="form-label" htmlFor="bn-quien">A quién</label><select id="bn-quien" className="inp" value={f.personaId} onChange={e => setF(x => ({ ...x, personaId: e.target.value }))}><option value="">Seleccionar…</option>{personas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></div>
+        <div className="form-group"><label className="form-label" htmlFor="bn-clase">Clase de bono</label><select id="bn-clase" className="inp" value={f.clase} onChange={e => setF(x => ({ ...x, clase: e.target.value, integra: integraPorDefecto(e.target.value) }))}>{Object.entries(CLASES_DE_BONO).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></div>
+        <div className="form-group"><label className="form-label" htmlFor="bn-monto">Importe ($)</label><input id="bn-monto" className="inp" type="number" inputMode="decimal" value={f.monto} onChange={e => setF(x => ({ ...x, monto: e.target.value }))} /></div>
+        <div className="form-group"><label className="form-label" htmlFor="bn-motivo">Motivo</label><input id="bn-motivo" className="inp" placeholder="Ej: meta de cajas de la semana" value={f.motivo} onChange={e => setF(x => ({ ...x, motivo: e.target.value }))} /></div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="bn-desde">Periodo que premia: desde</label><input id="bn-desde" type="date" className="inp" max={hoy} value={f.desde} onChange={e => setF(x => ({ ...x, desde: e.target.value }))} /></div>
+          <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="bn-hasta">hasta</label><input id="bn-hasta" type="date" className="inp" max={hoy} value={f.hasta} onChange={e => setF(x => ({ ...x, hasta: e.target.value }))} /></div>
+        </div>
+        <div className="form-group"><label className="form-label" htmlFor="bn-autorizo">Quién lo autoriza</label><input id="bn-autorizo" className="inp" value={f.autorizo} onChange={e => setF(x => ({ ...x, autorizo: e.target.value }))} /></div>
+        <div className="form-group"><label className="form-label" htmlFor="bn-trat">Cómo se trata su costo</label><select id="bn-trat" className="inp" value={f.tratamiento} onChange={e => setF(x => ({ ...x, tratamiento: e.target.value }))}>{Object.entries(TRATAMIENTOS_DE_BONO).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></div>
+        <label className="text-sm" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}><input type="checkbox" aria-label="Cuenta para su salario integrado" checked={!!f.integra} onChange={e => setF(x => ({ ...x, integra: e.target.checked }))} /> Cuenta para su salario integrado</label>
+        <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Un incentivo que se gana por el trabajo de cada periodo normalmente sí cuenta; una ayuda de una sola vez, normalmente no. Si hay duda, conviene revisarlo con quien lleve las obligaciones con el personal.</div>
+        {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 6 }}>{dice}</div>}
+        <div className="acc-row"><button onClick={guardar}>Otorgar el bono</button><button onClick={() => { setF(null); setDice(""); }}>Cancelar</button></div>
+      </div>}
+    </div>
+    {bonos.map(b => <div key={b.id} className="card" style={b.estado === "pagado" ? undefined : { borderColor: "var(--gold)" }}>
+      <div className="flex-b"><b>{b.nombre}</b><b>{fmt(b.monto)}</b></div>
+      <div className="text-xs text-muted">{CLASES_DE_BONO[b.clase]} · {b.motivo} · del {b.desde} al {b.hasta} · autorizó {b.autorizo} · otorgó {b.otorgo} el {b.fecha}</div>
+      <div className="text-xs text-muted">Costo: {TRATAMIENTOS_DE_BONO[b.tratamiento].toLowerCase()} · {b.integra ? "cuenta" : "no cuenta"} para su salario integrado</div>
+      <div className="mo-act" style={{ marginTop: 4 }}><span>{ESTADO_DE_BONO[b.estado]}{b.pagos.length ? <div className="text-xs text-muted">{b.pagos.map(p => `${fmt(p.monto)} el ${p.fecha} (${p.medio})`).join(" · ")}</div> : null}</span><span /><b>{b.estado === "pagado" ? "" : `faltan ${fmt(b.pendiente)}`}</b></div>
+      {puede && b.estado !== "pagado" && (pago?.bono.id === b.id
+        ? <div style={{ marginTop: 6 }}>
+            <div style={{ display: "flex", gap: 6 }}><input className="inp" type="number" inputMode="decimal" aria-label="Cuánto se le entregó del bono" value={pago.monto} onChange={e => setPago(x => ({ ...x, monto: e.target.value }))} /><select className="inp" aria-label="Medio de pago del bono" value={pago.medio} onChange={e => setPago(x => ({ ...x, medio: e.target.value }))} style={{ width: 140 }}><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="cheque">Cheque</option></select></div>
+            {dice && <div className="text-sm" style={{ color: "var(--red)", margin: "6px 0" }}>{dice}</div>}
+            <div className="acc-row" style={{ marginTop: 6 }}><button onClick={pagar}>Guardar el pago</button><button onClick={() => { setPago(null); setDice(""); }}>Cancelar</button></div>
+          </div>
+        : <div className="acc-row" style={{ marginTop: 6 }}><button aria-label={`Registrar pago del bono de ${b.nombre}`} onClick={() => { setPago({ bono: b, monto: b.pendiente, medio: "efectivo" }); setDice(""); }}>Registrar pago</button></div>)}
+    </div>)}
+    {viejas.length > 0 && <div className="card">
+      <div className="card-title">Anotaciones anteriores</div>
+      <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Se anotaron en la pantalla de antes. Se conservan tal cual, pero no entran a los costos, a los pagos ni al flujo, y ya no se captura ahí. Si alguna es un bono que sí se dio, hay que otorgarlo aquí arriba para que cuente (una sola vez).</div>
+      {viejas.map(b => <div key={b.id} className="mo-act"><span>{nombreDe(b.trabajadorId)}<div className="text-xs text-muted">{b.concepto || "sin concepto"} · {b.anio}</div></span><span /><b>{fmt(b.monto)}</b></div>)}
+    </div>}
+  </>);
+}
+
 function PanelCostoPersonal({ data, add, session }) {
   const ind = data.indirectos || { partes: [], pendientes: [], noProduccion: [] };
   const [abre, setAbre] = useState(null);
   const parcela = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "una parcela";
-  const fuentes = [["personal", "Días y ratos pagados sin actividad en parcela", "Permisos, descansos, esperas, traslados y los días de un encargado sin actividad registrada."], ["prestaciones", "Prestaciones", "Aguinaldo, vacaciones y prima que se van generando, y sus ajustes."], ["bajas", "Terminaciones de la relación de trabajo", "Prima de antigüedad e indemnizaciones: son gasto laboral general, no costo de una parcela. Lo ya generado de aguinaldo, vacaciones y prima no está aquí: va arriba, sólo por su diferencia."]];
+  const fuentes = [["personal", "Días y ratos pagados sin actividad en parcela", "Permisos, descansos, esperas, traslados y los días de un encargado sin actividad registrada."], ["prestaciones", "Prestaciones", "Aguinaldo, vacaciones y prima que se van generando, y sus ajustes."], ["bonos", "Bonos e incentivos", "Lo otorgado en Pagos al personal → Bonos, cada uno con el tratamiento de costo que se le dio."], ["bajas", "Terminaciones de la relación de trabajo", "Prima de antigüedad e indemnizaciones: son gasto laboral general, no costo de una parcela. Lo ya generado de aguinaldo, vacaciones y prima no está aquí: va arriba, sólo por su diferencia."]];
   const sinSueldo = data.personalIndirecto?.sinSueldo || [];
   return (<>
     <div className="text-xs text-muted mb-2" style={{ paddingLeft: 4 }}>Esto se paga, así que es costo, pero no es trabajo hecho en una parcela. Aparece en los reportes como parte del costo completo, nunca dentro del costo directo. Lo que no se puede repartir con datos se queda pendiente, con su causa.</div>
@@ -21291,7 +21450,7 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
         <h2>Pagos al personal</h2>
       </div>
       <div className="tabs-pill">
-        {[["planta", "Planta"], ["cuadrillas", "Cuadrillas y temporales"], ["asistencia", `Asistencia${moSemana.salidasPorRevisar.length + todos.reduce((n, r) => n + r.sem.sinRegistro.length, 0) ? ` (${moSemana.salidasPorRevisar.length + todos.reduce((n, r) => n + r.sem.sinRegistro.length, 0)})` : ""}`], ["horas", "Horas adicionales"], ["prestaciones", "Prestaciones"], ["costo", "Costo sin parcela"]].map(([v, t]) => <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => setTab(v)}>{t}</button>)}
+        {[["planta", "Planta"], ["cuadrillas", "Cuadrillas y temporales"], ["asistencia", `Asistencia${moSemana.salidasPorRevisar.length + todos.reduce((n, r) => n + r.sem.sinRegistro.length, 0) ? ` (${moSemana.salidasPorRevisar.length + todos.reduce((n, r) => n + r.sem.sinRegistro.length, 0)})` : ""}`], ["horas", "Horas adicionales"], ["bonos", "Bonos"], ["prestaciones", "Prestaciones"], ["costo", "Costo sin parcela"]].map(([v, t]) => <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => setTab(v)}>{t}</button>)}
       </div>
       <div className="section-pad">
         {/* Navegación de semana */}
@@ -21307,6 +21466,7 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
         <PorValidar data={data} />
         {tab === "cuadrillas" && <PagosCuadrillas data={data} add={add} session={session} ini={ini} fin={fin} abrirRecibo={setRecibo} />}
         {tab === "asistencia" && <PanelAsistencia data={data} add={add} upd={upd} session={session} ini={ini} fin={fin} semanas={todos.filter(r => r.p.activo !== false)} mo={moSemana} cerrada={estadoDeSemana(data.eventos, ini, fin).estado === "cerrada"} />}
+        {tab === "bonos" && <PanelBonos data={data} add={add} session={session} />}
         {tab === "prestaciones" && <PanelPrestaciones data={data} add={add} upd={upd} session={session} />}
         {tab === "costo" && <PanelCostoPersonal data={data} add={add} session={session} />}
         {tab === "horas" && <PanelHoras data={data} add={add} session={session} ini={ini} fin={fin} />}

@@ -37,7 +37,7 @@ import { multiplicarDinero, sumarDinero } from "./calculos.js";
 
 export const NAVE = "Nave";
 export const T = { entrada: "alm_entrada", retiro: "alm_retiro", consumo: "alm_consumo", devolucion: "alm_devolucion", traspaso: "alm_traspaso", transferencia: "alm_transferencia",
-  merma: "alm_ajuste", conteo: "alm_conteo", costo: "alm_costo", baja: "alm_baja", revision: "alm_revision", resolucion: "alm_resolucion" };
+  merma: "alm_ajuste", conteo: "alm_conteo", costo: "alm_costo", baja: "alm_baja", revision: "alm_revision", resolucion: "alm_resolucion", valuacion: "alm_valuacion" };
 export const CAUSAS_AJUSTE = { conteo: "Error de conteo o de captura anterior", merma: "Merma (se echó a perder, se derramó)", caducidad: "Caducó", robo: "Robo o extravío", inicial: "Inventario inicial", no_se_sabe: "No se sabe" };
 export const CAUSAS_BAJA = { desgaste: "Desgaste normal", accidente: "Accidente", perdida: "Pérdida", intencional: "Daño intencional", otro: "Otro caso" };
 export const DESTINOS = { parcela: "Parcela", vehiculo: "Vehículo o maquinaria", general: "Uso general del rancho" };
@@ -104,6 +104,34 @@ export function movimientoDeSiempre({ articulo, delta, movimiento = {}, usadoPor
   return nuevoEvento({ tipo: T.consumo, cuando, fecha, quien, azar, datos: { ...ficha(articulo), cantidad: -d, de: NAVE, destino, via: "actividad", usadoPor: persona(usadoPor || quien), ...(costoDe(articulo) ? { costoVisto: costoDe(articulo) } : {}), concepto: String(movimiento.concepto || "").trim(), ...(movimiento.actividadId ? { actividadId: movimiento.actividadId } : {}) } });
 }
 
+// ── Lo que entra SIN saberse cuánto costó ──────────────────────────────────
+// Un trabajador compra algo y entrega el ticket: se sabe el total, no el precio
+// de cada cosa. La mercancía se RECIBE (alguien confirma que llegó y cuánto) y
+// queda PENDIENTE DE VALORACIÓN: no es que cueste cero, es que todavía no se
+// sabe. Después alguien completa el precio (`valuar`) y ese precio vale DESDE
+// QUE ENTRÓ: lo que ya se haya consumido de ahí sale en `ajustesDeValuacion`,
+// aparte y con su causa, sin tocar lo que se capturó.
+//   · Recibir la misma partida de la misma compra dos veces es el MISMO evento
+//     (mismo id): dos teléfonos sin señal no la meten doble.
+//   · Valuar otra vez es una corrección: vale la última y quedan las anteriores.
+export const idDeRecepcion = (compraId, i) => `alm_entrada-compra-${compraId}-${i}`;
+export function recibirCompra({ compra, i, articulo, cantidad, costoUnit = null, lugar = NAVE, quien, cuando, fecha, capturado }) {
+  const q = num(cantidad), c = num(costoUnit);
+  if (!compra?.id) return { ok: false, dice: "Falta de qué compra es." };
+  if (compra.estado !== "aprobada") return { ok: false, dice: "Esa compra todavía no está aprobada." };
+  if (!articulo?.id) return { ok: false, dice: "Ese artículo no está en el catálogo del almacén. Hay que darlo de alta primero." };
+  if (!(q > 0)) return { ok: false, dice: "Falta cuánto llegó de verdad." };
+  if (costoUnit !== null && costoUnit !== "" && !(c > 0)) return { ok: false, dice: "El precio no puede ser cero ni negativo. Si no se sabe, déjalo vacío: queda pendiente de valoración." };
+  return { ok: true, evento: nuevoEvento({ id: idDeRecepcion(compra.id, i), tipo: T.entrada, cuando, fecha, capturado, quien,
+    datos: { ...ficha(articulo), cantidad: q, lugar, ...(c > 0 ? { costoUnit: c } : { porValuar: true }), concepto: `Compra de ${compra.descripcion || "personal"}${compra.proveedor ? ` a ${compra.proveedor}` : ""}`, ref: { tipo: "compra", id: compra.id, i } } }) };
+}
+export function valuar({ entrada: ent, costoUnit, nota = "", quien, cuando, fecha, azar }) {
+  const c = num(costoUnit);
+  if (!ent?.ev) return { ok: false, dice: "Falta a qué entrada se le pone precio." };
+  if (!(c > 0)) return { ok: false, dice: "Falta el precio por unidad." };
+  return { ok: true, evento: nuevoEvento({ tipo: T.valuacion, cuando, fecha, quien, azar, origen: ent.ev, relacion: "valua", datos: { articuloId: ent.articuloId, articulo: ent.articulo, unidad: ent.unidad, cantidad: ent.cantidad, costoUnit: c, nota: String(nota || "").trim(), ...(ent.ref ? { ref: ent.ref } : {}) } }) };
+}
+
 // Fijar el costo de un artículo "de aquí en adelante" (una corrección a mano).
 // No toca lo que ya se consumió: eso se quedó con el costo que tenía.
 export function fijarCosto({ articulo, costoUnit, motivo = "", quien, cuando, fecha, azar }) {
@@ -133,7 +161,14 @@ export function entregar({ articulo, cantidad, de = NAVE, recibe, destino, nota 
 export function estadoDelAlmacen(eventos, inventario = []) {
   const todos = vigentes(eventos).filter(e => e.tipo.startsWith("alm_"));
   const mom = new Map(todos.map(e => [e.id, momentoDe(e)]));
-  const evs = todos.filter(e => e.tipo !== T.resolucion).sort((a, b) => mom.get(a.id).t - mom.get(b.id).t || a.capturado.localeCompare(b.capturado) || a.id.localeCompare(b.id));
+  // Las valoraciones: el precio que se le puso después a una entrada que llegó sin él. Vale la última; las anteriores quedan.
+  const valuaciones = new Map();
+  for (const e of todos.filter(e => e.tipo === T.valuacion && e.origen).sort((a, b) => a.capturado.localeCompare(b.capturado) || a.id.localeCompare(b.id))) {
+    const antes = valuaciones.get(e.origen);
+    valuaciones.set(e.origen, { costoUnit: e.datos.costoUnit, ev: e.id, capturado: e.capturado, por: e.quien?.nombre || "", fecha: e.fecha, nota: e.datos.nota || "", anteriores: antes ? [...antes.anteriores, { costoUnit: antes.costoUnit, por: antes.por, fecha: antes.fecha }] : [] });
+  }
+  const porValuar = [], recibidas = [];
+  const evs = todos.filter(e => e.tipo !== T.resolucion && e.tipo !== T.valuacion).sort((a, b) => mom.get(a.id).t - mom.get(b.id).t || a.capturado.localeCompare(b.capturado) || a.id.localeCompare(b.id));
   const relojes = todos.filter(e => mom.get(e.id).nota).map(e => ({ ev: e.id, clase: "reloj", tipo: e.tipo, articulo: e.datos.articulo || "", fecha: e.fecha, quien: e.quien?.nombre || "", nota: mom.get(e.id).nota, minutos: Math.round(Math.abs(mom.get(e.id).movido) / 60000) }));
   const resueltas = new Map(); for (const e of todos) if (e.tipo === T.resolucion && e.origen) resueltas.set(e.origen, { texto: e.datos.texto, por: e.quien?.nombre || "", cuando: e.cuando, ev: e.id });
   const saldos = new Map();                       // articuloId → Map(lugar → cuánto hay)
@@ -159,11 +194,15 @@ export function estadoDelAlmacen(eventos, inventario = []) {
   for (const e of evs) {
     const d = e.datos;
     if (e.tipo === T.entrada) {
-      if (Number(d.costoUnit) > 0) {
+      // El precio de esta entrada: el que traía o el que se le puso después. El de después cuenta como capturado tarde.
+      const val = valuaciones.get(e.id), costoUnit = Number(d.costoUnit) > 0 ? Number(d.costoUnit) : val ? val.costoUnit : null;
+      if (d.ref?.tipo === "compra") recibidas.push({ ev: e.id, compraId: d.ref.id, i: d.ref.i, articuloId: d.articuloId, articulo: d.articulo, unidad: d.unidad, cantidad: d.cantidad, costoUnit, valor: costoUnit ? multiplicarDinero(costoUnit, d.cantidad) : null, fecha: e.fecha, recibio: e.quien?.nombre || "", valuacion: val || null });
+      if (d.porValuar && !costoUnit) porValuar.push({ ev: e.id, articuloId: d.articuloId, articulo: d.articulo, unidad: d.unidad, cantidad: d.cantidad, fecha: e.fecha, recibio: e.quien?.nombre || "", concepto: d.concepto || "", ref: d.ref || null });
+      if (costoUnit > 0) {
         const habia = Math.max(enInventario(d.articuloId), 0), antes = prom.get(d.articuloId);
         // Sin existencia (o sin costo anterior), el costo es el de esta compra. Si no, el promedio ponderado.
-        prom.set(d.articuloId, antes == null || habia <= 0 ? d.costoUnit : (habia * antes + d.cantidad * d.costoUnit) / (habia + d.cantidad));
-        compras.push({ ev: e.id, articuloId: d.articuloId, cantidad: d.cantidad, costoUnit: d.costoUnit, fecha: e.fecha, t: mom.get(e.id).t, capturado: e.capturado, promedioDespues: prom.get(d.articuloId) });
+        prom.set(d.articuloId, antes == null || habia <= 0 ? costoUnit : (habia * antes + d.cantidad * costoUnit) / (habia + d.cantidad));
+        compras.push({ ev: e.id, articuloId: d.articuloId, cantidad: d.cantidad, costoUnit, fecha: e.fecha, t: mom.get(e.id).t, capturado: Number(d.costoUnit) > 0 ? e.capturado : val.capturado, promedioDespues: prom.get(d.articuloId), ...(d.ref ? { ref: d.ref } : {}), ...(Number(d.costoUnit) > 0 ? {} : { valuadaDespues: true }) });
       }
       mueve(d.articuloId, d.lugar || NAVE, d.cantidad); continue;
     }
@@ -224,7 +263,7 @@ export function estadoDelAlmacen(eventos, inventario = []) {
   // Conteos con la hora todavía sin comprobar (el teléfono nunca la ha cotejado y el servidor aún no lo recibe).
   const conteosSinHora = evs.filter(e => e.tipo === T.conteo && !mom.get(e.id).comprobado).map(e => e.id);
   return { saldos, lotes: [...lotes.values()], consumos: consumos.filter(c => c.cantidad > 0 || c.enActividad), huerfanos, discrepancias, ajustes, bajas, empalmes, conteos, conteosDistintos, negativos,
-    promedios: prom, compras, relojes, conteosSinHora };
+    promedios: prom, compras, relojes, conteosSinHora, porValuar, recibidas };
 }
 
 // Lo que hay en cada lugar, y aparte lo que anda fuera con alguien.
@@ -373,7 +412,9 @@ export function costoDeConsumos(estado, { desde, hasta } = {}) {
   const lista = estado.consumos.filter(c => (!desde || c.fecha >= desde) && (!hasta || c.fecha <= hasta));
   const propios = lista.filter(c => !c.enActividad); const con = propios.filter(c => c.costo != null);
   const de = (tipo) => sumarDinero(con.filter(c => c.destino?.tipo === tipo).map(c => c.costo));
-  return { consumos: lista, total: sumarDinero(con.map(c => c.costo)), aParcelas: de("parcela"), aVehiculos: de("vehiculo"), general: de("general"), sinCosto: propios.filter(c => c.costo == null && c.cantidad > 0) };
+  return { consumos: lista, total: sumarDinero(con.map(c => c.costo)), aParcelas: de("parcela"), aVehiculos: de("vehiculo"), general: de("general"), sinCosto: propios.filter(c => c.costo == null && c.cantidad > 0),
+    // De ésos, los de un artículo que tiene mercancía recibida sin precio: no cuestan cero, están pendientes de valoración.
+    pendientesDeValuacion: propios.filter(c => c.costo == null && c.cantidad > 0 && (estado.porValuar || []).some(p => p.articuloId === c.articuloId)) };
 }
 // ── Lo que cambió DESPUÉS: una compra anterior que se capturó tarde ────────
 // El consumo se queda con el costo con que se capturó: ése es el original y no
@@ -450,3 +491,18 @@ reglasDe(T.baja, (e) => [{ clase: "baja", cantidad: e.datos.cantidad, causa: e.d
 reglasDe(T.costo, (e) => [{ clase: "costo_fijado", articuloId: e.datos.articuloId, costoUnit: e.datos.costoUnit }]);
 reglasDe(T.revision, () => []);
 reglasDe(T.resolucion, () => []);
+
+// ── El inventario, en dinero ───────────────────────────────────────────────
+// Lo que hay (en el almacén y lo que anda fuera con alguien) al costo promedio de hoy.
+// Lo que no tiene costo NO vale cero: se cuenta aparte (`sinValor`), con cuántos artículos son.
+export function valorDelInventario(estado, inventario = []) {
+  let valor = 0; const sinValor = [];
+  for (const a of inventario || []) {
+    if (!a?.id) continue;
+    let n = 0; for (const x of (estado.saldos.get(a.id) || new Map()).values()) n += x; for (const l of estado.lotes) if (l.articuloId === a.id && !l.herramienta) n += l.saldo;
+    if (!(n > 0)) continue;
+    const c = estado.promedios.get(a.id);
+    if (c > 0) valor = sumarDinero(valor, multiplicarDinero(c, n)); else sinValor.push({ articuloId: a.id, articulo: a.nombre, unidad: a.unidad, cantidad: r3(n), porValuar: (estado.porValuar || []).some(p => p.articuloId === a.id) });
+  }
+  return { valor, sinValor, porValuar: estado.porValuar || [] };
+}
