@@ -15,6 +15,8 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 
 **ESTADO (19 nov, noche):** la hoja 37 (lo sensible lo autoriza la base) quedó INSTALADA en la base real y la app nueva PUBLICADA. Se repitieron contra la base real 10 ataques dentro de un bloque que se deshace solo (no quedó ningún dato): pago de un encargado → rechazado; sello escrito a mano → ignorado; darse permiso solo → negado; pago en cero → rechazado; cancelar un pago ajeno → no pasa y queda anotado; con el permiso de cerrar se cierra y NO se paga. Sin sesión, la base no entrega ni acepta nada de lo nuevo. **Falta la prueba con personas y cuentas reales** (un encargado con su teléfono) antes de usar pagos con dinero.
 
+**ESTADO (19 nov, cierre del día):** hojas 38 y 39 INSTALADAS y la app PUBLICADA (commit `4e557d5`). Contra la base real, en un bloque que se deshace solo (quedaron 0 eventos, 0 préstamos, 1 perfil): un encargado SOLICITA un préstamo y pasa; autorizarlo, entregarlo, abonar, dar de baja o pagar una baja → rechazado; sello escrito a mano → ignorado; darse permiso solo y escribir en la tabla vieja de préstamos → negado; con sólo el permiso de autorizar préstamos autoriza (no en $0) y NO entrega ni abona; el superadministrador sí, y un importe negativo se rechaza. **Nada de esto se ha probado con personas reales.**
+
 **Próxima entrega operativa:** bajas (partes proporcionales al terminar la relación de trabajo) y que dar un préstamo también pida permiso, si Luis lo decide. Antes de usar con dinero: validar en el rancho almacén, pagos, prestaciones y los permisos por cuenta.
 
 | Asunto | En rama | Probado | Publicado | Validado en el rancho |
