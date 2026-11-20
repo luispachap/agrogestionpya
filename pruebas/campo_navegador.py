@@ -43,7 +43,6 @@ def nube(route):
     return route.fulfill(status=200, headers=CORS, content_type="application/json", body="{}")
 
 def entrar_trabajador(pg):
-    pg.locator(".role-card", has_text="Trabajador").first.click()
     pg.locator(".login-sheet input").first.fill("5503")
     pg.get_by_role("button", name="Entrar").click()
     for _ in range(20):

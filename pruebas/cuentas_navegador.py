@@ -168,7 +168,6 @@ with sync_playwright() as p:
     ctx2.route(NUBE + "/**", nube)
     pg2 = ctx2.new_page(); pg2.on("pageerror", lambda e: errores.append(str(e))); pg2.on("dialog", lambda d: d.accept())
     pg2.goto(URL); pg2.wait_for_timeout(1200)
-    pg2.locator(".role-card", has_text="Admin").first.click()
     pg2.get_by_placeholder("Tu correo o tu PIN").fill("uno@prueba.invalid")
     pg2.get_by_placeholder("Contraseña", exact=True).fill("contrasena-larga-1")
     pg2.get_by_role("button", name="Entrar").click()

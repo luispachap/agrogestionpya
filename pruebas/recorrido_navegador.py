@@ -34,7 +34,8 @@ def sembrar(pg):
         localStorage.clear(); localStorage.setItem('agro_v8:local', JSON.stringify({ ...d, ...JSON.parse(s) })); }""", json.dumps(SEMILLA))
     pg.reload(); pg.wait_for_timeout(1200)
 def entrar(pg, tarjeta, clave):
-    pg.locator(".role-card", has_text=tarjeta).first.click()
+    # Ya no se escoge perfil: se escribe el PIN (o el correo) y la app sabe quién es. `tarjeta` sólo dice qué se espera.
+    if tarjeta == "Externo": pg.get_by_role("button", name="Soy externo y no tengo PIN").click()
     pg.locator(".login-sheet input").first.fill(clave)
     pg.get_by_role("button", name="Entrar").click()
     for _ in range(20):

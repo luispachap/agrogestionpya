@@ -16,7 +16,6 @@ with sync_playwright() as p:
     caso("la app abre y muestra el acceso", pg.locator(".login-bg").count() > 0)
     # C-1: PIN de fábrica de cada rol de dirección
     for rol, pin in (("Admin", "1234"), ("Dirección", "0000"), ("Finanzas", "4444")):
-        pg.locator(".role-card", has_text=rol).first.click()
         campo = pg.locator("input").first; campo.fill(pin)
         pg.get_by_role("button", name="Entrar").click()
         for _ in range(40):  # hasta 20 s: el acceso puede tardar si intenta consultar la nube

@@ -28,7 +28,7 @@ import { juntarFuentes, indirectoDe, costoCompleto, capturadoDespues } from "./i
 import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarraDe, barraDe, necesitaMenu, alternarInicio, alternarBarra, moverEnInicio, volverALoDeFabrica, anotarUso, masUsadas, ancladasConDatos, TOPE_BARRA, ENFOQUES, PERFILES_CON_ENFOQUE, faltaEnfoque, elegirEnfoque, alternarGrupo, mezclarPrefs, sellarAcomodo, mismoAcomodo } from "./menu.js";
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
-import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo } from "./acceso.js";
+import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo, caminoDeEntrada, quienEntraConPin, entrarConCredencial, puertaDeAsistencia } from "./acceso.js";
 import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde, horaDelServidor, cuandoSelle, misPermisos, permisosDeTodos, cambiarPermiso } from "./dataApi";
 import { desfaseDe, selloDeReloj, estadoDelReloj } from "./reloj.js";
 // Pagos al personal: ausencias, lo que corresponde, lo entregado, lo pendiente y los recibos.
@@ -6849,7 +6849,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
     abrir: (acomodar) => setMenuAbierto(acomodar ? "acomodar" : "ver"), cerrar: () => setMenuAbierto(null),
   }), [rolMenu, prefsMenu, cambiarPrefsMenu, page, session]);
 
-  if (!session) return <div className="agro-root"><style>{CSS}</style><LoginScreen data={data} add={add} upd={upd} onLogin={setSession} /></div>;
+  if (!session) return <div className="agro-root"><style>{CSS}</style><LoginScreen data={data} add={add} upd={upd} onLogin={setSession} vinculo={vinculo} eventosListos={eventosListos} /></div>;
 
   const isAdmin = session.role === "admin";
   const isCuad = session.role === "cuadrilla";
@@ -7202,8 +7202,18 @@ export default function App() {
   );
 }
 
-function LoginScreen({ data, add, upd, onLogin }) {
-  const [role, setRole] = useState("trabajador");
+// UNA SOLA ENTRADA. Nadie escoge su perfil: se escribe el PIN o el correo, o se enseña la credencial, y la app sabe
+// quién es. Registrar asistencia va aparte y no abre sesión. Las reglas están en acceso.js.
+function LoginScreen({ data, add, upd, onLogin, vinculo = null, eventosListos = true }) {
+  const [externo, setExterno] = useState(false);       // «soy externo y no tengo PIN»: entra con su nombre
+  const [cred, setCred] = useState(null);              // null · { leyendo:true } · { texto, persona } — la credencial ya leída, falta el PIN
+  const [checando, setChecando] = useState(false);     // la puerta de asistencia: checar sin abrir sesión
+  const [marca, setMarca] = useState(null);            // { tono, titulo, linea } — lo último que se checó aquí
+  const [pinChk, setPinChk] = useState("");
+  const puerta = puertaDeAsistencia(vinculo);
+  const eventosRef = useRef(data.eventos || []); eventosRef.current = data.eventos || [];
+  const limpiaMarca = useRef(null);
+  useEffect(() => () => clearTimeout(limpiaMarca.current), []);
   const [busq, setBusq] = useState("");
   const [pwd, setPwd] = useState("");
   const [error, setError] = useState("");
@@ -7224,7 +7234,6 @@ function LoginScreen({ data, add, upd, onLogin }) {
   useEffect(() => {
     const r = regresoDelCorreo(DIRECCION_AL_ABRIR);
     if (!r.viene) return;
-    setRole("admin");
     if (r.ok) setAviso(r.dice); else { setError(r.dice); setReenviarA(" "); }
     try { window.history.replaceState(null, "", window.location.pathname); } catch { /* ignorar */ }
     if (supabaseListo) setTimeout(() => { supabase.auth.signOut().catch(() => {}); }, 1500);
@@ -7255,7 +7264,7 @@ function LoginScreen({ data, add, upd, onLogin }) {
         options: { data: { nombre: nuevo.nombre.trim() }, emailRedirectTo: window.location.origin },
       });
       if (e) { setError(/registered|already/i.test(e.message) ? "Ya existe una cuenta con ese correo. Entra con ella." : `No se pudo crear la cuenta: ${e.message}`); return; }
-      setCrear(false); setRole("admin"); setBusq(correo); setPwd(""); setNuevo({ nombre: "", correo: "", pwd: "", pwd2: "" });
+      setCrear(false); setBusq(correo); setPwd(""); setNuevo({ nombre: "", correo: "", pwd: "", pwd2: "" });
       setAviso(r?.session
         ? "Cuenta creada. Escribe tu contraseña para entrar."
         : "Cuenta creada. Te llegó un correo: toca el enlace para confirmarlo y regresa aquí a entrar con tu correo y contraseña.");
@@ -7265,8 +7274,24 @@ function LoginScreen({ data, add, upd, onLogin }) {
   };
   // Los 5 roles que pueden tener cuenta real (correo + contraseña).
   // Los demás (trabajador, cuadrilla, externo) entran solo por PIN.
-  const rolesConCuenta = ["admin", "dueno", "finanzas", "encargado", "agronomo"];
-  const esCuenta = rolesConCuenta.includes(role) && busq.includes("@");
+  const esCuenta = !externo && !cred && busq.includes("@");
+  const camino = caminoDeEntrada(busq);
+  // Checar sin abrir sesión: sólo en un aparato que un encargado dejó para su gente. La marca queda a nombre de esa cuenta.
+  const checar = (quienEs) => {
+    const decir = (a) => { setMarca(a); clearTimeout(limpiaMarca.current); limpiaMarca.current = setTimeout(() => setMarca(null), 4500); };
+    if (!quienEs.ok) { decir({ tono: "mal", titulo: "No se registró", linea: quienEs.dice }); return; }
+    if (!eventosListos) { decir({ tono: "aviso", titulo: "Un momento", linea: "Todavía se están cargando las marcas de este aparato." }); return; }
+    const ahora = new Date();
+    const r = marcar({ eventos: eventosRef.current, trabajador: quienEs.trabajador, via: quienEs.via, ahora: ahora.toISOString(), fecha: fechaLocal(ahora), quien: puerta.quien, lugar: NAVE, ventanaMin: ajusteVigente(eventosRef.current, "ventana_repetida_min").valor });
+    if (!r.ok) { decir({ tono: r.repetida ? "aviso" : "mal", titulo: quienEs.trabajador.nombre, linea: r.dice }); return; }
+    const guardado = add("eventos", r.evento); eventosRef.current = [...eventosRef.current, guardado];
+    decir({ tono: r.sentido, titulo: quienEs.trabajador.nombre, linea: `${r.sentido === "entrada" ? "ENTRADA" : "SALIDA"} · ${horaCorta(r.evento.cuando)}` });
+  };
+  const alLeerCredencial = (texto) => {
+    const r = entrarConCredencial(texto, "", data);
+    if (r.falta === "pin") { setCred({ texto, persona: r.persona }); setBusq(""); setError(""); }
+    else { setCred(null); setError(r.dice || "No se pudo leer la credencial."); }
+  };
 
   const entrar = async () => {
     setError(""); setAviso("");
@@ -7316,74 +7341,41 @@ function LoginScreen({ data, add, upd, onLogin }) {
         setCargando(false); return;
       }
     }
-    // ---- Camino B: PIN ----
-    // (La "cuenta técnica compartida" se retiró: su contraseña habría quedado en el
-    //  JavaScript público. Ver docs/auditoria, hallazgo C-2.)
-    // PINs de dirección: si ya se configuró un PIN propio (pantalla Seguridad),
-    // se compara contra su hash. El PIN de fábrica solo funciona mientras no
-    // exista uno propio — y el panel de inicio lo marca en rojo hasta cambiarlo.
-    // IMPORTANTE: para roles de dirección bajamos la config de seguridad FRESCA
-    // de la nube antes de validar. Así, si en otro dispositivo se cambió el PIN,
-    // este dispositivo valida contra el PIN nuevo aunque aún no haya sincronizado.
-    let cfgSec = (data.config_seguridad || [])[0] || {};
-    if (["admin", "dueno", "finanzas"].includes(role) && supabaseListo) {
-      setCargando(true);
-      try {
-        const frescas = await leerColeccion("config_seguridad");
-        if (frescas && frescas[0]) {
-          cfgSec = frescas[0];
-          // Guardar también en el estado local para no volver a pedirlo enseguida
-          upd("config_seguridad", frescas[0]);
-        }
-      } catch { /* sin conexión: usar lo local */ }
-      setCargando(false);
+    // ---- Camino B: la credencial ya leída + su PIN ----
+    if (cred?.texto) {
+      const r = entrarConCredencial(cred.texto, busq, data);
+      if (r.ok) { onLogin(r.sesion); return; }
+      setError(r.dice || "Escribe tu PIN."); return;
     }
-    // Sin PIN de fábrica: si dirección no ha configurado su PIN propio, no se entra
-    // por PIN — se entra con correo y contraseña, y desde ahí se configura.
-    const verificarPinRol = async (rol) => {
-      const r = await verificarPinDireccion(cfgSec, rol, busq, hashPin);
-      if (r.ok) return true;
-      if (r.motivo === "sin_configurar") setError("Este acceso todavía no tiene PIN propio. Entra con tu correo y contraseña.");
-      else if (r.motivo === "sin_modo_seguro") setError("Tu navegador no soporta el modo seguro. Usa Chrome/Safari actualizado.");
-      else setError("PIN incorrecto");
-      return false;
-    };
-    if (role === "admin") {
-      if (!(await verificarPinRol("admin"))) return;
-      onLogin({ role: "admin", nombre: "Administrador", id: "admin" });
-    } else if (role === "dueno") {
-      if (!(await verificarPinRol("dueno"))) return;
-      onLogin({ role: "dueno", nombre: "Dirección", id: "dueno" });
-    } else if (role === "finanzas") {
-      if (!(await verificarPinRol("finanzas"))) return;
-      onLogin({ role: "finanzas", nombre: "Finanzas", id: "finanzas" });
-    } else if (role === "encargado") {
-      const e = (data.encargados || []).find(w => String(w.pin) === busq.trim());
-      if (!e) { setError("PIN incorrecto"); return; }
-      onLogin({ role: "encargado", nombre: e.nombre, id: e.id });
-    } else if (role === "trabajador") {
-      const t = data.trabajadores.find(w => String(w.pin) === busq.trim());
-      if (!t) { setError("PIN incorrecto"); return; }
-      onLogin({ role: "trabajador", nombre: t.nombre, id: t.id, sueldo_dia: t.sueldo_dia, categoria: t.categoria });
-    } else if (role === "agronomo") {
-      const a = (data.agronomos || []).find(w => String(w.pin) === busq.trim());
-      if (!a) { setError("PIN incorrecto"); return; }
-      onLogin({ role: "agronomo", nombre: a.nombre, id: a.id });
-    } else if (role === "externo") {
-      if (!busq.trim()) { setError("Ingresa tu nombre completo"); return; }
+    // ---- Camino C: externo, con su nombre (no ve nada de nadie: sólo reporta lo suyo) ----
+    if (externo) {
+      if (busq.trim().length < 5 || !/\s/.test(busq.trim())) { setError("Escribe tu nombre completo"); return; }
       const nombre = busq.trim().toUpperCase();
       let ext = (data.externos || []).find(e => e.nombre.toUpperCase() === nombre);
-      if (!ext) {
-        const newId = `ext${Date.now()}`;
-        add("externos", { id: newId, nombre, fecha_registro: today(), sueldo_dia: 683 });
-        ext = { id: newId, nombre };
-      }
-      onLogin({ role: "externo", nombre: ext.nombre, id: ext.id, sueldo_dia: ext.sueldo_dia || 683 });
-    } else {
-      const c = data.cuadrillas.find(q => String(q.pin) === busq.trim());
-      if (!c) { setError("No se encontró ese registro de externos"); return; }
-      onLogin({ role: "cuadrilla", nombre: c.nombre, id: c.id, miembros: c.miembros, flete_dia: c.flete_dia });
+      if (!ext) { const newId = `ext${Date.now()}`; add("externos", { id: newId, nombre, fecha_registro: today(), sueldo_dia: 683 }); ext = { id: newId, nombre }; }
+      onLogin({ role: "externo", nombre: ext.nombre, id: ext.id, sueldo_dia: ext.sueldo_dia || 683 }); return;
     }
+    // ---- Camino D: PIN. La app busca de quién es; nadie escoge su perfil. ----
+    // (La "cuenta técnica compartida" se retiró: su contraseña habría quedado en el JavaScript público. Hallazgo C-2.)
+    if (camino !== "pin") { setError(camino === "vacio" ? "Escribe tu PIN o tu correo." : camino === "pin_corto" ? "El PIN es de 4 a 8 números." : "Escribe tu PIN (sólo números) o tu correo. Si no tienes ninguno de los dos, toca «Soy externo» o pídele tu PIN a tu encargado."); return; }
+    const deCampo = quienEntraConPin(busq, data);
+    if (deCampo.ok) { onLogin(deCampo.sesion); return; }
+    if (deCampo.motivo === "repetido") { setError(deCampo.dice); return; }
+    // No es de nadie de campo: ¿es el PIN propio de dirección? Sólo existe si alguien lo configuró (no hay PIN de fábrica),
+    // y se baja FRESCO de la nube antes de comparar: lo que controla la puerta se trae antes de la puerta.
+    let cfgSec = (data.config_seguridad || [])[0] || {};
+    if (supabaseListo) {
+      setCargando(true);
+      try { const frescas = await leerColeccion("config_seguridad"); if (frescas && frescas[0]) { cfgSec = frescas[0]; upd("config_seguridad", frescas[0]); } } catch { /* sin conexión: usar lo local */ }
+      setCargando(false);
+    }
+    let sinModoSeguro = false;
+    for (const [rol, nombre] of [["admin", "Administrador"], ["dueno", "Dirección"], ["finanzas", "Finanzas"]]) {
+      const r = await verificarPinDireccion(cfgSec, rol, busq.trim(), hashPin);
+      if (r.ok) { onLogin({ role: rol, nombre, id: rol }); return; }
+      if (r.motivo === "sin_modo_seguro") sinModoSeguro = true;
+    }
+    setError(sinModoSeguro ? "Tu navegador no soporta el modo seguro. Usa Chrome o Safari actualizado." : "PIN incorrecto. Si eres de dirección y no has puesto un PIN propio, entra con tu correo y tu contraseña.");
   };
   return (
     <div className="login-bg">
@@ -7398,27 +7390,50 @@ function LoginScreen({ data, add, upd, onLogin }) {
         <div className="login-brand">Agroselectos P&amp;A</div>
       </div>
       <div className="login-sheet">
-        <h3>¿Quién eres?</h3>
-        <div className="role-cards" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
-          {[["trabajador", "hardhat", "Trabajador"], ["externo", "farmer", "Externo"], ["cuadrilla", "users", "Cuadrilla"], ["encargado", "toolbox", "Encargado"], ["agronomo", "microscope", "Agrónomo"], ["finanzas", "calculator", "Finanzas"], ["dueno", "crown", "Dirección"], ["admin", "shield", "Admin"]].map(([r, ic, lb]) => (
-            <div key={r} className={`role-card${role === r ? " active" : ""}`} onClick={() => { setRole(r); setBusq(""); setError(""); }}>
-              <span className="rc-icon"><Ic name={ic} /></span><span className="rc-label">{lb}</span>
+        {checando && puerta.ok ? <>
+          <h3>Registrar mi entrada o salida</h3>
+          <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Sólo queda anotada tu hora. No abre la app ni enseña nada de nadie. Este aparato lo dejó {puerta.quien.nombre}.</div>
+          <LectorQR onLeer={(texto) => checar(quienEsPorQR(texto, quienesChecan(data)))} pausado={false} />
+          <div className={`chk-aviso ${marca ? marca.tono : "espera"}`} role="status" aria-live="polite">
+            {marca ? <><div className="chk-aviso-t">{marca.titulo}</div><div className="chk-aviso-l">{marca.linea}</div></> : <><div className="chk-aviso-t">Acerca tu credencial</div><div className="chk-aviso-l">o escribe tu PIN</div></>}
+          </div>
+          <div className="chk-pin">
+            <div className="chk-pin-caja" aria-label="PIN para checar">{pinChk ? "•".repeat(pinChk.length) : <span className="text-muted">PIN</span>}</div>
+            <div className="chk-teclas">
+              {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map(k => <button key={k} onClick={() => setPinChk(x => (x + k).slice(0, 8))}>{k}</button>)}
+              <button className="sec" onClick={() => setPinChk(x => x.slice(0, -1))}>Borrar</button>
+              <button onClick={() => setPinChk(x => (x + "0").slice(0, 8))}>0</button>
+              <button className="ok" disabled={pinChk.length < 4} onClick={() => { checar(quienEsPorPin(pinChk, quienesChecan(data))); setPinChk(""); }}>Checar</button>
             </div>
-          ))}
-        </div>
+          </div>
+          <button className="btn btn-outline mt-2" style={{ width: "100%" }} onClick={() => { setChecando(false); setMarca(null); setPinChk(""); }}>Quiero entrar a la app</button>
+        </> : <>
+        <h3>{cred?.persona ? `Hola, ${cred.persona.nombre}` : externo ? "Entrar como externo" : crear ? "Crear mi cuenta" : "Entrar"}</h3>
+        {puerta.ok && !crear && !cred && !externo && (
+          <button className="btn btn-outline mb-3" style={{ width: "100%" }} onClick={() => { setChecando(true); setError(""); setAviso(""); }}><Ic e="🕒" /> Sólo vengo a registrar mi entrada o salida</button>
+        )}
+        {cred?.leyendo && <>
+          <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Enseña tu credencial a la cámara. La credencial dice quién eres; enseguida te pide tu PIN.</div>
+          <LectorQR onLeer={alLeerCredencial} pausado={false} />
+          <button className="btn-ghost text-xs mt-2" style={{ width: "100%" }} onClick={() => setCred(null)}>Mejor escribo mi PIN o mi correo</button>
+        </>}
+        {!crear && !cred?.leyendo && (
         <div className="form-group">
-          <label className="form-label">{esCuenta ? "Correo de la cuenta" : role === "admin" ? "PIN administrador" : role === "dueno" ? "PIN de dirección" : role === "finanzas" ? "PIN de finanzas" : role === "encargado" ? "Tu nombre o PIN" : role === "agronomo" ? "Tu nombre o PIN" : role === "externo" ? "Tu nombre completo" : role === "trabajador" ? "Tu nombre o PIN" : "Nombre o PIN"}</label>
-          <input className="inp" type={!esCuenta && (role === "admin" || role === "dueno" || role === "finanzas") ? "password" : "text"}
-            placeholder={rolesConCuenta.includes(role) ? "Tu correo o tu PIN" : role === "externo" ? "Ej: JUAN PEREZ GARCIA" : "Escribe tu PIN"}
+          <label className="form-label" htmlFor="entrada-campo">{cred?.persona ? "Tu PIN" : externo ? "Tu nombre completo" : esCuenta ? "Correo de la cuenta" : "Tu PIN o tu correo"}</label>
+          <input id="entrada-campo" className="inp" autoComplete="off" autoCapitalize="none"
+            type={!externo && !esCuenta && /^\d+$/.test(busq) ? "password" : "text"} inputMode={cred?.persona ? "numeric" : undefined}
+            placeholder={cred?.persona ? "Escribe tu PIN" : externo ? "Ej: JUAN PEREZ GARCIA" : "Tu correo o tu PIN"}
             value={busq} onChange={e => setBusq(e.target.value)} onKeyDown={e => e.key === "Enter" && entrar()} />
           {esCuenta && (
             <input className="inp mt-2" type="password" placeholder="Contraseña"
               value={pwd} onChange={e => setPwd(e.target.value)} onKeyDown={e => e.key === "Enter" && entrar()} />
           )}
           <div className="text-xs text-muted mt-2" style={{ paddingLeft: 4 }}>
-            {esCuenta ? "Modo cuenta real (correo y contraseña)" : role === "externo" ? "No necesitas PIN. Si es tu primera vez, escribe tu nombre y se creará tu registro automáticamente." : ["admin", "dueno", "finanzas", "encargado", "agronomo"].includes(role) ? "Escribe tu PIN — o entra con tu correo si tienes cuenta" : "Escribe tu PIN de acceso"}
+            {cred?.persona ? "La credencial dice quién eres; tu PIN demuestra que eres tú. Con la credencial sola no se abre la app."
+              : externo ? "No necesitas PIN. Si es tu primera vez, se crea tu registro con tu nombre. Sólo vas a ver lo tuyo."
+              : esCuenta ? "Cuenta con correo y contraseña" : "No hay que escoger perfil: con tu PIN o tu correo la app sabe quién eres y qué te toca."}
           </div>
-        </div>
+        </div>)}
         {esCuenta && pideCodigo && !crear && (
           <div className="form-group">
             <label className="form-label">Código de arranque (sólo si te dieron uno)</label>
@@ -7444,12 +7459,23 @@ function LoginScreen({ data, add, upd, onLogin }) {
         )}
         {crear
           ? <button className="btn btn-accent" onClick={crearCuenta} disabled={cargando}>{cargando ? "Creando..." : "Crear mi cuenta"}</button>
-          : <button className="btn btn-accent" onClick={entrar} disabled={cargando}>{cargando ? "Entrando..." : "Entrar →"}</button>}
-        {supabaseListo && (
+          : !cred?.leyendo && <button className="btn btn-accent" onClick={entrar} disabled={cargando}>{cargando ? "Entrando..." : "Entrar →"}</button>}
+        {!crear && !cred && !externo && (
+          <button className="btn btn-outline mt-2" style={{ width: "100%" }} onClick={() => { setCred({ leyendo: true }); setError(""); setAviso(""); }}><Ic e="📷" /> Usar mi credencial</button>
+        )}
+        {(cred?.persona || externo) && (
+          <button className="btn-ghost text-xs mt-2" style={{ width: "100%" }} onClick={() => { setCred(null); setExterno(false); setBusq(""); setError(""); }}>No soy yo: regresar</button>
+        )}
+        {!crear && !cred && !externo && (
+          <button className="btn-ghost text-xs mt-2" style={{ width: "100%" }} onClick={() => { setExterno(true); setBusq(""); setError(""); setAviso(""); }}>Soy externo y no tengo PIN</button>
+        )}
+        {supabaseListo && !cred && !externo && (
           <button className="btn-ghost text-xs mt-2" style={{ width: "100%" }} onClick={() => { setCrear(c => !c); setError(""); setAviso(""); }}>
             {crear ? "Ya tengo cuenta: entrar" : "Es mi primera vez: crear mi cuenta"}
           </button>
         )}
+        {!puerta.ok && !crear && !cred && !externo && <div className="text-xs text-muted mt-2" style={{ textAlign: "center" }}>¿Sólo vienes a checar? {puerta.dice}</div>}
+        </>}
       </div>
     </div>
   );

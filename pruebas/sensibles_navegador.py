@@ -71,7 +71,6 @@ def paga(pg, monto):
     tarjeta(pg, "ANA DE PRUEBA").get_by_role("button", name="Registrar pago").click()
     pg.get_by_label("Cuánto se entregó ($)").fill(str(monto)); modal(pg).get_by_role("button", name="Registrar pago").click(); pg.wait_for_timeout(1500)
 def entrar(pg):
-    pg.locator(".role-card", has_text="Admin").first.click()
     pg.get_by_placeholder("Tu correo o tu PIN").fill("uno@prueba.invalid"); pg.get_by_placeholder("Contraseña", exact=True).fill("contrasena-larga-1")
     pg.get_by_role("button", name="Entrar").click()
     for _ in range(30):

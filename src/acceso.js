@@ -10,6 +10,8 @@
 //  controle el navegador sigue pudiendo saltarse estas reglas.
 // ============================================================
 
+import { leerCredencial } from "./checador.js";
+
 export const ROLES_DIRECCION = ["admin", "dueno", "finanzas"];
 
 // Dónde vive cada rol de campo dentro de los datos locales.
@@ -114,4 +116,77 @@ export function regresoDelCorreo(direccion) {
     return { viene: true, ok: true, dice: "Correo confirmado. Ahora entra con tu correo y contraseña." };
   }
   return { viene: false, ok: false, dice: "" };
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  UNA SOLA ENTRADA — nadie escoge su perfil
+//
+//  Antes la pantalla preguntaba «¿quién eres?» con ocho tarjetas. Ahora la
+//  persona escribe SU PIN, o su correo, o enseña su credencial, y la app sabe
+//  quién es y qué le toca ver. Tres cosas quedan separadas a propósito:
+//
+//   · REGISTRAR ASISTENCIA no es abrir sesión. Checar entrada o salida se hace
+//     con la credencial (o el PIN) en un aparato que un encargado dejó para
+//     eso, y no abre ninguna pantalla de nadie.
+//   · ABRIR SESIÓN pide algo que sólo la persona sabe: su PIN, o su contraseña.
+//     LA CREDENCIAL SOLA NO ABRE NADA: dice quién eres, y enseguida pide el PIN.
+//   · LO SENSIBLE (pagos, cierres, reglas) no depende de cómo se entró: lo
+//     autoriza la base con la cuenta de la sesión. Un PIN no da esos permisos.
+// ════════════════════════════════════════════════════════════════════════
+
+// Qué quiso hacer la persona con lo que escribió. No decide quién es: decide por dónde se le busca.
+export function caminoDeEntrada(texto) {
+  const t = String(texto || "").trim();
+  if (!t) return "vacio";
+  if (t.includes("@")) return "cuenta";
+  if (/^AGRO1:/.test(t)) return "credencial";
+  if (/^\d{4,8}$/.test(t)) return "pin";
+  if (/^\d+$/.test(t)) return "pin_corto";
+  return "otro";
+}
+const sesionDeCampo = (rol, p) => {
+  const s = { role: rol, id: p.id, nombre: p.nombre };
+  if (rol === "trabajador") { s.sueldo_dia = p.sueldo_dia; s.categoria = p.categoria; }
+  if (rol === "cuadrilla") { s.miembros = p.miembros; s.flete_dia = p.flete_dia; }
+  return s;
+};
+const activos = (lista) => (Array.isArray(lista) ? lista : []).filter(p => p && p.activo !== false && !p._porBaja);
+// Todas las personas que entran con PIN, cada una con su rol. El rol sale de en qué catálogo está, no de lo que diga nadie.
+const conPin = (data) => Object.entries(CATALOGO_POR_ROL).filter(([rol]) => rol !== "externo").flatMap(([rol, cat]) => activos(data?.[cat]).map(p => ({ rol, p })));
+
+/**
+ * ¿De quién es este PIN? Se busca en todos los catálogos a la vez.
+ * Si lo tienen dos personas NO se escoge una: se dice, y se le pide entrar con su credencial (que sí dice quién es).
+ */
+export function quienEntraConPin(pin, data) {
+  const p = String(pin || "").trim();
+  if (!/^\d{4,8}$/.test(p)) return { ok: false, motivo: "corto", dice: "El PIN es de 4 a 8 números." };
+  const hallados = conPin(data).filter(x => x.p.pin != null && String(x.p.pin).trim() === p);
+  if (hallados.length === 0) return { ok: false, motivo: "nadie", dice: "Ese PIN no es de nadie." };
+  if (hallados.length > 1) return { ok: false, motivo: "repetido", dice: "Ese PIN lo tienen dos personas. Entra con tu credencial y tu PIN, o pide a tu encargado que te lo cambie." };
+  return { ok: true, sesion: sesionDeCampo(hallados[0].rol, hallados[0].p), via: "pin" };
+}
+
+/**
+ * La credencial dice QUIÉN es; el PIN demuestra que es esa persona. Sin PIN no hay sesión.
+ * Devuelve { ok:false, falta:"pin", persona } cuando la credencial es buena y falta el PIN: la pantalla lo pide.
+ */
+export function entrarConCredencial(textoQR, pin, data) {
+  const c = leerCredencial(textoQR);
+  if (!c) return { ok: false, motivo: "no_es", dice: "Ese código no es una credencial del rancho." };
+  const x = conPin(data).find(y => y.p.id === c.id);
+  if (!x) return { ok: false, motivo: "desconocida", dice: "Esa credencial no está en este aparato, o esa persona ya no está activa. Si es nueva, falta que el aparato baje los datos." };
+  if (!x.p.credencial?.codigo || x.p.credencial.codigo !== c.codigo) return { ok: false, motivo: "vencida", dice: `Esa credencial de ${x.p.nombre} ya no sirve: se emitió otra después.` };
+  const persona = { id: x.p.id, nombre: x.p.nombre, rol: x.rol };
+  if (x.p.pin == null || String(x.p.pin).trim() === "") return { ok: false, motivo: "sin_pin", persona, dice: `${x.p.nombre} todavía no tiene PIN. Con la credencial sola se puede checar entrada y salida, pero no entrar a la app: pide a tu encargado que te ponga un PIN.` };
+  if (pin == null || String(pin).trim() === "") return { ok: false, falta: "pin", persona, dice: "" };
+  if (String(x.p.pin).trim() !== String(pin).trim()) return { ok: false, motivo: "incorrecto", persona, dice: "Ese no es tu PIN." };
+  return { ok: true, sesion: sesionDeCampo(x.rol, x.p), via: "credencial" };
+}
+
+// ¿En este aparato se puede registrar asistencia desde la entrada, sin abrir sesión?
+// Sólo si un encargado lo dejó ligado para su gente: una marca hecha desde el teléfono de cada quien no vale.
+export function puertaDeAsistencia(vinculo) {
+  if (!vinculo || !vinculo.cuentaId) return { ok: false, dice: "La entrada y la salida se registran en el checador de la nave, o en el aparato que tu encargado dejó para eso." };
+  return { ok: true, quien: { id: vinculo.cuentaId, nombre: vinculo.nombre || "Encargado", rol: "encargado" } };
 }

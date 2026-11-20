@@ -34,7 +34,6 @@ with sync_playwright() as p:
     pg.goto(URL); pg.wait_for_timeout(1200)
     pg.evaluate("s => { localStorage.clear(); localStorage.setItem('agro_v8:local', s); }", json.dumps(SEMILLA))
     pg.reload(); pg.wait_for_timeout(1200)
-    pg.locator(".role-card", has_text="Admin").first.click()
     pg.locator(".login-sheet input").first.fill("7391")
     pg.get_by_role("button", name="Entrar").click(); pg.wait_for_timeout(1500)
 
@@ -64,7 +63,6 @@ with sync_playwright() as p:
     caso("una foto distinta sí es otro archivo", len(pg.evaluate(LEE)["archivos"]) == 2)
 
     pg.reload(); pg.wait_for_timeout(1500)   # cerrar y abrir
-    pg.locator(".role-card", has_text="Admin").first.click()
     pg.locator(".login-sheet input").first.fill("7391")
     pg.get_by_role("button", name="Entrar").click(); pg.wait_for_timeout(1500)
     pg.evaluate("() => window.__agroIr('papeles')"); pg.wait_for_timeout(500)

@@ -76,7 +76,7 @@ with sync_playwright() as p:
     pg.evaluate("([v, s]) => { localStorage.clear(); for (const k in v) localStorage.setItem(k, v[k]); localStorage.setItem('agro_v8:local', s); }",
                 [VIEJO, json.dumps({"config_seguridad": [{"id": "seg", "pin_admin": h("7391")}]})])
     pg.reload(); pg.wait_for_timeout(1200)
-    pg.locator(".role-card", has_text="Admin").first.click(); pg.locator(".login-sheet input").first.fill("7391")
+    pg.locator(".login-sheet input").first.fill("7391")
     pg.get_by_role("button", name="Entrar").click(); pg.wait_for_timeout(1500)
     pg.evaluate("() => window.__agroIr('respaldo')"); pg.wait_for_timeout(600)
     pg.locator('input[type="file"]').first.set_input_files({"name": "respaldo-agroselectos-2026-09-01.json", "mimeType": "application/json", "buffer": VIEJO["agro_v7"].encode()})
