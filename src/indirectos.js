@@ -21,7 +21,8 @@ export function juntarFuentes(fuentes) {
   for (const f of fuentes || []) {
     for (const p of f.partes || []) partes.push({ ...p, fuente: f.fuente, nombreFuente: f.nombre });
     for (const p of f.pendientes || []) pendientes.push({ ...p, fuente: f.fuente, nombreFuente: f.nombre });
-    if (f.noProduccion > 0) noProduccion.push({ fuente: f.fuente, nombreFuente: f.nombre, monto: f.noProduccion, detalle: f.detalleNoProduccion || [] });
+    // (Puede ser negativo: un ajuste a la baja. Tampoco se pierde.)
+    if (f.noProduccion !== 0 || (f.detalleNoProduccion || []).length) noProduccion.push({ fuente: f.fuente, nombreFuente: f.nombre, monto: f.noProduccion, detalle: f.detalleNoProduccion || [] });
   }
   return { partes, pendientes, noProduccion, repartido: sumarDinero(partes.map(p => p.monto)), pendiente: sumarDinero(pendientes.map(p => p.monto)), fuera: sumarDinero(noProduccion.map(p => p.monto)) };
 }

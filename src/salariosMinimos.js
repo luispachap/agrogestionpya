@@ -13,7 +13,9 @@
 //     respuesta es «no sé» (monto: null) y lo que dependa de él queda por revisar.
 //     Nunca se usa el del año pasado como si siguiera vigente.
 //   · Se actualiza con un evento (`salario_minimo`, sensible: permiso
-//     «cambiar las reglas»), con su fuente, quién y cuándo. Corregir un año es
+//     «cambiar las reglas»), con su fuente en el DOF, su evidencia (liga
+//     oficial o foto/PDF), quién y cuándo. `alertaDeSalarioMinimo` avisa
+//     cuando falta el del año en curso o, en diciembre, el del siguiente. Corregir un año es
 //     otro evento para la misma fecha: gana el más reciente y queda el anterior.
 //
 //  `verificado` dice contra qué se cotejó cada renglón de fábrica (19 nov 2026):
@@ -46,7 +48,7 @@ export function catalogoDe(eventos = []) {
   const por = new Map(CATALOGO_OFICIAL.map(c => [c.desde, { ...c, origen: "fabrica", anteriores: [] }]));
   for (const e of vigentes(eventos).filter(e => e.tipo === T_SALARIO_MINIMO).sort((a, b) => a.cuando.localeCompare(b.cuando))) {
     const antes = por.get(e.datos.desde);
-    por.set(e.datos.desde, { desde: e.datos.desde, general: e.datos.general, frontera: e.datos.frontera, fuente: e.datos.fuente, nota: e.datos.nota || "", origen: "capturado", evento: e.id, por: e.quien?.nombre || "", capturado: e.fecha,
+    por.set(e.datos.desde, { desde: e.datos.desde, general: e.datos.general, frontera: e.datos.frontera, fuente: e.datos.fuente, liga: e.datos.liga || "", evidencia: e.datos.evidencia || null, nota: e.datos.nota || "", origen: "capturado", evento: e.id, por: e.quien?.nombre || "", capturado: e.fecha,
       anteriores: antes ? [...antes.anteriores, { general: antes.general, frontera: antes.frontera, fuente: antes.fuente, origen: antes.origen, por: antes.por || "", capturado: antes.capturado || "" }] : [] });
   }
   return [...por.values()].sort((a, b) => a.desde.localeCompare(b.desde));
@@ -64,8 +66,24 @@ export function salarioMinimoEn(fecha, zona = "general", eventos = []) {
   return { monto: r[z], zona: z, desde: r.desde, fuente: r.fuente, origen: r.origen, verificado: r.verificado || null, dice: "" };
 }
 
-// Agregar un año (o corregir uno). Pide la publicación oficial de donde sale.
-export function capturarSalarioMinimo({ permitido, eventos = [], desde, general, frontera, fuente, nota = "", quien, cuando, fecha, azar }) {
+// ¿Falta un salario mínimo? Dos casos, y ninguno se resuelve solo:
+//   urgente  no está el del año EN CURSO: lo que dependa de él ya no se puede calcular;
+//   aviso    ya es diciembre y no está el del año que viene (la CONASAMI lo resuelve y el DOF lo publica en diciembre).
+// Nunca propone un importe: sólo dice que falta y de dónde tiene que salir.
+export function alertaDeSalarioMinimo(hoy, zona = "general", eventos = []) {
+  if (!esFecha(hoy)) return null;
+  const anio = Number(hoy.slice(0, 4)), este = salarioMinimoEn(hoy, zona, eventos);
+  const deDonde = "Se captura con los importes de la resolución de la CONASAMI publicada en el Diario Oficial de la Federación; no se usa el del año anterior.";
+  if (este.monto == null) return { nivel: "urgente", anio, dice: `Falta el salario mínimo oficial de ${anio}. Mientras no esté, la prima de antigüedad de una baja queda por revisar. ${deDonde}` };
+  if (hoy.slice(5, 7) === "12" && salarioMinimoEn(`${anio + 1}-01-01`, zona, eventos).monto == null)
+    return { nivel: "aviso", anio: anio + 1, dice: `Falta el salario mínimo oficial de ${anio + 1}, que empieza a regir el 1 de enero. ${deDonde}` };
+  return null;
+}
+
+const OFICIAL = /^https:\/\/([a-z0-9-]+\.)*(dof\.gob\.mx|sidof\.segob\.gob\.mx|gob\.mx)(\/|$)/i;
+// Agregar un año (o corregir uno). Pide la publicación oficial de donde sale Y su evidencia:
+// la liga a la publicación en un sitio oficial (dof.gob.mx, sidof.segob.gob.mx, gob.mx) o una foto o PDF de ella.
+export function capturarSalarioMinimo({ permitido, eventos = [], desde, general, frontera, fuente, liga = "", evidencia = null, nota = "", quien, cuando, fecha, azar }) {
   { const no = negado(quien, permitido, "El catálogo de salarios mínimos lo actualiza un administrador."); if (no) return { ok: false, dice: no }; }
   if (!esFecha(desde)) return { ok: false, dice: "Falta desde qué fecha rige." };
   const g = centavos(general), f = centavos(frontera);
@@ -73,10 +91,13 @@ export function capturarSalarioMinimo({ permitido, eventos = [], desde, general,
   if (!(f > 0)) return { ok: false, dice: "Falta el salario mínimo por día de la Zona Libre de la Frontera Norte." };
   if (f < g) return { ok: false, dice: "El de la frontera norte no puede ser menor que el general. Revisa los dos importes." };
   if (limpio(fuente).length < 8) return { ok: false, dice: "Falta la publicación oficial de donde sale (por ejemplo: «Resolución de la CONASAMI, DOF del 9 de diciembre de 2026»)." };
+  if (!/dof|diario oficial/i.test(fuente)) return { ok: false, dice: "La publicación tiene que ser la del Diario Oficial de la Federación (DOF): escribe su fecha. Una nota de prensa no basta." };
+  if (limpio(liga) && !OFICIAL.test(limpio(liga))) return { ok: false, dice: "La liga tiene que ser de un sitio oficial (dof.gob.mx, sidof.segob.gob.mx o gob.mx). Si la tienes de otro lado, mejor sube una foto o el PDF de la publicación." };
+  if (!limpio(liga) && !evidencia) return { ok: false, dice: "Falta la evidencia: la liga a la publicación en el Diario Oficial, o una foto o PDF de ella." };
   const cat = catalogoDe(eventos), mismo = cat.find(c => c.desde === desde), previo = cat.filter(c => c.desde < desde).pop(), avisos = [];
   if (mismo && mismo.general === g && mismo.frontera === f) return { ok: false, dice: "Ese año ya está en el catálogo con esos mismos importes." };
   if (mismo) avisos.push(`Ya había importes para esa fecha (${mismo.general} y ${mismo.frontera}). Quedan como historial; desde ahora valen los nuevos.`);
   if (previo && g < previo.general) avisos.push(`El general que capturaste (${g}) es menor que el del periodo anterior (${previo.general}). Se guarda; revisa que no sea un error de dedo.`);
   if (previo && g > previo.general * 1.5) avisos.push(`El general que capturaste (${g}) sube más de 50 % contra el anterior (${previo.general}). Se guarda; revisa que no sea un error de dedo.`);
-  return { ok: true, avisos, evento: nuevoEvento({ tipo: T_SALARIO_MINIMO, cuando, fecha, quien, azar, datos: { desde, general: g, frontera: f, fuente: limpio(fuente), nota: limpio(nota) } }) };
+  return { ok: true, avisos, evento: nuevoEvento({ tipo: T_SALARIO_MINIMO, cuando, fecha, quien, azar, datos: { desde, general: g, frontera: f, fuente: limpio(fuente), ...(limpio(liga) ? { liga: limpio(liga) } : {}), ...(evidencia ? { evidencia } : {}), nota: limpio(nota) } }) };
 }

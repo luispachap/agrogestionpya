@@ -266,11 +266,47 @@ Usuarios reales de la app:
   vigente EN ESA FECHA; **si el año no está en el catálogo devuelve
   `monto: null` — nunca el del año pasado**. Se agrega o corrige con el
   evento `salario_minimo` (sensible, permiso `cambiar_reglas`, hoja 40), que
-  pide la publicación oficial; lo anterior queda en `anteriores`. La zona del
+  pide la publicación en el DOF Y su evidencia (liga de un sitio oficial o
+  foto/PDF); lo anterior queda en `anteriores`. `alertaDeSalarioMinimo`
+  avisa al abrir la app (`<AvisoSalarioMinimo>`) si falta el del año en curso
+  o, en diciembre, el del siguiente; nunca propone un importe. La zona del
   rancho es la regla `zona_salario_minimo` (general). **Cada diciembre hay
   que capturar el del año siguiente** (pantalla Pagos al personal →
   Prestaciones → «Salarios mínimos oficiales»). No metas cifras a
   `CATALOGO_OFICIAL` sin haberlas leído en la publicación oficial.
+- **`src/salarioIntegrado.js`**: el salario integrado POR PARTES (`integrar`):
+  cuota diaria, parte de aguinaldo y prima vacacional, las percepciones FIJAS
+  de la ficha (`persona.percepciones.lista`, cada una con su periodo: semana
+  ÷7, mes ÷30, y `desde`/`hasta` — una que se deja de dar NO se borra, se le
+  pone `hasta`) y lo VARIABLE (lo que la app registró que ganó por encima de
+  su sueldo en sus últimos 30 días trabajados, y los totales variables de su
+  ficha). Lo que no sabe va en `falta` y deja `completo: false` (es un piso):
+  ficha sin `revisado`, percepción sin valor, total variable viejo, pocos
+  días, o bonificaciones de la pantalla vieja (no traen fecha).
+- **`src/conciliacion.js`** (`conciliarMes`, en Reportes → Cierre de mes):
+  por persona y concepto, qué se GENERÓ (costo del mes), qué AJUSTE hubo al
+  determinar, qué costo nuevo trajo una baja, qué se PAGÓ (nunca costo) y qué
+  se debe; con el porqué de cada importe y su relación con el pago. **Su
+  comprobación (`cuadra`) compara ese costo contra lo que de verdad entró a
+  los indirectos por las fuentes `prestaciones` y `bajas`**: si alguien mete
+  un costo por otro lado, aquí truena. El resumen se guarda en la foto del
+  cierre (`datos.personal`).
+- **`src/resultado.js`: UNA cuenta de utilidad y UNA de flujo.**
+  `resultadoDelRancho` (lo causado: la mano de obra el día que se trabajó, más
+  lo del personal que no es de parcela, prestaciones, bajas y operadores) y
+  `flujoDeEfectivo` (lo movido: la gente el día que se le PAGA, préstamos
+  entregados, abonos aparte). El inicio y Finanzas leen de `resultadoDe(data)`
+  / `flujoDe(data)`: **no sumes ingresos y egresos por tu lado en una pantalla
+  nueva.** La pantalla de socios enseña «ingresos menos gastos capturados»,
+  que es otra cosa y ya no se llama utilidad.
+- **Lo que no tiene parcela también entra al cierre de mes**: trabajo de
+  bodega de un cultivo (`bodega`, directo de producción, no de una parcela),
+  trabajo general de bodega y compras del personal sin parcela (gastos
+  generales), y actividades sin parcela ni bodega (`sinParcela`, a la vista).
+  El reporte por cultivo ya NO reparte los gastos generales de bodega.
+- **Pase de lista ≠ pago**: quien fue marcado presente a mano y no checó ni
+  tiene actividad sale en Pagos como «vino, falta decir en qué trabajó»
+  (`presentesSinDetalle`), nunca como «no vino», y sigue sin pago ni costo.
 - **Gastos generales en el cierre de mes** (`costoDelMes().generales`): los
   egresos sin parcela ni vehículo, por categoría. Van APARTE, no se reparten
   a parcelas (falta una política, y es decisión de Luis). Las compras de
@@ -405,7 +441,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **128 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **131 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

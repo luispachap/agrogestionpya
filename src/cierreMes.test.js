@@ -63,3 +63,24 @@ test("reabrir_pide_motivo_y_el_cierre_nuevo_es_otra_version_la_anterior_se_conse
   const s = estadoDeMes([c1, re, c2], "2026-11");
   assert.equal(s.estado, "cerrado"); assert.equal(s.cierre.version, 2); assert.equal(s.cierres.length, 2); assert.equal(c2.origen, c1.id);
 });
+
+test("el_trabajo_de_bodega_entra_al_cierre_el_de_un_cultivo_como_directo_y_el_general_como_gasto_general", () => {
+  const actividades = [{ fecha: "2026-11-10", parcelaId: "p1", costoTotal: 1000 },
+    { fecha: "2026-11-11", parcelaId: "", esBodega: true, cultivoBodega: "Ajo", costoTotal: 800 }, { fecha: "2026-11-12", parcelaId: "", esBodega: true, cultivoBodega: "Ajo", costoTotal: 200 },
+    { fecha: "2026-11-13", parcelaId: "", esBodega: true, cultivoBodega: "__general__", costoTotal: 300 }, { fecha: "2026-11-14", parcelaId: "", costoTotal: 50 }, { fecha: "2026-12-01", parcelaId: "", esBodega: true, cultivoBodega: "Ajo", costoTotal: 9999 }];
+  const k = costoDelMes({ mes: "2026-11", parcelas: [{ id: "p1", nombre: "Uno" }], actividades, egresos: [{ fecha: "2026-11-05", monto: 900, categoria: "servicios" }] });
+  assert.equal(k.completo, 1000, "la parcela no sube por el trabajo de bodega");
+  assert.deepEqual(k.bodega, { porCultivo: [{ cultivo: "Ajo", monto: 1000, n: 2 }], total: 1000 });
+  assert.deepEqual(k.generales.porCategoria, [{ categoria: "servicios", monto: 900, n: 1 }, { categoria: "bodega_general", monto: 300, n: 1 }]);
+  assert.deepEqual(k.sinParcela, { total: 50, n: 1 }, "una actividad sin parcela ni bodega queda a la vista");
+  assert.equal(k.rancho, 1000 + 1000 + 300 + 50 + 900, "antes el total del rancho salía corto: no veía nada sin parcela");
+});
+
+test("una_compra_del_personal_sin_parcela_tambien_entra_al_cierre_como_gasto_general_o_como_compra_del_almacen", () => {
+  const compras = [{ fecha: "2026-11-06", monto: 300, estado: "aprobada", descripcion: "Refacciones" }, { fecha: "2026-11-07", monto: 999, estado: "pendiente" }, { fecha: "2026-11-08", monto: 250, estado: "aprobada", parcelaId: "p1" },
+    { fecha: "2026-11-09", monto: 5000, estado: "aprobada", afectaInventario: true, items: [{ insumoId: "urea", cantidad: 10 }] }];
+  const k = costoDelMes({ mes: "2026-11", parcelas: [{ id: "p1", nombre: "Uno" }], compras });
+  assert.equal(k.directo, 250, "la que trae parcela sigue siendo directa de esa parcela");
+  assert.deepEqual(k.generales.porCategoria, [{ categoria: "compras_personal", monto: 300, n: 1 }], "la pendiente no cuenta; la aprobada sin parcela es gasto general");
+  assert.equal(k.paraAlmacen, 5000, "lo que se compró para el almacén no es gasto del mes"); assert.equal(k.rancho, 550);
+});

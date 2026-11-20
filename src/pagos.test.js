@@ -217,3 +217,10 @@ test("el_recibo_emitido_guarda_su_pdf_y_cada_version_el_suyo", () => {
   assert.equal(r2.evento.datos.pdf, "PDF v2 sustituye 1: se justificó una falta"); assert.equal(r1.evento.datos.pdf, "PDF v1", "el anterior no se toca");
   assert.equal("pdf" in emitirRecibo({ ...base, eventos: [], azar: az() }).evento.datos, false);
 });
+
+test("quien_fue_marcado_presente_en_el_pase_de_lista_no_sale_como_que_no_vino_pero_tampoco_cobra_solo", () => {
+  const r = semanaDe({ trabajador: ANA, desde: L, hasta: D, hoy: HOY, asistencia: [{ trabajadorId: "t-ana", fecha: "2026-11-17", presente: true }, { trabajadorId: "t-ana", fecha: "2026-11-18", presente: false }, { trabajadorId: "t-beto", fecha: "2026-11-19", presente: true }] });
+  assert.deepEqual(r.presentesSinDetalle, ["2026-11-17"], "sólo el día que SÍ la marcaron presente, y sólo a ella");
+  assert.ok(r.sinRegistro.includes("2026-11-17") && r.sinRegistro.includes("2026-11-18"), "sigue siendo una pregunta abierta");
+  assert.equal(r.corresponde, 0, "el pase de lista no dice en qué trabajó: no genera pago ni costo solo");
+});

@@ -101,7 +101,9 @@ export const ausenciasDe = (eventos, { desde, hasta } = {}) => vigentes(eventos)
 //         "calendario" (encargado con asistencia administrativa: el día de su
 //         calendario se paga salvo ausencia sin pago; si checó, manda el checador) ·
 //         "actividades" (lo de antes: sólo cuenta lo que registró; no se pregunta).
-export function semanaDe({ trabajador, desde, hasta, hoy, devengado = [], actividades = [], ausencias = [], modo = "checador" }) {
+// `asistencia`: el pase de lista a mano. NO da pago por sí solo (no dice en qué trabajó), pero quien fue marcado presente
+// no puede salir como «no vino»: sale como presente sin detalle (`presentesSinDetalle`).
+export function semanaDe({ trabajador, desde, hasta, hoy, devengado = [], actividades = [], ausencias = [], asistencia = [], modo = "checador" }) {
   const dias = diasEntre(desde, hasta).map(fecha => {
     const dev = devengado.filter(d => d.trabajadorId === trabajador.id && d.fecha === fecha);
     const acts = actividades.filter(a => !a._deEventos && a.registradoPor?.id === trabajador.id && a.fecha === fecha && (Number(a.costoMO) || 0) > 0);
@@ -120,11 +122,13 @@ export function semanaDe({ trabajador, desde, hasta, hoy, devengado = [], activi
     }
     if (modo !== "checador") return { ...base, estado: "no_le_toca", monto: 0 };
     // No vino y nadie ha dicho qué pasó. NO es una falta todavía: es una pregunta.
+    const lista = asistencia.find(a => a.trabajadorId === trabajador.id && a.fecha === fecha && a.presente === true);
+    if (lista) return { ...base, estado: "sin_registro", paseLista: true, monto: 0 };
     return { ...base, estado: base.leToca ? "sin_registro" : "no_le_toca", monto: 0 };
   });
   return { trabajadorId: trabajador.id, dias, corresponde: sumarDinero(dias.map(d => d.monto)), trabajados: dias.filter(d => d.estado === "trabajo").length,
     pagadosSinTrabajar: dias.filter(d => d.estado === "ausencia_pagada").length, porCalendario: dias.filter(d => d.estado === "calendario").length, sinPago: dias.filter(d => d.estado === "ausencia_sin_pago").length,
-    sinRegistro: dias.filter(d => d.estado === "sin_registro").map(d => d.fecha), provisional: dias.some(d => d.provisional) };
+    sinRegistro: dias.filter(d => d.estado === "sin_registro").map(d => d.fecha), presentesSinDetalle: dias.filter(d => d.paseLista).map(d => d.fecha), provisional: dias.some(d => d.provisional) };
 }
 
 // ── Cuadrillas y temporales: a quién se le entrega ─────────────────────────

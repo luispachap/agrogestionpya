@@ -28,10 +28,11 @@
 //     menor que el salario mínimo (art. 485) ni mayor que el doble (art. 486).
 //     El salario mínimo es el VIGENTE EL DÍA DE LA BAJA (`salariosMinimos.js`).
 //   · Indemnizaciones (arts. 48, 50, 52 y 54): el SALARIO INTEGRADO del día en
-//     que nace el derecho (arts. 84 y 89): la cuota diaria más la parte
-//     proporcional de sus prestaciones. La app integra las que conoce
-//     (aguinaldo y prima vacacional) y avisa que si recibe otras percepciones
-//     fijas hay que sumarlas: por eso siempre quedan «por revisar».
+//     que nace el derecho (arts. 84 y 89), que arma `salarioIntegrado.js` por
+//     partes: cuota diaria, parte de aguinaldo y prima vacacional, las
+//     percepciones fijas de su ficha y lo variable de sus últimos treinta
+//     días trabajados. Si falta información es un piso y lo dice (`falta`);
+//     las indemnizaciones siempre quedan «por revisar».
 //   · Los VEINTE DÍAS POR AÑO no van en todo despido: proceden cuando el
 //     trabajador rescinde por causa del patrón (art. 52) o cuando el patrón no
 //     reinstala en los casos del art. 49. En un despido la app NO los incluye
@@ -41,6 +42,7 @@
 import { nuevoEvento, vigentes, negado } from "./eventos.js";
 import { sumarDinero } from "./calculos.js";
 import { CONCEPTOS_PRESTACION, condicionesDe } from "./prestaciones.js";
+import { integrar } from "./salarioIntegrado.js";
 
 export const T_BAJA = "baja_personal", T_PAGO_BAJA = "pago_baja";
 export const CAUSAS_DE_BAJA = {
@@ -61,19 +63,10 @@ const limpio = (s) => String(s || "").trim();
 const centavos = (n) => Math.round(n * 100) / 100;
 const dias = (a, b) => Math.round((Date.UTC(+b.slice(0, 4), +b.slice(5, 7) - 1, +b.slice(8, 10)) - Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, +a.slice(8, 10))) / 86400000) + 1;
 
-// El salario integrado de un día: la cuota diaria más la parte proporcional de las prestaciones que la app conoce.
-// `n`: el año de servicio que corría (de ahí salen sus días de vacaciones).
-export function salarioIntegrado(cond, diario, n) {
-  if (diario == null) return { monto: null, factor: null, explica: "" };
-  const vac = cond.vacDias(Math.max(1, n)), factor = 1 + (cond.aguinaldoDias + vac * cond.primaPct / 100) / 365;
-  return { monto: centavos(diario * factor), factor: Math.round(factor * 10000) / 10000,
-    explica: `salario integrado de ${centavos(diario * factor)} por día: ${diario} más la parte de su aguinaldo (${cond.aguinaldoDias} días) y de su prima vacacional (${cond.primaPct} % de ${vac} días), entre 365. Si además recibe otras percepciones fijas (bonos, despensa, habitación, comisiones), hay que sumarlas: la app no las conoce` };
-}
-
 // La propuesta. `cuenta`: la de prestaciones de esa persona calculada HASTA el día de la baja.
 // `minimo`: lo que devuelve `salarioMinimoEn(fecha, zona, eventos)` — el salario mínimo vigente ESE día. Sin él no se propone la prima de antigüedad.
 // Cada concepto: aplica "si" | "revisar" | "no", sugerido (si entra de entrada en la baja), monto (o null si no se puede calcular), explica, fundamento.
-export function proponerBaja({ persona, causa, fecha, cuenta, reglas = {}, remuneraciones = [], minimo = null }) {
+export function proponerBaja({ persona, causa, fecha, cuenta, reglas = {}, remuneraciones = [], minimo = null, bonificaciones = [] }) {
   const def = CAUSAS_DE_BAJA[causa];
   if (!def) return { ok: false, dice: "Falta la causa de la terminación." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || "")) return { ok: false, dice: "Falta el último día de trabajo." };
@@ -82,7 +75,8 @@ export function proponerBaja({ persona, causa, fecha, cuenta, reglas = {}, remun
   if (fecha < cond.ingreso) return { ok: false, dice: "El último día no puede ser antes de su ingreso." };
   const base = cond.baseDe("aguinaldo", fecha), anios = dias(cond.ingreso, fecha) / 365, completos = Math.floor(anios);
   const sinBase = base.monto == null ? `no hay con qué calcular su salario por día (${base.revisar})` : "";
-  const sdi = salarioIntegrado(cond, base.monto, completos + 1);
+  // El salario integrado: por partes, con lo fijo y lo variable que se sabe. Si falta información es un piso y lo dice.
+  const sdi = integrar({ cond, diario: base.monto, n: completos + 1, fecha, persona, remuneraciones, bonificaciones });
   const conceptos = [];
   // 1. Lo que ya ganó: siempre.
   for (const c of Object.keys(CONCEPTOS_PRESTACION)) {
@@ -105,7 +99,7 @@ export function proponerBaja({ persona, causa, fecha, cuenta, reglas = {}, remun
   // 3. Indemnizaciones: sólo cuando la terminación es responsabilidad del patrón, con salario integrado, y siempre por revisar.
   const esLiq = def.da === "liquidacion", determinado = cond.relacion === "temporada" || cond.relacion === "eventual";
   conceptos.push({ clave: "indemnizacion_3m", nombre: CONCEPTOS_DE_BAJA.indemnizacion_3m, fundamento: "arts. 48, 50 y 89", yaGenerado: 0, aplica: esLiq ? "revisar" : "no", sugerido: esLiq, monto: esLiq && sdi.monto != null ? centavos(90 * sdi.monto) : null,
-    explica: !esLiq ? "Sólo cuando la terminación es responsabilidad del patrón." : sinBase || `90 días × ${sdi.monto}. Se usa el ${sdi.explica}. Procede si no hay reinstalación.` });
+    explica: !esLiq ? "Sólo cuando la terminación es responsabilidad del patrón." : sinBase || `90 días × ${sdi.monto}. Se usa el ${sdi.explica} Procede si no hay reinstalación.` });
   const porque20 = causa === "rescision_trabajador" ? "Cuando es el trabajador quien da por terminada la relación por causa del patrón, la ley sí los prevé (art. 52)."
     : "NO procede en todo despido: la ley los prevé cuando el patrón no reinstala en los casos del art. 49 (menos de un año de antigüedad, trabajo de confianza, contacto directo y permanente con el patrón, trabajo eventual). Por eso la app no los incluye de entrada: si en este caso proceden, márcalos.";
   conceptos.push({ clave: "veinte_dias", nombre: CONCEPTOS_DE_BAJA.veinte_dias, fundamento: "arts. 49, 50, 52 y 89", yaGenerado: 0, aplica: esLiq ? "revisar" : "no", sugerido: causa === "rescision_trabajador",
@@ -114,12 +108,13 @@ export function proponerBaja({ persona, causa, fecha, cuenta, reglas = {}, remun
       || (determinado ? `${porque20} Además su relación de trabajo está registrada como de ${cond.relacion === "temporada" ? "temporada" : "obra o tiempo determinado"}: ahí la cuenta no son veinte días por año sino la del art. 50 fracción I, y la app no la propone.`
         : `20 días × ${centavos(anios)} años × ${sdi.monto} (salario integrado). ${porque20}`) });
   if (causa === "incapacidad") conceptos.push({ clave: "un_mes", nombre: CONCEPTOS_DE_BAJA.un_mes, fundamento: "arts. 54 y 89", yaGenerado: 0, aplica: "revisar", sugerido: true, monto: sdi.monto != null ? centavos(30 * sdi.monto) : null,
-    explica: sinBase || `30 días × ${sdi.monto}. Se usa el ${sdi.explica}. Es para la incapacidad que NO viene de un riesgo de trabajo; si viene de uno, lo que corresponde es otra cosa y la app no lo calcula.` });
+    explica: sinBase || `30 días × ${sdi.monto}. Se usa el ${sdi.explica} Es para la incapacidad que NO viene de un riesgo de trabajo; si viene de uno, lo que corresponde es otra cosa y la app no lo calcula.` });
   const avisos = ["Lo que se le deba de sus semanas trabajadas se paga en Pagos al personal: aquí no se repite.", "Esto es una propuesta para revisar, no una determinación: los importes valen cuando una persona los confirma y dice quién autoriza."];
   if (causa === "muerte") avisos.push("Se paga a sus beneficiarios. Si fue por un riesgo de trabajo corresponden otras indemnizaciones que la app no calcula.");
   if (esLiq) avisos.push("Si el caso llega a juicio pueden correr salarios vencidos; la app no los calcula.");
   if (causa === "otra") avisos.push("Con «otra causa» la app sólo propone lo que ya ganó. Lo demás hay que revisarlo.");
-  return { ok: true, tipo: def.da, anios: centavos(anios), base: base.monto, integrado: sdi.monto, factor: sdi.factor, minimo: sm, conceptos, avisos };
+  if (esLiq && !sdi.completo && sdi.monto != null) avisos.push(`El salario integrado es un piso: ${sdi.falta.join("; ")}. Complétalo en sus condiciones antes de determinar la baja.`);
+  return { ok: true, tipo: def.da, anios: centavos(anios), base: base.monto, integrado: sdi.monto, factor: sdi.factor, integradoCompleto: sdi.completo, integradoFalta: sdi.falta, partes: sdi.partes, minimo: sm, conceptos, avisos };
 }
 
 export const bajasDe = (eventos) => { const m = new Map(); for (const e of vigentes(eventos).filter(e => e.tipo === T_BAJA).sort((a, b) => a.cuando.localeCompare(b.cuando))) m.set(e.datos.personaId, e); return m; };
@@ -150,7 +145,7 @@ export function registrarBaja({ permitido, eventos, persona, causa, ultimoDia, d
   const avisos = [];
   if (!evidencias.length) avisos.push("Quedó sin documentos (renuncia, aviso, recibo firmado). Se pueden agregar corrigiendo el registro.");
   if (lista.some(k => k.aplica === "revisar")) avisos.push("Hay conceptos que la app marcó «por revisar». Quedaron con el importe que confirmaste.");
-  const datos = { personaId: persona.id, nombre: limpio(persona.nombre), causa, da: CAUSAS_DE_BAJA[causa].da, fecha: ultimoDia, ...(propuesta?.ok ? { bases: { salarioDia: propuesta.base, salarioIntegrado: propuesta.integrado, factor: propuesta.factor, salarioMinimo: propuesta.minimo, anios: propuesta.anios } } : {}), detalle: limpio(detalle), conceptos: lista, total: sumarDinero(lista.map(k => k.monto)), autorizo: limpio(autorizo), ...(evidencias.length ? { evidencias } : {}) };
+  const datos = { personaId: persona.id, nombre: limpio(persona.nombre), causa, da: CAUSAS_DE_BAJA[causa].da, fecha: ultimoDia, ...(propuesta?.ok ? { bases: { salarioDia: propuesta.base, salarioIntegrado: propuesta.integrado, factor: propuesta.factor, salarioMinimo: propuesta.minimo, anios: propuesta.anios, integradoCompleto: !!propuesta.integradoCompleto, partes: propuesta.partes || [], falta: propuesta.integradoFalta || [] } } : {}), detalle: limpio(detalle), conceptos: lista, total: sumarDinero(lista.map(k => k.monto)), autorizo: limpio(autorizo), ...(evidencias.length ? { evidencias } : {}) };
   return { ok: true, avisos, evento: nuevoEvento({ tipo: T_BAJA, cuando, fecha, quien, azar, datos: { ...datos, ...(typeof pdf === "function" ? { pdf: pdf(datos) } : {}) } }) };
 }
 

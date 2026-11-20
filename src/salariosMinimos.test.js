@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CATALOGO_OFICIAL, catalogoDe, salarioMinimoEn, capturarSalarioMinimo } from "./salariosMinimos.js";
+import { CATALOGO_OFICIAL, catalogoDe, salarioMinimoEn, capturarSalarioMinimo, alertaDeSalarioMinimo } from "./salariosMinimos.js";
 
 const quien = { id: "u1", nombre: "LUIS DE PRUEBA", rol: "admin" };
-const base = { permitido: true, quien, cuando: "2026-12-10T18:00:00.000Z", fecha: "2026-12-10" };
+const base = { permitido: true, quien, cuando: "2026-12-10T18:00:00.000Z", fecha: "2026-12-10", liga: "https://www.dof.gob.mx/nota_detalle.php?codigo=1" };
 
 test("el_salario_minimo_es_el_de_la_fecha_del_calculo_no_el_de_hoy", () => {
   assert.equal(salarioMinimoEn("2026-11-19").monto, 315.04);
@@ -50,4 +50,25 @@ test("corregir_un_anio_no_borra_lo_que_decia_queda_como_historial", () => {
   assert.equal(capturarSalarioMinimo({ ...base, eventos: [a.evento, b.evento], desde: "2027-01-01", general: 350, frontera: 460, fuente: "Resolución CONASAMI, DOF 09/12/2026" }).ok, false, "lo mismo dos veces no entra");
   const c = capturarSalarioMinimo({ ...base, desde: "2026-01-01", general: 316, frontera: 441, fuente: "Fe de erratas de prueba, DOF" });
   assert.equal(catalogoDe([c.evento]).find(x => x.desde === "2026-01-01").anteriores[0].origen, "fabrica");
+});
+
+test("en_diciembre_avisa_que_falta_el_del_anio_que_viene_y_en_enero_ya_es_urgente_sin_proponer_importe", () => {
+  assert.equal(alertaDeSalarioMinimo("2026-11-30"), null, "en noviembre todavía no se publica: no es alarma");
+  const dic = alertaDeSalarioMinimo("2026-12-01");
+  assert.equal(dic.nivel, "aviso"); assert.equal(dic.anio, 2027); assert.match(dic.dice, /Diario Oficial de la Federación; no se usa el del año anterior/); assert.doesNotMatch(dic.dice, /\$|315/);
+  const ene = alertaDeSalarioMinimo("2027-01-02");
+  assert.equal(ene.nivel, "urgente"); assert.equal(ene.anio, 2027);
+  const r = capturarSalarioMinimo({ ...base, desde: "2027-01-01", general: 350, frontera: 460, fuente: "Resolución CONASAMI, DOF 09/12/2026" });
+  assert.equal(alertaDeSalarioMinimo("2026-12-15", "general", [r.evento]), null, "capturado, se calla"); assert.equal(alertaDeSalarioMinimo("2027-01-02", "general", [r.evento]), null);
+});
+test("el_salario_minimo_no_entra_sin_evidencia_de_la_publicacion_oficial", () => {
+  const d = { ...base, liga: "", desde: "2027-01-01", general: 350, frontera: 460 };
+  assert.match(capturarSalarioMinimo({ ...d, fuente: "Lo dijo el periódico de hoy" }).dice, /Diario Oficial de la Federación/);
+  assert.match(capturarSalarioMinimo({ ...d, fuente: "Resolución CONASAMI, DOF 09/12/2026" }).dice, /Falta la evidencia/);
+  assert.match(capturarSalarioMinimo({ ...d, fuente: "Resolución CONASAMI, DOF 09/12/2026", liga: "https://noticias.example.com/salario" }).dice, /sitio oficial/);
+  assert.match(capturarSalarioMinimo({ ...d, fuente: "Resolución CONASAMI, DOF 09/12/2026", liga: "https://dof.gob.mx.falso.example.com/x" }).dice, /sitio oficial/);
+  const conFoto = capturarSalarioMinimo({ ...d, fuente: "Resolución CONASAMI, DOF 09/12/2026", evidencia: "archivo:abc.pdf" });
+  assert.ok(conFoto.ok); assert.equal(conFoto.evento.datos.evidencia, "archivo:abc.pdf");
+  const conLiga = capturarSalarioMinimo({ ...d, fuente: "Resolución CONASAMI, DOF 09/12/2026", liga: "https://sidof.segob.gob.mx/notas/123" });
+  assert.ok(conLiga.ok); assert.equal(catalogoDe([conLiga.evento]).find(c => c.desde === "2027-01-01").liga, "https://sidof.segob.gob.mx/notas/123");
 });

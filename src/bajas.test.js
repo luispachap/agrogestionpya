@@ -124,7 +124,9 @@ test("los_veinte_dias_si_se_proponen_cuando_el_trabajador_rescinde_y_no_se_calcu
 test("la_prima_de_antiguedad_y_las_indemnizaciones_son_gasto_laboral_general_no_costo_de_una_parcela", () => {
   const p = propone("despido_injustificado");
   const b = registrarBaja({ eventos: [], persona: ANA, causa: "despido_injustificado", ultimoDia: DIA, fecha: DIA, conceptos: [...TRES(p), { clave: "prima_antiguedad", monto: 10000 }, { clave: "indemnizacion_3m", monto: 34560 }], propuesta: p, autorizo: "Rodolfo", evidencias: ["archivo:a.jpg"], quien: ADMIN, cuando: c, azar: az() });
-  assert.deepEqual(b.evento.datos.bases, { salarioDia: 365, salarioIntegrado: 384, factor: 1.0521, salarioMinimo: 300, anios: 2.72 }, "queda con qué bases se calculó");
+  const bs = b.evento.datos.bases;
+  assert.deepEqual([bs.salarioDia, bs.salarioIntegrado, bs.factor, bs.salarioMinimo, bs.anios, bs.integradoCompleto], [365, 384, 1.0521, 300, 2.72, false], "queda con qué bases se calculó");
+  assert.deepEqual(bs.partes.map(x => [x.clave, x.porDia]), [["cuota", 365], ["aguinaldo", 15], ["prima", 4]]); assert.match(bs.falta[0], /nadie ha revisado/);
   const base = baseDePersonas({ partes: [{ trabajadorId: "t-ana", fecha: "2026-11-10", parcelaId: "p1", monto: 365 }] });
   const f = fuenteBajas({ renglones: renglonesDeBajas([b.evento]), base, politica: "general" });
   assert.equal(f.partes.length, 0, "nada a parcelas"); assert.equal(f.pendientes.length, 0, "ni pendiente de distribuir");
@@ -147,4 +149,15 @@ test("los_pagos_de_la_baja_bajan_lo_pendiente_no_son_costo_y_corregir_la_baja_de
   const cor = corregirEvento(b, { datos: { ...b.datos, causa: "mutuo_acuerdo" } }, { motivo: "se firmó convenio", quien: ADMIN, cuando: c, azar: az() });
   assert.equal(bajasDe([cor.anterior, cor.nuevo]).get("t-ana").datos.causa, "mutuo_acuerdo"); assert.equal(bajasDe([cor.anterior, cor.nuevo]).size, 1);
   assert.equal(pagarBaja({ eventos: [cor.anterior, cor.nuevo], baja: b, monto: 10, medio: "efectivo", quien: ADMIN, cuando: c, fecha: DIA }).ok, false, "no se paga contra una baja que ya se corrigió");
+});
+
+test("las_indemnizaciones_usan_las_percepciones_de_su_ficha_y_avisan_si_el_salario_integrado_esta_incompleto", () => {
+  const CON = { ...ANA, percepciones: { revisado: "2026-11-01", por: "Luis", lista: [{ id: "a", nombre: "Despensa", clase: "despensa", tipo: "fija", monto: 700, periodo: "semana", desde: "2025-01-01" }] } };
+  const p = proponerBaja({ persona: CON, causa: "despido_injustificado", fecha: DIA, cuenta: cuenta(CON), minimo: SM(300) });
+  assert.equal(p.integrado, 484); assert.equal(p.integradoCompleto, true); assert.equal(de(p, "indemnizacion_3m").monto, 90 * 484);
+  assert.match(de(p, "indemnizacion_3m").explica, /despensa 100 \(700 por semana, entre 7/); assert.equal(de(p, "indemnizacion_3m").aplica, "revisar", "completo o no, la indemnización se revisa y se autoriza");
+  assert.ok(!p.avisos.some(a => /es un piso/.test(a)));
+  assert.ok(propone("despido_injustificado").avisos.some(a => /El salario integrado es un piso: nadie ha revisado/.test(a)));
+  assert.ok(!propone("renuncia").avisos.some(a => /es un piso/.test(a)), "en un finiquito no hay indemnización: no estorba");
+  assert.equal(de(p, "prima_antiguedad").monto, de(propone("despido_injustificado"), "prima_antiguedad").monto, "la prima de antigüedad NO va con salario integrado");
 });

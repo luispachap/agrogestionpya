@@ -40,7 +40,13 @@ import { estadoDeSemana, cerrarSemana, reabrirSemana, diferenciasDelCierre, conf
 import { pdfComoDataUrl } from "./pdfSimple.js";
 import { costoDelMes, cerrarMes, reabrirMes, estadoDeMes, ajustesPosteriores } from "./cierreMes.js";
 import { solicitarPrestamo, autorizarPrestamo, rechazarPrestamo, entregarPrestamo, prestamosDe, ESTADOS_DE_PRESTAMO } from "./prestamos.js";
-import { T_SALARIO_MINIMO, ZONAS as ZONAS_SM, catalogoDe as catalogoSM, salarioMinimoEn, capturarSalarioMinimo } from "./salariosMinimos.js";
+import { PERIODOS as PERIODOS_PERCEPCION, CLASES_PERCEPCION, validarPercepcion, percepcionesDe } from "./salarioIntegrado.js";
+import { conciliarMes } from "./conciliacion.js";
+import { resultadoDelRancho, flujoDeEfectivo, NOMBRE_DE_FLUJO } from "./resultado.js";
+// El resultado y el flujo del rancho: TODAS las pantallas los sacan de aquí, para que digan lo mismo.
+const resultadoDe = (data) => resultadoDelRancho({ ingresos: data.ingresos, egresos: data.egresos, compras: data.compras || [], entradas_inv: data.entradas_inv || [], actividades: data.actividadesContables || data.actividades || [], indirectos: data.indirectos, partesMO: data.manoDeObraEventos?.partes || [] });
+const flujoDe = (data) => flujoDeEfectivo({ ingresos: data.ingresos, egresos: data.egresos, compras: data.compras || [], entradas_inv: data.entradas_inv || [], creditos: data.creditos || [], eventos: data.eventos || [], prestamos: data.prestamos || [], hoy: today() });
+import { T_SALARIO_MINIMO, ZONAS as ZONAS_SM, catalogoDe as catalogoSM, salarioMinimoEn, capturarSalarioMinimo, alertaDeSalarioMinimo } from "./salariosMinimos.js";
 import { T_BAJA, T_PAGO_BAJA, CAUSAS_DE_BAJA, CONCEPTOS_DE_BAJA, NOMBRE_DE as NOMBRE_DE_BAJA, proponerBaja, registrarBaja, pagarBaja, bajasDe, pagosDeBaja, renglonesDeBajas } from "./bajas.js";
 import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, generarSQLCuentas, exportarPolizas, HOJAS } from "./excelLoader";
 // El estado de cuenta del banco: se valida solo antes de entrar.
@@ -1188,77 +1194,25 @@ function reporteCultivo(data, cultivo) {
   const totalBodega = moBodega + insBodega + maqBodega;
   total += totalBodega; mo += moBodega; ins += insBodega; maq += maqBodega;
 
-  // PIEZA 2: gastos generales de bodega (no son de ningún cultivo: reparar, construir...).
-  // Se reparten entre todos los cultivos PROPORCIONAL al costo directo acumulado de cada uno.
-  const gastosGenerales = (data.actividadesContables || data.actividades || [])
-    .filter(a => a.esBodega && a.cultivoBodega === "__general__");
-  let gastoGeneralRepartido = 0;
-  if (gastosGenerales.length > 0) {
-    const totalGeneral = gastosGenerales.reduce((s, a) => s + ((a.costoMO || 0) + (a.costoMaq || 0) + (a.costoInsumos || 0)), 0);
-    // Costo directo de cada cultivo = suma de costos de sus parcelas + su bodega (SIN generales)
-    const cultivosTodos = [...new Set((data.cultivos || []).map(c => c.nombre))].filter(Boolean);
-    const directoPorCultivo = {};
-    let sumaDirectos = 0;
-    cultivosTodos.forEach(cul => {
-      const parcCul = data.parcelas.filter(p => p.cultivo === cul);
-      const dirParc = parcCul.reduce((s, p) => s + reporteParcela(data, p.id).total, 0);
-      const dirBod = (data.actividadesContables || data.actividades || [])
-        .filter(a => a.esBodega && a.cultivoBodega === cul)
-        .reduce((s, a) => s + ((a.costoMO || 0) + (a.costoMaq || 0) + (a.costoInsumos || 0)), 0);
-      directoPorCultivo[cul] = dirParc + dirBod;
-      sumaDirectos += dirParc + dirBod;
-    });
-    // La fracción de este cultivo
-    const miDirecto = directoPorCultivo[cultivo] || 0;
-    const frac = sumaDirectos > 0 ? miDirecto / sumaDirectos : (cultivosTodos.length ? 1 / cultivosTodos.length : 0);
-    gastoGeneralRepartido = totalGeneral * frac;
-    if (gastoGeneralRepartido > 0) {
-      total += gastoGeneralRepartido;
-      porActividad["Gastos generales (repartido)"] = {
-        tipo: "Gastos generales (repartido)", total: gastoGeneralRepartido,
-        mo: 0, ins: 0, maq: 0, count: gastosGenerales.length, repartido: true, esBodega: true,
-      };
-    }
-  }
+  // Los trabajos GENERALES de bodega (no son de ningún cultivo: reparar, construir…) ya NO se reparten entre
+  // los cultivos. Decisión de Luis (19 nov 2026): un gasto general no sube el costo de un cultivo ni de una
+  // parcela sin una política justificada. Se dicen aparte, y en el cierre de mes salen como gasto general.
+  const gastosGeneralesBodega = sumarDinero((data.actividadesContables || data.actividades || [])
+    .filter(a => a.esBodega && a.cultivoBodega === "__general__").map(a => (a.costoMO || 0) + (a.costoMaq || 0) + (a.costoInsumos || 0)));
+  const gastoGeneralRepartido = 0;
 
   return {
     cultivo, parcelas, total, mo, ins, maq, hectareas, ingresoTotal,
     porHa: hectareas ? total / hectareas : 0,
     utilidad: ingresoTotal - total,
     costoBodega: totalBodega,
-    gastoGeneralRepartido,
+    gastoGeneralRepartido, gastosGeneralesBodega,
     porActividad: Object.values(porActividad).sort((a, b) => b.total - a.total),
     porInsumo: Object.values(porInsumo).sort((a, b) => b.costo - a.costo),
     subreportes,
   };
 }
 
-// Flujo de efectivo agrupado por mes
-function flujoEfectivo(data) {
-  const meses = {};
-  const reg = (fecha, tipo, monto) => {
-    const k = (fecha || today()).slice(0, 7);
-    if (!meses[k]) meses[k] = { mes: k, ingresos: 0, egresos: 0 };
-    meses[k][tipo] += monto;
-  };
-  vivos(data.ingresos).forEach(g => reg(g.fecha, "ingresos", g.monto));
-  vivos(data.egresos).forEach(e => reg(e.fecha, "egresos", e.monto));
-  (data.compras || []).filter(c => c.estado === "aprobada").forEach(c => reg(c.fecha, "egresos", c.monto));
-  // Solo lo que de verdad es gasto: la compra que ya escribio su egreso no se
-  // cuenta otra vez, la salida no es un egreso negativo, y un conteo no es dinero.
-  (data.entradas_inv || []).forEach(e => reg(e.fecha, "egresos", costoAFinanzas(e)));
-  // Mano de obra de actividades como egreso operativo
-  (data.actividadesContables || data.actividades || []).forEach(a => reg(a.fecha, "egresos", (a.costoMO || 0) + (a.costoMaq || 0)));
-  // Créditos recibidos: ingreso de efectivo; abonos en dinero: egreso de efectivo
-  vivos(data.creditos).forEach(cr => {
-    if (cr.formaPago === "dinero") reg(cr.fecha, "ingresos", cr.monto);
-    (cr.abonos || []).forEach(ab => { if (ab.tipo === "dinero") reg(ab.fecha, "egresos", ab.monto); });
-  });
-  const ordenados = Object.values(meses).sort((a, b) => a.mes.localeCompare(b.mes));
-  let acumulado = 0;
-  ordenados.forEach(m => { m.neto = m.ingresos - m.egresos; acumulado += m.neto; m.acumulado = acumulado; });
-  return ordenados;
-}
 
 // Saldo pendiente de un crédito (monto menos todos los abonos)
 const NOMBRE_MES = k => {
@@ -4881,9 +4835,9 @@ function SociosYBolsas({ data, add, upd, session, onClose }) {
         <div className="section-pad">
           <div className="stat-row">
             <div className="stat-card wide">
-              <div className="stat-label">Utilidad del rancho</div>
+              <div className="stat-label">Ingresos menos gastos capturados</div>
               <div className="stat-val" style={{ fontSize: 26, color: libro.utilidad >= 0 ? "var(--safe)" : "var(--red)" }}>{fmt(libro.utilidad)}</div>
-              <div className="stat-sub">Ingresos {fmt(libro.ingresos)} · Egresos {fmt(libro.egresos)}</div>
+              <div className="stat-sub">Ingresos {fmt(libro.ingresos)} · Egresos {fmt(libro.egresos)} · sólo movimientos de dinero capturados; no es la utilidad del rancho (ésa, con mano de obra y almacén, está en Finanzas → Resultados)</div>
             </div>
           </div>
           {/* El total NUNCA va solo. Esta frase va pegada a él. */}
@@ -6279,6 +6233,8 @@ function AppInner() {
   // Sólo al desarrollar: deja que la prueba de recorrido abra cada pantalla.
   // Vite quita este bloque entero de la versión que se publica.
   useEffect(() => { if (import.meta.env.DEV) window.__agroIr = setPage; }, [setPage]);
+  // Sólo en desarrollo: las pruebas leen aquí lo calculado para cruzar una pantalla contra otra.
+  useEffect(() => { if (import.meta.env.DEV) window.__agroDatos = data; }, [data]);
 
   // Botón "atrás" del navegador/teléfono: retrocede dentro de la app en vez de salir.
   // Cuando se entra a una página que no es "home", se agrega una entrada al historial;
@@ -6785,6 +6741,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
         <div className="screen">
           {session && estadoDelReloj(reloj, Date.now()).clase === "mal" && <div className="section-pad" style={{ paddingBottom: 0 }}><div className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">{estadoDelReloj(reloj, Date.now()).dice}</div></div></div>}
           {session && page === "home" && <AvisoEntregas data={data} session={session} onNav={setPage} />}
+          {session && page === "home" && <AvisoSalarioMinimo data={data} session={session} onNav={setPage} />}
           <MenuCtx.Provider value={ctxMenu}>
           <ErrorBoundary key={`${session.role}-${page}`} onReset={() => { setSession(null); setPage("home"); setNavParam(null); }}>
             {isAdmin && <>
@@ -9314,11 +9271,8 @@ function AdminHome({ data, alertas, onNav, onLogout, pending, online }) {
   const cIns = actsC.reduce((s, a) => s + a.costoInsumos, 0);
   const cMaq = actsC.reduce((s, a) => s + a.costoMaq, 0);
   const ultimas = [...data.actividades].sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 4);
-  const totalIngresos = vivos(data.ingresos).reduce((s, g) => s + g.monto, 0);
-  const totalEgresos = vivos(data.egresos).reduce((s, e) => s + e.monto, 0)
-    + (data.compras || []).filter(c => c.estado === "aprobada").reduce((s, c) => s + c.monto, 0)
-    + sumarDinero((data.entradas_inv || []).map(costoAFinanzas)) + cMO + cMaq;
-  const utilidad = totalIngresos - totalEgresos;
+  // La misma cuenta que enseña Finanzas (`resultadoDe`): antes cada pantalla sumaba por su lado y no coincidían.
+  const { ingresos: totalIngresos, egresos: totalEgresos, utilidad } = resultadoDe(data);
   const comprasPend = (data.compras || []).filter(c => c.estado === "pendiente").length;
   return (
     <div>
@@ -9890,7 +9844,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
   const [tForm, setTForm] = useState({ nombre: "", categoria: "jornalero", sueldo_dia: 350, pin: "", codigoNomina: "" });
   const [cqForm, setCqForm] = useState({ nombre: "", responsable: "", miembros: 1, flete_dia: 0, pin: "" });
   const [maqForm, setMaqForm] = useState({ nombre: "", tipo: "tractor", costo_hora: 400, emoji: "🚜", cap_tanque: 0 });
-  const [bonForm, setBonForm] = useState({ trabajadorId: "", monto: 0, anio: new Date().getFullYear(), concepto: "Bonificación anual (aguinaldo, PTU, horas extra)" });
+  const [bonForm, setBonForm] = useState({ trabajadorId: "", monto: 0, anio: new Date().getFullYear(), concepto: "Bono" });
   const [encForm, setEncForm] = useState({ nombre: "", pin: "", sueldo_dia: 0 });
   const [cal, setCal] = useState(null); const [calDice, setCalDice] = useState("");   // activar o quitar el pago por calendario de UN encargado
   const cats = ["jornalero", "tractorista", "dronero", "maquinista", "supervisor", "especialista"];
@@ -10087,8 +10041,9 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
         {tab === "bonific." && (
           <>
             <div className="card ab mb-3">
-              <div className="card-title">+ Registrar Bonificación Anual</div>
-              <div className="text-xs text-muted mb-3">Representa aguinaldo, PTU y horas extra acumuladas — se suma al costo de mano de obra</div>
+              <div className="card-title">+ Registrar un bono</div>
+              <div className="text-xs" style={{ color: "var(--gold)", marginBottom: 8 }}>Esta pantalla es de antes y sólo deja una nota: lo anotado aquí NO entra a los costos, ni a los pagos, ni al flujo. El aguinaldo, las vacaciones y la prima ya no van aquí: se llevan en Pagos al personal → Prestaciones (ahí sí cuentan, una sola vez). Un bono o una ayuda que la persona recibe seguido se anota en sus condiciones («Otras percepciones»), porque cuenta para su salario integrado.</div>
+              <div className="text-xs text-muted mb-3">Es sólo una nota: no se suma a ningún costo ni a ningún pago.</div>
               <div className="form-group"><label className="form-label">Trabajador</label>
                 <select className="inp" value={bonForm.trabajadorId} onChange={e => setBonForm(f => ({ ...f, trabajadorId: e.target.value }))}>
                   <option value="">Seleccionar...</option>
@@ -10105,7 +10060,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
               {[["Monto", "number", "monto"], ["Concepto", "text", "concepto"], ["Año", "number", "anio"]].map(([l, t, k]) => (
                 <div key={k} className="form-group"><label className="form-label">{l}</label><input type={t} className="inp" value={bonForm[k] || ""} onChange={e => setBonForm(f => ({ ...f, [k]: t === "number" ? parseFloat(e.target.value) || 0 : e.target.value }))} /></div>
               ))}
-              <button className="btn btn-accent" onClick={() => { if (!bonForm.trabajadorId) return; add("bonificaciones", { ...bonForm, id: `b${Date.now()}` }); setBonForm({ trabajadorId: "", monto: 0, anio: new Date().getFullYear(), concepto: "Bonificación anual (aguinaldo, PTU, horas extra)" }); }}>Registrar</button>
+              <button className="btn btn-accent" onClick={() => { if (!bonForm.trabajadorId) return; add("bonificaciones", { ...bonForm, id: `b${Date.now()}` }); setBonForm({ trabajadorId: "", monto: 0, anio: new Date().getFullYear(), concepto: "Bono" }); }}>Registrar</button>
             </div>
             {data.bonificaciones.map(b => {
               const t = data.trabajadores.find(x => x.id === b.trabajadorId) || (data.encargados || []).find(x => x.id === b.trabajadorId);
@@ -11053,12 +11008,13 @@ function CuadHistorial({ data, upd, session, onLogout }) {
   );
 }
 
-const NOMBRE_DE_GASTO = { laboral_bajas: "laborales por bajas (prima de antigüedad e indemnizaciones)", servicios: "servicios", maquinaria: "renta de maquinaria", mano_obra: "mano de obra externa", transporte: "transporte", administrativo: "administrativo", financiero: "financiero", caja_chica: "caja chica", otro: "otros" };
+const NOMBRE_DE_GASTO = { compras_personal: "compras hechas por el personal", bodega_general: "trabajos generales de bodega", laboral_bajas: "laborales por bajas (prima de antigüedad e indemnizaciones)", servicios: "servicios", maquinaria: "renta de maquinaria", mano_obra: "mano de obra externa", transporte: "transporte", administrativo: "administrativo", financiero: "financiero", caja_chica: "caja chica", otro: "otros" };
 // El cierre de mes: la foto de los costos. Lo que cambie después se ve como ajuste posterior; la foto no se toca.
 function CierreDeMes({ data, add, session }) {
   const hoy = today(), mesPasado = sumarDias(`${hoy.slice(0, 7)}-01`, -1).slice(0, 7);
   const [mes, setMes] = useState(mesPasado); const [motivo, setMotivo] = useState(""); const [dice, setDice] = useState(""); const [avisos, setAvisos] = useState([]); const [ver, setVer] = useState(null);
   const costo = useMemo(() => costoDelMes({ mes, parcelas: data.parcelas || [], actividades: data.actividadesContables || data.actividades || [], egresos: vivos(data.egresos), compras: data.compras || [], indirectos: data.indirectos }), [data, mes]);
+  const conc = useMemo(() => conciliarMes({ mes, cuentas: data.prestaciones?.cuentas || [], indirectos: data.indirectos }), [data, mes]);
   const s = estadoDeMes(data.eventos, mes), puede = add && seOfrece(session, "cerrar_mes");
   const aj = ajustesPosteriores(s.estado === "cerrado" ? s.cierre : null, costo);
   const base = () => ({ permitido: puedeOp("cerrar_mes"), eventos: data.eventos, quien: quienDe(session), cuando: new Date().toISOString(), fecha: hoy });
@@ -11067,14 +11023,14 @@ function CierreDeMes({ data, add, session }) {
   const tabla = (rs, tot) => (<>
     {rs.map(r => <div key={r.parcelaId} className="mo-act"><span>{r.nombre}<div className="text-xs text-muted">directo {fmt(r.directo)} · indirecto {fmt(r.indirecto)}</div></span><span /><b>{fmt(r.completo)}</b></div>)}
     <div className="mo-act" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}><span><b>Costo de producción (parcelas)</b><div className="text-xs text-muted">lo que costó cada parcela, ya con lo indirecto que le toca</div></span><span /><b>{fmt(tot.completo)}</b></div>
-    <div className="mo-act"><span>1. Costos directos de producción<div className="text-xs text-muted">trabajo, insumos y gastos hechos en una parcela</div></span><span /><b>{fmt(tot.directo)}</b></div>
+    <div className="mo-act"><span>1. Costos directos de producción<div className="text-xs text-muted">en parcelas {fmt(tot.directo)}{(tot.bodega?.total || 0) !== 0 ? ` · en bodega ${tot.bodega.porCultivo.map(b => `${b.cultivo} ${fmt(b.monto)}`).join(", ")}` : ""}{(tot.sinParcela?.total || 0) !== 0 ? ` · actividades sin parcela ${fmt(tot.sinParcela.total)} (${tot.sinParcela.n}: hay que decir de dónde son)` : ""}</div></span><span /><b>{fmt(sumarDinero(tot.directo, tot.bodega?.total || 0, tot.sinParcela?.total || 0))}</b></div>
     <div className="mo-act"><span>2. Costos indirectos atribuibles a producción<div className="text-xs text-muted">repartidos a parcelas {fmt(tot.indirecto)} · pendientes de distribuir {fmt(tot.pendiente || 0)} (falta el dato o la regla para repartirlos)</div></span><span /><b>{fmt(sumarDinero(tot.indirecto, tot.pendiente || 0))}</b></div>
     <div className="mo-act"><span>3. Gastos generales de operación y administración<div className="text-xs text-muted">{(tot.generales?.porCategoria || []).length ? tot.generales.porCategoria.map(g => `${NOMBRE_DE_GASTO[g.categoria] || g.categoria} ${fmt(g.monto)}`).join(" · ") : "sin gastos que no sean de una parcela"} · no se reparten a las parcelas ni suben su costo</div></span><span /><b>{fmt(tot.generales?.total || 0)}</b></div>
     {(tot.noProduccion || 0) !== 0 && <div className="mo-act"><span>Otros costos que no son de producción<div className="text-xs text-muted">así los clasificó una regla del rancho</div></span><span /><b>{fmt(tot.noProduccion)}</b></div>}
     <div className="mo-act" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}><span><b>Total de costos y gastos del rancho</b><div className="text-xs text-muted">1 + 2 + 3{(tot.noProduccion || 0) !== 0 ? " + otros" : ""} · cada peso está en un solo renglón</div></span><span /><b>{fmt(tot.rancho ?? tot.completo)}</b></div>
     {(tot.paraAlmacen || 0) > 0 && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Aparte se compraron {fmt(tot.paraAlmacen)} de insumos para el almacén. No están en el total: se vuelven costo cuando se usan.</div>}
   </>);
-  return (
+  return (<>
     <div className="card" style={s.estado === "cerrado" ? { borderColor: "var(--accent)" } : undefined}>
       <div className="flex-b"><div className="card-title" style={{ marginBottom: 0 }}>Cierre de mes</div><input type="month" className="inp" aria-label="Mes que se cierra" style={{ width: 150 }} value={mes} max={hoy.slice(0, 7)} onChange={e => { setMes(e.target.value || mesPasado); setDice(""); setAvisos([]); setVer(null); }} /></div>
       <div className="text-xs text-muted" style={{ margin: "6px 0 10px" }}>{s.estado === "cerrado" ? `Cerrado · versión ${s.cierre.version} · lo cerró ${s.cierre.quien?.nombre} el ${s.cierre.fecha}${s.cierre.datos.motivo ? ` · ${s.cierre.datos.motivo}` : ""}. Abajo están las cifras de ese día.` : s.estado === "reabierto" ? `Reabierto por ${s.reaperturas[s.reaperturas.length - 1].quien?.nombre}: ${s.reaperturas[s.reaperturas.length - 1].datos.motivo}. La versión ${s.cierre.version} se conserva.` : "Abierto. Estas cifras se calculan de lo registrado y todavía pueden moverse; cerrar guarda cómo quedaron."}</div>
@@ -11084,12 +11040,13 @@ function CierreDeMes({ data, add, session }) {
         {aj.lista.map(x => <div key={x.parcelaId} className="text-xs text-muted">{x.nombre}: al cerrar eran {fmt(x.era)}, hoy son {fmt(x.es)}{x.directo ? ` · directo ${fmt(x.directo)}` : ""}{x.indirecto ? ` · indirecto ${fmt(x.indirecto)}` : ""}</div>)}
         {aj.pendiente !== 0 && <div className="text-xs text-muted">Lo pendiente de distribuir cambió en {fmt(aj.pendiente)}.</div>}
         {aj.generales !== 0 && <div className="text-xs text-muted">Los gastos generales cambiaron en {fmt(aj.generales)}.</div>}
+        {(aj.bodega || 0) !== 0 && <div className="text-xs text-muted">El trabajo de bodega y sin parcela cambió en {fmt(aj.bodega)}.</div>}
         <div className="text-xs text-muted">Es algo que se registró o se aclaró después. Las cifras del cierre no se cambian solas: o se reabre el mes y se cierra otra vez, o esto queda a la vista como ajuste.</div>
       </div>}
       {avisos.map((a, k) => <div key={k} className="text-xs" style={{ color: "var(--gold)", marginTop: 6 }}>{a}</div>)}
       {puede && s.estado !== "cerrado" && costo.rancho !== 0 && <>
         {s.estado === "reabierto" && <input className="inp" aria-label="Qué cambió en este cierre de mes" placeholder="Qué cambió respecto al cierre anterior" value={motivo} onChange={e => setMotivo(e.target.value)} style={{ margin: "8px 0" }} />}
-        <button className="btn btn-accent" style={{ width: "100%", marginTop: 8 }} onClick={() => hacer(cerrarMes({ ...base(), costo, hoy, motivo }))}>{s.estado === "reabierto" ? `Cerrar otra vez (versión ${s.cierres.length + 1})` : "Cerrar el mes"}</button>
+        <button className="btn btn-accent" style={{ width: "100%", marginTop: 8 }} onClick={() => hacer(cerrarMes({ ...base(), costo, hoy, motivo, conciliacion: conc }))}>{s.estado === "reabierto" ? `Cerrar otra vez (versión ${s.cierres.length + 1})` : "Cerrar el mes"}</button>
       </>}
       {puede && s.estado === "cerrado" && <>
         <input className="inp" aria-label="Por qué se reabre el mes" placeholder="Para reabrir: por qué" value={motivo} onChange={e => setMotivo(e.target.value)} style={{ margin: "8px 0" }} />
@@ -11099,7 +11056,35 @@ function CierreDeMes({ data, add, session }) {
       {s.cierres.length > 1 && <div style={{ marginTop: 8 }}>{s.cierres.slice(0, -1).map(c => <button key={c.id} className="acc-link" style={{ marginRight: 10 }} onClick={() => setVer(ver === c.id ? null : c.id)}>{ver === c.id ? "Ocultar" : "Ver"} la versión {c.version}</button>)}</div>}
       {foto && <div style={{ marginTop: 8, opacity: 0.85 }}><div className="text-xs text-muted">Versión {foto.version} · {foto.quien?.nombre} · {foto.fecha}{foto.datos.motivo ? ` · ${foto.datos.motivo}` : ""}</div>{tabla(foto.datos.renglones, foto.datos)}</div>}
     </div>
-  );
+    <ConciliacionDelPersonal conc={conc} alCerrar={s.estado === "cerrado" ? s.cierre.datos.personal : null} />
+  </>);
+}
+
+// Prestaciones y bajas del mes: qué fue costo, qué fue pago, qué se debe, y por qué cada importe cae en este mes.
+const CLASE_DE_MOVIMIENTO = { generado: "se generó", ajuste: "ajuste al determinar", baja: "costo nuevo por la baja", pago: "pago", pago_baja: "pago de la baja", saldo_inicial: "saldo inicial" };
+function ConciliacionDelPersonal({ conc, alCerrar }) {
+  const [abre, setAbre] = useState(null);
+  if (!conc.filas.length && !conc.problemas.length) return null;
+  return (
+    <div className="card" style={conc.problemas.length ? { borderColor: "var(--gold)" } : undefined}>
+      <div className="card-title">Conciliación de prestaciones y bajas · {conc.mes}</div>
+      <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Una prestación es costo del mes en que se gana, no del mes en que se paga. Aquí se ve qué entró al costo este mes, qué se pagó (que no es costo) y qué se queda debiendo.</div>
+      <div className="mo-act"><span>Entró al costo este mes<div className="text-xs text-muted">se generó {fmt(conc.generado)} · ajustes al determinar {fmt(conc.ajustes)} · costo nuevo por bajas {fmt(conc.nuevo)}</div></span><span /><b>{fmt(conc.alCosto)}</b></div>
+      <div className="mo-act"><span>Se pagó este mes<div className="text-xs text-muted">no es costo: baja lo que se debe</div></span><span /><b>{fmt(conc.pagado)}</b></div>
+      <div className="mo-act"><span>Se queda debiendo al cierre del mes<div className="text-xs text-muted">de las personas y conceptos que se movieron este mes</div></span><span /><b>{fmt(conc.porPagar)}</b></div>
+      {conc.cuadra === true && <div className="text-xs" style={{ color: "var(--safe)", marginTop: 6 }}>Comprobado: los {fmt(conc.alCosto)} de esta conciliación son exactamente los que entraron a los costos del rancho. Nada está dos veces.</div>}
+      {conc.problemas.map((p, k) => <div key={k} className="text-sm" style={{ color: p.clase === "no_cuadra" ? "var(--red)" : "var(--gold)", marginTop: 6 }}>Por revisar: {p.dice}</div>)}
+      {alCerrar && (alCerrar.alCosto !== conc.alCosto || alCerrar.pagado !== conc.pagado) && <div className="text-xs text-muted" style={{ marginTop: 6 }}>Al cerrar el mes eran {fmt(alCerrar.alCosto)} al costo y {fmt(alCerrar.pagado)} pagados. Lo que cambió se registró después.</div>}
+      {conc.filas.map(f => { const k = `${f.personaId}|${f.concepto}`; return (
+        <div key={k} style={{ padding: "8px 0", borderTop: "1px solid var(--border-soft)", marginTop: 6 }}>
+          <div className="mo-act"><span><b>{f.nombre}</b> · {f.nombreConcepto}{f.periodos.length ? ` · ${f.periodos.join(", ")}` : ""}<div className="text-xs text-muted">al costo {fmt(f.alCosto)} · pagado {fmt(f.pagado)} · se debe {fmt(f.porPagar)}{f.estimado ? " · con datos estimados" : ""}</div></span><span /><button className="acc-link" aria-label={`Por qué ${f.nombreConcepto} de ${f.nombre}`} onClick={() => setAbre(abre === k ? null : k)}>{abre === k ? "Ocultar" : "¿Por qué?"}</button></div>
+          {abre === k && <div className="text-xs text-muted">
+            {f.porque.map((t, i) => <div key={i} style={{ marginTop: 3 }}>{t}</div>)}
+            <div style={{ marginTop: 6 }}><b>Movimientos del mes</b></div>
+            {f.movimientos.map((m, i) => <div key={i}>{m.fecha} · {CLASE_DE_MOVIMIENTO[m.clase] || m.clase} · {m.costo !== 0 ? `${fmt(m.costo)} al costo` : `${fmt(m.pago)} pagados`}{m.explica ? ` · ${m.explica}` : ""}</div>)}
+          </div>}
+        </div>); })}
+    </div>);
 }
 
 function AdminReportes({ data, navParam, setNavParam, add, session }) {
@@ -11487,14 +11472,9 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
   const catEgreso = [["servicios", "Servicios (luz, agua)"], ["maquinaria", "Renta de maquinaria"], ["mano_obra", "Mano de obra externa"], ["transporte", "Transporte/flete"], ["administrativo", "Administrativo"], ["financiero", "Financiero/intereses"], ["otro", "Otro gasto"]];
 
   // Totales globales
-  const totalIngresos = vivos(data.ingresos).reduce((s, g) => s + g.monto, 0);
-  const egresosManuales = vivos(data.egresos).reduce((s, e) => s + e.monto, 0);
-  const comprasAprob = (data.compras || []).filter(c => c.estado === "aprobada").reduce((s, c) => s + c.monto, 0);
-  const comprasInv = sumarDinero((data.entradas_inv || []).map(costoAFinanzas));
-  const costoOperativo = (data.actividades || []).reduce((s, a) => s + (a.costoMO || 0) + (a.costoMaq || 0), 0);
-  const totalEgresos = egresosManuales + comprasAprob + comprasInv + costoOperativo;
-  const utilidadNeta = totalIngresos - totalEgresos;
-  const flujo = flujoEfectivo(data);
+  const resultado = resultadoDe(data);
+  const totalIngresos = resultado.ingresos, totalEgresos = resultado.egresos, utilidadNeta = resultado.utilidad;
+  const efectivo = flujoDe(data), flujo = efectivo.meses;
   // Deuda con proveedores y acreedores
   const deudaTotal = vivos(data.creditos).reduce((s, cr) => s + saldoCredito(cr).saldo, 0);
 
@@ -11617,6 +11597,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
               <select className="inp" value={egForm.categoria} onChange={e => setEgForm(f => ({ ...f, categoria: e.target.value }))}>
                 {catEgreso.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
+              {egForm.categoria === "mano_obra" && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>Ojo: el pago a un trabajador o a una cuadrilla que ya está registrada en la app NO se captura aquí. Su costo ya cuenta por el trabajo registrado, y el dinero se anota en Pagos al personal; capturarlo también como gasto lo cuenta dos veces. Aquí va sólo la mano de obra de alguien de fuera que no está en la app (un contratista, un maquilador).</div>}
             </div>
             <div className="form-group"><label className="form-label">Parcela / cultivo afectado (opcional)</label>
               <select className="inp" value={egForm.parcelaId} onChange={e => setEgForm(f => ({ ...f, parcelaId: e.target.value }))}>
@@ -11655,14 +11636,14 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
         {tab === "flujo" && (
           <>
             <div className="stat-row">
-              <div className="stat-card"><div className="stat-label">Ingresos totales</div><div className="stat-val" style={{ fontSize: 17, color: "var(--safe)" }}>{fmt(totalIngresos)}</div></div>
-              <div className="stat-card"><div className="stat-label">Egresos totales</div><div className="stat-val" style={{ fontSize: 17, color: "var(--red)" }}>{fmt(totalEgresos)}</div></div>
+              <div className="stat-card"><div className="stat-label">Dinero que entró</div><div className="stat-val" style={{ fontSize: 17, color: "var(--safe)" }}>{fmt(efectivo.ingresos)}</div></div>
+              <div className="stat-card"><div className="stat-label">Dinero que salió</div><div className="stat-val" style={{ fontSize: 17, color: "var(--red)" }}>{fmt(efectivo.egresos)}</div></div>
             </div>
             <div className="stat-row">
               <div className="stat-card wide">
                 <div className="stat-label">Flujo neto acumulado</div>
-                <div className="stat-val" style={{ fontSize: 26, color: utilidadNeta >= 0 ? "var(--safe)" : "var(--red)" }}>{fmt(utilidadNeta)}</div>
-                <div className="stat-sub">{utilidadNeta >= 0 ? "Resultado positivo" : "Resultado negativo"}</div>
+                <div className="stat-val" style={{ fontSize: 26, color: efectivo.neto >= 0 ? "var(--safe)" : "var(--red)" }}>{fmt(efectivo.neto)}</div>
+                <div className="stat-sub">Es dinero que se movió, no utilidad: la utilidad está en «Resultados» ({fmt(utilidadNeta)}).</div>
               </div>
             </div>
             <div className="card">
@@ -11680,6 +11661,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
                   <div className="flex-b text-xs" style={{ marginBottom: 6 }}>
                     <span className="text-muted">↓ Egresos</span><span style={{ color: "var(--red)" }}>{fmt(m.egresos)}</span>
                   </div>
+                  <div className="text-xs text-muted" style={{ marginBottom: 4 }}>{Object.entries(m.detalle).map(([k, v]) => `${NOMBRE_DE_FLUJO[k] || k} ${fmt(v)}`).join(" · ")}</div>
                   <div className="text-xs text-muted">Saldo acumulado: <span className="font-bold" style={{ color: m.acumulado >= 0 ? "var(--safe)" : "var(--red)" }}>{fmt(m.acumulado)}</span></div>
                 </div>
               ))}
@@ -11698,7 +11680,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
               <div className="text-xs text-accent" style={{ marginTop: 8, fontWeight: 700 }}>Administrar proveedores ›</div>
             </div>
             <div className="card" style={{ background: "rgba(74,159,212,.04)", border: "1px solid rgba(74,159,212,.15)" }}>
-              <div className="text-xs text-muted">El flujo de efectivo incluye: ingresos registrados, egresos manuales, compras aprobadas, entradas de inventario, mano de obra/maquinaria de campo, créditos recibidos y abonos en dinero.</div>
+              <div className="text-xs text-muted">El flujo cuenta el dinero el día que se mueve: ingresos y gastos capturados, compras, créditos y sus abonos, y lo del personal el día que se le paga (Pagos al personal), no el día que trabajó. Un préstamo entregado es dinero que salió aunque no sea gasto. El trabajo que todavía no se paga no aparece aquí: está en Pagos al personal como pendiente.</div>
             </div>
           </>
         )}
@@ -11709,12 +11691,9 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
               <div className="card-title">Estado de resultados — General</div>
               <div className="flex-b" style={{ padding: "6px 0" }}><span className="text-sm">Ingresos totales</span><span className="text-sm font-bold" style={{ color: "var(--safe)" }}>{fmt(totalIngresos)}</span></div>
               <div className="divider" style={{ margin: "8px 0" }} />
-              <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">Mano de obra y maquinaria</span><span className="text-sm">{fmt(costoOperativo)}</span></div>
-              <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">Compras de inventario</span><span className="text-sm">{fmt(comprasInv)}</span></div>
-              <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">Compras de trabajadores</span><span className="text-sm">{fmt(comprasAprob)}</span></div>
-              <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">Otros egresos</span><span className="text-sm">{fmt(egresosManuales)}</span></div>
+              {resultado.lineas.filter(l => l.monto !== 0).map(l => <div key={l.clave} className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">{l.nombre}{l.nota ? <div className="text-xs">{l.nota}</div> : null}</span><span className="text-sm">{fmt(l.monto)}</span></div>)}
               <div className="divider" style={{ margin: "8px 0" }} />
-              <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm font-bold">Egresos totales</span><span className="text-sm font-bold" style={{ color: "var(--red)" }}>{fmt(totalEgresos)}</span></div>
+              <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm font-bold">Costos y gastos totales</span><span className="text-sm font-bold" style={{ color: "var(--red)" }}>{fmt(totalEgresos)}</span></div>
               <div className="flex-b" style={{ padding: "10px 0 2px", borderTop: "2px solid var(--accent)", marginTop: 6 }}>
                 <span className="font-bold font-syne">Utilidad neta</span>
                 <span className="font-bold font-syne" style={{ fontSize: 18, color: utilidadNeta >= 0 ? "var(--safe)" : "var(--red)" }}>{fmt(utilidadNeta)}</span>
@@ -11722,6 +11701,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
             </div>
             <div className="card">
               <div className="card-title">Resultado por cultivo</div>
+              {(() => { const g = sumarDinero((data.actividadesContables || data.actividades || []).filter(a => a.esBodega && a.cultivoBodega === "__general__").map(a => (a.costoMO || 0) + (a.costoMaq || 0) + (a.costoInsumos || 0))); return g > 0 ? <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Los trabajos generales de bodega ({fmt(g)}) no se reparten entre los cultivos: son gasto general y salen aparte en el cierre de mes.</div> : null; })()}
               {[...new Set(data.parcelas.map(p => p.cultivo))].filter(Boolean).map(cul => {
                 const r = reporteCultivo(data, cul);
                 return (
@@ -20627,9 +20607,25 @@ function CierreSemana({ data, add, session, ini, fin, renglones }) {
 }
 
 // Prestaciones: saldo inicial, lo generado después del corte, ajustes, pagos y lo pendiente, por persona.
+// Al abrir la app: falta el salario mínimo del año en curso, o ya es diciembre y falta el del que viene.
+// Sólo le sale a quien puede capturarlo. No propone importe.
+function AvisoSalarioMinimo({ data, session, onNav }) {
+  if (!seOfrece(session, "cambiar_reglas")) return null;
+  const a = alertaDeSalarioMinimo(today(), ajusteVigente(data.eventos, "zona_salario_minimo").valor, data.eventos);
+  if (!a) return null;
+  return (
+    <div className="section-pad" style={{ paddingBottom: 0 }}>
+      <div className="card" style={{ borderColor: a.nivel === "urgente" ? "var(--red)" : "var(--gold)", cursor: "pointer" }} onClick={() => onNav("nomina")}>
+        <div className="text-sm"><b>{a.nivel === "urgente" ? "Falta un dato oficial" : "Hay que actualizar un dato oficial"}</b></div>
+        <div className="text-xs text-muted" style={{ marginTop: 4 }}>{a.dice} Está en Pagos al personal → Prestaciones → Salarios mínimos oficiales.</div>
+      </div>
+    </div>);
+}
+
 // El catálogo oficial de salarios mínimos: se ve año por año, con la publicación de donde sale, y se le agrega el del año nuevo.
 function SalariosMinimos({ data, add, session }) {
-  const hoy = today(), cat = catalogoSM(data.eventos), zona = ajusteVigente(data.eventos, "zona_salario_minimo").valor, hoyVale = salarioMinimoEn(hoy, zona, data.eventos);
+  const hoy = today(), cat = catalogoSM(data.eventos), zona = ajusteVigente(data.eventos, "zona_salario_minimo").valor, hoyVale = salarioMinimoEn(hoy, zona, data.eventos), alerta = alertaDeSalarioMinimo(hoy, zona, data.eventos);
+  const leerEvidencia = (e) => { const a = e.target.files?.[0]; if (!a) return; const r = new FileReader(); r.onload = () => setF(x => (x ? { ...x, evidencia: r.result } : x)); r.readAsDataURL(a); };
   const [f, setF] = useState(null); const [dice, setDice] = useState(""); const [avisos, setAvisos] = useState([]); const [todo, setTodo] = useState(false);
   const puede = add && seOfrece(session, "cambiar_reglas");
   const guardar = () => {
@@ -20639,25 +20635,28 @@ function SalariosMinimos({ data, add, session }) {
   };
   const filas = todo ? [...cat].reverse() : [...cat].reverse().slice(0, 3);
   return (
-    <div className="card" style={hoyVale.monto == null ? { borderColor: "var(--gold)" } : undefined}>
+    <div className="card" style={alerta ? { borderColor: alerta.nivel === "urgente" ? "var(--red)" : "var(--gold)" } : undefined}>
       <div className="card-title">Salarios mínimos oficiales</div>
+      {alerta?.nivel === "aviso" && <div className="text-sm" style={{ color: "var(--gold)", marginBottom: 8 }}>{alerta.dice}</div>}
       <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Los fija cada año la Comisión Nacional de los Salarios Mínimos y se publican en el Diario Oficial. Cada cálculo usa el vigente en su fecha, no el de hoy. Al rancho le toca: <b>{ZONAS_SM[zona]}</b>.</div>
       {hoyVale.monto == null
         ? <div className="text-sm" style={{ color: "var(--gold)", marginBottom: 8 }}>{hoyVale.dice} Mientras tanto, lo que dependa de él (la prima de antigüedad) queda por revisar.</div>
         : <div className="mo-act"><span><b>Vigente hoy</b><div className="text-xs text-muted">desde el {hoyVale.desde} · {hoyVale.fuente}</div></span><span /><b>{fmt(hoyVale.monto)}</b></div>}
       {filas.map(c => (
         <div key={c.desde} className="mo-act">
-          <span>Desde el {c.desde}<div className="text-xs text-muted">frontera norte {fmt(c.frontera)} · {c.fuente}{c.origen === "capturado" ? ` · lo capturó ${c.por} el ${c.capturado}` : c.verificado === "tabla" ? " · cotejado con la tabla de la Comisión" : ""}{c.anteriores.length ? ` · antes decía ${c.anteriores.map(a => fmt(a.general)).join(", ")}` : ""}</div></span><span /><b>{fmt(c.general)}</b>
+          <span>Desde el {c.desde}<div className="text-xs text-muted">frontera norte {fmt(c.frontera)} · {c.fuente}{c.origen === "capturado" ? ` · lo capturó ${c.por} el ${c.capturado}${c.liga ? ` · ${c.liga}` : ""}${c.evidencia ? " · con la publicación guardada" : ""}` : c.verificado === "tabla" ? " · cotejado con la tabla de la Comisión" : ""}{c.anteriores.length ? ` · antes decía ${c.anteriores.map(a => fmt(a.general)).join(", ")}` : ""}</div></span><span /><b>{fmt(c.general)}</b>
         </div>))}
       {cat.length > 3 && <button className="acc-link" onClick={() => setTodo(!todo)}>{todo ? "Ver sólo los últimos" : `Ver los ${cat.length} años`}</button>}
       {avisos.map((a, k) => <div key={k} className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>{a}</div>)}
-      {puede && !f && <div className="acc-row" style={{ marginTop: 8 }}><button onClick={() => { setF({ desde: `${Number(cat[cat.length - 1].desde.slice(0, 4)) + 1}-01-01`, general: "", frontera: "", fuente: "" }); setDice(""); setAvisos([]); }}>Agregar o corregir un año</button></div>}
+      {puede && !f && <div className="acc-row" style={{ marginTop: 8 }}><button onClick={() => { setF({ desde: `${Number(cat[cat.length - 1].desde.slice(0, 4)) + 1}-01-01`, general: "", frontera: "", fuente: "", liga: "", evidencia: null }); setDice(""); setAvisos([]); }}>Agregar o corregir un año</button></div>}
       {f && <div style={{ marginTop: 8 }}>
         <div className="form-group"><label className="form-label" htmlFor="sm-desde">Rige desde</label><input id="sm-desde" type="date" className="inp" value={f.desde} onChange={e => setF(x => ({ ...x, desde: e.target.value }))} /></div>
         <div className="form-group"><label className="form-label" htmlFor="sm-gral">Salario mínimo general por día ($)</label><input id="sm-gral" type="number" inputMode="decimal" className="inp" value={f.general} onChange={e => setF(x => ({ ...x, general: e.target.value }))} /></div>
         <div className="form-group"><label className="form-label" htmlFor="sm-front">Zona Libre de la Frontera Norte por día ($)</label><input id="sm-front" type="number" inputMode="decimal" className="inp" value={f.frontera} onChange={e => setF(x => ({ ...x, frontera: e.target.value }))} /></div>
         <div className="form-group"><label className="form-label" htmlFor="sm-fuente">Publicación oficial de donde sale</label><input id="sm-fuente" className="inp" placeholder="Ej: Resolución de la CONASAMI, DOF 09/12/2026" value={f.fuente} onChange={e => setF(x => ({ ...x, fuente: e.target.value }))} /></div>
-        <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Copia los importes de la publicación oficial, no de una nota. Lo que había para esa fecha no se borra: queda como historial.</div>
+        <div className="form-group"><label className="form-label" htmlFor="sm-liga">Liga a la publicación en el Diario Oficial</label><input id="sm-liga" className="inp" inputMode="url" placeholder="https://www.dof.gob.mx/…" value={f.liga} onChange={e => setF(x => ({ ...x, liga: e.target.value }))} /></div>
+        <label className="text-xs text-muted" style={{ display: "block", marginBottom: 8 }}>O una foto o el PDF de la publicación <input type="file" accept="image/*,application/pdf" aria-label="Evidencia de la publicación oficial" onChange={leerEvidencia} />{f.evidencia ? " · lista" : ""}</label>
+        <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Copia los importes de la resolución publicada en el Diario Oficial, no de una nota. Hace falta la liga oficial o la foto: es la evidencia. Lo que había para esa fecha no se borra: queda como historial.</div>
         {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 6 }}>{dice}</div>}
         <div className="acc-row"><button onClick={guardar}>Guardar en el catálogo</button><button onClick={() => { setF(null); setDice(""); }}>Cancelar</button></div>
       </div>}
@@ -20676,12 +20675,14 @@ function PanelPrestaciones({ data, add, upd, session }) {
   const [abre, setAbre] = useState(null); const [dice, setDice] = useState(""); const [avisos, setAvisos] = useState([]);
   const [bj, setBj] = useState(null);         // { c, persona, causa, ultimoDia, detalle, autorizo, filas, fotos }
   const [pb, setPb] = useState(null);         // { c, monto, medio, recibe, foto }
-  const propuestaDe = (b) => (b.causa && b.ultimoDia ? proponerBaja({ persona: b.persona, causa: b.causa, fecha: b.ultimoDia, cuenta: b.c, reglas: pr.reglas, remuneraciones: remDe(b.persona.id), minimo: salarioMinimoEn(b.ultimoDia, pr.reglas.zonaSM, data.eventos) }) : null);
+  const propuestaDe = (b) => (b.causa && b.ultimoDia ? proponerBaja({ persona: b.persona, causa: b.causa, fecha: b.ultimoDia, cuenta: b.c, reglas: pr.reglas, remuneraciones: remDe(b.persona.id), minimo: salarioMinimoEn(b.ultimoDia, pr.reglas.zonaSM, data.eventos), bonificaciones: (data.bonificaciones || []).filter(x => x.trabajadorId === b.persona.id) }) : null);
   const ponBaja = (cambio) => setBj(b => { const n = { ...b, ...cambio }; const p = propuestaDe(n); return { ...n, filas: p?.ok ? p.conceptos.map(k => ({ clave: k.clave, incluir: k.sugerido ?? k.aplica !== "no", monto: k.monto == null ? "" : String(k.monto), nota: "" })) : [] }; });
   const propB = bj ? propuestaDe(bj) : null;
   const renglonesDeBaja = (d) => [{ t: "AGROSELECTOS P&A", tam: 14, negrita: true }, { t: `${NOMBRE_DE_BAJA[d.da].split(" (")[0].toUpperCase()} — CÁLCULO INTERNO`, tam: 11, negrita: true },
     { t: `${d.nombre} · ${CAUSAS_DE_BAJA[d.causa].nombre}${d.detalle ? ` (${d.detalle})` : ""} · último día de trabajo: ${d.fecha}`, espacio: 8 },
-    ...(d.bases ? [`Bases del cálculo: salario por día ${d.bases.salarioDia == null ? "sin dato" : fmt(d.bases.salarioDia)} · salario integrado ${d.bases.salarioIntegrado == null ? "sin dato" : fmt(d.bases.salarioIntegrado)} · salario mínimo vigente ese día ${d.bases.salarioMinimo == null ? "sin dato" : fmt(d.bases.salarioMinimo)} · ${d.bases.anios} años de servicio`] : []),
+    ...(d.bases ? [`Bases del cálculo: salario por día ${d.bases.salarioDia == null ? "sin dato" : fmt(d.bases.salarioDia)} · salario integrado ${d.bases.salarioIntegrado == null ? "sin dato" : fmt(d.bases.salarioIntegrado)}${d.bases.salarioIntegrado != null && d.bases.integradoCompleto === false ? " (piso: faltaba información)" : ""} · salario mínimo vigente ese día ${d.bases.salarioMinimo == null ? "sin dato" : fmt(d.bases.salarioMinimo)} · ${d.bases.anios} años de servicio`] : []),
+    ...((d.bases?.partes || []).length ? [`Salario integrado, por partes: ${d.bases.partes.map(x => `${x.nombre} ${fmt(x.porDia)} (${x.base})`).join(" + ")}`] : []),
+    ...((d.bases?.falta || []).length ? [`Información que faltaba al calcular: ${d.bases.falta.join("; ")}`] : []),
     { t: "Concepto · importe confirmado · lo que propuso la app y en qué se apoya", negrita: true, espacio: 8 },
     ...d.conceptos.map(k => `${k.nombre}${k.nota ? ` (${k.nota})` : ""}: ${fmt(k.monto)} · propuesto ${k.propuesto == null ? "sin cifra" : fmt(k.propuesto)}${k.fundamento ? ` · ${k.fundamento}` : ""}${k.aplica === "revisar" ? " · marcado por revisar" : ""}${k.explica ? ` · ${k.explica}` : ""}`),
     { t: `Total: ${fmt(d.total)}`, negrita: true, espacio: 8 }, `Autorizó: ${d.autorizo}`,
@@ -20700,13 +20701,18 @@ function PanelPrestaciones({ data, add, upd, session }) {
   };
   const fichaDe = (c) => { const sec = c.tipo === "encargado" ? "encargados" : "trabajadores"; return { sec, persona: (data[sec] || []).find(x => x.id === c.personaId) }; };
   const abrirCond = (c) => { const { sec, persona } = fichaDe(c); if (!persona) return; const p = persona.prestaciones || {};
-    setCond({ persona, sec, f: { fechaIngreso: persona.fechaIngreso || "", relacionLaboral: persona.relacionLaboral || "", aguinaldoDias: p.aguinaldoDias ?? "", primaPct: p.primaPct ?? "", vacacionesDias: p.vacacionesDias ?? "", baseAguinaldo: p.baseAguinaldo ?? "", baseVacaciones: p.baseVacaciones ?? "", sin: !!p.sin, sinPorque: p.sinPorque || "" } }); setDice(""); };
+    setCond({ persona, sec, f: { fechaIngreso: persona.fechaIngreso || "", relacionLaboral: persona.relacionLaboral || "", aguinaldoDias: p.aguinaldoDias ?? "", primaPct: p.primaPct ?? "", vacacionesDias: p.vacacionesDias ?? "", baseAguinaldo: p.baseAguinaldo ?? "", baseVacaciones: p.baseVacaciones ?? "", sin: !!p.sin, sinPorque: p.sinPorque || "" }, per: percepcionesDe(persona).lista.map(x => ({ ...x, monto: x.monto ?? "" })), perRevisado: !!percepcionesDe(persona).revisado, perCambio: false }); setDice(""); };
   const guardarCond = () => {
     const f = cond.f, num = (v) => (v === "" || v == null ? undefined : Number(v));
     if (f.fechaIngreso && f.fechaIngreso > hoy) { setDice("La fecha de ingreso no puede ser después de hoy."); return; }
     if (f.sin && !f.sinPorque.trim()) { setDice("Falta decir por qué no genera prestaciones aquí. Cobrar por destajo no es una razón: quien cobra así también puede tener derechos."); return; }
+    const lista = [];
+    for (const x of cond.per) { const v = validarPercepcion(x, hoy); if (!v.ok) { setDice(`${x.nombre || CLASES_PERCEPCION[x.clase] || "Una percepción"}: ${v.dice}`); return; } lista.push(v.percepcion); }
+    const antes = percepcionesDe(cond.persona);
+    // «Revisado» lleva fecha y nombre: es alguien diciendo "esto es todo lo que recibe". Si no se tocó, se queda como estaba.
+    const percepciones = cond.perCambio || lista.length || antes.revisado ? { lista, ...(cond.perRevisado ? (cond.perCambio || !antes.revisado ? { revisado: hoy, por: session.nombre || "" } : { revisado: antes.revisado, por: antes.por }) : {}) } : undefined;
     const { _tipo, ...persona } = cond.persona;
-    upd(cond.sec, { ...persona, fechaIngreso: f.fechaIngreso || undefined, relacionLaboral: f.relacionLaboral || undefined,
+    upd(cond.sec, { ...persona, percepciones, fechaIngreso: f.fechaIngreso || undefined, relacionLaboral: f.relacionLaboral || undefined,
       prestaciones: { ...(persona.prestaciones || {}), aguinaldoDias: num(f.aguinaldoDias), primaPct: num(f.primaPct), vacacionesDias: num(f.vacacionesDias), baseAguinaldo: num(f.baseAguinaldo), baseVacaciones: num(f.baseVacaciones), sin: f.sin || undefined, sinPorque: f.sin ? f.sinPorque.trim() : undefined } });
     setCond(null);
   };
@@ -20781,7 +20787,7 @@ function PanelPrestaciones({ data, add, upd, session }) {
       {propB && !propB.ok && <div className="text-sm" style={{ color: "var(--gold)", marginBottom: 8 }}>{propB.dice}</div>}
       {propB?.ok && <>
         <div className="text-sm font-bold" style={{ marginBottom: 2 }}>Corresponde: {NOMBRE_DE_BAJA[propB.tipo].toLowerCase()} · {propB.anios} años de servicio</div>
-        <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Salario por día: {propB.base == null ? "sin dato" : fmt(propB.base)} · salario integrado (para indemnizaciones): {propB.integrado == null ? "sin dato" : fmt(propB.integrado)} · salario mínimo de ese día: {propB.minimo == null ? "sin dato" : fmt(propB.minimo)}</div>
+        <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Salario por día: {propB.base == null ? "sin dato" : fmt(propB.base)} · salario integrado (para indemnizaciones): {propB.integrado == null ? "sin dato" : fmt(propB.integrado)}{propB.integrado != null && !propB.integradoCompleto ? " (piso: falta información)" : ""} · salario mínimo de ese día: {propB.minimo == null ? "sin dato" : fmt(propB.minimo)}</div>
         {propB.conceptos.map(k => { const f = bj.filas.find(x => x.clave === k.clave) || { incluir: false, monto: "" }; const fijo = !!CONCEPTOS_PRESTACION[k.clave]; return (
           <div key={k.clave} style={{ padding: "8px 0", borderTop: "1px solid var(--border-soft)" }}>
             <label className="text-sm" style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" aria-label={`Incluir ${k.nombre}`} checked={f.incluir} disabled={fijo} onChange={e => setBj(b => ({ ...b, filas: b.filas.map(x => (x.clave === k.clave ? { ...x, incluir: e.target.checked } : x)) }))} /> <b>{k.nombre}</b> <span className="text-xs" style={{ color: k.aplica === "si" ? "var(--safe)" : k.aplica === "revisar" ? "var(--gold)" : "var(--text-muted)" }}>{k.aplica === "si" ? "procede" : k.aplica === "revisar" ? "hay que revisarlo" : "no procede en esta causa"}</span></label>
@@ -20813,6 +20819,35 @@ function PanelPrestaciones({ data, add, upd, session }) {
       <div className="form-group"><label className="form-label" htmlFor="pc-rel">Relación de trabajo</label><select id="pc-rel" className="inp" value={cond.f.relacionLaboral} onChange={e => setCond(v => ({ ...v, f: { ...v.f, relacionLaboral: e.target.value } }))}><option value="">Por definir</option>{Object.entries(RELACIONES).filter(([k]) => k !== "por_definir").map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></div>
       {[["fechaIngreso", "Fecha de ingreso", "date"], ["aguinaldoDias", "Días de aguinaldo por año", "number"], ["vacacionesDias", "Días de vacaciones por año (si son fijos)", "number"], ["primaPct", "Prima vacacional (%)", "number"], ["baseAguinaldo", "Salario por día para el aguinaldo ($), si es distinto del que resulta", "number"], ["baseVacaciones", "Salario por día para vacaciones y prima ($), si es distinto del que resulta", "number"]].map(([k, t, tipo]) =>
         <div className="form-group" key={k}><label className="form-label" htmlFor={`pc-${k}`}>{t}</label><input id={`pc-${k}`} className="inp" type={tipo} inputMode={tipo === "number" ? "decimal" : undefined} value={cond.f[k]} onChange={e => setCond(v => ({ ...v, f: { ...v.f, [k]: e.target.value } }))} /></div>)}
+      <div style={{ borderTop: "1px solid var(--border-soft)", margin: "10px 0", paddingTop: 10 }}>
+        <div className="text-sm font-bold">Otras percepciones que recibe</div>
+        <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Bonos, despensa, habitación, ayuda de transporte, comisiones, premios. Cuentan para su salario integrado, que es con lo que se calcularía una indemnización. Si deja de recibir una, no se quita: se le pone la fecha en que terminó.</div>
+        {cond.per.map((x, i) => { const pon = (cambio) => setCond(v => ({ ...v, perCambio: true, per: v.per.map((y, k) => (k === i ? { ...y, ...cambio } : y)) })); return (
+          <div key={x.id} style={{ padding: "8px 0", borderTop: "1px solid var(--border-soft)" }}>
+            <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+              <select className="inp" aria-label={`Clase de la percepción ${i + 1}`} value={x.clase} onChange={e => pon({ clase: e.target.value })}>{Object.entries(CLASES_PERCEPCION).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
+              <select className="inp" aria-label={`Tipo de la percepción ${i + 1}`} value={x.tipo} onChange={e => pon({ tipo: e.target.value })} style={{ width: 120 }}><option value="fija">Fija</option><option value="variable">Variable</option></select>
+            </div>
+            <input className="inp" aria-label={`Nombre de la percepción ${i + 1}`} placeholder="Cómo le dicen (opcional)" value={x.nombre || ""} onChange={e => pon({ nombre: e.target.value })} style={{ marginBottom: 6 }} />
+            {x.tipo === "fija" ? <>
+              <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                <input className="inp" type="number" inputMode="decimal" aria-label={`Importe de la percepción ${i + 1}`} placeholder="Importe ($); vacío si no se sabe" value={x.monto} onChange={e => pon({ monto: e.target.value })} />
+                <select className="inp" aria-label={`Cada cuánto la percepción ${i + 1}`} value={x.periodo || ""} onChange={e => pon({ periodo: e.target.value })} style={{ width: 130 }}><option value="">¿Cada cuánto?</option>{Object.entries(PERIODOS_PERCEPCION).map(([k, t]) => <option key={k} value={k}>{t.nombre}</option>)}</select>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <label className="text-xs text-muted" style={{ flex: 1 }}>La recibe desde<input type="date" className="inp" aria-label={`Desde cuándo la percepción ${i + 1}`} value={x.desde || ""} onChange={e => pon({ desde: e.target.value })} /></label>
+                <label className="text-xs text-muted" style={{ flex: 1 }}>Dejó de recibirla el<input type="date" className="inp" aria-label={`Hasta cuándo la percepción ${i + 1}`} value={x.hasta || ""} onChange={e => pon({ hasta: e.target.value })} /></label>
+              </div></> : <>
+              <div style={{ display: "flex", gap: 6 }}>
+                <label className="text-xs text-muted" style={{ flex: 1 }}>Total en sus últimos 30 días trabajados ($)<input className="inp" type="number" inputMode="decimal" aria-label={`Total de la percepción ${i + 1}`} value={x.monto} onChange={e => pon({ monto: e.target.value })} /></label>
+                <label className="text-xs text-muted" style={{ flex: 1 }}>Sumado hasta el día<input type="date" className="inp" max={hoy} aria-label={`Al día la percepción ${i + 1}`} value={x.al || ""} onChange={e => pon({ al: e.target.value })} /></label>
+              </div>
+              <div className="text-xs text-muted" style={{ marginTop: 4 }}>Lo que cambia cada vez (comisiones, premios). Lo que ganó de más por destajo y ya está registrado en la app se toma solo: no lo repitas aquí.</div></>}
+          </div>); })}
+        <div className="acc-row" style={{ marginTop: 6 }}><button onClick={() => setCond(v => ({ ...v, perCambio: true, per: [...v.per, { id: `pc${Date.now()}`, clase: "bono", tipo: "fija", nombre: "", monto: "", periodo: "", desde: v.f.fechaIngreso || hoy }] }))}>Agregar una percepción</button></div>
+        <label className="text-sm" style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}><input type="checkbox" aria-label="Ya revisé sus percepciones" checked={cond.perRevisado} onChange={e => setCond(v => ({ ...v, perRevisado: e.target.checked, perCambio: true }))} /> Ya revisé: esto es todo lo que recibe{cond.per.length === 0 ? " (nada más que su sueldo)" : ""}</label>
+        <div className="text-xs text-muted">Mientras no se marque, su salario integrado sale como un piso «por revisar».</div>
+      </div>
       <label className="text-sm" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}><input type="checkbox" checked={cond.f.sin} onChange={e => setCond(v => ({ ...v, f: { ...v.f, sin: e.target.checked } }))} /> Esta persona no genera prestaciones aquí</label>
       {cond.f.sin && <input className="inp" aria-label="Por qué no genera prestaciones" placeholder="Por qué (queda escrito)" value={cond.f.sinPorque} onChange={e => setCond(v => ({ ...v, f: { ...v.f, sinPorque: e.target.value } }))} style={{ marginBottom: 10 }} />}
       {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
@@ -20997,7 +21032,9 @@ function PanelAsistencia({ data, add, upd, session, ini, fin, semanas, mo, cerra
   const [dice, setDice] = useState("");
   const nombre = (id) => quienesChecan(data).find(t => t.id === id)?.nombre || "Alguien";
   const ausencias = ausenciasDe(data.eventos, { desde: ini, hasta: fin });
-  const sinRegistro = semanas.flatMap(s => s.sem.sinRegistro.map(f => ({ t: s.p, fecha: f })));
+  // Quien fue marcado presente en el pase de lista va aparte: sí vino, lo que falta es decir en qué trabajó.
+  const presentes = semanas.flatMap(s => (s.sem.presentesSinDetalle || []).map(f => ({ t: s.p, fecha: f })));
+  const sinRegistro = semanas.flatMap(s => s.sem.sinRegistro.filter(f => !(s.sem.presentesSinDetalle || []).includes(f)).map(f => ({ t: s.p, fecha: f })));
   const guardarAus = () => {
     const r = registrarAusencia({ ...aus, paga: aus.clase === "justificada" ? aus.paga === "si" ? true : aus.paga === "no" ? false : undefined : undefined, quien, cuando: new Date().toISOString() });
     if (!r.ok) { setDice(r.dice); return; }
@@ -21021,6 +21058,11 @@ function PanelAsistencia({ data, add, upd, session, ini, fin, semanas, mo, cerra
       <div className="card-title">Salieron antes: por revisar</div>
       <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Mientras nadie decida, su día se paga completo. No hay descuento automático.</div>
       {mo.salidasPorRevisar.map(c => <div key={`${c.trabajadorId}-${c.fecha}`} className="mo-act"><span>{c.nombre}<div className="text-xs text-muted">{c.fecha} · estuvo {horasDe(c.minutos)}</div></span><span />{seOfrece(session, "decidir_asistencia") ? <button className="acc-link" onClick={() => { setDec({ caso: c, situacion: "", pago: "", motivo: "" }); setDice(""); }}>Decidir</button> : <span className="text-xs text-muted">lo decide quien tiene ese permiso</span>}</div>)}
+    </div>}
+    {presentes.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}>
+      <div className="card-title">Vinieron, pero falta decir en qué trabajaron</div>
+      <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Alguien los marcó presentes en el pase de lista, pero no checaron ni tienen actividad ese día. El pase de lista no dice en qué parcela trabajaron, así que todavía no tienen pago ni costo. Se resuelve registrando su actividad de ese día (o, si no trabajaron, diciendo qué pasó).</div>
+      {presentes.map(x => <div key={`${x.t.id}-${x.fecha}`} className="mo-act"><span>{x.t.nombre}<div className="text-xs text-muted">{x.fecha} · presente en el pase de lista</div></span><span /><button className="acc-link" onClick={() => { setAus({ trabajadorId: x.t.id, desde: x.fecha, hasta: x.fecha, clase: "", paga: "", causa: "", autorizo: "" }); setDice(""); }}>No trabajó: decir qué pasó</button></div>)}
     </div>}
     {sinRegistro.length > 0 && <div className="card">
       <div className="card-title">No vinieron y nadie ha dicho por qué</div>
@@ -21134,7 +21176,7 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
     const acts = (data.actividadesContables || data.actividades || []).filter(a =>
       a.registradoPor?.id === p.id && a.fecha >= ini && a.fecha <= fin);
     // UNA sola cuenta de lo que corresponde: día por día, del checador, de lo tecleado antes, o de una ausencia que se paga.
-    const sem = semanaDe({ trabajador: p, desde: ini, hasta: fin, hoy: today(), devengado: moSemana.devengado, actividades: data.actividadesContables || data.actividades || [], ausencias: ausSemana,
+    const sem = semanaDe({ trabajador: p, desde: ini, hasta: fin, hoy: today(), devengado: moSemana.devengado, actividades: data.actividadesContables || data.actividades || [], ausencias: ausSemana, asistencia: data.asistencia || [],
       modo: p._tipo === "planta" ? "checador" : (p.calendario || []).length ? "calendario" : "actividades" });
     const mo = sem.corresponde;
     const dias = sem.trabajados;
