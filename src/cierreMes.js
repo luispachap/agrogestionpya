@@ -36,10 +36,20 @@ export function costoDelMes({ mes, parcelas = [], actividades = [], egresos = []
     const directo = dir.get(id) || 0, indirecto = indirectoDe(indirectos, { parcelaIds: [id], desde, hasta }).total;
     return { parcelaId: id, nombre: nombre.get(id) || "Parcela que ya no está en el catálogo", directo, indirecto, completo: sumarDinero(directo, indirecto) };
   }).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  // GASTOS GENERALES: lo que el rancho gastó y no es de ninguna parcela ni de un vehículo (lo del vehículo ya
+  // viene en los indirectos). No se reparten a parcelas: se enseñan aparte. Las compras de insumos para el
+  // almacén NO son gasto todavía —se vuelven costo cuando se usan—, así que van aparte y fuera del total.
+  const sueltos = egresos.filter(e => enMes(e.fecha) && !e.parcelaId && !e.vehiculoId);
+  const porCat = new Map();
+  for (const e of sueltos.filter(e => e.categoria !== "insumos")) { const k = e.categoria || "otro"; const x = porCat.get(k) || { categoria: k, monto: 0, n: 0 }; x.monto = sumarDinero(x.monto, Number(e.monto) || 0); x.n++; porCat.set(k, x); }
+  const generales = { porCategoria: [...porCat.values()].sort((a, b) => b.monto - a.monto), total: sumarDinero([...porCat.values()].map(x => x.monto)) };
+  const paraAlmacen = sumarDinero(sueltos.filter(e => e.categoria === "insumos").map(e => Number(e.monto) || 0));
   const pend = (indirectos?.pendientes || []).filter(p => enMes(p.fecha));
   const fuera = (indirectos?.noProduccion || []).flatMap(x => x.detalle || []).filter(p => enMes(p.fecha));
-  return { mes, renglones, directo: sumarDinero(renglones.map(r => r.directo)), indirecto: sumarDinero(renglones.map(r => r.indirecto)), completo: sumarDinero(renglones.map(r => r.completo)),
-    pendiente: sumarDinero(pend.map(p => p.monto)), pendientes: pend.length, noProduccion: sumarDinero(fuera.map(p => p.monto)) };
+  const k = { mes, renglones, directo: sumarDinero(renglones.map(r => r.directo)), indirecto: sumarDinero(renglones.map(r => r.indirecto)), completo: sumarDinero(renglones.map(r => r.completo)),
+    pendiente: sumarDinero(pend.map(p => p.monto)), pendientes: pend.length, noProduccion: sumarDinero(fuera.map(p => p.monto)), generales, paraAlmacen };
+  // Lo que costó mantener funcionando TODO el rancho ese mes. Cada peso está en un solo renglón.
+  return { ...k, rancho: sumarDinero(k.completo, k.pendiente, k.noProduccion, generales.total) };
 }
 
 const deEseMes = (eventos, tipo, mes) => vigentes(eventos).filter(e => e.tipo === tipo && e.datos.mes === mes).sort((a, b) => a.cuando.localeCompare(b.cuando));
@@ -61,7 +71,8 @@ export function cerrarMes({ permitido, eventos, costo, hoy, motivo = "", quien, 
   const avisos = costo.pendiente !== 0 ? [`Se cerró con ${costo.pendientes} importe(s) pendientes de distribuir. Quedan anotados; cuando se distribuyan saldrán como ajuste posterior.`] : [];
   return { ok: true, avisos, evento: nuevoEvento({ tipo: T_CIERRE_MES, cuando, fecha, quien, azar, origen: s.cierre?.id || null, relacion: s.cierre ? "sustituye" : null,
     datos: { mes: costo.mes, motivo: limpio(motivo), renglones: costo.renglones.map(r => ({ parcelaId: r.parcelaId, nombre: r.nombre, directo: r.directo, indirecto: r.indirecto, completo: r.completo })),
-      directo: costo.directo, indirecto: costo.indirecto, completo: costo.completo, pendiente: costo.pendiente, noProduccion: costo.noProduccion } }) };
+      directo: costo.directo, indirecto: costo.indirecto, completo: costo.completo, pendiente: costo.pendiente, noProduccion: costo.noProduccion,
+      generales: costo.generales, paraAlmacen: costo.paraAlmacen, rancho: costo.rancho } }) };
 }
 export function reabrirMes({ permitido, eventos, mes, motivo, quien, cuando, fecha, azar }) {
   { const no = negado(quien, permitido, "El mes lo reabre un administrador."); if (no) return { ok: false, dice: no }; }
@@ -73,13 +84,14 @@ export function reabrirMes({ permitido, eventos, mes, motivo, quien, cuando, fec
 
 // Los ajustes posteriores: lo que cambió desde la foto. La foto no se toca.
 export function ajustesPosteriores(cierre, costoHoy) {
-  if (!cierre) return { hay: false, lista: [], total: 0, pendiente: 0 };
+  if (!cierre) return { hay: false, lista: [], total: 0, pendiente: 0, generales: 0, rancho: 0 };
   const antes = new Map(cierre.datos.renglones.map(r => [r.parcelaId, r])), hoy = new Map((costoHoy?.renglones || []).map(r => [r.parcelaId, r])), lista = [];
   for (const id of new Set([...antes.keys(), ...hoy.keys()])) {
     const a = antes.get(id), h = hoy.get(id);
     const d = { parcelaId: id, nombre: (h || a).nombre, directo: sumarDinero(h?.directo || 0, -(a?.directo || 0)), indirecto: sumarDinero(h?.indirecto || 0, -(a?.indirecto || 0)), era: a?.completo || 0, es: h?.completo || 0 };
     if (Math.abs(d.directo) > 0.004 || Math.abs(d.indirecto) > 0.004) lista.push({ ...d, diferencia: sumarDinero(d.es, -d.era) });
   }
-  const pendiente = sumarDinero(costoHoy?.pendiente || 0, -(cierre.datos.pendiente || 0));
-  return { hay: lista.length > 0 || Math.abs(pendiente) > 0.004, lista, total: sumarDinero(lista.map(l => l.diferencia)), pendiente };
+  const pendiente = sumarDinero(costoHoy?.pendiente || 0, -(cierre.datos.pendiente || 0)), generales = sumarDinero(costoHoy?.generales?.total || 0, -(cierre.datos.generales?.total || 0));
+  return { hay: lista.length > 0 || Math.abs(pendiente) > 0.004 || Math.abs(generales) > 0.004, lista, total: sumarDinero(lista.map(l => l.diferencia)), pendiente, generales,
+    rancho: sumarDinero(costoHoy?.rancho || 0, -(cierre.datos.rancho ?? cierre.datos.completo ?? 0)) };
 }

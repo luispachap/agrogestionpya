@@ -231,6 +231,33 @@ Usuarios reales de la app:
   promedio de sus últimos días trabajados (`promedioDiario`,
   `prest_dias_promedio`). Sin datos: `porRevisar`, nunca un renglón en cero.
   `relacionLaboral` (planta/temporada/eventual) va aparte de `modalidadPago`.
+- **`src/prestamos.js`**: un préstamo son CUATRO hechos, cada uno un evento:
+  `prestamo_solicitud` (la pide cualquiera con captura; NO es deuda),
+  `prestamo_autorizacion` / `prestamo_rechazo` (permiso `autorizar_prestamos`),
+  `prestamo_entrega` (permiso `autorizar_pagos`; nunca más de lo autorizado) y
+  los abonos de siempre. **La deuda nace con la entrega, no con la
+  autorización**: `prestamosDe(eventos)` arma el préstamo (`monto` = lo
+  entregado) y `saldosDePrestamos` le resta los abonos. La tabla `prestamos`
+  ya no acepta altas de encargados ni de finanzas (hoja 39); lo que haya ahí
+  de antes se sigue leyendo. Un préstamo `_deEventos` no se edita con `upd`.
+- **`src/bajas.js`**: terminar la relación de trabajo. `CAUSAS_DE_BAJA` dice
+  si la causa da finiquito o liquidación; `proponerBaja` propone concepto por
+  concepto con su cuenta y su fundamento y marca `aplica: si | revisar | no`
+  — **la app propone, una persona confirma** (`registrarBaja`, con quién
+  autoriza, permiso `determinar_prestaciones`). Lo ya generado de aguinaldo,
+  vacaciones y prima NO se vuelve a cargar: al costo sólo va la diferencia
+  (`cuentaDe(...).liquidacion`). Prima de antigüedad e indemnizaciones son
+  costo nuevo de ese día, fuente `bajas` (`fuenteBajas`, regla `ind_bajas`,
+  por defecto pendiente). `pago_baja` paga y no es costo. La persona queda
+  inactiva por CÁLCULO (`_porBaja`), no porque se escriba en su ficha. Lo de
+  sus semanas se paga en Pagos al personal, no aquí. La prima de antigüedad
+  necesita `salario_minimo_dia` en las reglas; sin él queda por revisar.
+- **Gastos generales en el cierre de mes** (`costoDelMes().generales`): los
+  egresos sin parcela ni vehículo, por categoría. Van APARTE, no se reparten
+  a parcelas (falta una política, y es decisión de Luis). Las compras de
+  insumos para el almacén tampoco son gasto del mes (`paraAlmacen`): su costo
+  nace al consumirse. `rancho` = completo + pendiente + no producción +
+  generales, sin contar nada dos veces.
 - Reglas ya decididas por Luis (19 nov): checar salida TERMINA la asignación
   (al volver queda sin asignar; se ofrece «continuar»); el tiempo sin asignar es
   «por aclarar» y nunca se distribuye solo; las horas adicionales se registran y
@@ -355,7 +382,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **125 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **127 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

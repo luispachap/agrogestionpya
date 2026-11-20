@@ -180,11 +180,13 @@ export function capturarSaldoInicial({ permitido, eventos, persona, concepto, pe
 //   hoy      hasta dónde se genera.
 // Devuelve renglones { personaId, concepto, periodo, mes, fecha, monto, previo, ajuste, explica }
 // y `porRevisar`: lo que NO se pudo calcular (sin importe, con su porqué).
-export function provisionDe(persona, eventos, { inicio, hoy, reglas, remuneraciones = [] } = {}) {
+export function provisionDe(persona, eventos, { inicio, hoy, reglas, remuneraciones = [], baja = null } = {}) {
   const cond = condicionesDe(persona, reglas, remuneraciones);
   if (cond.sinPrestaciones) return { renglones: [], porRevisar: [], cond, porque: `En su ficha dice que no genera prestaciones aquí${cond.sinPorque ? `: ${cond.sinPorque}` : " (y no dice por qué: hay que revisarlo)"}.` };
   if (cond.falta.length) return { renglones: [], porRevisar: [], cond, porque: `Pendiente de revisión: falta ${cond.falta.join(" y ")}. Mientras tanto no se calcula nada; eso no quiere decir que sea cero.` };
-  const hasta = persona.fechaBaja && persona.fechaBaja < hoy ? persona.fechaBaja : hoy;
+  // Con una baja registrada, deja de generar el último día de trabajo.
+  const ultimo = baja?.datos?.fecha || persona.fechaBaja;
+  const hasta = ultimo && ultimo < hoy ? ultimo : hoy;
   const dets = determinadasDe(eventos, persona.id), iniciales = saldosInicialesDe(eventos, persona.id);
   const renglones = [], porRevisar = [];
   for (const concepto of Object.keys(CONCEPTOS_PRESTACION)) {
@@ -268,8 +270,10 @@ export function pagarPrestacion({ permitido, eventos, persona, concepto, periodo
 //   pagado         lo entregado
 //   pendiente      lo que se le debe hoy = por periodo, lo determinado (o saldo inicial + generado) menos lo pagado
 // `vacacionesTomadas`: [{ fecha, monto }] — los días de vacaciones ya disfrutados.
-export function cuentaDe(persona, eventos, { inicio, hoy, reglas, vacacionesTomadas = [], remuneraciones = [] } = {}) {
-  const { renglones, porRevisar, cond, porque } = provisionDe(persona, eventos, { inicio, hoy, reglas, remuneraciones });
+// `baja` (evento `baja_personal`) y `pagosBaja`: si la relación ya terminó. Entonces lo pendiente de aguinaldo,
+// vacaciones y prima pasa a la baja: al costo sólo va la diferencia contra lo ya generado (nunca dos veces).
+export function cuentaDe(persona, eventos, { inicio, hoy, reglas, vacacionesTomadas = [], remuneraciones = [], baja = null, pagosBaja = [] } = {}) {
+  const { renglones, porRevisar, cond, porque } = provisionDe(persona, eventos, { inicio, hoy, reglas, remuneraciones, baja });
   const dets = determinadasDe(eventos, persona.id), pagos = pagosDePrestacion(eventos, persona.id), iniciales = saldosInicialesDe(eventos, persona.id);
   const conceptos = {};
   for (const c of Object.keys(CONCEPTOS_DE_SALDO)) {
@@ -294,6 +298,21 @@ export function cuentaDe(persona, eventos, { inicio, hoy, reglas, vacacionesToma
       determinadas: det, pagos: pag, estimado: mios.some(r => r.estimado && !r.previo), porRevisar: porRevisar.filter(r => r.concepto === c && !r.previo),
     };
   }
+  let liquidacion = null;
+  if (baja) {
+    const filas = baja.datos.conceptos.map(k => {
+      const propio = !!CONCEPTOS_PRESTACION[k.clave], yaGenerado = propio ? conceptos[k.clave].pendiente : 0;
+      return { ...k, propio, yaGenerado, ajuste: propio ? centavos(k.monto - yaGenerado) : k.monto };
+    });
+    for (const f of filas.filter(f => f.propio)) {
+      const x = conceptos[f.clave];
+      if (f.ajuste !== 0) renglones.push({ personaId: persona.id, nombre: persona.nombre, concepto: f.clave, periodo: "baja", mes: baja.datos.fecha.slice(0, 7), fecha: baja.datos.fecha, monto: f.ajuste, dias: 0, estimado: false, previo: false, ajuste: true, ev: baja.id,
+        explica: `Al terminar la relación se determinó en ${f.monto} y ya había ${f.yaGenerado} generados: la diferencia es el ajuste` });
+      x.ajustes = sumarDinero(x.ajustes, f.ajuste); x.alCosto = sumarDinero(x.alCosto, f.ajuste); x.enBaja = f.monto; x.pendiente = 0;   // lo que se le debe ya está en la baja
+    }
+    const pagado = sumarDinero(pagosBaja.map(p => p.datos.monto));
+    liquidacion = { evento: baja, filas, total: baja.datos.total, pagado, pendiente: centavos(baja.datos.total - pagado), pagos: pagosBaja };
+  }
   // Días de vacaciones: lo que traía (saldo inicial; o el dato viejo de su ficha) + lo ganado al cumplir años desde el corte − lo tomado.
   let dias = null;
   if (cond.ingreso && !cond.falta.length && !cond.sinPrestaciones) {
@@ -304,12 +323,12 @@ export function cuentaDe(persona, eventos, { inicio, hoy, reglas, vacacionesToma
     dias = { ganados, tomados: vacacionesTomadas.length, traia, pendientes: traia == null ? null : traia + ganados - vacacionesTomadas.length, pendientesDesdeElSistema: ganados - vacacionesTomadas.length,
       anioEnCurso: n, delAnioEnCurso: cond.vacDias(n), cumple: aniversario(cond.ingreso, n) };
   }
-  return { personaId: persona.id, nombre: persona.nombre, cond, porque, conceptos, dias, renglones, porRevisar,
+  return { personaId: persona.id, nombre: persona.nombre, cond, porque, conceptos, dias, renglones, porRevisar, liquidacion,
     antiguedad: cond.ingreso ? aniosCumplidos(cond.ingreso, hoy) : null };
 }
 
 // Para el costo: los renglones de todos, sin lo anterior al corte (el saldo inicial nunca entra aquí).
 export function renglonesAlCosto(cuentas) {
   return (cuentas || []).flatMap(c => c.renglones.filter(r => !r.previo && r.monto !== 0).map(r => ({ personaId: r.personaId, nombre: r.nombre, fecha: r.fecha, monto: r.monto, concepto: r.concepto, estimado: r.estimado, evs: r.ev ? [r.ev] : [],
-    que: `${CONCEPTOS_PRESTACION[r.concepto]}${r.ajuste ? " (ajuste al determinar)" : " que se generó"} · ${nombreDePeriodo(r.periodo)}`, detalle: r.explica })));
+    que: r.periodo === "baja" ? `${CONCEPTOS_PRESTACION[r.concepto]} (ajuste al terminar la relación de trabajo)` : `${CONCEPTOS_PRESTACION[r.concepto]}${r.ajuste ? " (ajuste al determinar)" : " que se generó"} · ${nombreDePeriodo(r.periodo)}`, detalle: r.explica })));
 }

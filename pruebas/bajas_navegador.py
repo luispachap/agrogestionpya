@@ -1,0 +1,113 @@
+"""Préstamos por etapas (solicitud, autorización, entrega, abono) y bajas del personal, en navegador real.
+Uso:  npx vite --port 5173 &   →   python3 pruebas/bajas_navegador.py"""
+import json, pathlib, sys, re
+from playwright.sync_api import sync_playwright
+aqui = pathlib.Path(__file__).parent
+g = {"__file__": str(aqui / "recorrido_navegador.py")}
+exec((aqui / "recorrido_navegador.py").read_text(encoding="utf8").split("with sync_playwright()")[0], g)
+res = []
+def caso(n, ok, det=""): res.append(ok); print(("PASA  " if ok else "FALLA ") + n + (" — " + str(det) if det else ""))
+hist = lambda s: [{"desde": "2020-01-01", "sueldo_dia": s, "anterior": s}]
+S = g["SEMILLA"]
+S["trabajadores"] = [{"id": "t-ana", "nombre": "ANA DE PRUEBA", "categoria": "jornalero", "sueldo_dia": 365, "historialSueldo": hist(365), "pin": "4821", "fechaIngreso": "2024-03-01"},
+                     {"id": "t-beto", "nombre": "BETO DE PRUEBA", "categoria": "jornalero", "sueldo_dia": 400, "historialSueldo": hist(400), "pin": "4822", "fechaIngreso": "2025-01-01"}]
+S["encargados"] = [{"id": "enc-prueba", "nombre": "ENCARGADO DE PRUEBA", "pin": "5501", "categoria": "encargado", "sueldo_dia": 600, "historialSueldo": hist(600)}]
+S["ranchos"] = [{"id": "r1", "nombre": "RANCHO DE PRUEBA"}]
+S["parcelas"] = [{"id": "p1", "ranchoId": "r1", "nombre": "PARCELA UNO", "hectareas": 2, "cicloFenologico": []}]
+LEER = """() => new Promise((ok) => { const r = indexedDB.open('agro_eventos_v8:local', 1);
+  r.onupgradeneeded = () => { r.result.createObjectStore('eventos', { keyPath: 'id' }); r.result.createObjectStore('meta'); };
+  r.onsuccess = () => { const q = r.result.transaction('eventos').objectStore('eventos').getAll(); q.onsuccess = () => { r.result.close(); ok(q.result); }; q.onerror = () => ok([]); };
+  r.onerror = () => ok([]); })"""
+de = lambda pg, tipo: sorted([e for e in pg.evaluate(LEER) if e["tipo"] == tipo], key=lambda e: e["capturado"])
+guardado = lambda pg, sec: pg.evaluate("s => JSON.parse(localStorage.getItem('agro_v8:local'))[s]", sec)
+def ir(pg, pagina): pg.evaluate("p => window.__agroIr(p)", pagina); pg.wait_for_timeout(400)
+def tab(pg, nombre): pg.locator(".tab-pill", has_text=nombre).first.click(); pg.wait_for_timeout(300)
+tarjeta = lambda pg, nombre: pg.locator(".card", has_text=nombre).last
+modal = lambda pg: pg.locator(".modal-sheet")
+plano = lambda t: t.replace("\n", " | ")
+def salir(pg):
+    pg.evaluate("() => { const k = Object.keys(localStorage).find(x => x.startsWith('agro_sesion')); if (k) localStorage.removeItem(k); }"); pg.reload(); pg.wait_for_timeout(800)
+
+with sync_playwright() as p:
+    b = p.chromium.launch()
+    ctx = b.new_context(viewport={"width": 390, "height": 800}, timezone_id="America/Mexico_City", accept_downloads=True)
+    ctx.route("**/*", lambda r: r.continue_() if "localhost" in r.request.url else r.abort())
+    pg = ctx.new_page(); errs = []
+    pg.on("pageerror", lambda e: errs.append(str(e))); pg.on("dialog", lambda d: d.accept())
+    pg.clock.install(time="2026-11-19T09:00:00-06:00")
+    g["sembrar"](pg)
+
+    # ══ Préstamo: el encargado SOLICITA ══
+    g["entrar"](pg, "Encargado", "5501"); pg.wait_for_timeout(400)
+    ir(pg, "personal"); tab(pg, "Préstamos")
+    pg.get_by_role("button", name="+ Solicitar").click()
+    f = pg.locator(".card", has_text="Solicitar un préstamo")
+    f.locator("select").first.select_option("t-ana"); f.locator("input[type=number]").fill("1000"); f.get_by_placeholder("Ej: Adelanto de quincena").fill("MEDICINAS DE PRUEBA")
+    f.get_by_role("button", name="Mandar la solicitud").click(); pg.wait_for_timeout(400)
+    t = tarjeta(pg, "ANA DE PRUEBA").inner_text()
+    caso("el encargado solicita: queda «Solicitado», sin deuda y sin poder autorizarlo él", len(de(pg, "prestamo_solicitud")) == 1 and "Solicitado" in t and "Todavía no es deuda" in t and "Autorizar" not in t and "Registrar entrega" not in t and not guardado(pg, "prestamos"), plano(t)[:260])
+
+    # ══ El administrador autoriza; autorizar todavía no es entregar ══
+    salir(pg); g["entrar"](pg, "Admin", "7391"); pg.wait_for_timeout(400)
+    ir(pg, "nomina")
+    caso("una solicitud no le aparece como deuda en sus pagos", "Debe" not in pg.locator("body").inner_text())
+    ir(pg, "personal"); tab(pg, "Préstamos")
+    c = tarjeta(pg, "ANA DE PRUEBA"); c.get_by_role("button", name="Autorizar", exact=True).click()
+    pg.get_by_label("Cuánto se autoriza ($)").fill("800"); c.get_by_role("button", name="Autorizar el préstamo").click(); pg.wait_for_timeout(200)
+    caso("autorizar pide quién lo autoriza", "Falta quién lo autoriza" in c.inner_text() and len(de(pg, "prestamo_autorizacion")) == 0)
+    pg.get_by_label("Quién autoriza el préstamo").fill("RODOLFO DE PRUEBA"); pg.get_by_label("Condiciones del préstamo").fill("ABONOS DE 200 POR SEMANA")
+    c.get_by_role("button", name="Autorizar el préstamo").click(); pg.wait_for_timeout(400)
+    t = tarjeta(pg, "ANA DE PRUEBA").inner_text()
+    caso("autorizado por $800: todavía no se debe nada, falta entregar", len(de(pg, "prestamo_autorizacion")) == 1 and "Autorizado y sin entregar: $800" in t and "Eso todavía no se debe" in t and "ABONOS DE 200 POR SEMANA" in t and "Registrar abono" not in t, plano(t)[:400])
+    c = tarjeta(pg, "ANA DE PRUEBA"); c.get_by_role("button", name="Registrar entrega del dinero").click()
+    pg.get_by_label("Cuánto se entregó ($)").fill("900"); c.get_by_role("button", name="Guardar la entrega").click(); pg.wait_for_timeout(200)
+    caso("no se entrega más de lo autorizado", "quedan 800 por entregar" in c.inner_text() and len(de(pg, "prestamo_entrega")) == 0)
+    pg.get_by_label("Cuánto se entregó ($)").fill("500"); c.get_by_role("button", name="Guardar la entrega").click(); pg.wait_for_timeout(400)
+    t = tarjeta(pg, "ANA DE PRUEBA").inner_text()
+    caso("con la entrega nace la deuda: debe $500 y quedan $300 autorizados sin entregar", len(de(pg, "prestamo_entrega")) == 1 and "Debe" in t and "Entregado el 2026-11-19: $500" in t and "Autorizado y sin entregar: $300" in t and "Registrar abono" in t, plano(t)[:500])
+    c = tarjeta(pg, "ANA DE PRUEBA"); c.get_by_role("button", name="Registrar abono").click()
+    c.get_by_placeholder("Monto del abono").fill("200"); c.get_by_role("button", name="✓").click(); pg.wait_for_timeout(400)
+    t = tarjeta(pg, "ANA DE PRUEBA").inner_text(); ab = de(pg, "abono_prestamo")
+    caso("el abono es un movimiento contra ese préstamo; el saldo es entregado menos abonado ($300)", len(ab) == 1 and ab[0]["datos"]["prestamoId"] == de(pg, "prestamo_solicitud")[0]["id"] and "$300" in t and not guardado(pg, "prestamos"), plano(t)[-260:])
+
+    # ══ Baja: un despido sin causa justificada ══
+    ir(pg, "nomina"); tab(pg, "Prestaciones")
+    pg.get_by_label(re.compile("fecha de corte")).fill("2026-07-01"); pg.locator(".form-group", has_text="fecha de corte").get_by_role("button", name="Guardar").click(); pg.wait_for_timeout(300)
+    pg.get_by_label(re.compile("Salario mínimo por día")).fill("300"); pg.locator(".form-group", has_text="Salario mínimo por día").get_by_role("button", name="Guardar").click(); pg.wait_for_timeout(400)
+    antes = tarjeta(pg, "ANA DE PRUEBA").inner_text()
+    tarjeta(pg, "ANA DE PRUEBA").get_by_role("button", name="Dar de baja").click()
+    pg.get_by_label("Causa de la terminación").select_option("renuncia"); pg.wait_for_timeout(200)
+    m = modal(pg).inner_text()
+    caso("en una renuncia propone el finiquito: lo ya ganado, sin indemnizaciones ni prima de antigüedad", "Corresponde: finiquito" in m and "Aguinaldo proporcional" in m and "no procede en esta causa" in m and "15 años o más de servicio; lleva 2" in m and pg.get_by_label("Importe de Aguinaldo proporcional").input_value() == "2130" and pg.get_by_label("Importe de Indemnización de tres meses").count() == 0, plano(m)[:500])
+    pg.get_by_label("Causa de la terminación").select_option("despido_injustificado"); pg.wait_for_timeout(200)
+    m = modal(pg).inner_text()
+    caso("en un despido sin causa propone liquidación, con las indemnizaciones marcadas por revisar", "Corresponde: liquidación" in m and "hay que revisarlo" in m and "NO procede en todo despido" in m and "salario integrado" in m and pg.get_by_label("Importe de Indemnización de tres meses").input_value() == "32850" and "Pagos al personal" in m, plano(m)[:300])
+    pg.get_by_label("Incluir Veinte días por año").uncheck()
+    pg.get_by_label("Importe de Aguinaldo proporcional").fill("2500")
+    modal(pg).get_by_role("button", name="Registrar la baja").click(); pg.wait_for_timeout(200)
+    caso("la baja pide quién la autoriza", "Falta quién lo autoriza" in modal(pg).inner_text() and len(de(pg, "baja_personal")) == 0)
+    pg.get_by_label("Quién autoriza la baja").fill("RODOLFO DE PRUEBA"); modal(pg).get_by_role("button", name="Registrar la baja").click(); pg.wait_for_timeout(600)
+    bj = de(pg, "baja_personal"); t = tarjeta(pg, "ANA DE PRUEBA").inner_text()
+    claves = [k["clave"] for k in bj[0]["datos"]["conceptos"]] if bj else []
+    caso("queda la liquidación con lo confirmado, lo que propuso la app, su PDF, y sin los veinte días que se quitaron", len(bj) == 1 and bj[0]["datos"]["da"] == "liquidacion" and claves == ["aguinaldo", "vacaciones", "prima", "prima_antiguedad", "indemnizacion_3m"] and bj[0]["datos"]["conceptos"][0]["monto"] == 2500 and bj[0]["datos"]["conceptos"][0]["propuesto"] == 2130 and str(bj[0]["datos"].get("pdf", "")).startswith(("data:application/pdf", "archivo:")), claves)
+    caso("de lo ya generado sólo va al costo la diferencia ($370 de aguinaldo); las indemnizaciones son costo nuevo", "Liquidación" in t and "despido sin causa justificada" in t and "ya generado $2,130 · al costo sólo $370" in t and "costo nuevo de ese día" in t and "sin documentos" in t, plano(t)[:600])
+    total = bj[0]["datos"]["total"]
+    tarjeta(pg, "ANA DE PRUEBA").get_by_role("button", name="Registrar pago de la baja").click()
+    pg.get_by_label("Cuánto se entregó ($)").fill("10000"); modal(pg).get_by_role("button", name="Registrar pago").click(); pg.wait_for_timeout(400)
+    t = tarjeta(pg, "ANA DE PRUEBA").inner_text()
+    caso("el pago baja lo pendiente de la baja y no cambia el costo", len(de(pg, "pago_baja")) == 1 and "pagado $10,000" in t and "al costo sólo $370" in t, plano(t)[:300])
+    caso("ya de baja, no se le ofrece determinar ni darla de baja otra vez", "Dar de baja" not in t and "Determinar" not in t)
+    liga = tarjeta(pg, "ANA DE PRUEBA").get_by_role("link", name="Descargar el PDF de esta versión")
+    if liga.count():
+        with pg.expect_download() as d: liga.click()
+        pdf = open(d.value.path(), "rb").read()
+        caso("el cálculo de la baja se conserva como PDF, con cada concepto y lo que estaba por revisar", pdf.startswith(b"%PDF-") and b"ANA DE PRUEBA" in pdf and b"marcado por revisar" in pdf and b"LIQUIDACI" in pdf)
+    else: caso("el cálculo de la baja se conserva como PDF", False)
+    tab(pg, "Costo sin parcela")
+    bc = pg.locator(".card", has_text="Terminaciones de la relación de trabajo")
+    caso("la prima de antigüedad y la indemnización quedan pendientes de distribuir: no se cargan a parcelas sin regla", "Pendiente de distribuir" in bc.inner_text() and "Repartido a parcelas" not in bc.inner_text(), plano(bc.inner_text())[:300])
+    ir(pg, "equipo")
+    caso("quien está de baja ya no sale como activo, sin que se haya escrito en su ficha", [t for t in guardado(pg, "trabajadores") if t["id"] == "t-ana"][0].get("activo") is not False)
+    caso("ninguna pantalla tronó", not g["trono"](pg) and not errs, errs[:2])
+    b.close()
+print(f"\n{sum(res)}/{len(res)} pasan"); sys.exit(0 if all(res) else 1)

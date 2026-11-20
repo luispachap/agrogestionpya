@@ -78,22 +78,24 @@ export const estaVigente = (e) => !!e && (e.estado || VIGENTE) === VIGENTE;
 //   pendiente    todavía no sube (sin señal) → se enseña "por validar", no cuenta
 //   rechazado    la cuenta que lo subió no tenía el permiso → no cuenta, y se enseña
 // El sello (`_validacion`) lo pone la base; nada que venga escrito en el evento lo sustituye.
-// Esta lista es la misma de `operaciones_sensibles` en la base (hay prueba que las compara).
+// Esta lista es la misma de `operaciones_sensibles` en la base (hoja 39; hay prueba que las compara).
 export const OPERACION_DE = {
   cierre_semana: "cerrar_semana", reapertura_semana: "cerrar_semana", confirmacion_pagos: "cerrar_semana",
-  prestacion_determinada: "determinar_prestaciones", prestacion_saldo_inicial: "determinar_prestaciones",
-  pago_personal: "autorizar_pagos", pago_prestacion: "autorizar_pagos", abono_prestamo: "autorizar_pagos", recibo_personal: "autorizar_pagos",
+  cierre_mes: "cerrar_mes", reapertura_mes: "cerrar_mes",
+  prestacion_determinada: "determinar_prestaciones", prestacion_saldo_inicial: "determinar_prestaciones", baja_personal: "determinar_prestaciones",
+  pago_personal: "autorizar_pagos", pago_prestacion: "autorizar_pagos", pago_baja: "autorizar_pagos", abono_prestamo: "autorizar_pagos", prestamo_entrega: "autorizar_pagos", recibo_personal: "autorizar_pagos",
+  prestamo_autorizacion: "autorizar_prestamos", prestamo_rechazo: "autorizar_prestamos",
   decision_jornada: "decidir_asistencia", horas_reconocidas: "decidir_asistencia",
   ajuste: "cambiar_reglas",
-  cierre_mes: "cerrar_mes", reapertura_mes: "cerrar_mes",
 };
 export const OPERACIONES = {
   cerrar_semana: "Cerrar y reabrir la semana, y confirmar sus pagos",
-  determinar_prestaciones: "Determinar prestaciones y capturar sus saldos iniciales",
-  autorizar_pagos: "Registrar pagos, abonos a préstamos y recibos",
+  cerrar_mes: "Cerrar y reabrir el mes de costos",
+  determinar_prestaciones: "Determinar prestaciones, saldos iniciales y bajas (finiquitos y liquidaciones)",
+  autorizar_pagos: "Registrar pagos, entregas de préstamos, abonos y recibos",
+  autorizar_prestamos: "Autorizar o rechazar préstamos al personal",
   decidir_asistencia: "Decidir cómo se paga un día y reconocer horas adicionales",
   cambiar_reglas: "Cambiar las reglas del rancho",
-  cerrar_mes: "Cerrar y reabrir el mes de costos",
 };
 // Sin servidor (un aparato que no está conectado a ninguna nube, o las pruebas) no hay quién valide:
 // ahí mandan las reglas de la app. Con servidor, se exige el sello. Lo prende la app al arrancar.

@@ -38,7 +38,7 @@ test("ni_escribiendo_el_sello_a_mano_se_autoriza_solo", async () => {
 
 test("todos_los_tipos_sensibles_se_rechazan_sin_permiso_y_se_autorizan_al_superadministrador", async () => {
   const tipos = (await verdad(db, "select tipo from operaciones_sensibles order by tipo")).map(x => x.tipo);
-  assert.ok(tipos.length >= 14);
+  assert.equal(tipos.length, 19);
   for (const t of tipos) {
     const datos = { ...PAGO };
     assert.ok((await mete("encargado", `s-no-${t}`, t, datos)).ok); assert.equal((await fila(`s-no-${t}`)).validacion, "rechazado", t);
@@ -134,4 +134,32 @@ test("la_lista_de_tipos_sensibles_no_la_cambia_nadie_desde_la_app", async () => 
   }
   assert.equal((await como(db, null, "select * from operaciones_sensibles")).filas.length, 0, "sin sesión no se lee");
   assert.equal((await como(db, null, "select puede_operar('autorizar_pagos') p")).ok, false);
+});
+
+test("un_encargado_solicita_un_prestamo_pero_no_lo_autoriza_ni_registra_la_entrega_ni_escribe_en_la_tabla_vieja", async () => {
+  assert.ok((await mete("encargado", "s-sol", "prestamo_solicitud", { trabajadorId: "t1", monto: 1000, motivo: "medicinas" })).ok);
+  assert.equal((await fila("s-sol")).validacion, null, "solicitar no es sensible: no es deuda");
+  await mete("encargado", "s-aut-enc", "prestamo_autorizacion", { solicitudId: "s-sol", monto: 1000 });
+  await mete("encargado", "s-ent-enc", "prestamo_entrega", { solicitudId: "s-sol", monto: 1000 });
+  assert.equal((await fila("s-aut-enc")).validacion, "rechazado"); assert.equal((await fila("s-ent-enc")).validacion, "rechazado");
+  await mete("luis", "s-aut", "prestamo_autorizacion", { solicitudId: "s-sol", monto: 1000 });
+  await mete("luis", "s-ent-0", "prestamo_entrega", { solicitudId: "s-sol", monto: 0 });
+  assert.equal((await fila("s-aut")).validacion, "autorizado"); assert.equal((await fila("s-ent-0")).validacion_dice, "importe");
+  // El permiso de autorizar préstamos no es el de entregar dinero.
+  assert.ok((await como(db, "luis", "select otorgar_permiso($1, 'autorizar_prestamos')", [CUENTAS.agronomo])).ok);
+  await mete("agronomo", "s-aut-ag", "prestamo_autorizacion", { solicitudId: "s-sol", monto: 500 });
+  await mete("agronomo", "s-ent-ag", "prestamo_entrega", { solicitudId: "s-sol", monto: 500 });
+  assert.equal((await fila("s-aut-ag")).validacion, "autorizado"); assert.equal((await fila("s-ent-ag")).validacion, "rechazado", "autorizar no es poder entregar");
+  for (const q of ["encargado", "finanzas"]) {
+    const r = await como(db, q, "insert into prestamos (id, datos) values ($1, $2::jsonb)", [`pr-${q}`, JSON.stringify({ monto: 99999, _espacio: "prueba" })]);
+    assert.equal(r.ok, false, `${q} ya no escribe préstamos directo en la tabla`);
+  }
+});
+
+test("dar_de_baja_y_pagar_un_finiquito_piden_cada_uno_su_permiso", async () => {
+  await mete("encargado", "s-baja-enc", "baja_personal", { personaId: "t1", total: 5000 });
+  await mete("luis", "s-baja", "baja_personal", { personaId: "t1", total: 5000 });
+  await mete("encargado", "s-pbaja-enc", "pago_baja", { bajaId: "s-baja", monto: 5000 });
+  await mete("luis", "s-pbaja", "pago_baja", { bajaId: "s-baja", monto: 5000 });
+  assert.deepEqual([(await fila("s-baja-enc")).validacion, (await fila("s-baja")).validacion, (await fila("s-pbaja-enc")).validacion, (await fila("s-pbaja")).validacion], ["rechazado", "autorizado", "rechazado", "autorizado"]);
 });

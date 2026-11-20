@@ -34,11 +34,13 @@ import { desfaseDe, selloDeReloj, estadoDelReloj } from "./reloj.js";
 import { registrarAusencia, justificarFalta, ausenciasDe, semanaDe, leToca, DIAS_DE_SIEMPRE, cuentasDeCuadrillas, registrarPago, pagosA, saldoDe, emitirRecibo, recibosDe, reciboAlDia,
   reconocerHoras, cuentaDeHoras, CLASES_AUSENCIA, SITUACIONES_SALIDA, MEDIOS_DE_PAGO, CLASES_DE_PERSONAL, LEYENDA_RECIBO, LEYENDA_CUADRILLA, abonar, abonosDeSemana, saldosDePrestamos, paraGuardarPrestamo, T_ABONO, calendarioActivo, activarCalendario, cerrarCalendario } from "./pagos.js";
 // Lo que se paga y no es una actividad en una parcela, las prestaciones y el cierre de la semana.
-import { CONCEPTOS_PERSONAL, POLITICAS, baseDePersonas, pagadoSinActividad, fuentePersonal, fuentePrestaciones } from "./personal.js";
+import { CONCEPTOS_PERSONAL, POLITICAS, baseDePersonas, pagadoSinActividad, fuentePersonal, fuentePrestaciones, fuenteBajas } from "./personal.js";
 import { T_DETERMINADA, T_PAGO_PRESTACION, CONCEPTOS_PRESTACION, cuentaDe as cuentaDePrestaciones, renglonesAlCosto, proponer as proponerPrestacion, determinar as determinarPrestacion, pagarPrestacion, nombreDePeriodo, periodosDe as periodosDePrestacion, determinadasRepetidas, T_SALDO_INICIAL, capturarSaldoInicial, CONCEPTOS_DE_SALDO, RELACIONES, remuneracionesDe } from "./prestaciones.js";
 import { estadoDeSemana, cerrarSemana, reabrirSemana, diferenciasDelCierre, confirmarPagos } from "./cierres.js";
 import { pdfComoDataUrl } from "./pdfSimple.js";
 import { costoDelMes, cerrarMes, reabrirMes, estadoDeMes, ajustesPosteriores } from "./cierreMes.js";
+import { solicitarPrestamo, autorizarPrestamo, rechazarPrestamo, entregarPrestamo, prestamosDe, ESTADOS_DE_PRESTAMO } from "./prestamos.js";
+import { T_BAJA, T_PAGO_BAJA, CAUSAS_DE_BAJA, CONCEPTOS_DE_BAJA, NOMBRE_DE as NOMBRE_DE_BAJA, proponerBaja, registrarBaja, pagarBaja, bajasDe, pagosDeBaja, renglonesDeBajas } from "./bajas.js";
 import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, generarSQLCuentas, exportarPolizas, HOJAS } from "./excelLoader";
 // El estado de cuenta del banco: se valida solo antes de entrar.
 import {
@@ -2473,18 +2475,26 @@ function normalizeData(d) {
   const __corte = ajusteVigente(fix.eventos, "prest_corte");
   if (__corte.valor) __inicio = __corte.valor;
   const __evPrest = fix.eventos.filter(e => e.tipo === T_DETERMINADA || e.tipo === T_PAGO_PRESTACION || e.tipo === T_SALDO_INICIAL);
-  const __reglasPrest = { aguinaldoDias: ajusteVigente(fix.eventos, "prest_aguinaldo_dias").valor, primaPct: ajusteVigente(fix.eventos, "prest_prima_pct").valor, vacExtra: ajusteVigente(fix.eventos, "prest_vac_extra").valor, diasPromedio: ajusteVigente(fix.eventos, "prest_dias_promedio").valor };
+  // Bajas: cuando ya terminó la relación de trabajo. Deja de generar ese día, y de lo ya generado sólo va al costo la diferencia.
+  const __evBaja = fix.eventos.filter(e => e.tipo === T_BAJA || e.tipo === T_PAGO_BAJA), __bajas = bajasDe(__evBaja);
+  const __reglasPrest = { aguinaldoDias: ajusteVigente(fix.eventos, "prest_aguinaldo_dias").valor, primaPct: ajusteVigente(fix.eventos, "prest_prima_pct").valor, vacExtra: ajusteVigente(fix.eventos, "prest_vac_extra").valor, diasPromedio: ajusteVigente(fix.eventos, "prest_dias_promedio").valor, salarioMinimo: ajusteVigente(fix.eventos, "salario_minimo_dia").valor };
   // Lo que ganó cada quien por día trabajado: de ahí sale la base de quien no tiene un sueldo fijo por día.
   const __rem = remuneracionesDe({ devengado: __moEv.devengado, actividades: __unaMo.actividades });
   const __vac = __aus.filter(e => e.datos.clase === "vacaciones");
   fix.prestaciones = { inicio: __inicio, corteDeclarado: !!__corte.valor, reglas: __reglasPrest, repetidas: determinadasRepetidas(__evPrest), remuneraciones: __rem,
-    cuentas: __personas.filter(p => p.activo !== false || p.fechaBaja).map(p => ({ ...cuentaDePrestaciones(p, __evPrest, { inicio: __inicio, hoy: __hoy, reglas: __reglasPrest, remuneraciones: __rem.get(p.id) || [],
+    cuentas: __personas.filter(p => p.activo !== false || p.fechaBaja || __bajas.has(p.id)).map(p => ({ ...cuentaDePrestaciones(p, __evPrest, { inicio: __inicio, hoy: __hoy, reglas: __reglasPrest, remuneraciones: __rem.get(p.id) || [],
+      baja: __bajas.get(p.id) || null, pagosBaja: __bajas.has(p.id) ? pagosDeBaja(__evBaja, __bajas.get(p.id).id) : [],
       vacacionesTomadas: __vac.filter(e => e.datos.trabajadorId === p.id).map(e => ({ fecha: e.fecha, monto: sueldoVigente(p, e.fecha).sueldo })) }), tipo: p._tipo })) };
   fix.indirectos = juntarFuentes([fuenteVehiculos(fix.repartosVehiculos),
     fuentePersonal({ items: fix.personalIndirecto.items, base: __base, politica: (c) => __regla[c] || "pendiente" }),
-    fuentePrestaciones({ renglones: renglonesAlCosto(fix.prestaciones.cuentas), base: __base, politica: __regla.prestaciones })]);
-  // Los préstamos con su saldo CALCULADO de sus abonos (cada abono es un movimiento; nadie escribe el saldo).
-  fix.prestamos = saldosDePrestamos(fix.prestamos || [], fix.eventos.filter(e => e.tipo === T_ABONO));
+    fuentePrestaciones({ renglones: renglonesAlCosto(fix.prestaciones.cuentas), base: __base, politica: __regla.prestaciones }),
+    fuenteBajas({ renglones: renglonesDeBajas(__evBaja), base: __base, politica: ajusteVigente(fix.eventos, "ind_bajas").valor })]);
+  // Quien ya tiene una baja registrada deja de salir como activo. No se escribe en su ficha: sale del evento.
+  const __conBaja = (l) => (l || []).map(t => (__bajas.has(t.id) ? { ...t, activo: false, fechaBaja: __bajas.get(t.id).datos.fecha, _porBaja: true, _activoBase: t.activo, _fechaBajaBase: t.fechaBaja } : t));
+  fix.trabajadores = __conBaja(fix.trabajadores); fix.encargados = __conBaja(fix.encargados);
+  // Los préstamos: los que nacen de sus eventos (solicitud → autorización → entrega) más los que ya estaban, con su saldo
+  // CALCULADO de sus abonos. Lo que se debe es lo ENTREGADO menos lo abonado; nadie escribe ese saldo.
+  fix.prestamos = saldosDePrestamos((fix.prestamos || []).filter(p => !p._deEventos).concat(prestamosDe(fix.eventos.filter(e => e.tipo.startsWith("prestamo_")))), fix.eventos.filter(e => e.tipo === T_ABONO));
   // Lo sensible que todavía no cuenta: por validar (no ha llegado a la base) y lo que la base no autorizó.
   fix.sinValidar = sinValidar(fix.eventos);
   // Lo que cambió después por una compra capturada tarde: aparte, sin tocar el costo original.
@@ -6096,7 +6106,7 @@ function AppInner() {
   // Persiste la versión normalizada una sola vez si hizo falta migrar.
   useEffect(() => {
     // (El inventario se guarda SIN lo que le suman los movimientos al enseñarlo: si no, se contaría dos veces.)
-    if (JSON.stringify(rawData) !== JSON.stringify(data)) setData({ ...data, inventario: (data.inventario || []).map(a => paraGuardarArticulo(a)), prestamos: (data.prestamos || []).map(paraGuardarPrestamo) });
+    if (JSON.stringify(rawData) !== JSON.stringify(data)) setData({ ...data, inventario: (data.inventario || []).map(a => paraGuardarArticulo(a)), prestamos: (data.prestamos || []).filter(p => !p._deEventos).map(paraGuardarPrestamo) });
   }, []);
 
   // Restaurar sesión real de Supabase si hay una guardada (recargas, regresar al día siguiente).
@@ -6338,7 +6348,9 @@ function AppInner() {
     if (sec === "trabajadores") item = anotarCambioDeSueldo(trabajadoresRef.current.find(t => t.id === item.id), item, today());
     if (sec === "encargados") item = anotarCambioDeSueldo(encargadosRef.current.find(t => t.id === item.id), item, today());
     // El saldo de un préstamo se calcula de sus abonos: al guardarlo no se le escribe lo calculado.
-    if (sec === "prestamos") item = paraGuardarPrestamo(item);
+    if (sec === "prestamos") { if (item._deEventos) return; item = paraGuardarPrestamo(item); }   // un préstamo que sale de sus eventos no se guarda como renglón
+    // Que alguien esté de baja sale de su evento, no de su ficha: al guardar la ficha no se le escribe.
+    if ((sec === "trabajadores" || sec === "encargados") && item._porBaja) { const { _porBaja, _activoBase, _fechaBajaBase, ...resto } = item; item = { ...resto, activo: _activoBase, fechaBaja: _fechaBajaBase }; if (item.activo === undefined) delete item.activo; if (item.fechaBaja === undefined) delete item.fechaBaja; }
     if (sec === "inventario") {
       // El catálogo no es por donde se mueve la existencia. Si una pantalla de
       // antes "le sumó" al número, esa diferencia se vuelve un MOVIMIENTO
@@ -7618,7 +7630,7 @@ const puedeOp = (op) => (!supabaseListo ? undefined : !!PERMISOS && (PERMISOS.ro
 // ¿Se ofrece el botón? Con base: el permiso de la cuenta. Sin base (un aparato suelto): el perfil con que se entró.
 const seOfrece = (session, op) => { const p = puedeOp(op); return p === undefined ? session.role === "admin" : p; };
 const NOMBRE_DE_OPERACION = { cierre_semana: "Cierre de la semana", reapertura_semana: "Reapertura de la semana", confirmacion_pagos: "Confirmación de pagos", prestacion_determinada: "Prestación determinada", prestacion_saldo_inicial: "Saldo inicial de prestaciones",
-  cierre_mes: "Cierre de mes", reapertura_mes: "Reapertura de mes", pago_personal: "Pago", pago_prestacion: "Pago de una prestación", abono_prestamo: "Abono a un préstamo", recibo_personal: "Recibo", decision_jornada: "Decisión sobre cómo se paga un día", horas_reconocidas: "Horas reconocidas", ajuste: "Cambio de una regla" };
+  cierre_mes: "Cierre de mes", reapertura_mes: "Reapertura de mes", prestamo_autorizacion: "Autorización de un préstamo", prestamo_rechazo: "Rechazo de un préstamo", prestamo_entrega: "Entrega de un préstamo", baja_personal: "Baja de personal", pago_baja: "Pago de un finiquito o liquidación", pago_personal: "Pago", pago_prestacion: "Pago de una prestación", abono_prestamo: "Abono a un préstamo", recibo_personal: "Recibo", decision_jornada: "Decisión sobre cómo se paga un día", horas_reconocidas: "Horas reconocidas", ajuste: "Cambio de una regla" };
 // Lo capturado que todavía no cuenta: lo que no ha llegado a la base, y lo que la base no autorizó.
 function PorValidar({ data }) {
   const s = data.sinValidar || { pendientes: [], rechazados: [] };
@@ -11040,6 +11052,7 @@ function CuadHistorial({ data, upd, session, onLogout }) {
   );
 }
 
+const NOMBRE_DE_GASTO = { servicios: "servicios", maquinaria: "renta de maquinaria", mano_obra: "mano de obra externa", transporte: "transporte", administrativo: "administrativo", financiero: "financiero", caja_chica: "caja chica", otro: "otros" };
 // El cierre de mes: la foto de los costos. Lo que cambie después se ve como ajuste posterior; la foto no se toca.
 function CierreDeMes({ data, add, session }) {
   const hoy = today(), mesPasado = sumarDias(`${hoy.slice(0, 7)}-01`, -1).slice(0, 7);
@@ -11052,21 +11065,27 @@ function CierreDeMes({ data, add, session }) {
   const foto = ver ? s.cierres.find(c => c.id === ver) : null;
   const tabla = (rs, tot) => (<>
     {rs.map(r => <div key={r.parcelaId} className="mo-act"><span>{r.nombre}<div className="text-xs text-muted">directo {fmt(r.directo)} · indirecto {fmt(r.indirecto)}</div></span><span /><b>{fmt(r.completo)}</b></div>)}
-    <div className="mo-act" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}><span><b>Costo completo del mes</b><div className="text-xs text-muted">directo {fmt(tot.directo)} · indirecto {fmt(tot.indirecto)}{tot.pendiente ? ` · pendiente de distribuir ${fmt(tot.pendiente)}` : ""}{tot.noProduccion ? ` · no es de producción ${fmt(tot.noProduccion)}` : ""}</div></span><span /><b>{fmt(tot.completo)}</b></div>
+    <div className="mo-act" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}><span><b>Costo de producción (parcelas)</b><div className="text-xs text-muted">directo {fmt(tot.directo)} · indirecto distribuido {fmt(tot.indirecto)}</div></span><span /><b>{fmt(tot.completo)}</b></div>
+    <div className="mo-act"><span>Costos pendientes de distribuir<div className="text-xs text-muted">son de producción, pero falta el dato o la regla para repartirlos</div></span><span /><b>{fmt(tot.pendiente || 0)}</b></div>
+    {(tot.noProduccion || 0) !== 0 && <div className="mo-act"><span>Costos que no son de producción</span><span /><b>{fmt(tot.noProduccion)}</b></div>}
+    <div className="mo-act"><span>Gastos generales<div className="text-xs text-muted">{(tot.generales?.porCategoria || []).length ? tot.generales.porCategoria.map(g => `${NOMBRE_DE_GASTO[g.categoria] || g.categoria} ${fmt(g.monto)}`).join(" · ") : "sin gastos que no sean de una parcela"} · no se reparten a las parcelas</div></span><span /><b>{fmt(tot.generales?.total || 0)}</b></div>
+    <div className="mo-act" style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}><span><b>Total de costos y gastos del rancho</b><div className="text-xs text-muted">cada peso está en un solo renglón de arriba</div></span><span /><b>{fmt(tot.rancho ?? tot.completo)}</b></div>
+    {(tot.paraAlmacen || 0) > 0 && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Aparte se compraron {fmt(tot.paraAlmacen)} de insumos para el almacén. No están en el total: se vuelven costo cuando se usan.</div>}
   </>);
   return (
     <div className="card" style={s.estado === "cerrado" ? { borderColor: "var(--accent)" } : undefined}>
       <div className="flex-b"><div className="card-title" style={{ marginBottom: 0 }}>Cierre de mes</div><input type="month" className="inp" aria-label="Mes que se cierra" style={{ width: 150 }} value={mes} max={hoy.slice(0, 7)} onChange={e => { setMes(e.target.value || mesPasado); setDice(""); setAvisos([]); setVer(null); }} /></div>
       <div className="text-xs text-muted" style={{ margin: "6px 0 10px" }}>{s.estado === "cerrado" ? `Cerrado · versión ${s.cierre.version} · lo cerró ${s.cierre.quien?.nombre} el ${s.cierre.fecha}${s.cierre.datos.motivo ? ` · ${s.cierre.datos.motivo}` : ""}. Abajo están las cifras de ese día.` : s.estado === "reabierto" ? `Reabierto por ${s.reaperturas[s.reaperturas.length - 1].quien?.nombre}: ${s.reaperturas[s.reaperturas.length - 1].datos.motivo}. La versión ${s.cierre.version} se conserva.` : "Abierto. Estas cifras se calculan de lo registrado y todavía pueden moverse; cerrar guarda cómo quedaron."}</div>
-      {costo.renglones.length === 0 && s.estado !== "cerrado" ? <div className="text-sm text-muted">Ese mes no tiene costos registrados.</div> : s.estado === "cerrado" ? tabla(s.cierre.datos.renglones, s.cierre.datos) : tabla(costo.renglones, costo)}
+      {costo.rancho === 0 && s.estado !== "cerrado" ? <div className="text-sm text-muted">Ese mes no tiene costos ni gastos registrados.</div> : s.estado === "cerrado" ? tabla(s.cierre.datos.renglones, s.cierre.datos) : tabla(costo.renglones, costo)}
       {aj.hay && <div style={{ borderLeft: "3px solid var(--gold)", paddingLeft: 10, margin: "10px 0" }}>
-        <div className="text-sm font-bold">Ajustes posteriores al cierre: {fmt(aj.total)}</div>
+        <div className="text-sm font-bold">Ajustes posteriores al cierre: {fmt(aj.rancho || aj.total)}</div>
         {aj.lista.map(x => <div key={x.parcelaId} className="text-xs text-muted">{x.nombre}: al cerrar eran {fmt(x.era)}, hoy son {fmt(x.es)}{x.directo ? ` · directo ${fmt(x.directo)}` : ""}{x.indirecto ? ` · indirecto ${fmt(x.indirecto)}` : ""}</div>)}
         {aj.pendiente !== 0 && <div className="text-xs text-muted">Lo pendiente de distribuir cambió en {fmt(aj.pendiente)}.</div>}
+        {aj.generales !== 0 && <div className="text-xs text-muted">Los gastos generales cambiaron en {fmt(aj.generales)}.</div>}
         <div className="text-xs text-muted">Es algo que se registró o se aclaró después. Las cifras del cierre no se cambian solas: o se reabre el mes y se cierra otra vez, o esto queda a la vista como ajuste.</div>
       </div>}
       {avisos.map((a, k) => <div key={k} className="text-xs" style={{ color: "var(--gold)", marginTop: 6 }}>{a}</div>)}
-      {puede && s.estado !== "cerrado" && costo.renglones.length > 0 && <>
+      {puede && s.estado !== "cerrado" && costo.rancho !== 0 && <>
         {s.estado === "reabierto" && <input className="inp" aria-label="Qué cambió en este cierre de mes" placeholder="Qué cambió respecto al cierre anterior" value={motivo} onChange={e => setMotivo(e.target.value)} style={{ margin: "8px 0" }} />}
         <button className="btn btn-accent" style={{ width: "100%", marginTop: 8 }} onClick={() => hacer(cerrarMes({ ...base(), costo, hoy, motivo }))}>{s.estado === "reabierto" ? `Cerrar otra vez (versión ${s.cierres.length + 1})` : "Cerrar el mes"}</button>
       </>}
@@ -12757,8 +12776,20 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
 
   const guardarPrest = () => {
     if (!prestForm.trabajadorId || !prestForm.monto) { alert("Falta trabajador o monto"); return; }
-    add("prestamos", { ...prestForm, id: `pr${Date.now()}`, fecha: today(), monto: parseFloat(prestForm.monto) || 0, abonado: 0, estado: "activo", registradoPor: session.id });
-    setPrestForm(FP0); setShowPrest(false);
+    // Aquí sólo se SOLICITA. No es deuda ni dinero entregado: eso viene después, con su permiso.
+    const r = solicitarPrestamo({ trabajador: (data.trabajadores || []).find(t => t.id === prestForm.trabajadorId), monto: prestForm.monto, motivo: prestForm.motivo, quien: quienDe(session), cuando: new Date().toISOString(), fecha: today() });
+    if (!r.ok) { alert(r.dice); return; }
+    add("eventos", r.evento); setPrestForm(FP0); setShowPrest(false);
+  };
+  const [paso, setPaso] = useState(null);     // { tipo: "autorizar" | "rechazar" | "entregar", pr, monto, texto, autorizo, medio, foto }
+  const [pasoDice, setPasoDice] = useState("");
+  const hacerPaso = () => {
+    const comun = { eventos: data.eventos, solicitudId: paso.pr.id, quien: quienDe(session), cuando: new Date().toISOString(), fecha: today() };
+    const r = paso.tipo === "autorizar" ? autorizarPrestamo({ ...comun, permitido: puedeOp("autorizar_prestamos"), monto: paso.monto, condiciones: paso.texto, autorizo: paso.autorizo })
+      : paso.tipo === "rechazar" ? rechazarPrestamo({ ...comun, permitido: puedeOp("autorizar_prestamos"), motivo: paso.texto })
+      : entregarPrestamo({ ...comun, permitido: puedeOp("autorizar_pagos"), monto: paso.monto, medio: paso.medio, recibe: paso.texto, comprobante: paso.foto || null });
+    if (!r.ok) { setPasoDice(r.dice); return; }
+    add("eventos", r.evento); setPaso(null); setPasoDice("");
   };
   const guardarCuad = () => {
     if (!cuadForm.nombre) { alert("Falta el nombre"); return; }
@@ -12780,7 +12811,7 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
     <div>
       <div className="top-bar">
         <h2>Personal</h2>
-        {tab === "prestamos" && <button className="btn btn-accent btn-sm" onClick={() => setShowPrest(v => !v)}>{showPrest ? "✕" : "+ Préstamo"}</button>}
+        {tab === "prestamos" && <button className="btn btn-accent btn-sm" onClick={() => setShowPrest(v => !v)}>{showPrest ? "✕" : "+ Solicitar"}</button>}
         {tab === "cuadrillas" && <button className="btn btn-accent btn-sm" onClick={() => setShowCuad(v => !v)}>{showCuad ? "✕" : "+ Cuadrilla"}</button>}
       </div>
       <div className="tabs-pill">
@@ -12792,7 +12823,8 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
       {tab === "prestamos" && showPrest && (
         <div className="section-pad">
           <div className="card ab">
-            <div className="card-title">Registrar préstamo</div>
+            <div className="card-title">Solicitar un préstamo</div>
+            <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Esto es una solicitud: todavía no es deuda ni dinero entregado. La autoriza quien tiene ese permiso, y la deuda nace cuando se registra la entrega.</div>
             <div className="form-group"><label className="form-label">Trabajador</label>
               <select className="inp" value={prestForm.trabajadorId} onChange={e => setPrestForm(f => ({ ...f, trabajadorId: e.target.value }))}>
                 <option value="">Seleccionar...</option>
@@ -12801,7 +12833,7 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
             </div>
             <div className="form-group"><label className="form-label">Monto del préstamo</label><input type="number" className="inp" value={prestForm.monto || ""} onChange={e => setPrestForm(f => ({ ...f, monto: e.target.value }))} /></div>
             <div className="form-group"><label className="form-label">Motivo</label><input className="inp" placeholder="Ej: Adelanto de quincena" value={prestForm.motivo} onChange={e => setPrestForm(f => ({ ...f, motivo: e.target.value }))} /></div>
-            <button className="btn btn-accent" onClick={guardarPrest}>Registrar préstamo</button>
+            <button className="btn btn-accent" onClick={guardarPrest}>Mandar la solicitud</button>
           </div>
         </div>
       )}
@@ -12843,7 +12875,7 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
 
         {tab === "prestamos" && (
           <>
-            {(data.prestamos || []).length === 0 && <div className="text-muted text-sm" style={{ textAlign: "center", padding: "32px 0" }}>Sin préstamos. Usa "+ Préstamo".</div>}
+            {(data.prestamos || []).length === 0 && <div className="text-muted text-sm" style={{ textAlign: "center", padding: "32px 0" }}>Sin préstamos. Usa "+ Solicitar".</div>}
             {[...(data.prestamos || [])].sort((a, b) => b.fecha.localeCompare(a.fecha)).map(pr => {
               const trab = data.trabajadores.find(t => t.id === pr.trabajadorId);
               const saldo = pr.monto - (pr.abonado || 0);
@@ -12854,10 +12886,33 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
                       <div className="font-bold text-sm">{trab?.nombre || "—"}</div>
                       <div className="text-xs text-muted">{pr.motivo} · {pr.fecha}</div>
                     </div>
-                    <span className={`badge badge-${estaCancelado(pr) ? "red" : pr.estado === "pagado" ? "green" : "gold"}`}>{estaCancelado(pr) ? "Cancelado" : pr.estado === "pagado" ? "✓ Pagado" : "Activo"}</span>
+                    <span className={`badge badge-${estaCancelado(pr) || pr.estado === "rechazado" ? "red" : pr.estado === "pagado" ? "green" : "gold"}`}>{estaCancelado(pr) ? "Cancelado" : pr.estado === "pagado" ? "✓ Pagado" : pr.estado === "solicitado" ? "Solicitado" : pr.estado === "autorizado" ? "Autorizado" : pr.estado === "rechazado" ? "No autorizado" : "Debe"}</span>
                   </div>
+                  {pr._deEventos && <div className="text-xs text-muted" style={{ marginBottom: 6 }}>
+                    <div>Solicitó {pr.solicito}: {fmt(pr.solicitado)}</div>
+                    {pr.autorizacion && <div>Autorizó {pr.autorizacion.por} el {pr.autorizacion.fecha}: {fmt(pr.autorizado)}{pr.autorizacion.condiciones ? ` · ${pr.autorizacion.condiciones}` : ""}</div>}
+                    {pr.rechazo && <div>No se autorizó ({pr.rechazo.por}, {pr.rechazo.fecha}): {pr.rechazo.motivo}</div>}
+                    {pr.entregas.map(e => <div key={e.ev}>Entregado el {e.fecha}: {fmt(e.monto)} en {(MEDIOS_DE_PAGO[e.medio] || e.medio).toLowerCase()}{e.recibe ? ` · recibió ${e.recibe}` : ""}{e.comprobante ? "" : " · sin comprobante"}</div>)}
+                    {pr.estado === "solicitado" && <div style={{ color: "var(--gold)" }}>Falta que lo autoricen. Todavía no es deuda.</div>}
+                    {pr.porEntregar > 0 && <div style={{ color: "var(--gold)" }}>Autorizado y sin entregar: {fmt(pr.porEntregar)}. Eso todavía no se debe.</div>}
+                  </div>}
+                  {pr._deMas > 0 && <div className="text-xs" style={{ color: "var(--red)", marginBottom: 6 }}>Se abonaron {fmt(pr._deMas)} de más.</div>}
+                  {pr._deEventos && (pr.estado === "solicitado" || pr.porEntregar > 0) && paso?.pr.id !== pr.id && <div className="gap-row" style={{ marginBottom: 8 }}>
+                    {pr.estado === "solicitado" && seOfrece(session, "autorizar_prestamos") && <><button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={() => { setPaso({ tipo: "autorizar", pr, monto: String(pr.solicitado), texto: "", autorizo: "" }); setPasoDice(""); }}>Autorizar</button>
+                      <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => { setPaso({ tipo: "rechazar", pr, texto: "" }); setPasoDice(""); }}>No autorizar</button></>}
+                    {pr.porEntregar > 0 && seOfrece(session, "autorizar_pagos") && <button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={() => { setPaso({ tipo: "entregar", pr, monto: String(pr.porEntregar), medio: "efectivo", texto: trab?.nombre || "" }); setPasoDice(""); }}>Registrar entrega del dinero</button>}
+                  </div>}
+                  {paso?.pr.id === pr.id && <div style={{ marginBottom: 8 }}>
+                    {paso.tipo !== "rechazar" && <div className="form-group"><label className="form-label" htmlFor={`pp-m-${pr.id}`}>{paso.tipo === "autorizar" ? "Cuánto se autoriza ($)" : "Cuánto se entregó ($)"}</label><input id={`pp-m-${pr.id}`} type="number" inputMode="decimal" className="inp" value={paso.monto} onChange={e => setPaso(x => ({ ...x, monto: e.target.value }))} /></div>}
+                    {paso.tipo === "autorizar" && <input className="inp" aria-label="Quién autoriza el préstamo" placeholder="Quién lo autoriza" value={paso.autorizo} onChange={e => setPaso(x => ({ ...x, autorizo: e.target.value }))} style={{ marginBottom: 8 }} />}
+                    {paso.tipo === "entregar" && <select className="inp" aria-label="Medio de la entrega" value={paso.medio} onChange={e => setPaso(x => ({ ...x, medio: e.target.value }))} style={{ marginBottom: 8 }}>{Object.entries(MEDIOS_DE_PAGO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}
+                    <input className="inp" aria-label={paso.tipo === "autorizar" ? "Condiciones del préstamo" : paso.tipo === "rechazar" ? "Por qué no se autoriza" : "Quién recibió el dinero"} placeholder={paso.tipo === "autorizar" ? "Condiciones (cómo lo va a pagar)" : paso.tipo === "rechazar" ? "Por qué no se autoriza" : "Quién recibió el dinero"} value={paso.texto} onChange={e => setPaso(x => ({ ...x, texto: e.target.value }))} style={{ marginBottom: 8 }} />
+                    {paso.tipo === "entregar" && <label className="text-xs text-muted" style={{ display: "block", marginBottom: 8 }}>Comprobante <input type="file" accept="image/*" capture="environment" aria-label="Comprobante de la entrega" onChange={e => { const x = e.target.files?.[0]; if (!x) return; const fr = new FileReader(); fr.onload = () => setPaso(v => ({ ...v, foto: fr.result })); fr.readAsDataURL(x); }} /></label>}
+                    {pasoDice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{pasoDice}</div>}
+                    <div className="gap-row"><button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => setPaso(null)}>No</button><button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={hacerPaso}>{paso.tipo === "autorizar" ? "Autorizar el préstamo" : paso.tipo === "rechazar" ? "Dejarlo sin autorizar" : "Guardar la entrega"}</button></div>
+                  </div>}
                   <SelloCancelado registro={pr} seccion="prestamos" reactivar={reactivar} />
-                  <div className="flex-b text-sm" style={{ marginBottom: 4, ...estiloCancelado(pr) }}><span className="text-muted">Monto prestado</span><span>{fmt(pr.monto)}</span></div>
+                  <div className="flex-b text-sm" style={{ marginBottom: 4, ...estiloCancelado(pr) }}><span className="text-muted">Entregado</span><span>{fmt(pr.monto)}</span></div>
                   <div className="flex-b text-sm" style={{ marginBottom: 4 }}><span className="text-muted">Abonado</span><span style={{ color: "var(--safe)" }}>{fmt(pr.abonado || 0)}</span></div>
                   <div className="flex-b text-sm" style={{ marginBottom: 8 }}><span className="font-bold">Saldo pendiente</span><span className="font-bold" style={{ color: saldo > 0 ? "var(--red)" : "var(--safe)" }}>{fmt(saldo)}</span></div>
                   <div className="progress mb-2"><div className="progress-fill green" style={{ width: `${pr.monto ? ((pr.abonado || 0) / pr.monto) * 100 : 0}%` }} /></div>
@@ -12871,13 +12926,13 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
                     ) : (
                       <div className="gap-row">
                         <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => setAbono({ id: pr.id, monto: "" })}>Registrar abono</button>
-                        <button className="btn btn-outline btn-sm" style={{ flex: "0 0 auto" }} onClick={() => setEditItem({ seccion: "prestamos", registro: pr, titulo: trab?.nombre || "Préstamo", campos: [["motivo", "Motivo", "text"], ["monto", "Monto prestado", "number"], ["abonado", "Total abonado", "number"], ["fecha", "Fecha", "date"], ["estado", "Estado", "select", [{ v: "activo", l: "Activo" }, { v: "pagado", l: "Pagado" }]]] })}><Ic e="✏️" /></button>
-                        <BotonCancelar seccion="prestamos" registro={pr} etiqueta={`el préstamo de ${fmt(pr.monto)} a ${trab?.nombre || "este trabajador"}`}
-                          cancelar={cancelar} className="btn btn-danger btn-sm" estilo={{ flex: "0 0 auto" }} />
+                        {!pr._deEventos && <button className="btn btn-outline btn-sm" style={{ flex: "0 0 auto" }} onClick={() => setEditItem({ seccion: "prestamos", registro: pr, titulo: trab?.nombre || "Préstamo", campos: [["motivo", "Motivo", "text"], ["monto", "Monto prestado", "number"], ["abonado", "Total abonado", "number"], ["fecha", "Fecha", "date"], ["estado", "Estado", "select", [{ v: "activo", l: "Activo" }, { v: "pagado", l: "Pagado" }]]] })}><Ic e="✏️" /></button>}
+                        {!pr._deEventos && <BotonCancelar seccion="prestamos" registro={pr} etiqueta={`el préstamo de ${fmt(pr.monto)} a ${trab?.nombre || "este trabajador"}`}
+                          cancelar={cancelar} className="btn btn-danger btn-sm" estilo={{ flex: "0 0 auto" }} />}
                       </div>
                     )
                   )}
-                  {pr.estado === "pagado" && (
+                  {pr.estado === "pagado" && !pr._deEventos && (
                     <button className="btn btn-outline btn-sm" onClick={() => setEditItem({ seccion: "prestamos", registro: pr, titulo: trab?.nombre || "Préstamo", campos: [["motivo", "Motivo", "text"], ["monto", "Monto prestado", "number"], ["abonado", "Total abonado", "number"], ["fecha", "Fecha", "date"], ["estado", "Estado", "select", [{ v: "activo", l: "Activo" }, { v: "pagado", l: "Pagado" }]]] })}><Ic e="✏️" /> Editar</button>
                   )}
                 </div>
@@ -20580,6 +20635,29 @@ function PanelPrestaciones({ data, add, upd, session }) {
   const [ini, setIni] = useState(null);       // { persona, concepto, periodo, monto, dias, corte, fundamento, responsable, foto }
   const [pago, setPago] = useState(null);     // { persona, d, monto, medio, nota }
   const [abre, setAbre] = useState(null); const [dice, setDice] = useState(""); const [avisos, setAvisos] = useState([]);
+  const [bj, setBj] = useState(null);         // { c, persona, causa, ultimoDia, detalle, autorizo, filas, fotos }
+  const [pb, setPb] = useState(null);         // { c, monto, medio, recibe, foto }
+  const propuestaDe = (b) => (b.causa && b.ultimoDia ? proponerBaja({ persona: b.persona, causa: b.causa, fecha: b.ultimoDia, cuenta: b.c, reglas: pr.reglas, remuneraciones: remDe(b.persona.id) }) : null);
+  const ponBaja = (cambio) => setBj(b => { const n = { ...b, ...cambio }; const p = propuestaDe(n); return { ...n, filas: p?.ok ? p.conceptos.map(k => ({ clave: k.clave, incluir: k.aplica !== "no", monto: k.monto == null ? "" : String(k.monto), nota: "" })) : [] }; });
+  const propB = bj ? propuestaDe(bj) : null;
+  const renglonesDeBaja = (d) => [{ t: "AGROSELECTOS P&A", tam: 14, negrita: true }, { t: `${NOMBRE_DE_BAJA[d.da].split(" (")[0].toUpperCase()} — CÁLCULO INTERNO`, tam: 11, negrita: true },
+    { t: `${d.nombre} · ${CAUSAS_DE_BAJA[d.causa].nombre}${d.detalle ? ` (${d.detalle})` : ""} · último día de trabajo: ${d.fecha}`, espacio: 8 },
+    { t: "Concepto · importe confirmado · lo que propuso la app y en qué se apoya", negrita: true, espacio: 8 },
+    ...d.conceptos.map(k => `${k.nombre}${k.nota ? ` (${k.nota})` : ""}: ${fmt(k.monto)} · propuesto ${k.propuesto == null ? "sin cifra" : fmt(k.propuesto)}${k.fundamento ? ` · ${k.fundamento}` : ""}${k.aplica === "revisar" ? " · marcado por revisar" : ""}${k.explica ? ` · ${k.explica}` : ""}`),
+    { t: `Total: ${fmt(d.total)}`, negrita: true, espacio: 8 }, `Autorizó: ${d.autorizo}`,
+    { t: "Recibí de conformidad: ______________________________", espacio: 34 },
+    { t: `Documento interno de AgroGestión. Es el cálculo con que se determinó esta terminación; no sustituye el recibo, el convenio ni los comprobantes que la ley pida. Emitido el ${hoy} por ${session.nombre || ""}.`, tam: 8, espacio: 14 }];
+  const guardarBaja = () => {
+    const r = registrarBaja({ permitido: puedeOp("determinar_prestaciones"), eventos: data.eventos, persona: bj.persona, causa: bj.causa, ultimoDia: bj.ultimoDia, detalle: bj.detalle, conceptos: bj.filas.filter(f => f.incluir).map(f => ({ clave: f.clave, monto: f.monto, nota: f.nota })),
+      propuesta: propB?.ok ? propB : null, autorizo: bj.autorizo, evidencias: bj.fotos, pdf: (d) => pdfComoDataUrl(renglonesDeBaja(d)), quien, cuando: new Date().toISOString(), fecha: hoy });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); setBj(null); setDice(""); setAvisos(r.avisos);
+  };
+  const guardarPagoBaja = () => {
+    const r = pagarBaja({ permitido: puedeOp("autorizar_pagos"), eventos: data.eventos, baja: pb.c.liquidacion.evento, monto: pb.monto, medio: pb.medio, recibe: pb.recibe, comprobante: pb.foto || null, quien, cuando: new Date().toISOString(), fecha: hoy });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); setPb(null); setDice(""); setAvisos(r.avisos);
+  };
   const fichaDe = (c) => { const sec = c.tipo === "encargado" ? "encargados" : "trabajadores"; return { sec, persona: (data[sec] || []).find(x => x.id === c.personaId) }; };
   const abrirCond = (c) => { const { sec, persona } = fichaDe(c); if (!persona) return; const p = persona.prestaciones || {};
     setCond({ persona, sec, f: { fechaIngreso: persona.fechaIngreso || "", relacionLaboral: persona.relacionLaboral || "", aguinaldoDias: p.aguinaldoDias ?? "", primaPct: p.primaPct ?? "", vacacionesDias: p.vacacionesDias ?? "", baseAguinaldo: p.baseAguinaldo ?? "", baseVacaciones: p.baseVacaciones ?? "", sin: !!p.sin, sinPorque: p.sinPorque || "" } }); setDice(""); };
@@ -20624,6 +20702,14 @@ function PanelPrestaciones({ data, add, upd, session }) {
           <div className="text-xs text-muted">{c.cond.ingreso ? `Ingresó el ${c.cond.ingreso} · ${c.antiguedad} año${c.antiguedad === 1 ? "" : "s"} cumplido${c.antiguedad === 1 ? "" : "s"}` : "Sin fecha de ingreso"} · {RELACIONES[c.cond.relacion]}{!c.cond.fijo ? " · cobra por lo que hace: su base es el promedio de lo que gana" : ""}</div></div>
           <div style={{ textAlign: "right" }}><div className="li-val">{fmt(sumarDinero(lista.map(([, x]) => x.pendiente)))}</div><div className="text-xs text-muted">pendiente</div></div></div>
         {c.porque && <div className="text-sm" style={{ color: "var(--gold)", marginTop: 6 }}>{c.porque}</div>}
+        {c.liquidacion && <div style={{ marginTop: 8, padding: 10, border: "1px solid var(--accent)", borderRadius: 10 }}>
+          <div className="mo-act"><span><b>{NOMBRE_DE_BAJA[c.liquidacion.evento.datos.da].split(" (")[0]}</b> · {CAUSAS_DE_BAJA[c.liquidacion.evento.datos.causa].nombre.toLowerCase()}</span><span /><b>{fmt(c.liquidacion.total)}</b></div>
+          <div className="text-xs text-muted">Último día de trabajo: {c.liquidacion.evento.datos.fecha} · autorizó {c.liquidacion.evento.datos.autorizo} · pagado {fmt(c.liquidacion.pagado)} · pendiente {fmt(c.liquidacion.pendiente)}{(c.liquidacion.evento.datos.evidencias || []).length ? ` · ${c.liquidacion.evento.datos.evidencias.length} documento(s)` : " · sin documentos"}</div>
+          {c.liquidacion.filas.map(f => <div key={f.clave} className="text-xs">{f.nombre}{f.nota ? ` (${f.nota})` : ""}: {fmt(f.monto)}{f.propio ? ` · ya generado ${fmt(f.yaGenerado)} · al costo sólo ${fmt(f.ajuste)}` : " · costo nuevo de ese día"}{f.aplica === "revisar" ? " · estaba por revisar" : ""}</div>)}
+          {c.liquidacion.pagos.map(p => <div key={p.id} className="text-xs text-muted">Pago del {p.fecha}: {fmt(p.datos.monto)} en {(MEDIOS_DE_PAGO[p.datos.medio] || p.datos.medio).toLowerCase()}{p.datos.recibe ? ` · recibió ${p.datos.recibe}` : ""}{p.datos.comprobante ? "" : " · sin comprobante"}</div>)}
+          <ArchivoPDF src={c.liquidacion.evento.datos.pdf} nombre={`baja-${c.nombre}-${c.liquidacion.evento.datos.fecha}.pdf`.replace(/\s+/g, "-")} />
+          {puedePagar && c.liquidacion.pendiente > 0 && <button className="btn btn-outline btn-sm" style={{ width: "100%" }} onClick={() => { setPb({ c, monto: String(c.liquidacion.pendiente), medio: "efectivo", recibe: c.nombre }); setDice(""); }}>Registrar pago de la baja</button>}
+        </div>}
         {porRev.length > 0 && <div className="text-sm" style={{ color: "var(--gold)", marginTop: 6 }}>Pendiente de revisión: {[...new Set(porRev.map(r => r.mes))].length} mes(es) sin calcular porque {porRev[0].porque}. No vale cero: falta el dato.</div>}
         {lista.map(([k, x]) => (
           <div key={k} style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border-soft)" }}>
@@ -20639,10 +20725,45 @@ function PanelPrestaciones({ data, add, upd, session }) {
           {!c.porque && <button onClick={() => setAbre(abre === c.personaId ? null : c.personaId)}>{abre === c.personaId ? "Ocultar la cuenta" : "Ver mes por mes"}</button>}
           {admin && <button onClick={() => abrirCond(c)}>{c.cond.ingreso ? "Condiciones" : "Poner fecha de ingreso"}</button>}
           {puedeDet && <button onClick={() => { setIni({ persona: fichaDe(c).persona, concepto: "", periodo: "", monto: "", dias: "", corte: sumarDias(pr.inicio, -1), fundamento: "", responsable: "", foto: null }); setDice(""); }}>Saldo inicial</button>}
-          {puedeDet && !c.porque && <button onClick={() => { setDet({ persona: fichaDe(c).persona, concepto: "", periodo: "", corte: hoy, monto: "", autorizo: "" }); setDice(""); }}>Determinar</button>}
+          {puedeDet && !c.porque && !c.liquidacion && <button onClick={() => { setDet({ persona: fichaDe(c).persona, concepto: "", periodo: "", corte: hoy, monto: "", autorizo: "" }); setDice(""); }}>Determinar</button>}
+          {puedeDet && !c.liquidacion && <button onClick={() => { setBj({ c, persona: fichaDe(c).persona, causa: "", ultimoDia: hoy, detalle: "", autorizo: "", filas: [], fotos: [] }); setDice(""); }}>Dar de baja</button>}
         </div>
       </div>); })}
-    <ReglasDelRancho data={data} add={add} session={session} claves={["prest_corte", "prest_aguinaldo_dias", "prest_prima_pct", "prest_vac_extra", "prest_dias_promedio", "ind_prestaciones"]} />
+    <ReglasDelRancho data={data} add={add} session={session} claves={["prest_corte", "prest_aguinaldo_dias", "prest_prima_pct", "prest_vac_extra", "prest_dias_promedio", "salario_minimo_dia", "ind_prestaciones", "ind_bajas"]} />
+
+    {bj && <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setBj(null); }}><div className="modal-sheet">
+      <div className="card-title">Dar de baja a {bj.persona.nombre}</div>
+      <div className="text-xs text-muted" style={{ marginBottom: 10 }}>No todas las terminaciones dan lo mismo. La app propone cada concepto con su cuenta y marca lo que hay que revisar; qué procede en este caso y por cuánto lo decides tú, con quien lleve las obligaciones con el personal. Lo que se le deba de sus semanas se paga en Pagos al personal: aquí no se repite.</div>
+      <select className="inp" aria-label="Causa de la terminación" value={bj.causa} onChange={e => ponBaja({ causa: e.target.value })} style={{ marginBottom: 8 }}><option value="">¿Por qué termina la relación de trabajo?</option>{Object.entries(CAUSAS_DE_BAJA).map(([k, v]) => <option key={k} value={k}>{v.nombre}</option>)}</select>
+      <div className="form-group"><label className="form-label" htmlFor="bj-dia">Último día de trabajo</label><input id="bj-dia" type="date" className="inp" max={hoy} value={bj.ultimoDia} onChange={e => ponBaja({ ultimoDia: e.target.value })} /></div>
+      <input className="inp" aria-label="Detalle de la causa" placeholder="Detalle (obligatorio si es «otra causa»)" value={bj.detalle} onChange={e => setBj(b => ({ ...b, detalle: e.target.value }))} style={{ marginBottom: 8 }} />
+      {propB && !propB.ok && <div className="text-sm" style={{ color: "var(--gold)", marginBottom: 8 }}>{propB.dice}</div>}
+      {propB?.ok && <>
+        <div className="text-sm font-bold" style={{ marginBottom: 6 }}>Corresponde: {NOMBRE_DE_BAJA[propB.tipo].toLowerCase()} · {propB.anios} años de servicio</div>
+        {propB.conceptos.map(k => { const f = bj.filas.find(x => x.clave === k.clave) || { incluir: false, monto: "" }; const fijo = !!CONCEPTOS_PRESTACION[k.clave]; return (
+          <div key={k.clave} style={{ padding: "8px 0", borderTop: "1px solid var(--border-soft)" }}>
+            <label className="text-sm" style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" aria-label={`Incluir ${k.nombre}`} checked={f.incluir} disabled={fijo} onChange={e => setBj(b => ({ ...b, filas: b.filas.map(x => (x.clave === k.clave ? { ...x, incluir: e.target.checked } : x)) }))} /> <b>{k.nombre}</b> <span className="text-xs" style={{ color: k.aplica === "si" ? "var(--safe)" : k.aplica === "revisar" ? "var(--gold)" : "var(--text-muted)" }}>{k.aplica === "si" ? "procede" : k.aplica === "revisar" ? "hay que revisarlo" : "no procede en esta causa"}</span></label>
+            <div className="text-xs text-muted" style={{ margin: "2px 0 4px" }}>{k.explica} ({k.fundamento})</div>
+            {f.incluir && <input className="inp" type="number" inputMode="decimal" aria-label={`Importe de ${k.nombre}`} placeholder={k.monto == null ? "La app no propone cifra: captúrala" : ""} value={f.monto} onChange={e => setBj(b => ({ ...b, filas: b.filas.map(x => (x.clave === k.clave ? { ...x, monto: e.target.value } : x)) }))} />}
+          </div>); })}
+        {propB.avisos.map((a, k) => <div key={k} className="text-xs text-muted" style={{ marginTop: 4 }}>{a}</div>)}
+        <div className="mo-act" style={{ marginTop: 8 }}><span><b>Total</b></span><span /><b>{fmt(sumarDinero(bj.filas.filter(f => f.incluir).map(f => Number(f.monto) || 0)))}</b></div>
+      </>}
+      <input className="inp" aria-label="Quién autoriza la baja" placeholder="Quién lo autoriza" value={bj.autorizo} onChange={e => setBj(b => ({ ...b, autorizo: e.target.value }))} style={{ margin: "8px 0" }} />
+      <label className="text-xs text-muted" style={{ display: "block", marginBottom: 8 }}>Documentos (renuncia, aviso, convenio, recibo firmado) <input type="file" accept="image/*,application/pdf" multiple aria-label="Documentos de la baja" onChange={e => { [...(e.target.files || [])].forEach(x => { const fr = new FileReader(); fr.onload = () => setBj(b => ({ ...b, fotos: [...b.fotos, fr.result] })); fr.readAsDataURL(x); }); }} />{bj.fotos.length ? ` · ${bj.fotos.length} listo(s)` : ""}</label>
+      {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+      <div style={{ display: "flex", gap: 8 }}><button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setBj(null)}>No</button><button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarBaja}>Registrar la baja</button></div>
+    </div></div>}
+    {pb && <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setPb(null); }}><div className="modal-sheet">
+      <div className="card-title">Pago de la baja de {pb.c.nombre}</div>
+      <div className="text-sm text-muted" style={{ marginBottom: 10 }}>Total {fmt(pb.c.liquidacion.total)} · pagado {fmt(pb.c.liquidacion.pagado)} · pendiente {fmt(pb.c.liquidacion.pendiente)}. Un pago no es costo.</div>
+      <div className="form-group"><label className="form-label" htmlFor="pb-monto">Cuánto se entregó ($)</label><input id="pb-monto" className="inp" type="number" inputMode="decimal" value={pb.monto} onChange={e => setPb(v => ({ ...v, monto: e.target.value }))} /></div>
+      <select className="inp" aria-label="Medio de pago de la baja" value={pb.medio} onChange={e => setPb(v => ({ ...v, medio: e.target.value }))} style={{ marginBottom: 8 }}>{Object.entries(MEDIOS_DE_PAGO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+      <input className="inp" aria-label="Quién recibió el pago de la baja" placeholder="Quién lo recibió" value={pb.recibe} onChange={e => setPb(v => ({ ...v, recibe: e.target.value }))} style={{ marginBottom: 8 }} />
+      <label className="text-xs text-muted" style={{ display: "block", marginBottom: 8 }}>Comprobante <input type="file" accept="image/*" capture="environment" aria-label="Comprobante del pago de la baja" onChange={leerFoto(setPb)} /></label>
+      {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+      <div style={{ display: "flex", gap: 8 }}><button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setPb(null)}>No</button><button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarPagoBaja}>Registrar pago</button></div>
+    </div></div>}
 
     {cond && <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setCond(null); }}><div className="modal-sheet">
       <div className="card-title">Condiciones de {cond.persona.nombre}</div>
@@ -20699,7 +20820,7 @@ function PanelCostoPersonal({ data, add, session }) {
   const ind = data.indirectos || { partes: [], pendientes: [], noProduccion: [] };
   const [abre, setAbre] = useState(null);
   const parcela = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "una parcela";
-  const fuentes = [["personal", "Días y ratos pagados sin actividad en parcela", "Permisos, descansos, esperas, traslados y los días de un encargado sin actividad registrada."], ["prestaciones", "Prestaciones", "Aguinaldo, vacaciones y prima que se van generando, y sus ajustes."]];
+  const fuentes = [["personal", "Días y ratos pagados sin actividad en parcela", "Permisos, descansos, esperas, traslados y los días de un encargado sin actividad registrada."], ["prestaciones", "Prestaciones", "Aguinaldo, vacaciones y prima que se van generando, y sus ajustes."], ["bajas", "Terminaciones de la relación de trabajo", "Prima de antigüedad e indemnizaciones. Lo ya generado de aguinaldo, vacaciones y prima no está aquí: va arriba, sólo por su diferencia."]];
   const sinSueldo = data.personalIndirecto?.sinSueldo || [];
   return (<>
     <div className="text-xs text-muted mb-2" style={{ paddingLeft: 4 }}>Esto se paga, así que es costo, pero no es trabajo hecho en una parcela. Aparece en los reportes como parte del costo completo, nunca dentro del costo directo. Lo que no se puede repartir con datos se queda pendiente, con su causa.</div>
@@ -20724,7 +20845,7 @@ function PanelCostoPersonal({ data, add, session }) {
           </>}
         </div>);
     })}
-    <ReglasDelRancho data={data} add={add} session={session} claves={["ind_permiso", "ind_descanso", "ind_justificada", "ind_espera", "ind_traslado", "ind_mantenimiento", "ind_inactividad", "ind_otra", "ind_encargado"]} />
+    <ReglasDelRancho data={data} add={add} session={session} claves={["ind_permiso", "ind_descanso", "ind_justificada", "ind_espera", "ind_traslado", "ind_mantenimiento", "ind_inactividad", "ind_otra", "ind_encargado", "ind_bajas"]} />
   </>);
 }
 

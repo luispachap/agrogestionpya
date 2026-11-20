@@ -107,11 +107,17 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | Abonos a préstamos como movimientos (saldo calculado, sin sobrescrituras, idempotentes, con historial) | Sí | Sí | Sí | Falta |
 | Saldos iniciales de prestaciones con fecha de corte, fundamento, responsable y evidencia; nunca al costo | Sí | Sí | Sí | Falta: capturar los reales |
 | Cierre de mes: foto de costos por parcela (directo, indirecto, completo, pendiente), ajustes posteriores a la vista, reapertura con motivo y versiones; pide el permiso «cerrar el mes» | Sí | Sí (4 reglas + 9 en navegador) | Sí | Falta: cerrar un mes real |
+| Cierre de mes con gastos generales: producción, pendiente de distribuir, lo que no es de producción, gastos generales por categoría (sin repartir a parcelas) y total del rancho sin duplicar; las compras para el almacén se dicen aparte | Sí | Sí (5 reglas + 11 en navegador) | Sí | Falta: cerrar un mes real |
+| Préstamos por etapas: solicitud (encargado) → autorización (permiso propio) → entrega del dinero → abonos → saldo. La deuda nace con la entrega | Sí | Sí (5 reglas + 2 ataques a la base de prueba + 7 en navegador) | Sí (hoja 39) | **Falta con cuentas reales** |
+| Bajas del personal: finiquito o liquidación según la causa; la app propone cada concepto y marca lo que hay que revisar; una persona confirma; no repite lo ya generado; pagos, documentos y PDF del cálculo | Sí | Sí (8 reglas + 11 en navegador) | Sí | **Falta revisarlo con quien lleve lo laboral y con un caso real** |
 | Quien cobra por destajo: base por promedio de lo ganado; sin datos queda «pendiente de revisión», no en cero | Sí | Sí | Sí | Falta |
 | Pago por calendario: lo activa un administrador, por persona, con fecha de inicio | Sí | Sí | Sí | Falta |
 
 **Lo que NO quedó cerrado (riesgos a la vista):**
-- El cierre de mes toma lo que tiene fecha de ese mes (actividades, gastos y compras con parcela, e indirectos). Lo que no tiene parcela no aparece ahí.
+- El cierre de mes toma lo que tiene fecha de ese mes. Lo que no tiene parcela ni vehículo sale como «gastos generales», aparte y sin repartir: repartirlo pide una política que decide Luis.
+- **Bajas:** las indemnizaciones (tres meses, veinte días por año) se proponen con el sueldo por día, NO con el salario integrado, y siempre «por revisar»: el importe final lo confirma una persona. La prima de antigüedad necesita el salario mínimo por día capturado en las reglas. No es asesoría legal.
+- **Protección contra contraseñas filtradas (Supabase): NO activada.** Es función del plan de pago; activarla es un gasto y lo decide Luis.
+- `rls_auto_enable`: es una función interna de Supabase (enciende la protección por renglón en tablas nuevas). No exponía datos; se le quitó el permiso de ser llamada desde fuera (hoja 38).
 - La base comprueba QUIÉN y con QUÉ permiso; no recalcula cuánto le corresponde a cada quien (eso vive en la app). De un pago sólo revisa que el importe sea un número mayor que cero.
 - El sello vive en cada aparato tal como lo bajó: quien altere su propio teléfono sólo se engaña a sí mismo, los demás leen el de la base.
 - Con base, quien entra con PIN de administrador en un aparato cuya cuenta no tiene el permiso NO puede pagar, cerrar ni cambiar reglas. Es lo pedido, pero cambia la costumbre: esas operaciones se hacen con cuenta propia.
@@ -215,7 +221,8 @@ En las tablas de abajo, "Desplegado: No" quiere decir "no en app.agroselectos.co
 | Navegador, arranque limpio (`arranque`) | 13 de 13 |
 | Navegador, prestaciones, encargados y cierre de la semana (`prestaciones`) | 49 de 49 |
 | Navegador, lo sensible contra una nube que valida como la base (`sensibles`) | 15 de 15 |
-| Navegador, cierre de mes (`mes`) | 9 de 9 |
+| Navegador, cierre de mes (`mes`) | 11 de 11 |
+| Navegador, préstamos por etapas y bajas (`bajas`) | 18 de 18 |
 | Compilación | correcta, 125 módulos, lector de PDF aparte |
 
 Todo junto: `sh pruebas/todo.sh`.

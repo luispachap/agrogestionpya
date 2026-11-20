@@ -12,7 +12,9 @@ S["ranchos"] = [{"id": "r1", "nombre": "RANCHO DE PRUEBA"}]
 S["parcelas"] = [{"id": "p1", "ranchoId": "r1", "nombre": "PARCELA UNO", "hectareas": 2, "cicloFenologico": []}, {"id": "p2", "ranchoId": "r1", "nombre": "PARCELA DOS", "hectareas": 1, "cicloFenologico": []}]
 act = lambda i, p, f, c: {"id": i, "parcelaId": p, "fecha": f, "tipo": "Riego", "costoMO": c, "costoInsumos": 0, "costoMaq": 0, "costoTotal": c, "registradoPor": {"id": "admin", "tipo": "admin", "nombre": "ADMIN"}}
 S["actividades"] = [act("a1", "p1", "2026-11-10", 1000), act("a2", "p2", "2026-11-12", 300), act("a3", "p1", "2026-12-01", 9999)]
-S["egresos"] = [{"id": "e1", "parcelaId": "p2", "fecha": "2026-11-15", "monto": 100, "concepto": "GASTO DE PRUEBA"}]
+S["egresos"] = [{"id": "e1", "parcelaId": "p2", "fecha": "2026-11-15", "monto": 100, "concepto": "GASTO DE PRUEBA"},
+                {"id": "g1", "fecha": "2026-11-05", "monto": 900, "categoria": "servicios", "concepto": "LUZ DE PRUEBA"}, {"id": "g2", "fecha": "2026-11-20", "monto": 200, "categoria": "administrativo", "concepto": "PAPELERIA DE PRUEBA"},
+                {"id": "g3", "fecha": "2026-11-08", "monto": 5000, "categoria": "insumos", "concepto": "Compra de insumo: UREA DE PRUEBA"}]
 LEER = """() => new Promise((ok) => { const r = indexedDB.open('agro_eventos_v8:local', 1);
   r.onupgradeneeded = () => { r.result.createObjectStore('eventos', { keyPath: 'id' }); r.result.createObjectStore('meta'); };
   r.onsuccess = () => { const q = r.result.transaction('eventos').objectStore('eventos').getAll(); q.onsuccess = () => { r.result.close(); ok(q.result); }; q.onerror = () => ok([]); };
@@ -34,6 +36,8 @@ with sync_playwright() as p:
     g["sembrar"](pg); g["entrar"](pg, "Admin", "7391"); pg.wait_for_timeout(400)
     c = abrir(pg); t = c.inner_text()
     caso("abre en el mes que acaba de terminar, con el costo de cada parcela y sólo lo de ese mes", pg.get_by_label("Mes que se cierra").input_value() == "2026-11" and "PARCELA UNO" in t and "$1,000" in t and "PARCELA DOS" in t and "$400" in t and "$1,400" in t and "9,999" not in t and "Abierto" in t, plano(t)[:300])
+    caso("los gastos generales salen aparte, sin repartirse a las parcelas, y el total del rancho no cuenta nada dos veces", "Costo de producción (parcelas)" in t and "Gastos generales" in t and "servicios $900" in t and "administrativo $200" in t and "$1,100" in t and "no se reparten a las parcelas" in t and "Total de costos y gastos del rancho" in t and "$2,500" in t and "Costos pendientes de distribuir" in t, plano(t)[200:700])
+    caso("la compra para el almacén no se cuenta como gasto: se dice aparte", "Aparte se compraron $5,000 de insumos para el almacén" in t and "7,500" not in t)
     pg.get_by_label("Mes que se cierra").fill("2026-12"); pg.wait_for_timeout(300)
     abrir(pg).get_by_role("button", name="Cerrar el mes").click(); pg.wait_for_timeout(300)
     caso("un mes que no ha terminado no se cierra", "todavía no termina" in pg.locator(".card", has_text="Cierre de mes").last.inner_text() and len(de(pg, "cierre_mes")) == 0)
@@ -41,7 +45,7 @@ with sync_playwright() as p:
     c = pg.locator(".card", has_text="Cierre de mes").last
     c.get_by_role("button", name="Cerrar el mes").click(); pg.wait_for_timeout(500)
     ev = de(pg, "cierre_mes"); t = c.inner_text()
-    caso("cerrar guarda la foto: parcela por parcela, directo, indirecto y completo", len(ev) == 1 and ev[0]["datos"]["mes"] == "2026-11" and ev[0]["datos"]["completo"] == 1400 and len(ev[0]["datos"]["renglones"]) == 2 and "Cerrado · versión 1" in t, plano(t)[:200])
+    caso("cerrar guarda la foto: parcela por parcela, directo, indirecto y completo", len(ev) == 1 and ev[0]["datos"]["mes"] == "2026-11" and ev[0]["datos"]["completo"] == 1400 and ev[0]["datos"]["generales"]["total"] == 1100 and ev[0]["datos"]["rancho"] == 2500 and len(ev[0]["datos"]["renglones"]) == 2 and "Cerrado · versión 1" in t, plano(t)[:200])
     # Después del cierre aparece un gasto de noviembre que nadie había capturado.
     pg.evaluate("""() => { const k = 'agro_v8:local', d = JSON.parse(localStorage.getItem(k)); d.egresos.push({ id: 'e2', parcelaId: 'p1', fecha: '2026-11-28', monto: 250, concepto: 'FACTURA QUE LLEGO TARDE' }); localStorage.setItem(k, JSON.stringify(d)); }""")
     pg.reload(); pg.wait_for_timeout(800); g["entrar"](pg, "Admin", "7391"); pg.wait_for_timeout(400)

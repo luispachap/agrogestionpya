@@ -170,7 +170,7 @@ with sync_playwright() as p:
     caso("Dora cobra por destajo: no se le inventa un sueldo; queda pendiente de revisión, no en cero", "cobra por lo que hace" in do and "Pendiente de revisión" in do and "no hay días trabajados registrados" in do and "No vale cero" in do, plano(do)[:300])
     tarjeta(pg, "BETO DE PRUEBA").get_by_role("button", name="Poner fecha de ingreso").click()
     modal(pg).get_by_label("Fecha de ingreso").fill("2026-01-01"); pg.get_by_label("Días de aguinaldo por año", exact=True).fill("30")
-    pg.get_by_label("Relación de trabajo").select_option("temporada"); modal(pg).get_by_role("button", name="Guardar").click(); pg.wait_for_timeout(400)
+    pg.get_by_label("Relación de trabajo", exact=True).select_option("temporada"); modal(pg).get_by_role("button", name="Guardar").click(); pg.wait_for_timeout(400)
     bt = tarjeta(pg, "BETO DE PRUEBA").inner_text(); fb = [t for t in guardado(pg, "trabajadores") if t["id"] == "t-beto"][0]
     caso("con su fecha de ingreso, su relación de trabajo y sus 30 días de aguinaldo ya genera", "Pendiente de revisión" not in bt and fb["fechaIngreso"] == "2026-01-01" and fb["prestaciones"]["aguinaldoDias"] == 30 and fb["relacionLaboral"] == "temporada" and "De temporada" in bt, plano(bt)[:200])
     # Saldo inicial: lo que ya traía al corte

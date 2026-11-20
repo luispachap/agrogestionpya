@@ -116,3 +116,7 @@ export const fuentePersonal = ({ items, base, politica }) => armar({ fuente: "pe
 // `renglones`: los de `renglonesAlCosto` de prestaciones.js. Todos llevan la misma política (`ind_prestaciones`).
 export const fuentePrestaciones = ({ renglones, base, politica }) => armar({ fuente: "prestaciones", nombre: "Prestaciones (aguinaldo, vacaciones y prima)", items: renglones, base, politica: () => politica,
   texto: (it) => `${it.nombre || "Alguien"} · ${it.que} · ${it.detalle}` });
+// Lo que nace al terminar una relación de trabajo y NO es una prestación que ya se venía generando
+// (prima de antigüedad, indemnizaciones). `renglones`: los de `renglonesDeBajas`. Regla: `ind_bajas`.
+export const fuenteBajas = ({ renglones, base, politica }) => armar({ fuente: "bajas", nombre: "Terminaciones de la relación de trabajo", items: renglones, base, politica: () => politica,
+  texto: (it) => `${it.nombre || "Alguien"} · ${it.que} · ${it.detalle}` });

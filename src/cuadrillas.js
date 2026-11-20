@@ -71,6 +71,8 @@ export const AJUSTES = {
   ind_otra: { defecto: "pendiente", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Tiempo pagado por otra causa: qué se hace con ese importe" },
   ind_encargado: { defecto: "actividades", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Días de un encargado sin actividad registrada: qué se hace con ese importe" },
   ind_prestaciones: { defecto: "actividades", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Prestaciones (aguinaldo, vacaciones y prima): qué se hace con ese importe" },
+  ind_bajas: { defecto: "pendiente", opciones: POLITICA_PERSONAL, nombre: "Costo de personal · Prima de antigüedad e indemnizaciones al terminar una relación de trabajo: qué se hace con ese importe" },
+  salario_minimo_dia: { defecto: 0, minimo: 0, maximo: 5000, nombre: "Salario mínimo por día vigente en la zona ($). Sirve para el tope de la prima de antigüedad; en cero, esa prima no se propone" },
   prest_corte: { tipo: "fecha", defecto: null, nombre: "Prestaciones · fecha de corte: desde qué día AgroGestión lleva su costo (lo de antes se captura como saldo inicial)" },
   prest_dias_promedio: { defecto: 30, minimo: 5, maximo: 365, nombre: "Prestaciones · días trabajados que se promedian para quien cobra por destajo o por hora" },
   prest_aguinaldo_dias: { defecto: 15, minimo: 15, maximo: 120, nombre: "Prestaciones · días de aguinaldo por año (la ley pide 15 como mínimo)" },
