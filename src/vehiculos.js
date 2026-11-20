@@ -13,14 +13,22 @@
 // ════════════════════════════════════════════════════════════════════════
 import { sumarDinero, vivos } from "./calculos.js";
 
+// ¿Es combustible? Por su categoría o por cómo se llama. Sirve para saber si al costo real de una máquina le falta lo principal.
+export const esCombustible = (categoria, nombre) => categoria === "combustible" || /di[eé]sel|gasolina|combustible|magna|premium/i.test(String(nombre || ""));
+// Los ajustes de valuación de lo que se le cargó a un vehículo se quedan en ESE vehículo: el consumo original no se
+// toca, pero la cuenta de la máquina usa lo que de verdad costaba (y de ahí sigue su reparto). No es un gasto general del almacén.
+export function consumosConAjustes(consumos = [], ajustes = []) {
+  const porEv = new Map(ajustes.filter(a => a.destino?.tipo === "vehiculo" && a.diferencia).map(a => [a.ev, a]));
+  return consumos.map(c => { const a = c.destino?.tipo === "vehiculo" ? porEv.get(c.ev) : null; return a ? { ...c, costo: a.recalculado, costoOriginal: c.costo ?? null, ajusteDeValuacion: a.diferencia } : c; });
+}
 export function costoDeVehiculos({ vehiculos = [], partes = [], consumos = [], egresos = [], viajes = [], desde, hasta, conDepreciacion = false }) {
   const enRango = (f) => (!desde || f >= desde) && (!hasta || f <= hasta);
   const nombre = new Map(vehiculos.map(v => [v.id, v.nombre]));
   const m = new Map();
-  const de = (id, alias) => { if (!m.has(id)) m.set(id, { vehiculoId: id, nombre: nombre.get(id) || alias || "Vehículo que no está en este aparato", operador: 0, minutos: 0, almacen: 0, gastos: 0, renglones: [], viajes: [], sinCosto: 0 }); return m.get(id); };
+  const de = (id, alias) => { if (!m.has(id)) m.set(id, { vehiculoId: id, nombre: nombre.get(id) || alias || "Vehículo que no está en este aparato", operador: 0, minutos: 0, almacen: 0, gastos: 0, renglones: [], viajes: [], sinCosto: 0, hayCombustible: false }); return m.get(id); };
   for (const p of partes) if (p.vehiculoId && enRango(p.fecha)) { const v = de(p.vehiculoId, p.vehiculo); v.operador = sumarDinero(v.operador, p.monto); v.minutos += p.minutos || 0; v.renglones.push({ clase: "operador", fecha: p.fecha, quien: p.trabajadorId, que: p.actividad, minutos: p.minutos, monto: p.monto, beneficiaId: p.beneficiaId || null, evs: p.evs }); }
-  for (const c of consumos) if (c.destino?.tipo === "vehiculo" && c.destino.id && enRango(c.fecha)) { const v = de(c.destino.id, c.destino.nombre); if (c.costo == null) v.sinCosto += 1; else v.almacen = sumarDinero(v.almacen, c.costo); v.renglones.push({ clase: "almacen", fecha: c.fecha, capturado: c.capturado || null, que: `${c.cantidad} ${c.unidad} de ${c.articulo}`, monto: c.costo, evs: c.evs }); }
-  for (const g of vivos(egresos)) if (g.vehiculoId && enRango(g.fecha)) { const v = de(g.vehiculoId); v.gastos = sumarDinero(v.gastos, g.monto); v.renglones.push({ clase: "gasto", fecha: g.fecha, capturado: g._actualizado || null, que: g.concepto || "Gasto", monto: Number(g.monto) || 0, egresoId: g.id }); }
+  for (const c of consumos) if (c.destino?.tipo === "vehiculo" && c.destino.id && enRango(c.fecha)) { const v = de(c.destino.id, c.destino.nombre); if (esCombustible(c.categoria, c.articulo)) v.hayCombustible = true; if (c.costo == null) v.sinCosto += 1; else v.almacen = sumarDinero(v.almacen, c.costo); v.renglones.push({ clase: "almacen", fecha: c.fecha, capturado: c.capturado || null, que: `${c.cantidad} ${c.unidad} de ${c.articulo}`, monto: c.costo, evs: c.evs }); }
+  for (const g of vivos(egresos)) if (g.vehiculoId && enRango(g.fecha)) { const v = de(g.vehiculoId); if (esCombustible(g.categoria, g.concepto)) v.hayCombustible = true; v.gastos = sumarDinero(v.gastos, g.monto); v.renglones.push({ clase: "gasto", fecha: g.fecha, capturado: g._actualizado || null, que: g.concepto || "Gasto", monto: Number(g.monto) || 0, egresoId: g.id }); }
   for (const t of viajes) if (t.vehiculoId && enRango(t.fecha)) de(t.vehiculoId, t.vehiculo).viajes.push(t);
   // Un vehículo con depreciación capturada cuesta aunque ese periodo no tenga ningún papel.
   if (conDepreciacion) for (const x of vehiculos) if (Number(x.depreciacion_mes) > 0) de(x.id);
@@ -55,12 +63,17 @@ export function costoDeVehiculos({ vehiculos = [], partes = [], consumos = [], e
 //    suman nunca: lo único que entra aquí, además de la cuota que ya está en
 //    las actividades, es la DIFERENCIA (real − aplicado, puede ser negativa),
 //    y su tratamiento es una regla del rancho (`maq_diferencia`):
-//      pendiente  queda a la vista, sin distribuir (por defecto)
-//      aplicado   a las mismas parcelas y en la misma proporción en que se
-//                 aplicó la cuota ese mes (la base es la cuota misma)
+//      aplicado   a las parcelas que usaron la máquina ese mes, en proporción
+//                 a la cuota que se les aplicó (por defecto; decisión de Luis)
+//      pendiente  queda a la vista, sin distribuir
 //      general    gasto general de maquinaria: no sube ninguna parcela
 //    Así, cuota + diferencia = costo real, exacto. Y si en el mes no hay NINGÚN
 //    costo real capturado de esa máquina, no hay diferencia: no se sabe.
+//    Y si al costo real le FALTA algo importante (combustible, la depreciación,
+//    el precio de una entrega), una diferencia a favor es artificial: no se le
+//    baja el costo a ninguna parcela, se conserva la cuota y se dice qué falta.
+//    El uso que no fue de producción (trabajo general del rancho) nunca se le
+//    carga a una parcela.
 // ════════════════════════════════════════════════════════════════════════
 import { repartirDinero } from "./calculos.js";
 export const ACT_TRASLADO = "Traslado de personal";
@@ -69,8 +82,8 @@ const enteros = (pesos) => pesos.map(p => Math.round(p * 1000));
 
 // `trabajo`: lo que hizo cada cuadrilla cada día ({fecha, cuadrillaId, parcelaId, personas}).
 // `cuotas`: actividades que ya cargaron maquinaria por hora ({maquinariaId, fecha, costoMaq}).
-export const TRATAMIENTO_DIFERENCIA = { pendiente: "Dejarla pendiente de distribuir, a la vista", aplicado: "A las mismas parcelas, en la proporción en que se aplicó la cuota", general: "Gasto general de maquinaria: no se carga a parcelas" };
-export function repartirVehiculos({ vehiculos = [], costos = [], trabajo = [], cuotas = [], desde, hasta, criterioTraslado = "personas", criterioVehiculo = "horas", tratamientoDiferencia = "pendiente" }) {
+export const TRATAMIENTO_DIFERENCIA = { pendiente: "Dejarla pendiente de distribuir, a la vista", aplicado: "A las parcelas que usaron la máquina, en proporción a la cuota aplicada", general: "Gasto general de maquinaria: no se carga a parcelas" };
+export function repartirVehiculos({ vehiculos = [], costos = [], trabajo = [], cuotas = [], desde, hasta, criterioTraslado = "personas", criterioVehiculo = "horas", tratamientoDiferencia = "aplicado" }) {
   const enRango = (f) => (!desde || f >= desde) && (!hasta || f <= hasta);
   const ficha = new Map(vehiculos.map(v => [v.id, v]));
   return costos.map(v => {
@@ -80,32 +93,55 @@ export function repartirVehiculos({ vehiculos = [], costos = [], trabajo = [], c
     const base = { vehiculoId: v.vehiculoId, nombre: v.nombre, costoReal: sumarDinero(v.total, depreciacion), depreciacion, cuota,
       componentes: { operador: v.operador, combustible: v.almacen, mantenimiento: v.gastos, depreciacion }, sinCosto: v.sinCosto || 0 };
     if (cuota > 0) {
-      const diferencia = sumarDinero(base.costoReal, -cuota), fin = hasta || desde || "";
-      const comun = { ...base, modo: "cuota", aplicado: cuota, diferencia, tratamiento: tratamientoDiferencia, noProduccion: 0, detalleNoProduccion: [] };
+      const visto = sumarDinero(base.costoReal, -cuota), fin = hasta || desde || "";
+      // ¿Está completo el costo real? Si falta algo importante, lo capturado NO es lo que costó: es un piso.
+      const f = ficha.get(v.vehiculoId) || {};
+      const faltan = [];
+      if (!v.hayCombustible) faltan.push("combustible (no hay ninguna carga registrada a esta máquina en el mes)");
+      if ((v.sinCosto || 0) > 0) faltan.push(`el precio de ${v.sinCosto} entrega${v.sinCosto === 1 ? "" : "s"} del almacén que todavía no tiene${v.sinCosto === 1 ? "" : "n"} costo`);
+      if (!(depMes > 0) && !f.sin_depreciacion) faltan.push("la depreciación (no está capturada en la ficha de la máquina, ni dice que no se deprecia)");
+      const incompleta = faltan.length > 0;
+      const comun = { ...base, modo: "cuota", aplicado: cuota, diferencia: visto, diferenciaVista: visto, incompleta, faltan, tratamiento: tratamientoDiferencia, noProduccion: 0, detalleNoProduccion: [] };
       const cuenta = `Costo real ${base.costoReal} (operador ${v.operador}, combustible y refacciones del almacén ${v.almacen}, mantenimiento y otros gastos ${v.gastos}, depreciación ${depreciacion}) contra ${cuota} ya aplicados por cuota por hora a las actividades.`;
-      if (base.costoReal <= 0) return { ...comun, diferencia: 0, sinReal: true, partes: [], pendientes: [], repartido: 0, pendiente: 0, cuadra: true,
+      const nada = { partes: [], pendientes: [], repartido: 0, pendiente: 0, cuadra: true };
+      if (base.costoReal <= 0) return { ...comun, ...nada, diferencia: 0, sinReal: true,
         dice: `Aplicó ${cuota} por cuota y este mes no tiene ningún costo real capturado. No se saca diferencia: que no haya papeles no quiere decir que costó cero.` };
-      if (diferencia === 0) return { ...comun, partes: [], pendientes: [], repartido: 0, pendiente: 0, cuadra: true, dice: `${cuenta} Coinciden.` };
+      // Con la cuenta incompleta, una diferencia a favor es artificial: no se le baja el costo a ninguna parcela. Se conserva la cuota.
+      if (incompleta && visto < 0) return { ...comun, ...nada, diferencia: 0,
+        dice: `${cuenta} Lo capturado es menos que la cuota, pero la cuenta está incompleta: falta ${faltan.join("; ")}. No se le baja el costo a ninguna parcela con una cuenta incompleta: se conserva la cuota aplicada.` };
+      const diferencia = visto;
+      const aviso = incompleta ? ` La cuenta todavía está incompleta (falta ${faltan.join("; ")}): la diferencia puede crecer.` : "";
+      if (diferencia === 0) return { ...comun, ...nada, dice: `${cuenta} Coinciden.${aviso}` };
       const sobre = diferencia < 0 ? "La cuota aplicó de más" : "La cuota se quedó corta";
-      if (tratamientoDiferencia === "general") return { ...comun, partes: [], pendientes: [], repartido: 0, pendiente: 0, noProduccion: diferencia, cuadra: true,
+      if (tratamientoDiferencia === "general") return { ...comun, ...nada, noProduccion: diferencia,
         detalleNoProduccion: [{ mes: fin.slice(0, 7), fecha: fin, vehiculo: v.nombre, vehiculoId: v.vehiculoId, monto: diferencia, general: true, categoria: "maquinaria_diferencia", que: `${v.nombre}: ${sobre.toLowerCase()} por ${Math.abs(diferencia)}. ${cuenta}` }],
-        dice: `${cuenta} ${sobre} por ${Math.abs(diferencia)}: va como gasto general de maquinaria.` };
-      if (tratamientoDiferencia === "aplicado") {
-        // La misma base con que se aplicó: lo que cada parcela ya recibió de cuota este mes.
-        const porParcela = new Map(); let sinParcela = 0;
-        for (const a of cuotas) { if (a.maquinariaId !== v.vehiculoId || !enRango(a.fecha) || !(Number(a.costoMaq) > 0)) continue; if (a.parcelaId) porParcela.set(a.parcelaId, sumarDinero(porParcela.get(a.parcelaId) || 0, a.costoMaq)); else sinParcela = sumarDinero(sinParcela, a.costoMaq); }
-        const llaves = [...porParcela.keys()], pesos = [...llaves.map(k => porParcela.get(k)), sinParcela].map(x => Math.round(x * 100));
-        const signo = diferencia < 0 ? -1 : 1, m = repartirDinero(Math.abs(diferencia), pesos).map(x => x * signo);
-        const partes = llaves.map((parcelaId, i) => ({ parcelaId, monto: m[i], origen: "diferencia", fecha: fin, vehiculoId: v.vehiculoId, vehiculo: v.nombre, base: `en proporción a la cuota aplicada (${porParcela.get(parcelaId)} de ${cuota})`,
-          explica: `${v.nombre}: ${sobre.toLowerCase()}. ${cuenta} La diferencia (${diferencia}) se reparte a las mismas parcelas en la proporción en que se les aplicó la cuota; a ésta se le habían aplicado ${porParcela.get(parcelaId)} de ${cuota}.` })).filter(p => p.monto !== 0);
-        const resto = m[llaves.length] || 0;
-        const pendientes = resto !== 0 ? [{ monto: resto, origen: "diferencia", fecha: fin, porque: `Parte de la cuota de ${v.nombre} se aplicó en actividades sin parcela (${sinParcela} de ${cuota}): esa parte de la diferencia no tiene a qué parcela ir.` }] : [];
-        const repartido = sumarDinero(partes.map(p => p.monto)), pendiente = sumarDinero(pendientes.map(p => p.monto));
-        return { ...comun, partes, pendientes, repartido, pendiente, cuadra: sumarDinero(repartido, pendiente) === diferencia, dice: `${cuenta} ${sobre} por ${Math.abs(diferencia)}: se repartió en la misma proporción que la cuota.` };
+        dice: `${cuenta} ${sobre} por ${Math.abs(diferencia)}: va como gasto general de maquinaria.${aviso}` };
+      if (tratamientoDiferencia === "pendiente") return { ...comun, partes: [], repartido: 0, pendiente: diferencia, cuadra: true,
+        pendientes: [{ monto: diferencia, origen: "diferencia", fecha: fin, porque: `${sobre} por ${Math.abs(diferencia)}. ${cuenta} La regla del rancho dice dejar esta diferencia pendiente de distribuir.${aviso}` }],
+        dice: `${cuenta} ${sobre} por ${Math.abs(diferencia)}: queda pendiente de distribuir.${aviso}` };
+      // A las parcelas que usaron la máquina, en proporción a lo que ya se les aplicó de cuota. Y la máquina no sólo
+      // trabaja en parcelas: lo que hizo en la bodega de un cultivo es producción sin parcela (queda a la vista), el
+      // trabajo general del rancho NO es de producción (no se le carga a ninguna parcela) y lo que no dice dónde fue, no se sabe.
+      const porParcela = new Map(), porCultivo = new Map(); let general = 0, sinDecir = 0;
+      for (const a of cuotas) {
+        if (a.maquinariaId !== v.vehiculoId || !enRango(a.fecha) || !(Number(a.costoMaq) > 0)) continue;
+        if (a.parcelaId) porParcela.set(a.parcelaId, sumarDinero(porParcela.get(a.parcelaId) || 0, a.costoMaq));
+        else if (a.esBodega && a.cultivoBodega && a.cultivoBodega !== "__general__") porCultivo.set(a.cultivoBodega, sumarDinero(porCultivo.get(a.cultivoBodega) || 0, a.costoMaq));
+        else if (a.esBodega) general = sumarDinero(general, a.costoMaq);
+        else sinDecir = sumarDinero(sinDecir, a.costoMaq);
       }
-      return { ...comun, partes: [], repartido: 0, pendiente: diferencia, cuadra: true,
-        pendientes: [{ monto: diferencia, origen: "diferencia", fecha: fin, porque: `${sobre} por ${Math.abs(diferencia)}. ${cuenta} Falta decidir qué se hace con la diferencia (regla «diferencia de maquinaria»).` }],
-        dice: `${cuenta} ${sobre} por ${Math.abs(diferencia)}: queda pendiente de distribuir.` };
+      const llaves = [...porParcela.keys()], cultivos = [...porCultivo.keys()];
+      const pesos = [...llaves.map(k => porParcela.get(k)), ...cultivos.map(k => porCultivo.get(k)), general, sinDecir].map(x => Math.round(x * 100));
+      const signo = diferencia < 0 ? -1 : 1, m = repartirDinero(Math.abs(diferencia), pesos).map(x => x * signo);
+      const partes = llaves.map((parcelaId, i) => ({ parcelaId, monto: m[i], origen: "diferencia", fecha: fin, vehiculoId: v.vehiculoId, vehiculo: v.nombre, base: `en proporción a la cuota aplicada (${porParcela.get(parcelaId)} de ${cuota})`,
+        explica: `${v.nombre}: ${sobre.toLowerCase()}. ${cuenta} La diferencia (${diferencia}) se reparte a las parcelas que usaron la máquina, en la proporción en que se les aplicó la cuota; a ésta se le habían aplicado ${porParcela.get(parcelaId)} de ${cuota}.${aviso}` })).filter(p => p.monto !== 0);
+      const pendientes = cultivos.map((c, i) => ({ monto: m[llaves.length + i], origen: "diferencia", fecha: fin, porque: `${v.nombre} trabajó en la bodega de ${c} (${porCultivo.get(c)} de ${cuota} de cuota). Es producción, pero no es de una parcela: esa parte de la diferencia queda a la vista, sin repartir.` })).filter(p => p.monto !== 0);
+      const mGeneral = m[llaves.length + cultivos.length] || 0, mSinDecir = m[llaves.length + cultivos.length + 1] || 0;
+      if (mSinDecir !== 0) pendientes.push({ monto: mSinDecir, origen: "diferencia", fecha: fin, porque: `Parte de la cuota de ${v.nombre} se aplicó en actividades que no dicen parcela ni bodega (${sinDecir} de ${cuota}): esa parte de la diferencia no tiene a dónde ir hasta que se diga.` });
+      const detalleNoProduccion = mGeneral !== 0 ? [{ mes: fin.slice(0, 7), fecha: fin, vehiculo: v.nombre, vehiculoId: v.vehiculoId, monto: mGeneral, general: true, categoria: "maquinaria_no_productiva", que: `${v.nombre}: uso general del rancho, no de producción (${general} de ${cuota} de cuota). Esa parte de la diferencia no se le carga a ninguna parcela.` }] : [];
+      const repartido = sumarDinero(partes.map(p => p.monto)), pendiente = sumarDinero(pendientes.map(p => p.monto));
+      return { ...comun, partes, pendientes, repartido, pendiente, noProduccion: mGeneral, detalleNoProduccion, usoProductivo: sumarDinero([...porParcela.values(), ...porCultivo.values()]), usoNoProductivo: general, usoSinDecir: sinDecir,
+        cuadra: sumarDinero(repartido, pendiente, mGeneral) === diferencia, dice: `${cuenta} ${sobre} por ${Math.abs(diferencia)}: se repartió entre las parcelas que usaron la máquina, en proporción a la cuota.${aviso}` };
     }
 
     // Los usos del periodo: cada viaje con cuadrilla, y cada rato de operador que no fue traslado de personal.
@@ -194,7 +230,7 @@ export function vehiculosPorMes({ vehiculos = [], partes = [], consumos = [], eg
     const costos = costoDeVehiculos({ vehiculos, partes, consumos, egresos, viajes, desde, hasta, conDepreciacion: true });
     // Una máquina que aplicó cuota este mes entra aunque no tenga ningún papel: hay que decir que no se pudo conciliar.
     const conCuota = new Set(cuotas.filter(a => a.maquinariaId && a.fecha >= desde && a.fecha <= hasta && Number(a.costoMaq) > 0).map(a => a.maquinariaId));
-    for (const id of conCuota) if (!costos.some(c => c.vehiculoId === id)) costos.push({ vehiculoId: id, nombre: vehiculos.find(x => x.id === id)?.nombre || "Máquina que no está en este aparato", operador: 0, minutos: 0, almacen: 0, gastos: 0, renglones: [], viajes: [], sinCosto: 0, total: 0, viajesSinOperador: 0 });
+    for (const id of conCuota) if (!costos.some(c => c.vehiculoId === id)) costos.push({ vehiculoId: id, nombre: vehiculos.find(x => x.id === id)?.nombre || "Máquina que no está en este aparato", operador: 0, minutos: 0, almacen: 0, gastos: 0, renglones: [], viajes: [], sinCosto: 0, hayCombustible: false, total: 0, viajesSinOperador: 0 });
     return repartirVehiculos({ vehiculos, costos, trabajo, cuotas, desde, hasta, criterioTraslado, criterioVehiculo, tratamientoDiferencia }).filter(r => r.costoReal > 0 || r.partes.length > 0 || r.cuota > 0).map(r => ({ ...r, mes }));
   });
 }
@@ -209,9 +245,9 @@ export function fuenteVehiculos(repartosPorMes) {
 // La conciliación de la maquinaria de un mes: lo aplicado por cuota, lo real y la diferencia, máquina por máquina.
 export function conciliarMaquinaria(repartosPorMes, mes) {
   const filas = repartosPorMes.filter(r => r.mes === mes).map(r => ({ vehiculoId: r.vehiculoId, nombre: r.nombre, modo: r.modo, aplicado: r.modo === "cuota" ? r.cuota : 0, real: r.costoReal, componentes: r.componentes,
-    diferencia: r.modo === "cuota" ? r.diferencia : null, sinReal: !!r.sinReal, tratamiento: r.modo === "cuota" ? r.tratamiento : null, repartido: r.repartido || 0, pendiente: r.pendiente || 0, general: r.modo === "cuota" ? r.noProduccion : 0, noProduccion: r.modo === "cuota" ? 0 : r.noProduccion, sinCosto: r.sinCosto || 0, dice: r.dice || "" }));
+    diferencia: r.modo === "cuota" ? r.diferencia : null, diferenciaVista: r.modo === "cuota" ? r.diferenciaVista ?? r.diferencia : null, incompleta: !!r.incompleta, faltan: r.faltan || [], usoProductivo: r.usoProductivo ?? null, usoNoProductivo: r.usoNoProductivo ?? null, usoSinDecir: r.usoSinDecir ?? null, sinReal: !!r.sinReal, tratamiento: r.modo === "cuota" ? r.tratamiento : null, repartido: r.repartido || 0, pendiente: r.pendiente || 0, general: r.modo === "cuota" ? r.noProduccion : 0, noProduccion: r.modo === "cuota" ? 0 : r.noProduccion, sinCosto: r.sinCosto || 0, dice: r.dice || "" }));
   const S = (k) => sumarDinero(filas.map(f => f[k] || 0));
   // Lo que la maquinaria le costó al rancho este mes, UNA vez: lo aplicado por cuota más lo que entra por fuera de la cuota.
   const porFuera = sumarDinero(filas.map(f => (f.modo === "cuota" ? (f.sinReal ? 0 : f.diferencia) : f.real)));
-  return { mes, filas, aplicado: S("aplicado"), real: sumarDinero(filas.filter(f => !f.sinReal).map(f => f.real)), diferencia: sumarDinero(filas.map(f => f.diferencia || 0)), sinConciliar: filas.filter(f => f.sinReal).length, enCostos: sumarDinero(S("aplicado"), porFuera) };
+  return { mes, filas, aplicado: S("aplicado"), real: sumarDinero(filas.filter(f => !f.sinReal).map(f => f.real)), diferencia: sumarDinero(filas.map(f => f.diferencia || 0)), sinConciliar: filas.filter(f => f.sinReal).length, incompletas: filas.filter(f => f.incompleta && !f.sinReal).length, enCostos: sumarDinero(S("aplicado"), porFuera) };
 }

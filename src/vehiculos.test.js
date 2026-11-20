@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { costoDeVehiculos } from "./vehiculos.js";
+import { costoDeVehiculos, consumosConAjustes, esCombustible } from "./vehiculos.js";
 
 const D = "2026-11-19";
 const CAMION = { id: "m-camion", nombre: "Camión amarillo" };
@@ -105,13 +105,15 @@ test("la_cuota_por_hora_y_el_costo_real_no_se_suman_solo_entra_la_diferencia", (
   assert.equal(r.modo, "cuota"); assert.equal(r.aplicado, 4000); assert.equal(r.costoReal, 7000); assert.equal(r.diferencia, 3000);
   assert.deepEqual(r.componentes, { operador: 500, combustible: 2000, mantenimiento: 1500, depreciacion: 3000 });
   const f = juntarFuentes([fuenteVehiculos([r])]);
-  assert.equal(f.repartido + f.pendiente + f.fuera, 3000, "a los costos, por fuera de la cuota, sólo entra la diferencia"); assert.equal(f.pendiente, 3000, "y mientras no se decida, queda pendiente de distribuir");
+  assert.equal(f.repartido + f.pendiente + f.fuera, 3000, "a los costos, por fuera de la cuota, sólo entra la diferencia"); assert.equal(f.repartido, 3000, "y va a las parcelas que usaron la máquina, en proporción a la cuota");
   const k = conciliarMaquinaria([r], "2026-11");
   assert.equal(k.aplicado, 4000); assert.equal(k.real, 7000); assert.equal(k.diferencia, 3000); assert.equal(k.enCostos, 7000, "aplicado + diferencia = costo real: la máquina cuesta una sola vez");
 });
 
 test("la_diferencia_se_puede_repartir_con_la_misma_base_de_la_cuota_o_mandarse_a_gasto_general", () => {
-  const [a] = mesT({ tratamientoDiferencia: "aplicado" });
+  const [a] = mesT();
+  assert.equal(a.tratamiento, "aplicado", "es lo que se hace si nadie dice otra cosa");
+  const [q] = mesT({ tratamientoDiferencia: "pendiente" }); assert.equal(q.pendiente, 3000); assert.equal(q.partes.length, 0);
   assert.deepEqual(a.partes.map(p => [p.parcelaId, p.monto]), [["p7", 2250], ["p8", 750]], "3/4 y 1/4, como se aplicó la cuota");
   assert.match(a.partes[0].explica, /en la proporción en que se les aplicó la cuota/); assert.ok(a.cuadra);
   const [g] = mesT({ tratamientoDiferencia: "general" });
@@ -120,8 +122,8 @@ test("la_diferencia_se_puede_repartir_con_la_misma_base_de_la_cuota_o_mandarse_a
 });
 
 test("si_la_cuota_aplico_de_mas_la_diferencia_es_negativa_y_tambien_cuenta", () => {
-  const [r] = mesT({ vehiculos: [{ id: "m-tractor", nombre: "Tractor 3" }], egresos: [], tratamientoDiferencia: "aplicado" });
-  assert.equal(r.costoReal, 2500); assert.equal(r.diferencia, -1500);
+  const [r] = mesT({ vehiculos: [{ id: "m-tractor", nombre: "Tractor 3", sin_depreciacion: true }], egresos: [] });
+  assert.equal(r.incompleta, false); assert.equal(r.costoReal, 2500); assert.equal(r.diferencia, -1500);
   assert.deepEqual(r.partes.map(p => [p.parcelaId, p.monto]), [["p7", -1125], ["p8", -375]]);
   assert.equal(conciliarMaquinaria([r], "2026-11").enCostos, 2500);
 });
@@ -136,4 +138,47 @@ test("una_maquina_con_cuota_y_sin_ningun_costo_real_capturado_no_se_concilia_no_
 test("la_cuota_aplicada_en_una_actividad_sin_parcela_deja_esa_parte_de_la_diferencia_pendiente", () => {
   const [r] = mesT({ cuotas: [...cuotasT, { maquinariaId: "m-tractor", fecha: "2026-11-20", parcelaId: "", costoMaq: 1000 }], tratamientoDiferencia: "aplicado" });
   assert.equal(r.diferencia, 2000); assert.equal(r.repartido, 1600); assert.equal(r.pendiente, 400); assert.ok(r.cuadra);
+});
+
+test("con_la_cuenta_incompleta_no_se_le_baja_el_costo_a_ninguna_parcela_se_conserva_la_cuota", () => {
+  // Sin diésel registrado y sin depreciación: lo capturado (operador 500 + servicio 1,500) es menos que la cuota (4,000).
+  const [r] = mesT({ vehiculos: [{ id: "m-tractor", nombre: "Tractor 3" }], consumos: [] });
+  assert.equal(r.incompleta, true); assert.equal(r.diferenciaVista, -2000); assert.equal(r.diferencia, 0, "no hay diferencia a favor con una cuenta a medias");
+  assert.equal(r.partes.length, 0); assert.equal(r.pendientes.length, 0);
+  assert.match(r.dice, /falta combustible/); assert.match(r.dice, /depreciación/); assert.match(r.dice, /se conserva la cuota/);
+  const k = conciliarMaquinaria([r], "2026-11");
+  assert.equal(k.incompletas, 1); assert.equal(k.enCostos, 4000, "la máquina sigue costando lo aplicado");
+});
+
+test("una_entrega_del_almacen_sin_precio_tambien_deja_la_cuenta_incompleta", () => {
+  const [r] = mesT({ vehiculos: [{ id: "m-tractor", nombre: "Tractor 3", sin_depreciacion: true }], egresos: [],
+    consumos: [{ fecha: "2026-11-10", destino: { tipo: "vehiculo", id: "m-tractor" }, articulo: "Diésel", unidad: "L", cantidad: 80, costo: null, evs: ["d1"] }] });
+  assert.equal(r.incompleta, true); assert.equal(r.diferencia, 0); assert.match(r.faltan.join(" "), /todavía no tiene costo/);
+});
+
+test("si_la_cuenta_esta_incompleta_pero_ya_rebasa_la_cuota_lo_que_rebasa_si_se_reparte_y_se_avisa", () => {
+  const [r] = mesT({ vehiculos: [{ id: "m-tractor", nombre: "Tractor 3" }], egresos: [{ id: "eg9", fecha: "2026-11-15", vehiculoId: "m-tractor", concepto: "Reparación mayor", monto: 5500 }] });
+  assert.equal(r.incompleta, true); assert.equal(r.diferencia, 4000); assert.equal(r.repartido, 4000); assert.match(r.partes[0].explica, /puede crecer/);
+});
+
+test("el_uso_que_no_fue_de_produccion_no_se_le_carga_a_ninguna_parcela", () => {
+  const cuotas = [...cuotasT, { maquinariaId: "m-tractor", fecha: "2026-11-18", parcelaId: "", esBodega: true, cultivoBodega: "__general__", costoMaq: 1000 }, { maquinariaId: "m-tractor", fecha: "2026-11-19", parcelaId: "", esBodega: true, cultivoBodega: "Ajo", costoMaq: 1000 }];
+  const [r] = mesT({ cuotas });
+  // real 7,000 contra 6,000 aplicados: 1,000 de diferencia. Parcelas 4/6, bodega de ajo 1/6, uso general 1/6.
+  assert.equal(r.diferencia, 1000); assert.equal(r.repartido, 666.67); assert.equal(r.noProduccion, 166.67); assert.equal(r.pendiente, 166.66); assert.ok(r.cuadra);
+  assert.equal(r.usoProductivo, 5000); assert.equal(r.usoNoProductivo, 1000);
+  const f = fuenteVehiculos([r]);
+  assert.equal(f.detalleNoProduccion[0].categoria, "maquinaria_no_productiva"); assert.equal(f.detalleNoProduccion[0].general, true);
+  assert.match(r.pendientes[0].porque, /bodega de Ajo/);
+});
+
+test("el_ajuste_de_valuacion_del_combustible_de_una_maquina_se_queda_en_esa_maquina", () => {
+  const consumos = [{ ev: "c1", fecha: "2026-11-10", destino: { tipo: "vehiculo", id: "m-tractor" }, articulo: "Diésel", unidad: "L", cantidad: 80, costo: null, evs: ["c1"] },
+    { ev: "c2", fecha: "2026-11-11", destino: { tipo: "parcela", id: "p7" }, articulo: "Urea", cantidad: 2, costo: 100 }];
+  const ajustes = [{ ev: "c1", destino: { tipo: "vehiculo", id: "m-tractor" }, original: null, recalculado: 2000, diferencia: 2000 }, { ev: "c2", destino: { tipo: "parcela", id: "p7" }, original: 100, recalculado: 150, diferencia: 50 }];
+  const con = consumosConAjustes(consumos, ajustes);
+  assert.equal(con[0].costo, 2000); assert.equal(con[0].costoOriginal, null); assert.equal(con[1].costo, 100, "lo de una parcela no se toca aquí: va a su parcela por otro lado");
+  const [r] = mesT({ consumos: con });
+  assert.equal(r.componentes.combustible, 2000); assert.equal(r.incompleta, false); assert.equal(r.diferencia, 3000);
+  assert.ok(esCombustible("combustible", "x")); assert.ok(esCombustible("", "Diesel amarillo")); assert.ok(!esCombustible("refaccion", "Filtro"));
 });

@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { otorgarBono, pagarBono, bonosDe, renglonesDeBonos, bonosQueIntegran } from "./bonos.js";
+import { otorgarBono, pagarBono, bonosDe, renglonesDeBonos, bonosQueIntegran, bonosPorRevisar, decidirIntegracion } from "./bonos.js";
+import { integrar } from "./salarioIntegrado.js";
+import { condicionesDe } from "./prestaciones.js";
 import { fuenteBonos, baseDePersonas } from "./personal.js";
 import { juntarFuentes } from "./indirectos.js";
 import { cancelarEvento } from "./eventos.js";
@@ -14,8 +16,9 @@ test("un_bono_necesita_importe_motivo_beneficiario_periodo_autorizacion_y_tratam
     assert.match(otorgarBono(B(falta)).dice, re);
   assert.equal(otorgarBono(B({ permitido: false })).ok, false, "sin permiso de pagos no se otorga");
   assert.match(otorgarBono(B({ hasta: "2026-11-30" })).dice, /todavía no termina/);
-  const r = otorgarBono(B()); assert.ok(r.ok, r.dice); assert.equal(r.evento.datos.integra, true, "el de productividad cuenta para su salario integrado");
-  assert.equal(otorgarBono(B({ clase: "extraordinario", motivo: "Ayuda por la boda" })).evento.datos.integra, false, "el de una sola vez, no; y queda dicho");
+  const r = otorgarBono(B()); assert.ok(r.ok, r.dice); assert.equal(r.evento.datos.integra, "revisar", "que se llame de productividad no decide nada: si no se dijo, queda por revisar");
+  assert.equal(otorgarBono(B({ clase: "extraordinario", motivo: "Ayuda por la boda" })).evento.datos.integra, "revisar", "ni que se llame extraordinario");
+  assert.equal(otorgarBono(B({ integra: "si" })).evento.datos.integra, "si"); assert.equal(otorgarBono(B({ integra: false })).evento.datos.integra, "no", "lo guardado antes como sí o no se lee igual");
 });
 
 test("un_bono_no_es_aguinaldo_ni_una_prestacion_de_ley", () => {
@@ -56,7 +59,25 @@ test("cada_bono_lleva_su_costo_a_donde_se_dijo_al_otorgarlo", () => {
 });
 
 test("solo_los_bonos_que_integran_y_caen_en_la_ventana_cuentan_para_el_salario_integrado", () => {
-  const a = otorgarBono(B()).evento, g = otorgarBono(B({ clase: "extraordinario", motivo: "Ayuda por la boda", monto: 1000 })).evento;
+  const a = otorgarBono(B({ integra: "si" })).evento, g = otorgarBono(B({ clase: "extraordinario", motivo: "Ayuda por la boda", monto: 1000, integra: "no" })).evento;
   assert.deepEqual(bonosQueIntegran([a, g], "t-ana", "2026-10-20", "2026-11-19").map(b => b.monto), [500]);
   assert.deepEqual(bonosQueIntegran([a, g], "t-ana", "2026-11-16", "2026-11-19"), []);
+});
+
+test("un_bono_sin_decidir_queda_por_revisar_y_deja_incompleto_el_salario_integrado_hasta_que_alguien_lo_decide", () => {
+  const a = otorgarBono(B()).evento;
+  assert.equal(bonosDe([a])[0].integra, "revisar"); assert.equal(bonosPorRevisar([a], "t-ana").length, 1);
+  assert.deepEqual(bonosQueIntegran([a], "t-ana", "2026-10-20", "2026-11-19"), [], "lo dudoso no se integra");
+  const cond = condicionesDe({ id: "t-ana", nombre: "Ana", sueldo_dia: 300, fechaIngreso: "2024-03-01" });
+  const antes = integrar({ cond, diario: 300, n: 1, fecha: "2026-11-19", persona: { percepciones: { revisado: true, lista: [] } }, bonos: bonosDe([a]) });
+  assert.equal(antes.completo, false); assert.match(antes.falta.join(" "), /nadie ha dicho si cuentan/); assert.ok(!antes.partes.some(p => p.clave === "variable:bonos"));
+  // Decidirlo es otro evento, con fundamento; el bono original no se toca.
+  assert.match(decidirIntegracion({ permitido: true, eventos: [a], bono: { id: a.id }, integra: "si", fundamento: "", quien: ADMIN, cuando: c("2026-11-17"), fecha: "2026-11-17", azar: az() }).dice, /fundamento/);
+  assert.equal(decidirIntegracion({ permitido: false, eventos: [a], bono: { id: a.id }, integra: "si", fundamento: "Se paga cada semana por meta", quien: ADMIN, cuando: c("2026-11-17"), fecha: "2026-11-17", azar: az() }).ok, false);
+  const d = decidirIntegracion({ permitido: true, eventos: [a], bono: { id: a.id }, integra: "si", fundamento: "Se paga cada semana por meta: es habitual", quien: ADMIN, cuando: c("2026-11-17"), fecha: "2026-11-17", azar: az() });
+  assert.ok(d.ok, d.dice); assert.equal(d.evento.datos.antes, "revisar");
+  const ya = bonosDe([a, d.evento])[0];
+  assert.equal(ya.integra, "si"); assert.equal(ya.integraPor.quien, "Luis"); assert.equal(a.datos.integra, "revisar", "el original sigue como se capturó");
+  const despues = integrar({ cond, diario: 300, n: 1, fecha: "2026-11-19", persona: { percepciones: { revisado: true, lista: [] } }, bonos: bonosDe([a, d.evento]) });
+  assert.ok(despues.partes.some(p => p.clave === "variable:bonos")); assert.ok(!despues.falta.some(f => /nadie ha dicho/.test(f)));
 });

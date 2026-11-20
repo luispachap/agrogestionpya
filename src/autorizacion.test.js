@@ -13,7 +13,7 @@ const pago = (azar) => registrarPago({ a: A, desde: "2026-11-16", hasta: "2026-1
 afterEach(() => exigirValidacion(false));
 
 test("la_lista_de_operaciones_sensibles_de_la_app_es_la_misma_que_la_de_la_base", () => {
-  const sql = readFileSync(new URL("../supabase/41-bonos-con-permiso.sql", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../supabase/42-revision-de-bonos.sql", import.meta.url), "utf8");
   const lista = sql.slice(sql.indexOf("insert into operaciones_sensibles"), sql.indexOf("on conflict (tipo)"));
   const enBase = Object.fromEntries([...lista.matchAll(/\('([a-z_]+)',\s+'([a-z_]+)',\s+(true|false)\)/g)].map(m => [m[1], m[2]]));
   assert.deepEqual(enBase, OPERACION_DE);

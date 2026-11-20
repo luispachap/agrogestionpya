@@ -70,11 +70,11 @@ with sync_playwright() as p:
     # ══ 2 · La máquina: cuota aplicada contra costo real ══
     tab(pg, "Resultados")
     est = pg.locator(".card", has_text="Estado de resultados").first.inner_text()
-    caso("la máquina cuenta una vez: $300 aplicados por cuota y −$100 de diferencia contra su costo real ($200 de taller)", "Maquinaria: aplicado por cuota por hora" in est and "$300" in est and "costo real fuera de la cuota" in est and "-$100" in est.replace("−", "-") and "Gastos capturados" not in est, plano(est)[:700])
+    caso("con la cuenta de la máquina incompleta (sin combustible ni depreciación) no se le baja el costo a nadie: se queda con los $300 de cuota", "Maquinaria: aplicado por cuota por hora" in est and "$300" in est and "costo real fuera de la cuota" not in est and "Gastos capturados" not in est, plano(est)[:700])
     ir(pg, "reportes"); tab(pg, "Cierre de mes")
     pg.get_by_label("Mes que se cierra").fill("2026-11"); pg.wait_for_timeout(400)
     cm = pg.locator(".card", has_text="Cierre de mes").first.inner_text()
-    caso("el cierre concilia la máquina: aplicado, real por partes, diferencia y su tratamiento", "lo aplicado por cuota contra lo que costó de verdad" in cm and "aplicado por cuota $300 · real $200" in cm and "mantenimiento $200" in cm and "la cuota aplicó de más: queda pendiente de distribuir" in cm, plano(cm.split("Maquinaria:")[1])[:500] if "Maquinaria:" in cm else plano(cm)[:300])
+    caso("el cierre dice que la conciliación está incompleta, qué falta, y que se conserva la cuota", "lo aplicado por cuota contra lo que costó de verdad" in cm and "aplicado por cuota $300 · capturado $200 · conciliación incompleta" in cm and "falta combustible" in cm and "la depreciación" in cm and "Se conserva la cuota" in cm, plano(cm.split("Maquinaria:")[1])[:500] if "Maquinaria:" in cm else plano(cm)[:300])
 
     # ══ 3 · Bonos, dentro de Pagos al personal ══
     ir(pg, "equipo")
@@ -89,7 +89,7 @@ with sync_playwright() as p:
     caso("un aguinaldo no entra como bono: se manda a Prestaciones", "Eso no es un bono" in pg.locator("body").inner_text() and len(de(pg, "bono_personal")) == 0)
     pg.get_by_label("Motivo").fill("META DE CAJAS DE PRUEBA"); pg.get_by_role("button", name="Otorgar el bono").click(); pg.wait_for_timeout(500)
     bn = de(pg, "bono_personal"); t = pg.locator("body").inner_text()
-    caso("el bono queda con importe, motivo, beneficiario, periodo, autorización, tratamiento de costo y estado de pago", len(bn) == 1 and bn[0]["datos"]["monto"] == 500 and bn[0]["datos"]["tratamiento"] == "actividades" and bn[0]["datos"]["integra"] is True and bn[0]["datos"]["autorizo"] == "RODOLFO DE PRUEBA" and "Por pagar" in t and "faltan $500" in t and "META DE CAJAS DE PRUEBA" in t, bn[0]["datos"] if bn else "")
+    caso("el bono queda con importe, motivo, beneficiario, periodo, autorización, tratamiento de costo y estado de pago", len(bn) == 1 and bn[0]["datos"]["monto"] == 500 and bn[0]["datos"]["tratamiento"] == "actividades" and bn[0]["datos"]["integra"] == "revisar" and bn[0]["datos"]["autorizo"] == "RODOLFO DE PRUEBA" and "Por pagar" in t and "faltan $500" in t and "META DE CAJAS DE PRUEBA" in t, bn[0]["datos"] if bn else "")
     pg.get_by_role("button", name="Otorgar un bono").click()
     pg.get_by_label("A quién").select_option("t-ana"); pg.get_by_label("Importe ($)").fill("500"); pg.get_by_label("Motivo").fill("META DE CAJAS DE PRUEBA")
     pg.get_by_label("Periodo que premia: desde").fill("2026-11-09"); pg.get_by_label("hasta").fill("2026-11-15"); pg.get_by_label("Quién lo autoriza").fill("RODOLFO DE PRUEBA")
@@ -111,8 +111,34 @@ with sync_playwright() as p:
     caso("en resultados el bono aparece una vez, como costo otorgado", "Bonos e incentivos otorgados" in est and est.count("$500") == 1, plano(est)[:700])
     ir(pg, "home")
     heroe = pg.locator(".stat-hero").first.inner_text()
-    # costos: mano de obra 400 + cuota 300 − 100 de diferencia + bono 500 = 1,100; gastos: 100 del flete. Sin ingresos: −1,200
-    caso("la utilidad del inicio es la misma cuenta: −$1,200", "1,200" in heroe, plano(heroe))
+    # costos: mano de obra 400 + cuota 300 (la cuenta de la máquina está incompleta: no hay diferencia) + bono 500 = 1,200; gastos: 100 del flete. Sin ingresos: −1,300
+    caso("la utilidad del inicio es la misma cuenta: −$1,300", "1,300" in heroe, plano(heroe))
+    # ══ El bono quedó por revisar: se decide después, con fundamento ══
+    ir(pg, "nomina"); tab(pg, "Bonos")
+    t = pg.locator("body").inner_text()
+    caso("el bono no se integra por llamarse «de productividad»: queda por revisar y se avisa", "por revisar: todavía no se sabe" in t and "1 bono(s) están por revisar" in t, plano(t)[:300])
+    pg.get_by_role("button", name="Decidir si cuenta para el salario integrado").click()
+    pg.get_by_role("button", name="Guardar la decisión").click(); pg.wait_for_timeout(200)
+    sin = "Falta decir si cuenta" in pg.locator("body").inner_text()
+    pg.get_by_label("Decisión sobre el salario integrado").select_option("si"); pg.get_by_label("Fundamento de la decisión").fill("SE PAGA CADA SEMANA POR META: ES HABITUAL")
+    pg.get_by_role("button", name="Guardar la decisión").click(); pg.wait_for_timeout(500)
+    rv = de(pg, "bono_revision"); t = pg.locator("body").inner_text()
+    caso("decidirlo pide la decisión y el fundamento, y queda como otro movimiento con quién lo decidió", sin and len(rv) == 1 and rv[0]["datos"]["integra"] == "si" and rv[0]["datos"]["antes"] == "revisar" and "sí cuenta para su salario integrado" in t and "ES HABITUAL" in t and de(pg, "bono_personal")[0]["datos"]["integra"] == "revisar", rv[0]["datos"] if rv else t[:200])
+    # ══ La máquina, ya con su cuenta completa: la diferencia va a la parcela que la usó ══
+    pg.evaluate("""() => { window.__agro.upd('maquinaria', { id: 'm-tractor', nombre: 'TRACTOR DE PRUEBA', costo_hora: 100, sin_depreciacion: 'si' });
+      window.__agro.add('egresos', { id: 'g-diesel', fecha: '2026-11-11', monto: 50, categoria: 'combustible', concepto: 'DIÉSEL DE PRUEBA', vehiculoId: 'm-tractor' }); }""")
+    pg.wait_for_timeout(500)
+    ir(pg, "reportes"); tab(pg, "Cierre de mes"); pg.get_by_label("Mes que se cierra").fill("2026-11"); pg.wait_for_timeout(400)
+    cm = pg.locator(".card", has_text="Cierre de mes").first.inner_text()
+    caso("con la cuenta completa (real $250 contra $300 de cuota) los −$50 se reparten a la parcela que usó la máquina", "aplicado por cuota $300 · real $250" in cm and "la cuota aplicó de más: repartida entre las parcelas que usaron la máquina" in cm and "incompleta" not in cm.split("Maquinaria:")[1], plano(cm.split("Maquinaria:")[1])[:500] if "Maquinaria:" in cm else plano(cm)[:300])
+    # ══ Un gasto de «insumos» no se supone del almacén ══
+    pg.evaluate("""() => window.__agro.add('egresos', { id: 'g-ins', fecha: '2026-11-14', monto: 700, categoria: 'insumos', concepto: 'FERTILIZANTE DE PRUEBA' })""")
+    pg.wait_for_timeout(400); ir(pg, "contabilidad"); tab(pg, "Resultados")
+    t = pg.locator("body").inner_text()
+    caso("un gasto de insumos que nadie clasificó no es gasto ni inventario: sale por clasificar", "Insumos por clasificar" in t and "FERTILIZANTE DE PRUEBA" in t and "$700" in t and "No se supone que entraron al almacén" in t, plano(t)[:300])
+    pg.get_by_label("Qué fue FERTILIZANTE DE PRUEBA").select_option("general"); pg.wait_for_timeout(500)
+    est = pg.locator(".card", has_text="Estado de resultados").first.inner_text(); t = pg.locator("body").inner_text()
+    caso("al decir que fue de uso general pasa a gastos generales y deja de estar por clasificar", "Insumos por clasificar" not in t and "Gastos capturados" in est and "$700" in est, plano(est)[:500])
     caso("ninguna pantalla tronó", not g["trono"](pg) and not errs, errs[:2])
     b.close()
 print(f"\n{sum(res)}/{len(res)} pasan"); sys.exit(0 if all(res) else 1)

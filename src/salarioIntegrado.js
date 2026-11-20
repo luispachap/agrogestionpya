@@ -69,7 +69,8 @@ export function validarPercepcion(p, hoy) {
 //   n               el año de servicio que corría (de ahí salen sus días de vacaciones)
 //   remuneraciones  [{ fecha, monto }] lo que la app tiene registrado que ganó cada día trabajado
 //   bonificaciones  las de la pantalla vieja de esa persona (sólo para avisar: no traen fecha)
-//   bonos           los bonos e incentivos de esa persona que se dijo que integran (`bonos.js`): { monto, hasta, motivo }
+//   bonos           los bonos e incentivos de esa persona (`bonos.js`): { monto, hasta, motivo, integra: si|no|revisar }.
+//                   Sólo se integran los «si»; los «revisar» dejan el salario integrado incompleto, con su aviso.
 export function integrar({ cond, diario, n, fecha, persona = null, remuneraciones = [], bonificaciones = [], bonos = [] }) {
   if (diario == null) return { monto: null, factor: null, cuota: null, partes: [], completo: false, falta: ["no hay con qué calcular su salario por día"], explica: "" };
   const partes = [], falta = [];
@@ -109,7 +110,11 @@ export function integrar({ cond, diario, n, fecha, persona = null, remuneracione
   {
     const dias = (remuneraciones || []).filter(r => r.fecha <= fecha).slice(-DIAS_VARIABLE);
     const desde = dias.length ? dias[0].fecha : new Date(new Date(`${fecha}T12:00:00Z`).getTime() - 30 * 86400000).toISOString().slice(0, 10);
-    const mios = (bonos || []).filter(b => b.hasta >= desde && b.hasta <= fecha && Number(b.monto) > 0);
+    // Cada bono dice si integra: «si», «no» o «revisar» (los que llegan sin decirlo ya venían escogidos como que sí).
+    const enVentana = (bonos || []).filter(b => b.hasta >= desde && b.hasta <= fecha && Number(b.monto) > 0);
+    const mios = enVentana.filter(b => b.integra === undefined || b.integra === true || b.integra === "si");
+    const dudosos = enVentana.filter(b => b.integra === "revisar");
+    if (dudosos.length) falta.push(`tiene ${dudosos.length} bono(s) por ${sumarDinero(dudosos.map(b => b.monto))} que nadie ha dicho si cuentan para el salario integrado (${dudosos.map(b => limpio(b.motivo) || "sin motivo").join("; ")}): no se integraron; decídelo en Pagos al personal → Bonos`);
     if (mios.length) {
       const total = sumarDinero(mios.map(b => b.monto)), entre = dias.length || DIAS_VARIABLE;
       pon("variable:bonos", "Incentivos y bonos que integran", total / entre, `${total} en ${mios.length} bono(s) del ${desde} al ${fecha}, entre ${entre} días ${dias.length ? "trabajados" : "(no hay días trabajados registrados: se usó 30)"}`);

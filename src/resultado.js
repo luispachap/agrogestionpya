@@ -34,20 +34,39 @@ import { vigentes } from "./eventos.js";
 
 const S = (l) => sumarDinero(l);
 const n = (x) => Number(x) || 0;
-// Un gasto capturado que en realidad es una compra para el almacén (inventario): categoría «insumos» y sin parcela ni vehículo.
-export const esCompraDeAlmacen = (e) => e.categoria === "insumos" && !e.parcelaId && !e.vehiculoId;
+// UN GASTO DE «INSUMOS» NO ES SIEMPRE UNA COMPRA PARA EL ALMACÉN. Puede ser cuatro cosas, y cada una se cuenta distinto:
+//   inventario   entró al almacén: no es gasto todavía, se vuelve costo cuando se consume
+//   produccion   se usó directo en producción (nunca pasó por el almacén): es costo ya
+//   general      se usó en el rancho en general: gasto general
+//   otro         no era un insumo: gasto, como cualquier otro
+// Y si nadie lo ha dicho, está POR CLASIFICAR: no se supone que entró al almacén. No se cuenta como gasto ni como
+// inventario hasta que una persona lo diga (el dinero sí salió: en el flujo va completo).
+export const DESTINOS_DE_INSUMO = { inventario: "Entró al almacén (se cuenta cuando se use)", produccion: "Se usó directo en producción", general: "Uso general del rancho", otro: "No es un insumo: es otro gasto" };
+export function claseDeInsumo(e) {
+  if (!e || e.categoria !== "insumos") return null;
+  if (e.vehiculoId) return "vehiculo";                       // va en la cuenta de ese vehículo
+  if (DESTINOS_DE_INSUMO[e.destinoInsumo]) return e.destinoInsumo;
+  if (e.parcelaId) return "produccion";                      // se dijo para qué parcela fue
+  if (e.solicitudId || e.entradaInvId) return "inventario";  // nació junto con su entrada al almacén
+  return "por_clasificar";
+}
+export const esCompraDeAlmacen = (e) => claseDeInsumo(e) === "inventario";
+export const insumosPorClasificar = (egresos = []) => vivos(egresos).filter(e => claseDeInsumo(e) === "por_clasificar");
 
 //   actividades   las que cuentan (`actividadesContables`)
 //   indirectos    lo de `juntarFuentes`
 //   compras       lo de `repartoDeCompras` (compras.js)
-//   almacen       { consumoGeneral, ajustesValuacion, mermas, valor, sinValor } — ya en dinero
+//   almacen       { consumoGeneral, ajustesValuacion (parcelas), ajustesGenerales, mermas, valor, sinValor } — ya en dinero
 export function resultadoDelRancho({ ingresos = [], egresos = [], entradas_inv = [], actividades = [], indirectos = null, compras = null, almacen = {} }) {
   const deFuente = (f) => !indirectos ? 0 : sumarDinero(S((indirectos.partes || []).filter(p => p.fuente === f).map(p => p.monto)), S((indirectos.pendientes || []).filter(p => p.fuente === f).map(p => p.monto)), S((indirectos.noProduccion || []).filter(p => p.fuente === f).map(p => p.monto)));
-  const gastos = vivos(egresos).filter(e => !e.vehiculoId && !esCompraDeAlmacen(e));
+  const clase = (e) => claseDeInsumo(e);
+  const gastos = vivos(egresos).filter(e => !e.vehiculoId && !["inventario", "por_clasificar"].includes(clase(e)) && !(clase(e) === "produccion" && !e.parcelaId));
+  const directos = vivos(egresos).filter(e => clase(e) === "produccion" && !e.parcelaId), sinClase = insumosPorClasificar(egresos);
   const produccion = [
     { clave: "mo", nombre: "Mano de obra en parcelas y bodega", monto: S(actividades.map(a => n(a.costoMO))) },
     { clave: "insumos", nombre: "Insumos consumidos", monto: S(actividades.map(a => n(a.costoInsumos))), nota: "cuentan cuando se usan, no cuando se compran" },
-    { clave: "ajustes_insumos", nombre: "Ajustes de valuación de insumos", monto: n(almacen.ajustesValuacion), nota: "consumos cuyo costo se supo o cambió después; el original no se toca" },
+    { clave: "insumos_directos", nombre: "Insumos comprados y usados directo en producción", monto: S(directos.map(e => n(e.monto))), nota: "no pasaron por el almacén y no dicen parcela" },
+    { clave: "ajustes_insumos", nombre: "Ajustes de valuación de insumos", monto: n(almacen.ajustesValuacion), nota: "consumos en parcelas cuyo costo se supo o cambió después; el original no se toca. Los de un vehículo van en la cuenta de ese vehículo" },
     { clave: "maq_cuota", nombre: "Maquinaria: aplicado por cuota por hora", monto: S(actividades.map(a => n(a.costoMaq))) },
     { clave: "vehiculos", nombre: "Maquinaria y vehículos: costo real fuera de la cuota", monto: deFuente("vehiculos"), nota: "operador, combustible, mantenimiento y depreciación; de las máquinas con cuota, sólo la diferencia" },
     { clave: "personal", nombre: "Personal: pagado sin actividad en parcela", monto: deFuente("personal"), nota: "permisos, descansos, esperas, días de encargados" },
@@ -56,9 +75,10 @@ export function resultadoDelRancho({ ingresos = [], egresos = [], entradas_inv =
     { clave: "bajas", nombre: "Bajas: prima de antigüedad e indemnizaciones", monto: deFuente("bajas") },
   ];
   const generales = [
-    { clave: "gastos", nombre: "Gastos capturados", monto: S(gastos.map(e => n(e.monto))), nota: "sin las compras para el almacén ni los gastos de vehículos" },
+    { clave: "gastos", nombre: "Gastos capturados", monto: S(gastos.map(e => n(e.monto))), nota: "sin las compras para el almacén, los insumos por clasificar ni los gastos de vehículos" },
     { clave: "compras", nombre: "Compras del personal que no son mercancía", monto: n(compras?.gasto) },
     { clave: "consumo_general", nombre: "Insumos de uso general del rancho", monto: n(almacen.consumoGeneral) },
+    { clave: "ajustes_generales", nombre: "Ajustes de valuación de insumos de uso general", monto: n(almacen.ajustesGenerales) },
     { clave: "mermas", nombre: "Mermas y faltantes del almacén", monto: n(almacen.mermas) },
   ];
   const lineas = [...produccion, ...generales];
@@ -66,7 +86,9 @@ export function resultadoDelRancho({ ingresos = [], egresos = [], entradas_inv =
   // El inventario: no es gasto. Lo comprado para el almacén que todavía no se usa está aquí.
   const comprado = sumarDinero(S(vivos(egresos).filter(esCompraDeAlmacen).map(e => n(e.monto))), S(entradas_inv.map(costoAFinanzas)), n(compras?.inventario));
   const inventario = { valor: n(almacen.valor), sinValor: almacen.sinValor || [], comprado, porValuar: n(compras?.porValuar) };
-  return { ingresos: totalIngresos, produccion, generales, lineas, costos: S(produccion.map(l => l.monto)), gastos: S(generales.map(l => l.monto)), egresos: totalEgresos, utilidad: sumarDinero(totalIngresos, -totalEgresos), inventario };
+  // Lo que nadie ha dicho qué fue: ni gasto ni inventario todavía. Va aparte, a la vista, para que alguien lo clasifique.
+  const porClasificar = { monto: S(sinClase.map(e => n(e.monto))), n: sinClase.length };
+  return { ingresos: totalIngresos, produccion, generales, lineas, costos: S(produccion.map(l => l.monto)), gastos: S(generales.map(l => l.monto)), egresos: totalEgresos, utilidad: sumarDinero(totalIngresos, -totalEgresos), inventario, porClasificar };
 }
 
 // Lo que entró y salió de dinero, mes por mes.

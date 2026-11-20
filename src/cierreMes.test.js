@@ -9,7 +9,7 @@ const ACTS = [{ parcelaId: "p1", fecha: "2026-11-05", costoTotal: 1000 }, { parc
 const IND = { partes: [{ parcelaId: "p1", fecha: "2026-11-30", monto: 200, fuente: "vehiculos" }, { parcelaId: "p2", fecha: "2026-11-18", monto: 50, fuente: "personal" }, { parcelaId: "p2", fecha: "2026-12-01", monto: 999, fuente: "personal" }],
   pendientes: [{ fecha: "2026-11-18", monto: 600, fuente: "personal" }, { fecha: "2026-10-18", monto: 111, fuente: "personal" }], noProduccion: [{ fuente: "personal", monto: 30, detalle: [{ fecha: "2026-11-02", monto: 30 }] }] };
 const costo = (mas = {}) => costoDelMes({ mes: "2026-11", parcelas: PARCELAS, actividades: ACTS, egresos: [{ parcelaId: "p2", fecha: "2026-11-12", monto: 100 }, { fecha: "2026-11-05", monto: 900, categoria: "servicios" }, { fecha: "2026-11-20", monto: 300, categoria: "servicios" }, { fecha: "2026-11-21", monto: 200, categoria: "administrativo" },
-  { fecha: "2026-11-08", monto: 5000, categoria: "insumos", concepto: "Compra de insumo: UREA" }, { fecha: "2026-11-09", monto: 700, categoria: "servicios", vehiculoId: "v1" }, { fecha: "2026-12-01", monto: 888, categoria: "servicios" }], compras: [{ parcelaId: "p1", fecha: "2026-11-03", monto: 40, estado: "aprobada" }, { parcelaId: "p1", fecha: "2026-11-03", monto: 4000, estado: "pendiente" }], indirectos: IND, ...mas });
+  { fecha: "2026-11-08", monto: 5000, categoria: "insumos", destinoInsumo: "inventario", concepto: "Compra de insumo: UREA" }, { fecha: "2026-11-09", monto: 700, categoria: "servicios", vehiculoId: "v1" }, { fecha: "2026-12-01", monto: 888, categoria: "servicios" }], compras: [{ parcelaId: "p1", fecha: "2026-11-03", monto: 40, estado: "aprobada" }, { parcelaId: "p1", fecha: "2026-11-03", monto: 4000, estado: "pendiente" }], indirectos: IND, ...mas });
 const cerrar = (eventos, mas = {}) => cerrarMes({ eventos, costo: costo(), hoy: HOY, quien: ADMIN, cuando: c("09:00"), fecha: HOY, ...mas });
 
 test("el_costo_del_mes_separa_directo_indirecto_y_completo_por_parcela_y_solo_cuenta_lo_de_ese_mes", () => {
@@ -72,7 +72,7 @@ test("el_trabajo_de_bodega_entra_al_cierre_el_de_un_cultivo_como_directo_y_el_ge
   assert.equal(k.completo, 1000, "la parcela no sube por el trabajo de bodega");
   assert.deepEqual(k.bodega, { porCultivo: [{ cultivo: "Ajo", monto: 1000, n: 2 }], total: 1000 });
   assert.deepEqual(k.generales.porCategoria, [{ categoria: "servicios", monto: 900, n: 1 }, { categoria: "bodega_general", monto: 300, n: 1 }]);
-  assert.deepEqual(k.sinParcela, { total: 50, n: 1 }, "una actividad sin parcela ni bodega queda a la vista");
+  assert.deepEqual(k.sinParcela, { total: 50, n: 1, insumosDirectos: 0 }, "una actividad sin parcela ni bodega queda a la vista");
   assert.equal(k.rancho, 1000 + 1000 + 300 + 50 + 900, "antes el total del rancho salía corto: no veía nada sin parcela");
 });
 
@@ -86,4 +86,15 @@ test("una_compra_del_personal_sin_parcela_tambien_entra_al_cierre_como_gasto_gen
   const ya = costoDelMes({ mes: "2026-11", parcelas: [{ id: "p1", nombre: "Uno" }], compras, recibidas: [{ compraId: compras[3].id, i: 0, cantidad: 10, costoUnit: 480, valor: 4800 }] });
   assert.equal(ya.paraAlmacen, 4800, "ya recibida y valuada: es inventario"); assert.equal(ya.porValuar, 0);
   assert.equal(ya.generales.porCategoria.find(g => g.categoria === "compras_personal").monto, 500, "y lo que sobra del comprobante (un flete) es gasto general");
+});
+
+test("un_gasto_de_insumos_no_se_supone_del_almacen_si_nadie_lo_dijo_queda_por_clasificar", () => {
+  const eg = (mas) => ({ fecha: "2026-11-10", monto: 1000, categoria: "insumos", ...mas });
+  const k = costoDelMes({ mes: "2026-11", egresos: [eg({}), eg({ destinoInsumo: "inventario" }), eg({ destinoInsumo: "general" }), eg({ destinoInsumo: "produccion" }), eg({ destinoInsumo: "otro" })] });
+  assert.equal(k.porClasificar.monto, 1000); assert.equal(k.porClasificar.n, 1);
+  assert.equal(k.paraAlmacen, 1000, "sólo lo que se dijo que entró al almacén");
+  assert.equal(k.generales.porCategoria.find(c => c.categoria === "insumos_general").monto, 1000);
+  assert.equal(k.generales.porCategoria.find(c => c.categoria === "otro").monto, 1000);
+  assert.equal(k.sinParcela.insumosDirectos, 1000, "lo usado directo en producción es costo, aunque no diga parcela");
+  assert.equal(k.rancho, 3000, "lo por clasificar y lo del almacén no están en el total");
 });

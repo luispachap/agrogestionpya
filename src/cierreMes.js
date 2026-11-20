@@ -14,6 +14,7 @@ import { nuevoEvento, vigentes, negado } from "./eventos.js";
 import { sumarDinero } from "./calculos.js";
 import { indirectoDe } from "./indirectos.js";
 import { estadoDeCompra } from "./compras.js";
+import { claseDeInsumo } from "./resultado.js";
 
 export const T_CIERRE_MES = "cierre_mes", T_REAPERTURA_MES = "reapertura_mes";
 const limpio = (s) => String(s || "").trim();
@@ -42,7 +43,7 @@ export function costoDelMes({ mes, parcelas = [], actividades = [], egresos = []
   for (const a of ajustesValuacion) {
     if (!enMes(a.fecha) || !a.diferencia) continue;
     if (a.destino?.tipo === "parcela" && a.destino.id) { pon(a.destino.id, a.diferencia); ajPorParcela.set(a.destino.id, sumarDinero(ajPorParcela.get(a.destino.id) || 0, a.diferencia)); }
-    else ajOtros = sumarDinero(ajOtros, a.diferencia);
+    else if (a.destino?.tipo !== "vehiculo") ajOtros = sumarDinero(ajOtros, a.diferencia);   // lo de un vehículo ya va en la cuenta de ese vehículo (y de ahí, a su reparto)
   }
   const ids = new Set([...dir.keys(), ...(indirectos?.partes || []).filter(p => enMes(p.fecha)).map(p => p.parcelaId)]);
   const nombre = new Map(parcelas.map(p => [p.id, p.nombre]));
@@ -55,7 +56,10 @@ export function costoDelMes({ mes, parcelas = [], actividades = [], egresos = []
   // almacén NO son gasto todavía —se vuelven costo cuando se usan—, así que van aparte y fuera del total.
   const sueltos = egresos.filter(e => enMes(e.fecha) && !e.parcelaId && !e.vehiculoId);
   const porCat = new Map();
-  for (const e of sueltos.filter(e => e.categoria !== "insumos")) { const k = e.categoria || "otro"; const x = porCat.get(k) || { categoria: k, monto: 0, n: 0 }; x.monto = sumarDinero(x.monto, Number(e.monto) || 0); x.n++; porCat.set(k, x); }
+  // Un gasto de «insumos» sin parcela puede ser inventario, producción directa, uso general u otra cosa; y si nadie lo ha dicho, está por clasificar.
+  const claseDe = (e) => claseDeInsumo(e);
+  const insumosDirectos = sueltos.filter(e => claseDe(e) === "produccion"), insumosSinClase = sueltos.filter(e => claseDe(e) === "por_clasificar");
+  for (const e of sueltos.filter(e => !["inventario", "produccion", "por_clasificar"].includes(claseDe(e))).map(e => (claseDe(e) === "general" ? { ...e, categoria: "insumos_general" } : claseDe(e) === "otro" ? { ...e, categoria: "otro" } : e))) { const k = e.categoria || "otro"; const x = porCat.get(k) || { categoria: k, monto: 0, n: 0 }; x.monto = sumarDinero(x.monto, Number(e.monto) || 0); x.n++; porCat.set(k, x); }
   // ACTIVIDADES SIN PARCELA. Antes no entraban al cierre (sólo se sumaba lo que traía parcela) y el total del rancho
   // salía corto. El trabajo de BODEGA de un cultivo es costo directo de producción de ese cultivo (no de una parcela);
   // el trabajo GENERAL de bodega es gasto general; y lo demás sin parcela queda a la vista, sin repartir.
@@ -82,16 +86,18 @@ export function costoDelMes({ mes, parcelas = [], actividades = [], egresos = []
   gen("almacen_mermas", sumarDinero(mermas.filter(m => enMes(m.fecha)).map(m => Number(m.valor) || 0)));
   gen("almacen_ajustes", ajOtros);
   const bodega = { porCultivo: [...porCultivo.values()].sort((a, b) => a.cultivo.localeCompare(b.cultivo)), total: sumarDinero([...porCultivo.values()].map(x => x.monto)) };
-  const sinParcela = { total: sueltas, n: nSueltas };
+  const mDirectos = sumarDinero(insumosDirectos.map(e => Number(e.monto) || 0));
+  const sinParcela = { total: sumarDinero(sueltas, mDirectos), n: nSueltas + insumosDirectos.length, insumosDirectos: mDirectos };
+  const porClasificar = { monto: sumarDinero(insumosSinClase.map(e => Number(e.monto) || 0)), n: insumosSinClase.length };
   // También es gasto general lo que una fuente de indirectos clasificó así (hoy: prima de antigüedad e indemnizaciones de una baja).
   const todoFuera = (indirectos?.noProduccion || []).flatMap(x => x.detalle || []).filter(p => enMes(p.fecha));
   for (const p of todoFuera.filter(p => p.general)) { const k = p.categoria || "laboral"; const x = porCat.get(k) || { categoria: k, monto: 0, n: 0 }; x.monto = sumarDinero(x.monto, p.monto); x.n++; porCat.set(k, x); }
   const generales = { porCategoria: [...porCat.values()].sort((a, b) => b.monto - a.monto), total: sumarDinero([...porCat.values()].map(x => x.monto)) };
-  const paraAlmacen = sumarDinero(comprasAlmacen, sueltos.filter(e => e.categoria === "insumos").map(e => Number(e.monto) || 0).reduce((a, b) => sumarDinero(a, b), 0));
+  const paraAlmacen = sumarDinero(comprasAlmacen, sueltos.filter(e => claseDe(e) === "inventario").map(e => Number(e.monto) || 0).reduce((a, b) => sumarDinero(a, b), 0));
   const pend = (indirectos?.pendientes || []).filter(p => enMes(p.fecha));
   const fuera = todoFuera.filter(p => !p.general);
   const k = { mes, renglones, directo: sumarDinero(renglones.map(r => r.directo)), indirecto: sumarDinero(renglones.map(r => r.indirecto)), completo: sumarDinero(renglones.map(r => r.completo)),
-    pendiente: sumarDinero(pend.map(p => p.monto)), pendientes: pend.length, noProduccion: sumarDinero(fuera.map(p => p.monto)), generales, paraAlmacen, porValuar: comprasPorValuar, ajustesValuacion: sumarDinero([...ajPorParcela.values()]), maquinaria, bodega, sinParcela };
+    pendiente: sumarDinero(pend.map(p => p.monto)), pendientes: pend.length, noProduccion: sumarDinero(fuera.map(p => p.monto)), generales, paraAlmacen, porValuar: comprasPorValuar, ajustesValuacion: sumarDinero([...ajPorParcela.values()]), maquinaria, bodega, sinParcela, porClasificar };
   // Lo que costó mantener funcionando TODO el rancho ese mes. Cada peso está en un solo renglón.
   return { ...k, rancho: sumarDinero(k.completo, bodega.total, sinParcela.total, k.pendiente, k.noProduccion, generales.total) };
 }
@@ -119,7 +125,7 @@ export function cerrarMes({ permitido, eventos, costo, hoy, motivo = "", concili
   return { ok: true, avisos, evento: nuevoEvento({ tipo: T_CIERRE_MES, cuando, fecha, quien, azar, origen: s.cierre?.id || null, relacion: s.cierre ? "sustituye" : null,
     datos: { mes: costo.mes, motivo: limpio(motivo), renglones: costo.renglones.map(r => ({ parcelaId: r.parcelaId, nombre: r.nombre, directo: r.directo, indirecto: r.indirecto, completo: r.completo })),
       directo: costo.directo, indirecto: costo.indirecto, completo: costo.completo, pendiente: costo.pendiente, noProduccion: costo.noProduccion,
-      generales: costo.generales, paraAlmacen: costo.paraAlmacen, porValuar: costo.porValuar || 0, ajustesValuacion: costo.ajustesValuacion || 0,
+      generales: costo.generales, paraAlmacen: costo.paraAlmacen, porValuar: costo.porValuar || 0, porClasificar: costo.porClasificar?.monto || 0, ajustesValuacion: costo.ajustesValuacion || 0,
       ...(costo.maquinaria ? { maquinaria: { aplicado: costo.maquinaria.aplicado, real: costo.maquinaria.real, diferencia: costo.maquinaria.diferencia, sinConciliar: costo.maquinaria.sinConciliar, filas: costo.maquinaria.filas.map(f => ({ vehiculoId: f.vehiculoId, nombre: f.nombre, aplicado: f.aplicado, real: f.real, diferencia: f.diferencia, tratamiento: f.tratamiento, sinReal: f.sinReal })) } } : {}),
       bodega: costo.bodega, sinParcela: costo.sinParcela, rancho: costo.rancho,
       ...(conciliacion ? { personal: { alCosto: conciliacion.alCosto, generado: conciliacion.generado, ajustes: conciliacion.ajustes, nuevo: conciliacion.nuevo, pagado: conciliacion.pagado, porPagar: conciliacion.porPagar, cuadra: conciliacion.cuadra, porRevisar: (conciliacion.problemas || []).map(p => p.dice) } } : {}) } }) };

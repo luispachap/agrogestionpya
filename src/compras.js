@@ -64,3 +64,29 @@ export function posibleDuplicado(que, { compras = [], egresos = [], entradas_inv
     ...entradas_inv.filter(e => e.id !== que.id && igual(e.costo_total) && cerca(e.fecha)).map(e => ({ donde: "entrada del almacén", id: e.id, fecha: e.fecha, que: e.concepto || e.nombre || "", monto: n(e.costo_total) })),
   ];
 }
+
+// SEGUIMIENTO: lo que se quedó a medias y desde cuándo. Una compra aprobada que nadie ha recibido, mercancía que ya
+// está en el estante sin precio, y lo que llegó distinto de lo anotado. Cada renglón dice quién compró, quién recibió,
+// cuántos días lleva y a quién le toca: primero al encargado (aviso), después al administrador (escala).
+// No bloquea nada ni decide nada: avisa.
+const diasEntre = (a, b) => (a && b ? Math.max(0, Math.round((new Date(`${b}T12:00:00Z`) - new Date(`${a}T12:00:00Z`)) / 86400000)) : 0);
+export function seguimientoDeCompras(compras = [], recibidas = [], { hoy, avisoDias = 3, escalaDias = 7, nombres = new Map() } = {}) {
+  const nivel = (d) => (d >= escalaDias ? "escala" : d >= avisoDias ? "aviso" : "reciente");
+  const lista = [];
+  for (const c of compras) {
+    if (c.estado !== "aprobada" || !esParaAlmacen(c)) continue;
+    const e = estadoDeCompra(c, recibidas), compro = { id: c.trabajadorId || "", nombre: nombres.get(c.trabajadorId) || "" };
+    const base = { compraId: c.id, descripcion: c.descripcion || "", proveedor: c.proveedor || "", monto: n(c.monto), fechaCompra: c.fecha, compro };
+    for (const p of e.partidas) {
+      if (p.recibida == null) { const d = diasEntre(c.fecha, hoy); lista.push({ ...base, clase: "no_recibida", i: p.i, articulo: p.nombre, cantidad: p.pedida, unidad: p.unidad, dias: d, nivel: nivel(d), toca: "Confirmar que llegó al almacén, y cuánto", responsable: compro.nombre ? `la compró ${compro.nombre}` : "no dice quién la compró" }); continue; }
+      if (p.valor == null) { const d = diasEntre(p.fecha || c.fecha, hoy); lista.push({ ...base, clase: "sin_precio", i: p.i, ev: p.ev, articulo: p.nombre, cantidad: p.recibida, unidad: p.unidad, dias: d, nivel: nivel(d), toca: "Ponerle precio: ya está en el estante y lo que se use no carga costo todavía", responsable: p.recibio ? `la recibió ${p.recibio}` : "no dice quién la recibió" }); }
+      if (p.difiere) { const d = diasEntre(p.fecha || c.fecha, hoy); lista.push({ ...base, clase: "diferencia", i: p.i, ev: p.ev, articulo: p.nombre, cantidad: p.recibida, pedida: p.pedida, unidad: p.unidad, dias: d, nivel: "aviso", toca: `Se anotaron ${p.pedida} y llegaron ${p.recibida}: aclarar con quien compró`, responsable: [compro.nombre && `la compró ${compro.nombre}`, p.recibio && `la recibió ${p.recibio}`].filter(Boolean).join(" · ") }); }
+    }
+    if (e.estado === "completa" && e.avisos.some(a => /más que el total/.test(a))) lista.push({ ...base, clase: "diferencia", articulo: "", dias: diasEntre(c.fecha, hoy), nivel: "aviso", toca: `Lo valuado (${e.inventario}) es más que el comprobante (${n(c.monto)}): revisar los precios`, responsable: compro.nombre ? `la compró ${compro.nombre}` : "" });
+  }
+  lista.sort((a, b) => b.dias - a.dias);
+  const de = (k) => lista.filter(x => x.clase === k);
+  return { lista, noRecibidas: de("no_recibida"), sinPrecio: de("sin_precio"), diferencias: de("diferencia"),
+    porAvisar: lista.filter(x => x.nivel !== "reciente"), escaladas: lista.filter(x => x.nivel === "escala"),
+    masVieja: lista.length ? lista[0].dias : 0 };
+}

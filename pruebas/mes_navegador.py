@@ -14,7 +14,7 @@ act = lambda i, p, f, c: {"id": i, "parcelaId": p, "fecha": f, "tipo": "Riego", 
 S["actividades"] = [act("a1", "p1", "2026-11-10", 1000), act("a2", "p2", "2026-11-12", 300), act("a3", "p1", "2026-12-01", 9999)]
 S["egresos"] = [{"id": "e1", "parcelaId": "p2", "fecha": "2026-11-15", "monto": 100, "concepto": "GASTO DE PRUEBA"},
                 {"id": "g1", "fecha": "2026-11-05", "monto": 900, "categoria": "servicios", "concepto": "LUZ DE PRUEBA"}, {"id": "g2", "fecha": "2026-11-20", "monto": 200, "categoria": "administrativo", "concepto": "PAPELERIA DE PRUEBA"},
-                {"id": "g3", "fecha": "2026-11-08", "monto": 5000, "categoria": "insumos", "concepto": "Compra de insumo: UREA DE PRUEBA"}]
+                {"id": "g3", "fecha": "2026-11-08", "monto": 5000, "categoria": "insumos", "destinoInsumo": "inventario", "concepto": "Compra de insumo: UREA DE PRUEBA"}]
 LEER = """() => new Promise((ok) => { const r = indexedDB.open('agro_eventos_v8:local', 1);
   r.onupgradeneeded = () => { r.result.createObjectStore('eventos', { keyPath: 'id' }); r.result.createObjectStore('meta'); };
   r.onsuccess = () => { const q = r.result.transaction('eventos').objectStore('eventos').getAll(); q.onsuccess = () => { r.result.close(); ok(q.result); }; q.onerror = () => ok([]); };

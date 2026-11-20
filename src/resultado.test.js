@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resultadoDelRancho, flujoDeEfectivo, esCompraDeAlmacen } from "./resultado.js";
+import { resultadoDelRancho, flujoDeEfectivo, esCompraDeAlmacen, claseDeInsumo, insumosPorClasificar } from "./resultado.js";
 import { nuevoEvento } from "./eventos.js";
 
 const Q = { id: "u1", nombre: "Luis", rol: "admin" };
 const ev = (tipo, fecha, datos, i) => nuevoEvento({ tipo, cuando: `${fecha}T12:00:00-06:00`, fecha, quien: Q, azar: (i + 1) / 1e6, datos });
 const BASE = {
   ingresos: [{ id: "i1", fecha: "2026-11-20", monto: 100000 }, { id: "i2", fecha: "2026-11-21", monto: 5000, cancelado: { motivo: "duplicado" } }],
-  egresos: [{ id: "e1", fecha: "2026-11-05", monto: 900, categoria: "servicios" }, { id: "e2", fecha: "2026-11-06", monto: 8000, categoria: "insumos", concepto: "Compra de urea" },
+  egresos: [{ id: "e1", fecha: "2026-11-05", monto: 900, categoria: "servicios" }, { id: "e2", fecha: "2026-11-06", monto: 8000, categoria: "insumos", destinoInsumo: "inventario", concepto: "Compra de urea" },
     { id: "e3", fecha: "2026-11-07", monto: 1500, categoria: "mantenimiento", vehiculoId: "m1" }, { id: "e4", fecha: "2026-11-08", monto: 250, categoria: "insumos", parcelaId: "p1" }],
   entradas_inv: [{ id: "x1", fecha: "2026-11-07", costo_total: 5000 }, { id: "x2", fecha: "2026-11-08", costo_total: -700 }],
   actividades: [{ fecha: "2026-11-10", parcelaId: "p1", costoMO: 2000, costoMaq: 400, costoInsumos: 700 }, { fecha: "2026-11-11", esBodega: true, costoMO: 500, costoMaq: 0, costoInsumos: 0 }],
@@ -58,4 +58,17 @@ test("un_prestamo_entregado_es_dinero_que_salio_y_solo_el_abono_aparte_es_dinero
   const nov = f.meses[0];
   assert.equal(nov.detalle.prestamos_entregados, 800); assert.equal(nov.detalle.abonos_prestamos, 100);
   assert.equal(flujoDeEfectivo({ eventos: [{ ...eventos[2], estado: "cancelado" }] }).meses.length, 0, "una entrega cancelada no cuenta");
+});
+
+test("un_gasto_de_insumos_puede_ser_cuatro_cosas_y_si_nadie_lo_dijo_no_es_ni_gasto_ni_inventario", () => {
+  const eg = (id, mas) => ({ id, fecha: "2026-11-10", monto: 1000, categoria: "insumos", ...mas });
+  assert.equal(claseDeInsumo(eg("a", {})), "por_clasificar"); assert.equal(claseDeInsumo(eg("a", { parcelaId: "p1" })), "produccion"); assert.equal(claseDeInsumo(eg("a", { vehiculoId: "m1" })), "vehiculo");
+  assert.equal(claseDeInsumo(eg("a", { solicitudId: "s1" })), "inventario", "nació junto con su entrada al almacén"); assert.equal(claseDeInsumo({ categoria: "servicios" }), null);
+  const egresos = [eg("a", {}), eg("b", { destinoInsumo: "inventario" }), eg("c", { destinoInsumo: "general" }), eg("d", { destinoInsumo: "produccion" }), eg("e", { destinoInsumo: "otro" })];
+  const r = resultadoDelRancho({ egresos });
+  const de = (k) => r.lineas.find(l => l.clave === k).monto;
+  assert.equal(r.porClasificar.monto, 1000); assert.equal(r.inventario.comprado, 1000); assert.equal(de("insumos_directos"), 1000); assert.equal(de("gastos"), 2000);
+  assert.equal(r.egresos, 3000, "lo por clasificar y lo del almacén no bajan la utilidad todavía");
+  assert.equal(insumosPorClasificar(egresos).length, 1);
+  const f = flujoDeEfectivo({ egresos }); assert.equal(f.meses[0].egresos, 5000, "en el flujo sí sale todo: el dinero se movió");
 });
