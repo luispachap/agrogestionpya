@@ -437,3 +437,7 @@ no sale como «fuera del plan»; al cambiar se puede decir la tarea nueva; lo no
 hecho y lo cambiado no. **Probado:** 1,179 pruebas de cuenta. **Sin validar con Miguel.** Los seis criterios de Luis
 (quién confirma la tarea, asistencia de encargados y cuadrillas, revisión de Dirección, hora de cierre) NO están
 construidos: esperan esa validación.
+
+**Organización y órdenes delegables (21 nov, 17 h) — `ORGANIZACION.md`: SÓLO DISEÑO.** Diagnóstico de compatibilidad,
+diseño de datos y permisos, recorrido de ocho escenas y plan en seis etapas. Nada construido ni instalado. Espera la
+autorización de Luis y, para los permisos, la confirmación de Dirección.

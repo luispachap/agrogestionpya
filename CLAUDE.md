@@ -546,6 +546,10 @@ Usuarios reales de la app:
   original (`cambiada`/quitada) con quién, cuándo, por qué, por cuál se reemplazó y lo trabajado ahí; ese rato no es
   «fuera del plan». Lo hecho y lo cambiado no pasan a mañana. Recorrido: `pruebas/reasignacion_navegador.py` (20).
   **Los seis criterios de Luis para la jornada están SIN implementar hasta validarlos con Miguel** (`docs/JORNADA.md`). «Reasignar equipo» (mover a varios en una captura) está sólo EVALUADA ahí: no se construye hasta saber cómo reasigna Miguel; dar la instrucción no mueve horas, y plan sin asignación (o al revés) se advierte. El tope de IA del mes cubre también la importación (hoja 51).
+- **Organización, especialidades, facultades de mando y órdenes delegables: SÓLO DISEÑO** (`docs/ORGANIZACION.md`, 21 nov).
+  No construyas nada de eso ni cambies permisos sin autorización de Luis; los permisos definitivos los confirma Dirección.
+  Lo acordado: todo como eventos con fecha; las facultades son operaciones de la hoja 37 con alcance; un cargo no da
+  facultades; las tareas de una orden son las `indicaciones` de siempre (no hay segundo planeador); una orden nunca crea horas.
 - **`src/whatsapp.js` + `supabase/functions/whatsapp-entrada/` + `supabase/pendientes/whatsapp-entrada.sql`: WhatsApp PREPARADO
   Y APAGADO.** El lector convierte el aviso de Meta en el `mensaje` del camino común (teléfono → persona del
   catálogo; desconocido o repetido no se atribuye; mismo id no entra dos veces). La función sólo comprueba la firma
