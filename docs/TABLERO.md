@@ -301,9 +301,11 @@ Todo junto: `sh pruebas/todo.sh`.
 1. Vercel: quitar `app.agroselectos.com` del proyecto viejo `vitejs-vite-3ymxjehp` (Settings → Domains → Remove) para poder darlo de alta como dominio propio de `agrogestion-operacion`. Mientras tanto el dominio se apunta a mano a cada publicación.
 2. Supabase → Authentication → URL Configuration: poner `https://app.agroselectos.com` como Site URL y dejar `https://agrogestion-operacion.vercel.app` en Redirect URLs, para que el correo de confirmación regrese al dominio definitivo.
 
-**Lectura con IA en la importación (20 nov, noche):** llave puesta por Luis; tope total de 4 USD.
-Primera llamada real con un ticket ficticio: la API la RECHAZÓ sin cobrar (la llave no está ligada a un
-espacio de trabajo; falta el secreto `ANTHROPIC_WORKSPACE_ID`). Comprobado de verdad en producción: la
-llamada llega a la API con la llave del servidor, lo apartado se suelta al fallar (gasto 0), y con el tope
-agotado la función se niega SIN llamar a la IA. **Sin comprobar todavía:** formato de la respuesta, modelo
-que contesta, costo real y memoria (no pagar dos veces). Ningún movimiento del rancho se creó.
+**Lectura con IA en la importación (20 nov, noche) — comprobada con la API real, con documentos ficticios:**
+ticket en foto con el nivel económico (Haiku 5.5): todos los datos correctos, 0.0008 USD; el mismo ticket otra
+vez: salió de la memoria, 0 USD; hoja de raya desordenada: reconoció las columnas, 0.0005 USD; el ticket con el
+nivel superior (Sonnet 5.5): 0.0112 USD (unas 14 veces más). El formato estructurado se aceptó a la primera. Con
+el tope agotado la función se niega SIN llamar a la IA. Gasto total de la prueba: 0.013 USD de 4. Ningún
+movimiento del rancho se creó. Necesitó el secreto `ANTHROPIC_WORKSPACE_ID`. **Sin comprobar:** la entrada con
+la sesión de una persona desde la app (se probó el motor por una puerta temporal, ya apagada) y documentos
+REALES del rancho (fotos de teléfono, letra a mano).
