@@ -301,6 +301,26 @@ Todo junto: `sh pruebas/todo.sh`.
 1. Vercel: quitar `app.agroselectos.com` del proyecto viejo `vitejs-vite-3ymxjehp` (Settings → Domains → Remove) para poder darlo de alta como dominio propio de `agrogestion-operacion`. Mientras tanto el dominio se apunta a mano a cada publicación.
 2. Supabase → Authentication → URL Configuration: poner `https://app.agroselectos.com` como Site URL y dejar `https://agrogestion-operacion.vercel.app` en Redirect URLs, para que el correo de confirmación regrese al dominio definitivo.
 
+## Compromisos abiertos que el mapa NO desplaza (recordado por Luis el 21 nov)
+
+El desarrollo geoespacial va en paralelo. Esto sigue siendo lo primero:
+
+| Compromiso | Cómo está | Qué falta |
+|---|---|---|
+| Checador | Hecho y publicado (QR o PIN, tableta cerrada) | **Usarlo en la tableta de la nave, con fila de gente** |
+| Operación diaria (reparto, cuadrillas, entregas del almacén, pagos al personal) | Hecho y publicado | **Un día real de punta a punta con Migue** |
+| WhatsApp | Existe el chat dentro de la app y los mensajes armados para indicaciones y cotizaciones | **Sin definir por escrito qué más se espera: preguntar a Luis** |
+| Acuerdos de la junta: inventario por bodega con responsable · bitácora de campo por turnos · expediente legal y documental por rancho/parcela · checador | Bodegas y checador: hechos. Bitácora por turnos y expediente legal: **sin construir** | Construir los dos que faltan |
+| Piloto | Presentación y guías entregadas | **Dos semanas en paralelo sin fallas, cero pérdidas al sincronizar, respaldo restaurado** |
+
+**Satélite para análisis, etapa 2 (21 nov, mañana):** desde la ficha de una parcela con límite: pasadas de
+Sentinel-2 del ciclo, vigor (NDVI), humedad (NDMI) y color real por fecha, línea del tiempo y comparación entre dos
+fechas, con nubosidad, cuadros usados y advertencias. Fuente gratuita sin cuenta (Planetary Computer); ~10 kB por
+fecha. **Probado:** cuenta con pruebas; pantalla en navegador con imágenes de mentira; y de punta a punta contra el
+servicio REAL con una parcela FICTICIA sobre un lugar cualquiera (13 fechas en 4 s). **Sin validar:** con una
+parcela real del rancho y con alguien que conozca cómo estaba esa parcela en esas fechas. **Sin revisar:** las
+condiciones de uso del servicio. **Sin hacer:** respaldo por AWS, comparar parcelas, avisos, drones.
+
 **Mapa del rancho, etapa 1 (21 nov, mañana):** pantalla «Mapa del rancho» con imagen de satélite, límites reales
 de parcelas y ranchos (trazados, caminados con el teléfono o importados de KML/GeoJSON), superficie medida, color
 por cultivo del ciclo vigente y ficha de la parcela con lo que el sistema ya sabe. El dron ya usa esos límites.

@@ -42,42 +42,61 @@ debajo de cualquier tope gratuito. **Cambiar de proveedor es cambiar un renglón
 Decisión que queda para Luis, sin prisa: seguir así, o abrir una cuenta gratuita de Esri o Mapbox para estar en
 regla (no cuesta, pero es una cuenta más).
 
-## 3. Etapa 2 — satélite por fecha (Sentinel-2): qué conviene
+## 3. Etapa 2 — satélite para análisis (Sentinel-2): hecho el 21 nov 2026
 
-**Recomendación: leer Sentinel-2 directo desde el navegador, sin servidor y sin cuenta.** Las imágenes están
-publicadas como datos abiertos en un almacén público (programa de datos abiertos de AWS, catálogo «Earth Search» de
-Element 84). Comprobado el 21 nov 2026 desde esta máquina:
+**Qué hay.** En la ficha de una parcela con límite, el botón «Satélite» abre las pasadas de Sentinel-2 del ciclo
+vigente (sin ciclo, los últimos 90 días): por cada fecha, día y hora, satélite, nubosidad de toda la pasada, cuántos
+cuadros de 10 m de la parcela se usaron, y el índice (vigor NDVI, humedad NDMI) o la foto en color real, pintada
+encima del mapa. Línea del tiempo del ciclo, comparación entre dos fechas, y avisos de cómo leerlo.
 
-- el catálogo contesta sin llave y permite que lo llame una página web;
-- cada banda se puede leer **por pedazos** (sólo el recorte de la parcela, no la imagen completa de 100 km);
-- para un punto de la zona de Fresnillo, del 1 ago al 21 nov 2026 hay **28 pasadas** (una cada 2 a 5 días), y
-  **15** con menos de 20 % de nubes en la escena.
+**Dos imágenes que no se confunden.** El FONDO del mapa es un mosaico sin fecha (ubicar y trazar). La capa de
+análisis es una pasada con fecha; cuando está puesta, arriba dice «Encima: Sentinel-2 del …, para análisis. El
+fondo es otra imagen, sin fecha», y se puede quitar para ver el fondo.
 
-Con eso la app puede, por parcela: listar fechas disponibles, calcular NDVI (y otros índices) con las bandas roja
-e infrarroja, descartar los píxeles que el propio satélite marca como nube o sombra, y guardar **sólo el resumen**
-(promedio, mínimo, máximo, % de la parcela sin nube, fecha) como evento. Costo: $0. Sin tope mensual que cuidar.
+**Cómo se eligió la fuente (verificado el 21 nov desde esta máquina y desde un navegador real):**
 
-| Alternativa | Costo | Por qué no primero |
+| Vía | Qué se midió | Resultado |
 |---|---|---|
-| Copernicus Data Space (Sentinel Hub) | Gratis hasta 10 mil unidades de proceso y 10 mil peticiones al mes | Pide cuenta y una llave que debe vivir en el servidor; tiene tope. Sirve de respaldo |
-| Sentinel Hub comercial, EOS, Planet, etc. | De decenas a cientos de USD al mes | Gasto recurrente sin necesidad |
+| **Planetary Computer (Microsoft): catálogo + recorte hecho en su servidor** | Sin cuenta ni llave; deja que lo llame una página web. Recorte de una parcela de 4.5 ha con 5 bandas: **~10 kB y 0.4–0.9 s**. 28 fechas (casi 4 meses): **297 kB y 9 s** en total; 13 fechas en el navegador: 3.9 s | **Es la que se usa** |
+| Lectura directa del almacén público en AWS (Earth Search) | Sin cuenta ni llave. Pero las imágenes vienen en bloques de 1024 × 1024: leer UNA fecha de una parcela baja **~3.3 MB** (5.4 MB con color real). 28 fechas ≈ 90 MB | Funciona, pero es pesada para un teléfono en el campo. Queda como **respaldo** si la primera falla (falta programarlo: pide convertir coordenadas a su proyección) |
+| Copernicus Data Space (Sentinel Hub) | Gratis hasta 10 mil unidades de proceso y 10 mil peticiones al mes | Pide cuenta y una llave guardada en el servidor. Segundo respaldo |
+| Servicios comerciales | Decenas a cientos de USD al mes | No hacen falta |
 
-**Límites que hay que decir en la pantalla (y no esconder):**
+**Costo:** $0. No se abrió ninguna cuenta ni se instaló nada en la base.
 
-- **Resolución: 10 metros por píxel.** Una parcela de 1 ha son unos 100 píxeles; de 0.25 ha, unos 25. Sirve para
-  ver una parcela completa y manchones grandes; **no** ve surcos, plantas ni una fuga de cintilla.
-- Los píxeles de la orilla mezclan parcela y camino: se dejan fuera (margen hacia adentro).
-- Nubes y sombras: hay semanas sin dato útil (más en temporada de lluvias). Sin dato se dice «sin imagen útil»,
-  no se rellena.
-- **NDVI es un indicio, no un diagnóstico.** Baja con falta de agua, plaga, enfermedad, madurez, cosecha o maleza
-  seca, y sube con maleza verde. La pantalla dirá «bajó respecto a la fecha anterior» o «va por debajo de las
-  otras parcelas del mismo cultivo y ciclo»; nunca «tiene tal problema». Decide quien va a ver la parcela.
-- Comparar parcelas sólo tiene sentido entre el mismo cultivo y fechas de siembra parecidas.
-- Otros índices con valor real aquí: NDMI (humedad de la planta, bandas de 20 m) y NDRE (más sensible con cultivo
-  ya cerrado, 20 m). Se agregan después de ver que el NDVI se usa.
+**Riesgos que hay que saber:**
+- Planetary Computer es un servicio gratuito de Microsoft, sin compromiso de disponibilidad, y puede poner límites
+  o cambiar. **No pude leer sus condiciones de uso desde aquí** (su página no se deja leer sin navegador): lo
+  técnico está comprobado; lo legal queda por revisar. Si deja de servir, la app lo dice y no enseña datos viejos
+  como nuevos; el respaldo es la lectura directa de AWS.
+- Los datos son del programa Copernicus (libres y abiertos); la pantalla lleva el crédito que piden.
+- El recorte llega acomodado a una cuadrícula de latitud/longitud con cuadros de ~10 m (no exactamente los
+  cuadros originales del satélite). Para promedios por parcela no cambia nada que importe.
 
-Qué falta construir: leer el recorte (una librería de unos 60 kB que se carga sólo al abrir esa capa), la cuenta
-del índice (pura, con pruebas), la línea del tiempo por parcela y la capa de color sobre el mapa.
+**Cómo cuenta (`src/satelite.js`, con pruebas):**
+- Sólo cuentan los cuadros cuyo centro cae dentro del límite y a más de 5 m de la orilla (los de la orilla mezclan
+  parcela y camino).
+- Lo que el propio satélite marca como nube, sombra, nieve o sin dato **no cuenta y no se rellena**. Un día tapado
+  no tiene número: ni cero ni el de la vez pasada.
+- Estados de cada lectura: completa · parcial (menos de 60 % de la parcela a la vista) · parcela muy chica (menos
+  de 9 cuadros) · sin imagen útil. **A la línea del tiempo sólo entran las completas.**
+- Una fecha que se sale de sus dos vecinas (y ellas coinciden) se marca **dudosa**: casi siempre es una nube
+  delgada que el satélite no marcó. No se quita ni se corrige. (Pasó en la prueba real: 0.43 → 0.18 → 0.42.)
+- Comparar dos fechas dice cuánto cambió; un cambio menor a 0.05 se dice «prácticamente igual». **Nunca dice por
+  qué.** Hay una prueba que truena si en ese texto aparece «plaga», «riego», «enfermedad» y parecidas.
+- Los datos desde 2022 traen un desfase que hay que quitar; los anteriores no. Se respeta por fecha.
+
+**Qué se guarda:** sólo el resumen de cada pasada por parcela (evento `lectura_satelital`: promedio, rango, cuadros
+usados, nubes, satélite, fuente), atado al límite con que se midió. La imagen no se guarda: se vuelve a pedir (10
+kB). Si el límite se corrige, las lecturas viejas no se heredan. Guarda el administrador; los demás perfiles ven
+y calculan, sin guardar.
+
+**Lo que NO hace todavía:** comparar parcelas entre sí en una misma gráfica; avisar solo cuando algo baja;
+índices NDRE/otros; guardar la imagen para verla sin señal; analizar ciclos ya cerrados (hoy: ciclo vigente o 90 días).
+
+**Camino para drones:** la capa de análisis es una imagen con sus cuatro orillas puesta sobre el mapa y recortada
+con el límite de la parcela. Un ortomosaico entrará por el mismo lugar: otra fuente de imagen, el mismo recorte,
+la misma cuenta por parcela, con su propia resolución y sus propias advertencias.
 
 ## 4. Etapa 3 — drones: qué se puede y qué no
 

@@ -415,6 +415,24 @@ textarea.inp{min-height:90px;resize:none;}
 .mp-esq{width:18px;height:18px;margin:6px;border-radius:50%;background:#fff;border:3px solid #E4B23F;box-shadow:0 1px 6px rgba(0,0,0,.6);}
 .mp-esq.mp-esq-sel{background:#E4B23F;border-color:#fff;transform:scale(1.25);}
 .mp-esq.mp-medio{width:12px;height:12px;margin:9px;border-width:2px;border-color:#fff;background:rgba(255,255,255,.35);}
+.mp-pixelada{image-rendering:pixelated;image-rendering:crisp-edges;}
+.mp-aviso.mp-capa{border-color:var(--blue);font-size:12px;padding:8px 12px;}
+.mp-lectura{display:flex;gap:12px;align-items:center;margin-top:8px;padding:10px 12px;border-radius:14px;background:var(--card2);border:1px solid var(--border-soft);}
+.mp-lectura-n{display:flex;flex-direction:column;align-items:center;min-width:74px;}
+.mp-lectura-n small{font-size:10px;color:var(--muted);font-weight:700;text-align:center;}
+.mp-lectura-n b{font-family:'Syne',sans-serif;font-size:30px;line-height:1.05;}
+.mp-escala{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11px;color:var(--muted);}
+.mp-escala i{flex:1;height:10px;border-radius:6px;border:1px solid var(--border);}
+.mp-escala em{font-style:normal;display:inline-flex;align-items:center;gap:4px;}
+.mp-escala u{width:12px;height:10px;border-radius:3px;background:#969696;display:inline-block;}
+.mp-grafica{width:100%;height:auto;display:block;margin-top:4px;}
+.mp-tira{display:flex;gap:6px;overflow-x:auto;padding:6px 0 4px;scrollbar-width:thin;}
+.mp-fecha{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:54px;padding:6px 8px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text);font:700 12px 'Nunito',sans-serif;cursor:pointer;}
+.mp-fecha i{width:8px;height:8px;border-radius:50%;border:1.5px solid transparent;}
+.mp-fecha small{font-size:10px;color:var(--muted);font-weight:600;}
+.mp-fecha.activa{border-color:var(--text);background:var(--card2);}
+.mp-fecha.otra{border-color:var(--blue);}
+.mp-lista{margin:6px 0 0;padding-left:18px;font-size:12px;line-height:1.45;}
 .leaflet-tooltip.mp-rotulo{background:rgba(8,12,5,.72);border:none;color:#fff;font:700 12px/1.25 'Nunito',sans-serif;text-align:center;padding:4px 8px;border-radius:9px;box-shadow:none;}
 .leaflet-tooltip.mp-rotulo::before{display:none;}
 .leaflet-tooltip.mp-rancho{background:transparent;font-size:13px;text-shadow:0 1px 4px #000,0 0 2px #000;letter-spacing:.04em;text-transform:uppercase;}

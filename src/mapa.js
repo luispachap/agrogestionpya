@@ -26,7 +26,7 @@ const plano = (s) => texto(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCa
 /* ════════════ 1 · GEOMETRÍA ════════════ */
 // Radios de la Tierra (WGS84) en una latitud: cuánto mide un grado hacia el norte y hacia el este ahí.
 const A = 6378137, E2 = 0.00669437999014;
-function metrosPorGrado(lat) {
+export function metrosPorGrado(lat) {
   const f = (lat * Math.PI) / 180, s = Math.sin(f), w = Math.sqrt(1 - E2 * s * s);
   return { norte: ((A * (1 - E2)) / (w * w * w)) * (Math.PI / 180), este: ((A / w) * Math.cos(f)) * (Math.PI / 180) };
 }

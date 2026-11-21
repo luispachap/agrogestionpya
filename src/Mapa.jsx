@@ -18,6 +18,7 @@ import { Ic } from "./icons.jsx";
 import { fmt, fechaLocal } from "./calculos.js";
 import { guardarLimite, quitarLimite, limitesDe, limiteDe, revisarAnillo, superficieDe, cajaDe, fichaDeParcela, resumenDelMapa, leerArchivoGeografico, sugerirParcela, colorDeCultivo, FUENTES_DE_LIMITE } from "./mapa.js";
 import { cultivoEn } from "./ciclos.js";
+import PanelSatelite from "./Satelite.jsx";
 
 export const CAPAS_BASE = {
   satelite: { nombre: "Satélite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", opciones: { maxZoom: 21, maxNativeZoom: 18, attribution: "Imagen: Esri, Maxar, Earthstar Geographics" } },
@@ -46,7 +47,10 @@ export default function MapaAgricola({ data, add, upd, session, onClose, onNav }
   const [motivo, setMotivo] = useState(null);               // texto del motivo al quitar un límite
   const [imp, setImp] = useState(null);                     // { archivo, figuras: [{..., parcelaId}], avisos, descartadas }
   const [buscando, setBuscando] = useState(false);
+  const [sat, setSat] = useState(false);                    // el análisis de satélite de la parcela tocada
+  const [capaSat, setCapaSat] = useState(null);             // qué pasada se está viendo encima del fondo
   const editRef = useRef(edit); editRef.current = edit;
+  const satRef = useRef(sat); satRef.current = sat;
   const archivoRef = useRef(null);
 
   const visibles = useMemo(() => parcelas.filter(p => !rancho || p.ranchoId === rancho), [parcelas, rancho]);
@@ -62,7 +66,7 @@ export default function MapaAgricola({ data, add, upd, session, onClose, onNav }
     m.on("click", (ev) => {
       const e = editRef.current;
       if (e) setEdit({ ...e, pts: [...e.pts, [ev.latlng.lat, ev.latlng.lng]], vSel: null });
-      else setSel(null);
+      else if (!satRef.current) setSel(null);   // con el análisis abierto, tocar el mapa no lo cierra
     });
     m.on("zoomend", () => cajaRef.current?.classList.toggle("mp-lejos", m.getZoom() < 14));
     mapa.current = m; window.__agroMapa = m;
@@ -90,16 +94,16 @@ export default function MapaAgricola({ data, add, upd, session, onClose, onNav }
       if (l) {
         if (edit?.de.tipo === "parcela" && edit.de.id === p.id) continue;
         const color = colorDeCultivo(nombre), es = sel === p.id;
-        const pol = L.polygon([l.anillo, ...l.huecos], { color: es ? "#fff" : color, weight: es ? 4 : 2.5, fillColor: color, fillOpacity: es ? 0.42 : 0.22 }).addTo(c.parcelas);
-        pol.bindTooltip(`<b>${escapar(p.nombre)}</b><br>${escapar(nombre || "sin ciclo vigente")} · ${ha(l.ha)}`, { permanent: true, direction: "center", className: "mp-rotulo" });
-        pol.on("click", (ev) => { if (editRef.current) return; L.DomEvent.stopPropagation(ev); setSel(p.id); setPanel(null); });
+        const pol = L.polygon([l.anillo, ...l.huecos], { color: es ? "#fff" : color, weight: es ? (sat ? 2.5 : 4) : 2.5, fillColor: color, fillOpacity: es ? (sat ? 0 : 0.42) : 0.22 }).addTo(c.parcelas);
+        if (!(es && sat)) pol.bindTooltip(`<b>${escapar(p.nombre)}</b><br>${escapar(nombre || "sin ciclo vigente")} · ${ha(l.ha)}`, { permanent: true, direction: "center", className: "mp-rotulo" });
+        pol.on("click", (ev) => { if (editRef.current) return; L.DomEvent.stopPropagation(ev); if (p.id !== sel) setSat(false); setSel(p.id); setPanel(null); });
       } else if (esPunto(p)) {
         const mk = L.circleMarker([Number(p.lat), Number(p.lng)], { radius: 8, color: "#fff", weight: 2, fillColor: "#000", fillOpacity: 0.35, dashArray: "3 3" }).addTo(c.puntos);
         mk.bindTooltip(`${escapar(p.nombre)} · sin límite`, { permanent: true, direction: "top", className: "mp-rotulo mp-falta" });
         mk.on("click", (ev) => { if (editRef.current) return; L.DomEvent.stopPropagation(ev); setSel(p.id); setPanel(null); });
       }
     }
-  }, [limites, visibles, sel, rancho, edit?.de?.id, data.siembras]);   // eslint-disable-line
+  }, [limites, visibles, sel, sat, rancho, edit?.de?.id, data.siembras]);   // eslint-disable-line
 
   /* ── el trazo que se está haciendo ── */
   useEffect(() => {
@@ -143,7 +147,7 @@ export default function MapaAgricola({ data, add, upd, session, onClose, onNav }
   const acercar = (anillo, conHoja = false) => { const c = cajaDe([anillo]), m = mapa.current; if (!c || !m) return; const ancha = window.innerWidth >= 900;
     m.fitBounds([[c.sur, c.oeste], [c.norte, c.este]], { paddingTopLeft: [40, 150], paddingBottomRight: conHoja ? (ancha ? [440, 40] : [40, Math.round(window.innerHeight * 0.56)]) : [40, 60], maxZoom: 19 }); };
   useEffect(() => { const l = sel && limiteDe(limites, "parcela", sel); if (l) acercar(l.anillo, true); }, [sel]);   // eslint-disable-line
-  const verRancho = (id) => { setRancho(id); setSel(null); setTimeout(() => { if (!encuadrar(id)) setDice(id ? "De ese rancho todavía no hay ningún límite ni punto guardado." : "Todavía no hay ningún límite ni punto guardado."); else setDice(""); }, 30); };
+  const verRancho = (id) => { setRancho(id); setSel(null); setSat(false); setTimeout(() => { if (!encuadrar(id)) setDice(id ? "De ese rancho todavía no hay ningún límite ni punto guardado." : "Todavía no hay ningún límite ni punto guardado."); else setDice(""); }, 30); };
 
   /* ── dónde estoy ── */
   const ubicarme = (comoEsquina) => {
@@ -164,7 +168,7 @@ export default function MapaAgricola({ data, add, upd, session, onClose, onNav }
   /* ── trazar, corregir, guardar ── */
   const empezar = (de) => {
     const l = limiteDe(limites, de.tipo, de.id);
-    setEdit({ de, pts: l ? l.anillo.map(p => [...p]) : [], gps: 0, vSel: null, corrige: !!l }); setSel(null); setPanel(null); setDice("");
+    setEdit({ de, pts: l ? l.anillo.map(p => [...p]) : [], gps: 0, vSel: null, corrige: !!l }); setSel(null); setSat(false); setPanel(null); setDice("");
     if (l) acercar(l.anillo);
     else { const x = (de.tipo === "parcela" ? parcelas : ranchos).find(y => y.id === de.id); if (esPunto(x)) mapa.current?.setView([Number(x.lat), Number(x.lng)], 17); }
   };
@@ -233,6 +237,7 @@ export default function MapaAgricola({ data, add, upd, session, onClose, onNav }
           <b>{edit.corrige ? "Corrigiendo" : "Trazando"} el límite de {nombreDe(edit.de)}</b>
           <div>{edit.pts.length < 3 ? `Toca cada esquina sobre la imagen, en el orden en que se recorre la orilla. Llevas ${edit.pts.length}.` : revision && !revision.ok ? revision.dice : `${edit.pts.length} esquinas · ${ha(medida.ha)} (${medida.m2.toLocaleString("es-MX")} m²). Arrastra una esquina para afinarla.`}</div>
         </div>}
+        {sat && capaSat && !edit && <div className="mp-aviso mp-capa" role="status"><b>Encima: Sentinel-2 del {DIA(capaSat.dia)}</b> ({capaSat.vista === "color" ? "color real" : capaSat.vista === "ndvi" ? "vigor" : "humedad"}, para análisis). El fondo es otra imagen, sin fecha.</div>}
         {dice && <div className="mp-dice" role="status" onClick={() => setDice("")}>{dice}</div>}
       </div>
 
@@ -246,7 +251,7 @@ export default function MapaAgricola({ data, add, upd, session, onClose, onNav }
       {panel === "capas" && <div className="mp-hoja mp-chica">
         <div className="mp-hoja-titulo">Fondo del mapa</div>
         <div className="mp-fila">{Object.entries(CAPAS_BASE).map(([k, c]) => <button key={k} className={`mp-pildora${base === k ? " activa" : ""}`} onClick={() => setBase(k)}>{c.nombre}</button>)}</div>
-        <div className="mp-nota">La imagen de satélite del fondo es un mosaico de fechas distintas (puede tener meses o años). Sirve para ubicar y trazar; no dice cómo está hoy el cultivo.</div>
+        <div className="mp-nota">La imagen de satélite del fondo es un mosaico de fechas distintas (puede tener meses o años). Sirve para ubicar y trazar; no dice cómo está hoy el cultivo. Para eso está «Satélite», en la ficha de cada parcela: imágenes con fecha, para análisis.</div>
         {Object.keys(Object.fromEntries(visibles.map(p => [cultivoEn(data.siembras || [], p.id, hoy).cultivos.join(" + "), 1]))).length > 0 && <>
           <div className="mp-hoja-titulo" style={{ marginTop: 10 }}>Colores</div>
           <div className="mp-fila">{[...new Set(visibles.filter(p => limiteDe(limites, "parcela", p.id)).map(p => cultivoEn(data.siembras || [], p.id, hoy).cultivos.join(" + ")))].map(n => <span key={n || "sin"} className="mp-leyenda"><i style={{ background: colorDeCultivo(n) }} />{n || "Sin ciclo vigente"}</span>)}</div>
@@ -272,10 +277,12 @@ export default function MapaAgricola({ data, add, upd, session, onClose, onNav }
         </>}
       </div>}
 
-      {ficha && !edit && !imp && <div className="mp-hoja" aria-label={`Ficha de ${ficha.parcela.nombre}`}>
+      {ficha && sat && ficha.limite && !edit && !imp && <PanelSatelite L={L} mapa={mapa.current} parcela={ficha.parcela} limite={ficha.limite} desdeDelCiclo={ficha.cultivo.de === "ciclo" ? ficha.desde : null} eventos={data.eventos} hoy={hoy}
+        puedeGuardar={puedeEditar} add={add} quien={quien} onCerrar={() => setSat(false)} onCapa={setCapaSat} />}
+      {ficha && !sat && !edit && !imp && <div className="mp-hoja" aria-label={`Ficha de ${ficha.parcela.nombre}`}>
         <div className="mp-cabeza">
           <div style={{ minWidth: 0 }}><div className="mp-nombre">{ficha.parcela.nombre}</div><div className="mp-sub">{ficha.rancho?.nombre || "Sin rancho"}</div></div>
-          <button className="mp-boton mp-plano" aria-label="Cerrar la ficha" onClick={() => { setSel(null); setMotivo(null); }}>✕</button>
+          <button className="mp-boton mp-plano" aria-label="Cerrar la ficha" onClick={() => { setSel(null); setSat(false); setMotivo(null); }}>✕</button>
         </div>
         <div className="mp-fila">
           <span className="mp-chip" style={{ borderColor: colorDeCultivo(ficha.cultivo.nombres.join(" + ")) }}>{ficha.cultivo.nombres.join(" + ") || "Sin cultivo"}</span>
@@ -299,6 +306,7 @@ export default function MapaAgricola({ data, add, upd, session, onClose, onNav }
         </div>
         {ficha.limite && <div className="mp-nota">Límite: {FUENTES_DE_LIMITE[ficha.limite.fuente].toLowerCase()}{ficha.limite.archivo ? ` (${ficha.limite.archivo})` : ""}{ficha.limite.precisionM != null ? `, ±${ficha.limite.precisionM} m` : ""}, por {ficha.limite.quien || "alguien"} el {DIA(ficha.limite.fecha)}{ficha.limite.anteriores.length ? ` · ${ficha.limite.anteriores.length} trazo(s) anterior(es) guardados` : ""}.</div>}
         <div className="mp-fila" style={{ marginTop: 8 }}>
+          {ficha.limite && <button className="mp-pildora activa" aria-label="Ver el satélite de esta parcela" onClick={() => { setSat(true); setDice(""); acercar(ficha.limite.anillo, true); }}>Satélite</button>}
           {ficha.limite && <button className="mp-pildora" onClick={() => acercar(ficha.limite.anillo, true)}>Acercar</button>}
           <button className="mp-pildora" onClick={() => onNav?.("parcelas")}>Abrir en Parcelas</button>
           {puedeEditar && ficha.limite && <button className="mp-pildora" onClick={() => empezar({ tipo: "parcela", id: sel })}>Corregir límite</button>}

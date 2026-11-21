@@ -467,6 +467,19 @@ Usuarios reales de la app:
   `CAPAS_BASE`. Una imagen de satélite o de dron entra como CAPA y como evento con su
   procedencia; **un índice (NDVI) es un indicio, nunca un diagnóstico**.
   `pruebas/mapa_navegador.py` pide `LEAFLET=/ruta/a/leaflet/dist` (no usa red).
+- **Satélite para ANÁLISIS** (`src/satelite.js` puro, `src/lectorSatelite.js` red,
+  `src/Satelite.jsx` pantalla; se abre desde la ficha de una parcela CON límite). **No es
+  el fondo del mapa**: el fondo es un mosaico sin fecha; esto es una pasada de Sentinel-2
+  con día, hora y nubosidad, en cuadros de 10 m. Fuente: Planetary Computer, sin cuenta
+  ni llave (catálogo + recorte hecho en su servidor: ~10 kB por fecha; `FUENTE`); el
+  lector de imágenes (`geotiff`) se carga sólo al abrirlo. Reglas: cuenta sólo lo que cae
+  dentro del límite y lejos de la orilla (`cuadrosDentro`); nube, sombra o sin dato **no
+  cuenta y no se rellena** (`calcularIndice`); a la línea del tiempo sólo entran lecturas
+  completas (`sirveParaSerie`); una fecha que se sale de sus vecinas es `dudosa`, no se
+  borra; `compararFechas` dice cuánto cambió y **nunca por qué** (hay prueba contra
+  palabras de diagnóstico). Se guarda sólo el resumen (`lectura_satelital`, id fijo por
+  pasada, atado al límite); la imagen no. **Ninguna prueba toca el servicio real**:
+  `pruebas/satelite_navegador.py` usa recortes de mentira (`pruebas/apoyo/`).
 - **`src/ciclos.js`: el cultivo de una parcela DEPENDE DE LA FECHA.** Sale del
   ciclo (`siembras`) que la parcela tenía ese día (`cultivoEn`, `partesDe`),
   no de `parcela.cultivo`. Un ciclo terminado sigue contando en sus fechas;
@@ -618,7 +631,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **142 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **213 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.
