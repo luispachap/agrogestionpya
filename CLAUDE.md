@@ -493,6 +493,14 @@ Usuarios reales de la app:
   conversación (`tag`), no duplica (`avisos_enviados`), lo obligatorio (asignación, autorización) no se silencia.
   `src/avisos.js` (puro) y `src/avisosRed.js`; `public/sw.js` enseña y abre (`destinoDe`). Si cambias `nucleo.ts`
   hay que volver a desplegar la función. **Sin probar en un teléfono real.** **Agroselectos = la empresa; AgroGestión = el sistema.** WhatsApp es opcional y futuro. Página `chat` («Mensajes») para admin, encargado, agrónomo, finanzas y dirección (hoja 45).
+- **La conversación abierta es una pantalla de mensajería** (portal `.msj-pantalla` sobre toda la app, 21 nov): encabezado,
+  burbujas del más viejo al más nuevo, barra de escribir fija abajo (adjuntar, cámara, audio; mandar aparece al escribir),
+  abre en lo reciente, se ajusta al teclado con `visualViewport`, raya de «mensajes nuevos», botón para volver al final.
+  Las propuestas van PLEGADAS dentro del mensaje (`.msj-prop-chip`); pendientes, lo de hoy, integrantes, avisos y reglas se
+  abren desde «Opciones». Estado de envío: sólo lo comprobable en el aparato (`por subir`, `no subió`); no hay «leído por el
+  otro». El botón atrás del teléfono lo atiende `atrasInterno`. `Propuesta` se llama como función (como componente perdía el
+  foco al teclear). Lleva la clase `app` para heredar el tema claro. **No tocó permisos ni interpretación.** Prueba:
+  `pruebas/mensajes_movil.py` (Pixel 7; el teclado se imita encogiendo la pantalla).
 - **La conversación continúa** (`aclarar`, `pendienteDe`, `esRespuesta` en `operaciones.js`): lo que falta se
   contesta en corto y se entiende DENTRO de la propuesta pendiente («20 pesos el kilo» × lo que se dijo que se
   compró; sin cantidad se pregunta; «tres kilos» no son tres pesos). La frase original no cambia; cada aclaración

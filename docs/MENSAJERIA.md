@@ -147,3 +147,17 @@ de WhatsApp tienen requisitos aparte. Nada de eso está activo.
 
 **Para el piloto con Miguel, Fito y algunos encargados faltan, en este orden:** avisos con la app cerrada,
 archivos con candado, y dar de alta sus cuentas. Lo demás se puede probar ya.
+
+## Interfaz de mensajería (21 nov 2026)
+
+La conversación se usa como cualquier app de mensajes: encabezado con nombre e integrantes, burbujas (lo mío a la
+derecha), lo reciente abajo, barra de escribir fija con adjuntar, cámara y audio. Lo institucional (por confirmar, lo de
+hoy, integrantes, avisos, reglas) está en «Opciones» y no ocupa la pantalla. Las propuestas van plegadas dentro del
+mensaje; la pregunta que falta sí se ve, y se contesta escribiendo normal.
+
+**Comprobado en navegador con pantalla de teléfono** (`pruebas/mensajes_movil.py`, 32 comprobaciones): abrir en lo
+reciente, barra visible con la pantalla encogida, historial, mensajes nuevos, audio, foto, documento, botón atrás.
+
+**Sin comprobar en un teléfono real:** el teclado de Android de verdad, la cámara, el micrófono y la reproducción de
+audios. Los audios siguen viajando DENTRO del mensaje (no van al almacén de archivos): pesan en la base y conviene
+moverlos antes de que el uso crezca.

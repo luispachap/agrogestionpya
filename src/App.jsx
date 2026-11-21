@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component, createContext, useContext } from "react";
+import { createPortal } from "react-dom";
 // Una operación, múltiples consecuencias: el evento se captura una vez.
 import { estaVigente, cambioPermitido, sinRepetir, juntarEventos, cancelarEvento, exigirValidacion, sinValidar, OPERACION_DE, OPERACIONES, SOLO_OTORGADOS } from "./eventos.js";
 import { abrirAlmacenDeEventos, borrarAlmacenDeEventos } from "./almacenEventos.js";
@@ -298,9 +299,75 @@ textarea.inp{min-height:90px;resize:none;}
 .chk-aviso.salida .chk-aviso-l{color:var(--blue);}
 .chk-aviso.aviso{border-color:var(--gold);background:rgba(228,178,63,.12);}
 .chk-aviso.mal{border-color:var(--red);background:rgba(227,100,100,.12);}
-.msj-burbuja.mio{border-left:3px solid var(--accent);}
-.msj-burbuja.asistente{border-left:3px solid var(--blue);background:var(--card2);}
-.msj-conv{border:1px solid var(--border);margin-bottom:8px;color:var(--text);background:var(--card);cursor:pointer;}
+.msj-fila{display:flex;gap:12px;align-items:center;width:100%;text-align:left;padding:10px 4px;background:none;border:none;border-bottom:1px solid var(--border-soft);color:var(--text);cursor:pointer;font:inherit;}
+.msj-avatar{flex:none;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;background:rgba(132,192,1,.16);color:var(--brand);}
+.msj-avatar.grupo{background:rgba(228,178,63,.14);color:var(--accent);}
+.msj-avatar.chico{width:36px;height:36px;font-size:15px;}
+.msj-fila-medio{flex:1;min-width:0;}
+.msj-fila-t{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.msj-fila-s{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+.msj-fila-der{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px;font-size:11px;color:var(--muted);}
+.msj-nuevos{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--brand);color:#0C1207;font-weight:800;font-size:11px;display:inline-flex;align-items:center;justify-content:center;}
+.msj-fab{position:fixed;right:max(20px,calc(50% - 220px));bottom:calc(154px + env(safe-area-inset-bottom));width:52px;height:52px;border-radius:50%;border:none;background:var(--brand);color:#0C1207;font-size:24px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-lg);z-index:45;cursor:pointer;}
+.msj-pantalla{position:fixed;top:0;left:0;right:0;margin:0 auto;width:100%;max-width:480px;height:100vh;height:100dvh;min-height:0;z-index:70;display:flex;flex-direction:column;background:var(--bg);color:var(--text);overflow:hidden;}
+.msj-cabeza{flex:none;display:flex;align-items:center;gap:8px;padding:8px 8px;padding-top:calc(8px + env(safe-area-inset-top));background:var(--surface);border-bottom:1px solid var(--border);}
+.msj-cabeza h2{font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.msj-cabeza-medio{flex:1;min-width:0;background:none;border:none;color:inherit;text-align:left;font:inherit;cursor:pointer;padding:2px 0;}
+.msj-cabeza-s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.msj-ico{flex:none;width:40px;height:40px;border-radius:50%;border:none;background:none;color:var(--text);font-size:21px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.msj-ico:active{background:var(--card2);}
+.msj-ico.fuerte{background:var(--accent);color:#0C1207;}
+.msj-ico.rojo{background:var(--red);color:#fff;}
+.msj-pend{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 14px;background:rgba(228,178,63,.10);border:none;border-bottom:1px solid var(--border);color:var(--gold);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;width:100%;text-align:left;}
+.msj-hilo{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:8px 10px 10px;position:relative;}
+.msj-dia{display:flex;justify-content:center;margin:10px 0 8px;position:sticky;top:0;z-index:2;pointer-events:none;}
+.msj-dia span{background:var(--surface);border:1px solid var(--border);color:var(--muted);font-size:11.5px;font-weight:700;padding:3px 12px;border-radius:12px;}
+.msj-corte{display:flex;justify-content:center;margin:10px 0;}
+.msj-corte span{background:rgba(132,192,1,.14);color:var(--brand);font-size:12px;font-weight:800;padding:4px 14px;border-radius:12px;}
+.msj-renglon{display:flex;margin:2px 0;}
+.msj-renglon.mio{justify-content:flex-end;}
+.msj-renglon.junto{margin-top:1px;}
+.msj-renglon:not(.junto){margin-top:8px;}
+.msj-burbuja{max-width:84%;min-width:84px;padding:7px 10px 5px;border-radius:14px;border-top-left-radius:4px;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow);overflow-wrap:anywhere;}
+.msj-burbuja.mio{border-top-left-radius:14px;border-top-right-radius:4px;background:var(--card2);background:color-mix(in srgb,var(--brand) 20%,var(--surface));border-color:color-mix(in srgb,var(--brand) 32%,var(--border));border-left-width:1px;}
+.msj-burbuja.asistente{background:var(--card2);background:color-mix(in srgb,var(--blue) 12%,var(--surface));border-color:color-mix(in srgb,var(--blue) 30%,var(--border));border-left-width:1px;}
+.msj-burbuja.ancha{width:84%;}
+.msj-quien{font-size:12.5px;font-weight:800;color:var(--accent);margin-bottom:2px;}
+.msj-burbuja.asistente .msj-quien{color:var(--blue);}
+.msj-texto{font-size:15px;line-height:1.35;white-space:pre-line;}
+.msj-cita{border-left:3px solid var(--accent);background:rgba(0,0,0,.14);border-radius:6px;padding:4px 8px;font-size:12.5px;color:var(--muted);margin-bottom:4px;}
+.msj-nota{font-size:12px;color:var(--muted);margin-top:3px;}
+.msj-pie{display:flex;justify-content:flex-end;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);margin-top:2px;}
+.msj-img{display:block;max-width:100%;max-height:280px;border-radius:10px;margin:2px 0 4px;cursor:pointer;object-fit:cover;}
+.msj-doc{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;margin:2px 0 4px;border-radius:10px;border:1px solid var(--border);background:rgba(0,0,0,.12);color:var(--text);font:inherit;font-size:13.5px;text-align:left;cursor:pointer;}
+.msj-doc b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;}
+.msj-audio{display:block;width:230px;max-width:100%;height:40px;margin:2px 0 4px;}
+.msj-prop-chip{display:flex;align-items:center;gap:6px;width:100%;margin-top:5px;padding:5px 9px;border-radius:9px;border:1px solid var(--border);background:rgba(0,0,0,.12);color:var(--muted);font:inherit;font-size:12px;font-weight:700;text-align:left;cursor:pointer;}
+.msj-prop-chip.espera{color:var(--gold);border-color:rgba(228,178,63,.3);}
+.msj-prop-chip.listo{color:var(--safe);}
+.msj-prop-chip span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.msj-pregunta{font-size:12.5px;color:var(--gold);margin-top:4px;font-weight:700;}
+.msj-abajo{position:absolute;right:14px;bottom:76px;width:40px;height:40px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:19px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-lg);z-index:3;cursor:pointer;}
+.msj-barra{flex:none;background:var(--surface);border-top:1px solid var(--border);padding:6px 6px;padding-bottom:calc(6px + env(safe-area-inset-bottom));}
+.msj-barra-fila{display:flex;align-items:flex-end;gap:4px;}
+.msj-caja{flex:1;min-width:0;resize:none;border:1px solid var(--border);background:var(--card2);color:var(--text);border-radius:20px;padding:9px 14px;font:inherit;font-size:16px;line-height:1.3;max-height:120px;outline:none;}
+.msj-caja:focus{border-color:var(--accent);}
+.msj-prev{display:flex;align-items:center;gap:8px;padding:4px 6px 8px;font-size:13px;}
+.msj-prev img{height:56px;border-radius:8px;}
+.msj-prev .msj-prev-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.msj-grabando{flex:1;display:flex;align-items:center;gap:8px;padding:0 10px;height:40px;font-weight:800;color:var(--red);}
+.msj-grabando i{width:10px;height:10px;border-radius:50%;background:var(--red);animation:msjLate 1s infinite;}
+@keyframes msjLate{50%{opacity:.25;}}
+.msj-adj{display:flex;gap:8px;padding:4px 6px 8px;}
+.msj-adj button{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:12px;border:1px solid var(--border);background:var(--card2);color:var(--text);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;}
+.msj-adj button .ic{font-size:22px;color:var(--accent);}
+.msj-opcion{display:flex;align-items:center;gap:12px;width:100%;padding:13px 4px;background:none;border:none;border-bottom:1px solid var(--border-soft);color:var(--text);font:inherit;font-size:15px;font-weight:700;text-align:left;cursor:pointer;}
+.msj-opcion .ic{font-size:20px;color:var(--accent);}
+.msj-visor{position:fixed;inset:0;z-index:95;background:rgba(0,0,0,.94);display:flex;align-items:center;justify-content:center;}
+.msj-visor img{max-width:100%;max-height:100%;object-fit:contain;}
+.msj-visor button{position:absolute;top:calc(10px + env(safe-area-inset-top));right:10px;width:42px;height:42px;border-radius:50%;border:none;background:rgba(255,255,255,.14);color:#fff;font-size:22px;cursor:pointer;}
+.msj-solo{flex:none;padding:10px 14px;text-align:center;font-size:12.5px;color:var(--muted);background:var(--surface);border-top:1px solid var(--border);}
+@media (min-width:900px){.msj-pantalla{max-width:760px;border-left:1px solid var(--border);border-right:1px solid var(--border);}.msj-burbuja{max-width:68%;}.msj-burbuja.ancha{width:68%;}.msj-pantalla .modal-sheet{max-width:560px;}}
 .chat-pregunta{padding:8px;border-radius:10px;background:var(--card2);}
 .chk-toca{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);text-align:left;}
 .chk-toca-t{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
@@ -3420,6 +3487,9 @@ const ICONO_CHAT = {
   fertirriego: "💧", horometro: "⏱️", etiqueta: "🏷️", estado_cuenta: "🏦", nota: "📝",
 };
 
+// Una pantalla puede atender el botón «atrás» del teléfono antes de que la app regrese al inicio.
+const atrasInterno = { fn: null };
+
 function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
   const fileRef = useRef(null);
   const [texto, setTexto] = useState("");
@@ -3450,6 +3520,57 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
   const [leido, setLeido] = useState(() => { try { return JSON.parse(localStorage.getItem(llaveLeido) || "{}"); } catch { return {}; } });
   const otorgados = (PERMISOS && PERMISOS.operaciones) || [];
   useEffect(() => { let vivo = true; consultasDeConversacion().then(c => { if (vivo) setConsultas(c); }); directorioDeCuentas().then(c => { if (vivo) setCuentas(c); }); return () => { vivo = false; }; }, []);
+  // ── La conversación como pantalla de mensajería: lo de adelante es platicar; lo demás se abre encima. ──
+  const camRef = useRef(null), pantallaRef = useRef(null), hiloRef = useRef(null), dentroRef = useRef(null), cajaRef = useRef(null), pegado = useRef(true);
+  const [hoja, setHoja] = useState(null);        // pendientes · hoy · info · avisos · nuevaConv
+  const [menu, setMenu] = useState(false);
+  const [adjuntar, setAdjuntar] = useState(false);
+  const [verFoto, setVerFoto] = useState(null);
+  const [abiertas, setAbiertas] = useState({});  // propuestas desplegadas
+  const [segundos, setSegundos] = useState(0);
+  const [lejos, setLejos] = useState(false);
+  const [corte, setCorte] = useState(null);      // hasta dónde había leído AL ABRIR: de ahí sale «mensajes nuevos»
+  const [tic, setTic] = useState(0);
+  const bajar = () => { const el = hiloRef.current; if (el) el.scrollTop = el.scrollHeight; };
+  useEffect(() => { setCorte(convId ? { conv: convId, hasta: leido[convId] || "" } : null); setHoja(null); setMenu(false); setAdjuntar(false); setAbiertas({}); pegado.current = true; setLejos(false); }, [convId]);
+  // Al abrir: a lo más reciente. Si hay mensajes nuevos que no caben en la pantalla, al primero de ellos.
+  useEffect(() => {
+    if (!convId) return;
+    const r = requestAnimationFrame(() => {
+      const el = hiloRef.current, marca = el?.querySelector(".msj-corte");
+      if (el && marca && el.scrollHeight - marca.offsetTop > el.clientHeight) { el.scrollTop = Math.max(0, marca.offsetTop - 60); pegado.current = false; setLejos(true); }
+      else bajar();
+    });
+    return () => cancelAnimationFrame(r);
+  }, [convId, corte?.conv]);
+  // Si estoy al final y algo crece (llega un mensaje, carga una foto, sale el teclado), sigo al final.
+  useEffect(() => {
+    if (!convId || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => { if (pegado.current) bajar(); });
+    if (dentroRef.current) ro.observe(dentroRef.current);
+    if (hiloRef.current) ro.observe(hiloRef.current);
+    return () => ro.disconnect();
+  }, [convId, corte?.conv]);
+  // El teclado: la pantalla se ajusta a lo que de verdad se ve, para que la barra de escribir nunca quede tapada.
+  useEffect(() => {
+    if (!convId) return;
+    const vv = window.visualViewport, antes = document.body.style.overflow;
+    const poner = () => { const el = pantallaRef.current; if (!el || !vv) return; el.style.height = `${vv.height}px`; el.style.top = `${vv.offsetTop}px`; if (pegado.current) bajar(); };
+    poner(); vv?.addEventListener("resize", poner); vv?.addEventListener("scroll", poner);
+    document.body.style.overflow = "hidden";
+    return () => { vv?.removeEventListener("resize", poner); vv?.removeEventListener("scroll", poner); document.body.style.overflow = antes; };
+  }, [convId, corte?.conv]);
+  useEffect(() => { if (!oyendo) { setSegundos(0); return; } const r = setInterval(() => setSegundos(s => s + 1), 1000); return () => clearInterval(r); }, [oyendo]);
+  useEffect(() => { if (!convId) return; const r = setInterval(() => setTic(n => n + 1), 4000); return () => clearInterval(r); }, [convId]);
+  useEffect(() => { const c = cajaRef.current; if (c) { c.style.height = "auto"; c.style.height = `${Math.min(c.scrollHeight, 120)}px`; } }, [texto, convId]);
+  // Estado de envío: sólo lo que se puede comprobar en este aparato (sigue en la cola, o la subida falló).
+  const envio = useMemo(() => {
+    const ids = (llave) => { try { return new Set(JSON.parse(localStorage.getItem(llave) || "[]").filter(o => o?.sec === "chat").map(o => o?.payload?.id)); } catch { return new Set(); } };
+    return { porSubir: ids(LLAVES.cola), fallidas: ids(LLAVES.fallidas) };
+  }, [tic, convId, (data.chat || []).length]);
+  // El botón «atrás» del teléfono cierra lo de encima y luego la conversación, antes de salir de Mensajes.
+  atrasInterno.fn = convId ? () => { if (verFoto) setVerFoto(null); else if (hoja || menu || adjuntar || verReglas) { setHoja(null); setMenu(false); setAdjuntar(false); setVerReglas(false); } else setConvId(null); return true; } : null;
+  useEffect(() => () => { atrasInterno.fn = null; }, []);
   const docRef = useRef(null);
   const grabadora = useRef(null);
   const dictador = useRef(null);
@@ -3566,8 +3687,9 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
     if (capacidad.dictado) {
       dictador.current = dictar({
         onParcial: setTexto,
-        onListo: (t) => { setTexto(t); setOyendo(false); },
-        onError: (err) => { alert(err); setOyendo(false); },
+        // Si se está grabando, el dictado que termina o falla NO corta la grabación: el audio sigue hasta que la persona lo pare.
+        onListo: (t) => { setTexto(t); if (!grabadora.current) setOyendo(false); },
+        onError: (err) => { if (!grabadora.current) { alert(err); setOyendo(false); } },
       });
     }
     setOyendo(true);
@@ -3747,24 +3869,235 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
     );
   };
 
+  const cerrarHoja = e => { if (e.target === e.currentTarget) { setHoja(null); setMenu(false); } };
+  const hojaReglas = verReglas && (
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setVerReglas(false); }}>
+      <div className="modal-sheet msj-reglas">
+        <div className="card-title">Cómo funcionan estos mensajes</div>
+        {REGLAS_DE_MENSAJES.map((r, i) => <div key={i} className="text-sm" style={{ padding: "5px 0", borderBottom: "1px solid var(--border)" }}>{r}</div>)}
+        <div className="text-xs text-muted" style={{ marginTop: 8 }}>Estas reglas las hace cumplir la base de datos, no sólo la pantalla. El personal de campo todavía no tiene mensajería propia. Las fotos y documentos de una conversación sólo los pueden abrir sus participantes.</div>
+        <button className="btn btn-accent" style={{ marginTop: 12 }} onClick={() => setVerReglas(false)}>Entendido</button>
+      </div>
+    </div>
+  );
+  const hojaAvisos = hoja === "avisos" && (() => { const ap = estadoDelAparato(); return (
+    <div className="modal-overlay" onClick={cerrarHoja}>
+      <div className="modal-sheet msj-avisos">
+        <div className="card-title">Avisos en este teléfono: {avisos.activo ? "activados" : "apagados"}</div>
+        {!avisos.activo && <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Sin esto sólo te enteras de un mensaje al abrir AgroGestión.</div>}
+        {ap.dice && <div className="text-xs" style={{ color: ap.puede ? "var(--muted)" : "var(--gold)", marginBottom: 6 }}>{ap.dice}</div>}
+        {!session.cuenta && <div className="text-xs" style={{ color: "var(--gold)", marginBottom: 6 }}>Los avisos son por cuenta: entra con tu correo y contraseña para activarlos. Con PIN no se pueden dirigir a una persona.</div>}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {!avisos.activo
+            ? <button className="btn btn-accent btn-sm" disabled={!ap.puede || !session.cuenta} onClick={async () => { const r = await activarAvisos(); setAvisos(a => ({ ...a, activo: r.ok || a.activo, dice: r.dice })); }}>Activar avisos</button>
+            : <>
+              <button className="btn btn-outline btn-sm" onClick={async () => { const r = await avisoDePrueba(); setAvisos(a => ({ ...a, dice: r.dice })); }}>Mandarme un aviso de prueba</button>
+              <button className="btn btn-outline btn-sm" onClick={async () => { const r = await desactivarAvisos(); setAvisos(a => ({ ...a, activo: !r.ok, dice: r.dice || "" })); }}>Apagarlos aquí</button>
+            </>}
+        </div>
+        {avisos.dice && <div className="text-xs" style={{ marginTop: 6 }}>{avisos.dice}</div>}
+        <div className="text-xs text-muted" style={{ margin: "10px 0 4px" }}>Qué quiero que me avise (vale para todos mis aparatos). El aviso no enseña el texto del mensaje ni importes.</div>
+        {CLASES_DE_AVISO.map(c => (
+          <label key={c.clave} className="text-sm" style={{ display: "flex", gap: 8, padding: "5px 0" }}>
+            <input type="checkbox" disabled={c.obligatorio} checked={c.obligatorio || avisos.prefs[c.clave] !== false} onChange={async e => { const prefs = { ...avisos.prefs, [c.clave]: e.target.checked }; setAvisos(a => ({ ...a, prefs })); await guardarPreferenciasDeAvisos(prefs); }} />
+            <span>{c.nombre}{c.obligatorio ? " (siempre llega)" : ""}</span>
+          </label>
+        ))}
+        <button className="btn btn-outline" style={{ marginTop: 12 }} onClick={() => setHoja(null)}>Cerrar</button>
+      </div>
+    </div>
+  ); })();
+
+  /* ── Una conversación abierta: pantalla completa de mensajería ── */
+  if (conv) {
+    const hoyF = today(), ay = new Date(`${hoyF}T12:00:00`); ay.setDate(ay.getDate() - 1); const ayerF = fechaLocal(ay);
+    const nombreDia = f => (f === hoyF ? "Hoy" : f === ayerF ? "Ayer" : new Date(`${f}T12:00:00`).toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long", ...(f.slice(0, 4) !== hoyF.slice(0, 4) ? { year: "numeric" } : {}) }));
+    const esGrupo = conv.clase !== "directa";
+    const integrantes = conv.clase === "general" ? "Todos los que tienen mensajería" : conv.miembros.map(nombreDeMiembro).join(", ");
+    const nuevos = corte?.conv === conv.id && corte.hasta ? mensajes.filter(m => m.de?.id !== yo.id && String(m.cuando || "") > corte.hasta) : [];
+    const primerNuevo = nuevos.length ? nuevos.reduce((a, b) => (String(a.cuando) < String(b.cuando) ? a : b)).id : null;
+    const hayAlgo = !!(texto.trim() || foto || audio || doc);
+    const fino = typeof window !== "undefined" && window.matchMedia?.("(pointer:fine)").matches;
+    const enviar = async () => { pegado.current = true; setAdjuntar(false); await mandar(); requestAnimationFrame(bajar); };
+    const cancelarAudio = async () => { dictador.current?.detener(); if (grabadora.current) { try { await grabadora.current.detener(); } catch { /* nada que guardar */ } grabadora.current = null; } setOyendo(false); setAudio(null); };
+    let anterior = null;
+    return createPortal(
+      <div className="app msj-pantalla" ref={pantallaRef}>
+        <div className="msj-cabeza">
+          <button className="msj-ico msj-atras" aria-label="Volver a las conversaciones" onClick={() => { setConvId(null); setTab("hilo"); }}>‹</button>
+          <div className={`msj-avatar chico${esGrupo ? " grupo" : ""}`}>{esGrupo ? <Ic e="👥" /> : String(conv.titulo || "?").trim().charAt(0).toUpperCase()}</div>
+          <button className="msj-cabeza-medio" aria-label="Información de la conversación" onClick={() => setHoja("info")}>
+            <h2>{conv.titulo}</h2>
+            <div className="msj-cabeza-s">{esGrupo ? integrantes : "Conversación directa"}</div>
+          </button>
+          <button className="msj-ico" aria-label="Opciones" onClick={() => setMenu(true)}><Ic name="dots" /></button>
+        </div>
+        {pendientes.cuantos > 0 && <button className="msj-pend" onClick={() => setHoja("pendientes")}><span>{pendientes.cuantos} por confirmar en esta conversación</span><span>Ver ›</span></button>}
+
+        <div className="msj-hilo" ref={hiloRef} onScroll={e => { const el = e.currentTarget, cerca = el.scrollHeight - el.scrollTop - el.clientHeight < 90; pegado.current = cerca; if (lejos === cerca) setLejos(!cerca); }}>
+          <div ref={dentroRef}>
+            {hilo.dias.length === 0 && <div className="msj-dia" style={{ marginTop: 30 }}><span>Todavía no hay mensajes. Escribe el primero.</span></div>}
+            {hilo.dias.map(dia => (
+              <div key={dia.fecha}>
+                <div className="msj-dia"><span>{nombreDia(dia.fecha)}</span></div>
+                {dia.mensajes.map(m => {
+                  const mio = m.de?.id === yo.id && !m.delAsistente, quien = m.delAsistente ? "AgroGestión" : (m.deQuien || m.de?.nombre || "alguien");
+                  const junto = anterior && anterior.dia === dia.fecha && anterior.quien === (m.delAsistente ? "*" : m.de?.id) && m.id !== primerNuevo; anterior = { dia: dia.fecha, quien: m.delAsistente ? "*" : m.de?.id };
+                  const props = m.propuestas || [], conAlgoAbierto = props.some(pr => abiertas[pr.id]);
+                  return (
+                    <React.Fragment key={m.id}>
+                      {m.id === primerNuevo && <div className="msj-corte"><span>{nuevos.length === 1 ? "1 mensaje nuevo" : `${nuevos.length} mensajes nuevos`}</span></div>}
+                      <div className={`msj-renglon${mio ? " mio" : ""}${junto ? " junto" : ""}`}>
+                        <div className={`msj-burbuja${mio ? " mio" : ""}${m.delAsistente ? " asistente" : ""}${conAlgoAbierto ? " ancha" : ""}`}>
+                          {!mio && !junto && (esGrupo || m.delAsistente) && <div className="msj-quien">{quien}</div>}
+                          {m.aclaraA && <div className="msj-cita">{m.aclaraA.dijo ? `${m.aclaraA.dijo}: ` : ""}«{m.aclaraA.frase}»</div>}
+                          {m.foto?.dataUrl && <Foto src={m.foto.dataUrl} alt="Foto del mensaje" className="msj-img" onClick={() => setVerFoto(m.foto.dataUrl)} />}
+                          {m.documento && <button className="msj-doc" onClick={() => abrirDoc(m.documento)}><Ic e="📄" style={{ fontSize: 22 }} /><b>{m.documento.nombre || "Documento"}</b><span className="text-xs text-muted">Abrir</span></button>}
+                          {m.audio?.dataUrl && <audio className="msj-audio" controls preload="metadata" src={m.audio.dataUrl} />}
+                          {m.texto && <div className="msj-texto">{m.texto}</div>}
+                          {m.aclaraA && m.seEntendio && <div className="msj-nota">{m.seEntendio}</div>}
+                          {m.relacion && m.relacion.clase !== "aclaracion" && <div className="msj-nota chat-relacion">{m.relacion.dice}</div>}
+                          {m.porIdentificar && !esPlatica(m) && <div className="msj-nota">Guardado tal cual; AgroGestión no encontró qué registrar de esto.</div>}
+                          {props.map(pr => { const firma = pr.confirmacion, falta = (pr.falta || []).length > 0, abierta = !!abiertas[pr.id]; return (
+                            <React.Fragment key={pr.id}>
+                              <button className={`msj-prop-chip${firma ? (firma.estado === "rechazado" ? "" : " listo") : " espera"}`} aria-expanded={abierta} onClick={() => { pegado.current = false; setAbiertas(a => ({ ...a, [pr.id]: !a[pr.id] })); }}>
+                                <Ic e={ICONO_CHAT[pr.tipo] || "📝"} /><span>{pr.tipo} · {firma ? firma.estado : falta ? "falta un dato" : "por confirmar"}</span>{abierta ? "▴" : "▾"}
+                              </button>
+                              {!abierta && !firma && falta && typeof pr.i === "number" && <div className="msj-pregunta">AgroGestión pregunta: {preguntaDe(pr.falta[0])}</div>}
+                              {!abierta && noSePudo?.id === pr.id && <div className="msj-nota chat-nose" style={{ color: "var(--gold)" }}>{noSePudo.dice}</div>}
+                              {abierta && Propuesta({ mensaje: m, pr })}
+                            </React.Fragment>
+                          ); })}
+                          <div className="msj-pie">
+                            <span>{m.cuando ? horaCorta(m.cuando) : ""}</span>
+                            {mio && envio.fallidas.has(m.id) && <span title="No se pudo subir; se reintenta desde Sincronización" style={{ color: "var(--red)" }}>no subió</span>}
+                            {mio && !envio.fallidas.has(m.id) && envio.porSubir.has(m.id) && <span title="Guardado en este teléfono; sube cuando haya señal"><Ic name="clock" /> por subir</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            ))}
+            {hilo.sinHora.length > 0 && <div className="msj-dia"><span>{hilo.sinHora.length} mensaje(s) sin hora legible: no se pudieron acomodar en ningún día.</span></div>}
+          </div>
+        </div>
+        {lejos && <button className="msj-abajo" aria-label="Ir a lo más reciente" onClick={() => { pegado.current = true; bajar(); setLejos(false); }}><Ic e="⬇" /></button>}
+
+        {puedoEscribir ? (
+          <div className="msj-barra">
+            <input ref={fileRef} type="file" aria-label="Adjuntar foto" accept="image/*" style={{ display: "none" }} onChange={tomarFoto} />
+            <input ref={camRef} type="file" aria-label="Tomar foto" accept="image/*" capture="environment" style={{ display: "none" }} onChange={e => { tomarFoto(e); if (camRef.current) camRef.current.value = ""; }} />
+            <input ref={docRef} type="file" aria-label="Adjuntar documento" accept=".pdf,.xlsx,.xls,.csv,.xml,.docx,.txt" style={{ display: "none" }} onChange={tomarDoc} />
+            {adjuntar && (
+              <div className="msj-adj">
+                <button onClick={() => { setAdjuntar(false); fileRef.current?.click(); }}><Ic e="📷" />Foto o imagen</button>
+                <button onClick={() => { setAdjuntar(false); docRef.current?.click(); }}><Ic e="📄" />Documento</button>
+              </div>
+            )}
+            {foto && <div className="msj-prev"><Foto src={foto.dataUrl} alt="" /><span className="msj-prev-n">{foto.nombre || "Foto"}</span><button className="msj-ico" aria-label="Quitar la foto" onClick={() => setFoto(null)}>×</button></div>}
+            {doc && <div className="msj-prev"><Ic e="📄" style={{ fontSize: 22 }} /><span className="msj-prev-n">{doc.nombre}</span><button className="msj-ico" aria-label="Quitar el documento" onClick={() => setDoc(null)}>×</button></div>}
+            {audio && <div className="msj-prev"><audio className="msj-audio" style={{ flex: 1, width: "auto" }} controls src={audio.dataUrl} /><button className="msj-ico" aria-label="Quitar el audio" onClick={() => setAudio(null)}>×</button></div>}
+            {oyendo ? (
+              <div className="msj-barra-fila">
+                <button className="msj-ico" aria-label="Cancelar la grabación" onClick={cancelarAudio}><Ic e="🗑" /></button>
+                <div className="msj-grabando"><i />Grabando {Math.floor(segundos / 60)}:{String(segundos % 60).padStart(2, "0")}</div>
+                <button className="msj-ico rojo" aria-label="Terminar de grabar" onClick={hablar}><Ic name="stop" /></button>
+              </div>
+            ) : (
+              <div className="msj-barra-fila">
+                <button className="msj-ico" aria-label="Adjuntar" aria-expanded={adjuntar} onClick={() => setAdjuntar(a => !a)}><Ic name="clip" /></button>
+                <textarea ref={cajaRef} className="msj-caja" rows={1} value={texto} placeholder="Mensaje" aria-label="Mensaje"
+                          onChange={e => setTexto(e.target.value)} onFocus={() => { setAdjuntar(false); if (pegado.current) setTimeout(bajar, 250); }}
+                          onKeyDown={e => { if (fino && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (hayAlgo && !mandando) enviar(); } }} />
+                {!texto.trim() && <button className="msj-ico" aria-label="Cámara" onClick={() => camRef.current?.click()}><Ic e="📷" /></button>}
+                {hayAlgo
+                  ? <button className="msj-ico fuerte" aria-label="Mandar" disabled={mandando} onClick={enviar}>{mandando ? <Ic e="⏳" /> : <Ic name="send" />}</button>
+                  : <button className="msj-ico fuerte" aria-label="Grabar audio" disabled={!capacidad.grabar && !capacidad.dictado} onClick={hablar}><Ic name="mic" /></button>}
+              </div>
+            )}
+          </div>
+        ) : <div className="msj-solo">{conv.porConsulta ? "La abriste por consulta excepcional: sólo lectura, y quedó anotado." : "En esta conversación sólo puedes leer."}</div>}
+
+        {menu && (
+          <div className="modal-overlay" onClick={cerrarHoja}>
+            <div className="modal-sheet msj-menu">
+              <button className="msj-opcion" onClick={() => { setMenu(false); setHoja("pendientes"); }}><Ic e="📝" />Por confirmar ({pendientes.cuantos})</button>
+              <button className="msj-opcion" onClick={() => { setMenu(false); setHoja("hoy"); }}><Ic e="📅" />Lo de hoy en esta conversación</button>
+              <button className="msj-opcion" onClick={() => { setMenu(false); setHoja("info"); }}><Ic e="👥" />Integrantes e información</button>
+              <button className="msj-opcion" onClick={() => { setMenu(false); setHoja("avisos"); }}><Ic name="bellAlert" />Avisos de este teléfono</button>
+              <button className="msj-opcion" onClick={() => { setMenu(false); setVerReglas(true); }}><Ic e="ℹ" />Reglas de los mensajes</button>
+            </div>
+          </div>
+        )}
+        {hoja === "info" && (
+          <div className="modal-overlay" onClick={cerrarHoja}>
+            <div className="modal-sheet msj-info">
+              <div className="card-title">{conv.titulo}</div>
+              <div className="text-xs text-muted" style={{ marginBottom: 8 }}>{conv.clase === "general" ? "Conversación general del rancho" : conv.clase === "directa" ? "Conversación directa" : "Grupo de trabajo"}</div>
+              {conv.clase === "general" ? <div className="text-sm">Participan todos los que tienen mensajería.</div> : conv.miembros.map((mb, k) => <div key={k} className="text-sm" style={{ padding: "6px 0", borderBottom: "1px solid var(--border)" }}>{nombreDeMiembro(mb)}</div>)}
+              <div className="text-xs text-muted msj-aviso" style={{ marginTop: 10 }}>Conversación institucional de Agroselectos: AgroGestión la lee para proponer registros, y nada se registra solo. Para pedirle algo directamente, empieza el mensaje con «Agro,».{conv.porConsulta ? " La abriste por consulta excepcional: sólo lectura, y quedó anotado." : ""}</div>
+              <button className="btn btn-outline" style={{ marginTop: 12 }} onClick={() => setHoja(null)}>Cerrar</button>
+            </div>
+          </div>
+        )}
+        {hoja === "pendientes" && (
+          <div className="modal-overlay" onClick={cerrarHoja}>
+            <div className="modal-sheet msj-pendientes">
+              <div className="card-title">Por confirmar</div>
+              <div className="text-sm" style={{ marginBottom: 8 }}>{pendientes.dice}</div>
+              {pendientes.filas.map((f, k) => <div key={f.mensajeId || k} className="card" style={{ padding: 12, borderLeft: f.apura ? "3px solid var(--gold)" : undefined }}><div className="text-sm">{f.dice}</div></div>)}
+              {pendientes.sinHora.length > 0 && <div className="text-xs text-muted mt-2">{pendientes.sinHora.length} sin hora: no se puede decir cuánto llevan esperando.</div>}
+              <div className="text-xs text-muted" style={{ marginTop: 8 }}>Para confirmar una, toca su etiqueta dentro del mensaje.</div>
+              <button className="btn btn-outline" style={{ marginTop: 12 }} onClick={() => setHoja(null)}>Cerrar</button>
+            </div>
+          </div>
+        )}
+        {hoja === "hoy" && (
+          <div className="modal-overlay" onClick={cerrarHoja}>
+            <div className="modal-sheet msj-hoy">
+              <div className="card-title">Lo de hoy</div>
+              <div className="text-sm">{resumen.dice}</div>
+              {resumen.gastado != null && <div className="text-sm mt-2">Se gastó {fmt(resumen.gastado)}.</div>}
+              {resumen.gastosSinMonto > 0 && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>{resumen.gastosSinMonto} gasto(s) confirmados sin monto: ese total va corto.</div>}
+              {resumen.colgados.length > 0 && <><div className="card-title" style={{ marginTop: 12 }}>Colgados</div>{resumen.colgados.map(c => <div key={c.id} className="text-xs" style={{ padding: "3px 0" }}>{c.resumen || c.frase}</div>)}</>}
+              {resumen.posiblesDuplicados.length > 0 && <><div className="card-title" style={{ marginTop: 12 }}>Puede que estén dos veces</div>{resumen.posiblesDuplicados.map((d, i) => <div key={i} className="text-xs" style={{ padding: "3px 0" }}>{d.dice}</div>)}</>}
+              <button className="btn btn-outline" style={{ marginTop: 12 }} onClick={() => setHoja(null)}>Cerrar</button>
+            </div>
+          </div>
+        )}
+        {hojaAvisos}
+        {hojaReglas}
+        {verFoto && <div className="msj-visor" onClick={() => setVerFoto(null)}><Foto src={verFoto} alt="Foto del mensaje" /><button aria-label="Cerrar la foto" onClick={() => setVerFoto(null)}>×</button></div>}
+      </div>, document.body);
+  }
+
   return (
     <div>
       <div className="top-bar">
-        <button className="btn-ghost" onClick={conv ? () => { setConvId(null); setTab("hilo"); } : onClose}>‹</button>
-        <h2 style={{ flex: 1 }}>{conv ? conv.titulo : "Mensajes"}</h2>
-        <button className="btn btn-outline btn-sm" onClick={() => setVerReglas(true)}>Reglas</button>
+        <button className="btn-ghost" onClick={onClose}>‹</button>
+        <h2 style={{ flex: 1 }}>Mensajes</h2>
+        <button className="msj-ico" aria-label="Opciones" onClick={() => setMenu(true)}><Ic name="dots" /></button>
       </div>
-
-      {verReglas && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setVerReglas(false); }}>
-          <div className="modal-sheet msj-reglas">
-            <div className="card-title">Cómo funcionan estos mensajes</div>
-            {REGLAS_DE_MENSAJES.map((r, i) => <div key={i} className="text-sm" style={{ padding: "5px 0", borderBottom: "1px solid var(--border)" }}>{r}</div>)}
-            <div className="text-xs text-muted" style={{ marginTop: 8 }}>Estas reglas las hace cumplir la base de datos, no sólo la pantalla. El personal de campo todavía no tiene mensajería propia. Las fotos y documentos de una conversación sólo los pueden abrir sus participantes.</div>
-            <button className="btn btn-accent" style={{ marginTop: 12 }} onClick={() => setVerReglas(false)}>Entendido</button>
+      {menu && (
+        <div className="modal-overlay" onClick={cerrarHoja}>
+          <div className="modal-sheet msj-menu">
+            <button className="msj-opcion" onClick={() => { setMenu(false); setHoja("avisos"); }}><Ic name="bellAlert" />Avisos de este teléfono: {avisos.activo ? "activados" : "apagados"}</button>
+            <button className="msj-opcion" onClick={() => { setMenu(false); setVerReglas(true); }}><Ic e="ℹ" />Reglas de los mensajes</button>
           </div>
         </div>
       )}
+      {hoja === "nuevaConv" && (
+        <div className="modal-overlay" onClick={cerrarHoja}>
+          <div className="modal-sheet msj-menu">
+            <button className="msj-opcion" onClick={() => { setHoja(null); setNueva({ clase: "directa", nombre: "", miembros: {} }); }}><Ic e="👤" />Hablar con alguien</button>
+            <button className="msj-opcion" onClick={() => { setHoja(null); setNueva({ clase: "grupo", nombre: "", miembros: {} }); }}><Ic e="👥" />Nuevo grupo</button>
+          </div>
+        </div>
+      )}
+      {hojaAvisos}
+      {hojaReglas}
 
       {!conv && !nueva && (
         <div className="tabs-row">
@@ -3843,51 +4176,25 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
       )}
 
       {!conv && !nueva && vista === "conversaciones" && (
-        <div className="section-pad msj-lista">
-          <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Mensajes de trabajo del rancho. AgroGestión los lee para proponer registros; nada se registra solo.</div>
-          <div className="card msj-avisos" style={{ padding: 10, marginBottom: 8 }}>
-            <div className="flex-b">
-              <div className="text-sm font-bold">Avisos en este teléfono: {avisos.activo ? "activados" : "apagados"}</div>
-              <button className="btn btn-outline btn-sm" onClick={() => setAvisos(a => ({ ...a, ver: !a.ver }))}>{avisos.ver ? "Cerrar" : "Ajustar"}</button>
-            </div>
-            {!avisos.activo && !avisos.ver && <div className="text-xs text-muted">Sin esto sólo te enteras de un mensaje al abrir AgroGestión.</div>}
-            {avisos.ver && (() => { const ap = estadoDelAparato(); return (
-              <div style={{ marginTop: 8 }}>
-                {ap.dice && <div className="text-xs" style={{ color: ap.puede ? "var(--text-muted)" : "var(--gold)", marginBottom: 6 }}>{ap.dice}</div>}
-                {!session.cuenta && <div className="text-xs" style={{ color: "var(--gold)", marginBottom: 6 }}>Los avisos son por cuenta: entra con tu correo y contraseña para activarlos. Con PIN no se pueden dirigir a una persona.</div>}
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {!avisos.activo
-                    ? <button className="btn btn-accent btn-sm" disabled={!ap.puede || !session.cuenta} onClick={async () => { const r = await activarAvisos(); setAvisos(a => ({ ...a, activo: r.ok || a.activo, dice: r.dice })); }}>Activar avisos</button>
-                    : <>
-                      <button className="btn btn-outline btn-sm" onClick={async () => { const r = await avisoDePrueba(); setAvisos(a => ({ ...a, dice: r.dice })); }}>Mandarme un aviso de prueba</button>
-                      <button className="btn btn-outline btn-sm" onClick={async () => { const r = await desactivarAvisos(); setAvisos(a => ({ ...a, activo: !r.ok, dice: r.dice || "" })); }}>Apagarlos aquí</button>
-                    </>}
-                </div>
-                {avisos.dice && <div className="text-xs" style={{ marginTop: 6 }}>{avisos.dice}</div>}
-                <div className="text-xs text-muted" style={{ margin: "8px 0 4px" }}>Qué quiero que me avise (vale para todos mis aparatos). El aviso no enseña el texto del mensaje ni importes.</div>
-                {CLASES_DE_AVISO.map(c => (
-                  <label key={c.clave} className="text-xs" style={{ display: "flex", gap: 8, padding: "3px 0" }}>
-                    <input type="checkbox" disabled={c.obligatorio} checked={c.obligatorio || avisos.prefs[c.clave] !== false} onChange={async e => { const prefs = { ...avisos.prefs, [c.clave]: e.target.checked }; setAvisos(a => ({ ...a, prefs })); await guardarPreferenciasDeAvisos(prefs); }} />
-                    <span>{c.nombre}{c.obligatorio ? " (siempre llega)" : ""}</span>
-                  </label>
-                ))}
+        <div className="section-pad msj-lista" style={{ paddingBottom: 90 }}>
+          {!avisos.activo && <button className="msj-pend" style={{ borderRadius: 10, border: "1px solid var(--border)", marginBottom: 6 }} onClick={() => setHoja("avisos")}><span>Activa los avisos para enterarte de los mensajes sin abrir AgroGestión</span><span>›</span></button>}
+          {convs.map(c => { const ult = c.ultimo, deHoy = ult?.cuando && fechaLocal(new Date(ult.cuando)) === today(); return (
+            <button key={c.id} className="msj-fila msj-conv" onClick={() => { setConvId(c.id); setTab("hilo"); }}>
+              <div className={`msj-avatar${c.clase === "directa" ? "" : " grupo"}`}>{c.clase === "directa" ? String(c.titulo || "?").trim().charAt(0).toUpperCase() : <Ic e="👥" />}</div>
+              <div className="msj-fila-medio">
+                <div className="msj-fila-t">{c.titulo}</div>
+                <div className="msj-fila-s">{ult ? `${ult.de && c.clase !== "directa" ? `${String(ult.de).split(" ")[0]}: ` : ""}${ult.texto}` : c.clase === "general" ? "Todos los que tienen mensajería" : c.clase === "directa" ? "Sin mensajes todavía" : c.miembros.map(nombreDeMiembro).join(", ")}</div>
+                {(c.porConfirmar > 0 || c.porConsulta) && <div className="msj-fila-s" style={{ color: "var(--gold)", fontSize: 12 }}>{c.porConfirmar > 0 ? `${c.porConfirmar} por confirmar` : ""}{c.porConsulta ? `${c.porConfirmar > 0 ? " · " : ""}consulta excepcional (sólo lectura)` : ""}</div>}
               </div>
-            ); })()}
-          </div>
-          {convs.map(c => (
-            <button key={c.id} className="card msj-conv" style={{ padding: 12, width: "100%", textAlign: "left", display: "block" }} onClick={() => { setConvId(c.id); setTab("hilo"); }}>
-              <div className="flex-b">
-                <div className="text-sm font-bold">{c.titulo}</div>
-                <span>{c.sinLeer > 0 && <span className="badge badge-green msj-nuevos" style={{ marginRight: 4 }}>{c.sinLeer} sin leer</span>}{c.porConfirmar > 0 && <span className="badge badge-gold">{c.porConfirmar} por confirmar</span>}</span>
+              <div className="msj-fila-der">
+                <span>{ult?.cuando ? (deHoy ? horaCorta(ult.cuando) : new Date(ult.cuando).toLocaleDateString("es-MX", { day: "numeric", month: "short" })) : ""}</span>
+                {c.sinLeer > 0 && <span className="msj-nuevos" aria-label={`${c.sinLeer} sin leer`}>{c.sinLeer}</span>}
               </div>
-              <div className="text-xs text-muted">{c.clase === "directa" ? "Directa" : c.clase === "general" ? "Todos los que tienen mensajería" : c.miembros.map(nombreDeMiembro).join(", ")}{c.porConsulta ? " · abierta por consulta excepcional (sólo lectura)" : ""}</div>
-              {c.ultimo && <div className="text-xs" style={{ marginTop: 4 }}>{c.ultimo.de ? `${c.ultimo.de}: ` : ""}{c.ultimo.texto}</div>}
             </button>
-          ))}
-          {ROLES_QUE_ABREN.includes(yo.rol) ? <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={() => setNueva({ clase: "directa", nombre: "", miembros: {} })}>Hablar con alguien</button>
-            <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => setNueva({ clase: "grupo", nombre: "", miembros: {} })}>Nuevo grupo</button>
-          </div> : <div className="text-xs text-muted" style={{ marginTop: 8 }}>Tu perfil participa en las conversaciones donde lo incluyan; abrir una nueva lo hace un administrador, un encargado o el agrónomo.</div>}
+          ); })}
+          <div className="text-xs text-muted" style={{ marginTop: 12, textAlign: "center" }}>Mensajes de trabajo de Agroselectos. AgroGestión los lee para proponer registros; nada se registra solo.</div>
+          {!ROLES_QUE_ABREN.includes(yo.rol) && <div className="text-xs text-muted" style={{ marginTop: 8, textAlign: "center" }}>Tu perfil participa en las conversaciones donde lo incluyan; abrir una nueva lo hace un administrador, un encargado o el agrónomo.</div>}
+          {ROLES_QUE_ABREN.includes(yo.rol) && <button className="msj-fab" aria-label="Nueva conversación" onClick={() => setHoja("nuevaConv")}><Ic name="plus" /></button>}
         </div>
       )}
 
@@ -3912,140 +4219,6 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
               <button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={abrirNueva}>Abrir</button>
             </div>
           </div>
-        </div>
-      )}
-
-      {conv && <div className="tabs-row">
-        {[["hilo", "Conversación"], ["pendientes", `Por confirmar (${pendientes.cuantos})`], ["hoy", "Hoy"]].map(([v, lb]) => (
-          <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => setTab(v)}>{lb}</button>
-        ))}
-      </div>}
-
-      {conv && tab === "hilo" && (
-        <div className="section-pad">
-          <div className="text-xs text-muted msj-aviso" style={{ marginBottom: 8 }}>
-            Conversación de trabajo{conv.clase !== "general" ? ` · ${conv.miembros.map(nombreDeMiembro).join(", ")}` : ""}. Conversación institucional: AgroGestión la lee para proponer registros.{conv.porConsulta ? " La abriste por consulta excepcional: sólo lectura, y quedó anotado." : ""}
-          </div>
-          {/* ── Escribir ── */}
-          {puedoEscribir && <div className="card ab">
-            <textarea className="inp" rows={3} value={texto} onChange={e => setTexto(e.target.value)}
-                      placeholder="Escribe, habla o manda una foto o un documento. Para pedirle algo a AgroGestión empieza con «Agro,»" />
-            {doc && (
-              <div className="flex-b" style={{ marginTop: 6 }}>
-                <div className="text-xs">📎 {doc.nombre}</div>
-                <button className="btn-ghost" onClick={() => setDoc(null)}>quitar</button>
-              </div>
-            )}
-            {foto && (
-              <div className="flex-b" style={{ marginTop: 6 }}>
-                <Foto src={foto.dataUrl} alt="" style={{ height: 54, borderRadius: 6 }} />
-                <button className="btn-ghost" onClick={() => setFoto(null)}>quitar</button>
-              </div>
-            )}
-            {audio && (
-              <div style={{ marginTop: 6 }}>
-                <audio controls src={audio.dataUrl} style={{ width: "100%" }} />
-                <button className="btn-ghost text-xs" onClick={() => setAudio(null)}>quitar el audio</button>
-              </div>
-            )}
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={tomarFoto} />
-            <input ref={docRef} type="file" aria-label="Adjuntar documento" accept=".pdf,.xlsx,.xls,.csv,.xml,.docx,.txt" style={{ display: "none" }} onChange={tomarDoc} />
-            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-              <button className="btn btn-outline btn-sm" onClick={() => fileRef.current?.click()}><Ic e="📷" /></button>
-              <button className="btn btn-outline btn-sm" aria-label="Documento" onClick={() => docRef.current?.click()}><Ic e="📄" /></button>
-              <button className={`btn btn-sm ${oyendo ? "btn-danger" : "btn-outline"}`} onClick={hablar}>
-                <Ic e={oyendo ? "⏳" : "🎤"} />
-              </button>
-              <button className="btn btn-accent btn-sm" style={{ flex: 1 }} disabled={mandando} onClick={mandar}>
-                {mandando ? "leyendo…" : "Mandar"}
-              </button>
-            </div>
-            {oyendo && <div className="text-xs text-accent mt-2">Oyendo… habla normal.</div>}
-            <div className="text-xs text-muted mt-2">
-              Lo que mandes se entiende y se archiva donde va, pero <b>nada cuenta hasta que
-              alguien lo confirme</b>. La foto, el audio y el documento se quedan pegados al mensaje.
-            </div>
-          </div>}
-
-          {/* ── El hilo ── */}
-          {hilo.dias.length === 0 && <div className="text-xs text-muted">Todavía no hay mensajes en esta conversación.</div>}
-          {[...hilo.dias].reverse().map(dia => (
-            <div key={dia.fecha}>
-              <div className="text-xs text-muted" style={{ margin: "14px 0 6px", fontWeight: 700 }}>{dia.fecha} · {dia.dice}</div>
-              {[...dia.mensajes].reverse().map(m => (
-                <div key={m.id} className={`card msj-burbuja${m.de?.id === yo.id ? " mio" : ""}${m.delAsistente ? " asistente" : ""}`} style={{ padding: 12 }}>
-                  <div className="flex-b">
-                    <div className="text-sm font-bold">{m.deQuien || m.de?.nombre || "alguien"}</div>
-                    <span className="text-xs text-muted">{m.cuando ? horaCorta(m.cuando) : ""}</span>
-                  </div>
-                  {m.aclaraA && <div className="text-xs text-muted">Contestó sobre: «{m.aclaraA.frase}»{m.aclaraA.dijo ? ` (${m.aclaraA.dijo})` : ""}</div>}
-                  {m.texto && <div className="text-sm" style={{ margin: "6px 0", whiteSpace: "pre-line" }}>{m.texto}</div>}
-                  {m.aclaraA && m.seEntendio && <div className="text-xs text-muted">{m.seEntendio}</div>}
-                  {m.relacion && m.relacion.clase !== "aclaracion" && <div className="text-xs text-muted chat-relacion">{m.relacion.dice}</div>}
-                  {m.documento && <button className="btn btn-outline btn-sm" onClick={() => abrirDoc(m.documento)}>📎 {m.documento.nombre || "Documento"}</button>}
-                  {m.foto?.dataUrl && <Foto src={m.foto.dataUrl} alt="" style={{ width: "100%", borderRadius: 8, margin: "6px 0" }} />}
-                  {m.audio?.dataUrl && <audio controls src={m.audio.dataUrl} style={{ width: "100%", margin: "6px 0" }} />}
-                  {m.porIdentificar && !esPlatica(m) && (
-                    <div className="text-xs" style={{ color: "var(--gold)" }}>
-                      Esto no se entendió. Queda guardado tal cual, con su foto y su audio, para
-                      que alguien diga qué es. <b>No se pierde.</b>
-                    </div>
-                  )}
-                  {(m.propuestas || []).map(pr => <Propuesta key={pr.id} mensaje={m} pr={pr} />)}
-                </div>
-              ))}
-            </div>
-          ))}
-          {hilo.sinHora.length > 0 && (
-            <div className="text-xs text-muted mt-2">
-              {hilo.sinHora.length} mensaje(s) sin hora legible: no se pudieron acomodar en ningún día.
-            </div>
-          )}
-        </div>
-      )}
-
-      {conv && tab === "pendientes" && (
-        <div className="section-pad">
-          <div className="card" style={{ padding: 12 }}>
-            <div className="text-sm">{pendientes.dice}</div>
-          </div>
-          {pendientes.filas.map(f => (
-            <div key={f.mensajeId || Math.random()} className="card" style={{ padding: 12, borderLeft: f.apura ? "3px solid var(--gold)" : undefined }}>
-              <div className="text-sm">{f.dice}</div>
-            </div>
-          ))}
-          {pendientes.sinHora.length > 0 && (
-            <div className="text-xs text-muted mt-2">
-              {pendientes.sinHora.length} sin hora: no se puede decir cuánto llevan esperando.
-            </div>
-          )}
-        </div>
-      )}
-
-      {conv && tab === "hoy" && (
-        <div className="section-pad">
-          <div className="card" style={{ padding: 12 }}>
-            <div className="card-title">Lo de hoy</div>
-            <div className="text-sm">{resumen.dice}</div>
-            {resumen.gastado != null && <div className="text-sm mt-2">Se gastó {fmt(resumen.gastado)}.</div>}
-            {resumen.gastosSinMonto > 0 && (
-              <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>
-                {resumen.gastosSinMonto} gasto(s) confirmados sin monto: ese total va corto.
-              </div>
-            )}
-          </div>
-          {resumen.colgados.length > 0 && (
-            <div className="card" style={{ padding: 12 }}>
-              <div className="card-title">Colgados</div>
-              {resumen.colgados.map(c => <div key={c.id} className="text-xs" style={{ padding: "3px 0" }}>{c.resumen || c.frase}</div>)}
-            </div>
-          )}
-          {resumen.posiblesDuplicados.length > 0 && (
-            <div className="card" style={{ padding: 12, borderLeft: "3px solid var(--gold)" }}>
-              <div className="card-title">Puede que estén dos veces</div>
-              {resumen.posiblesDuplicados.map((d, i) => <div key={i} className="text-xs" style={{ padding: "3px 0" }}>{d.dice}</div>)}
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -7202,6 +7375,7 @@ function AppInner() {
   useEffect(() => {
     const onPop = () => {
       // Al presionar atrás: si no estamos en home, volver a home; si ya estamos en home, dejar salir.
+      if (atrasInterno.fn && atrasInterno.fn()) { window.history.pushState({ agroPage: "chat" }, ""); return; }
       setPageRaw(prev => {
         if (prev !== "home") { setNavParam(null); return "home"; }
         return prev;
