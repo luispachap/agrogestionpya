@@ -545,7 +545,7 @@ Usuarios reales de la app:
   la jornada ni su cierre** (hay prueba). Un cambio de plan NO se pierde: `jornadaDe().cambios` enseña el renglón
   original (`cambiada`/quitada) con quién, cuándo, por qué, por cuál se reemplazó y lo trabajado ahí; ese rato no es
   «fuera del plan». Lo hecho y lo cambiado no pasan a mañana. Recorrido: `pruebas/reasignacion_navegador.py` (20).
-  **Los seis criterios de Luis para la jornada están SIN implementar hasta validarlos con Miguel** (`docs/JORNADA.md`). El tope de IA del mes cubre también la importación (hoja 51).
+  **Los seis criterios de Luis para la jornada están SIN implementar hasta validarlos con Miguel** (`docs/JORNADA.md`). «Reasignar equipo» (mover a varios en una captura) está sólo EVALUADA ahí: no se construye hasta saber cómo reasigna Miguel; dar la instrucción no mueve horas, y plan sin asignación (o al revés) se advierte. El tope de IA del mes cubre también la importación (hoja 51).
 - **`src/whatsapp.js` + `supabase/functions/whatsapp-entrada/` + `supabase/pendientes/whatsapp-entrada.sql`: WhatsApp PREPARADO
   Y APAGADO.** El lector convierte el aviso de Meta en el `mensaje` del camino común (teléfono → persona del
   catálogo; desconocido o repetido no se atribuye; mismo id no entra dos veces). La función sólo comprueba la firma

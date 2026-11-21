@@ -80,10 +80,20 @@ Luis propuso seis criterios y pidió validarlos con Miguel antes de construirlos
 | 6 | Conservar los motivos y que **«Otro» obligue a explicar** | Así funciona ya | Nada. Sólo revisar con Miguel si la lista de motivos es la que él usa |
 
 Preguntas para Miguel, además de las seis:
-1. Cuando cambia el plan a media mañana, ¿quiere hacerlo en un solo paso (cambiar el plan y mandar a la gente a la vez)?
-2. ¿El motivo del cambio debe ser obligatorio?
-3. Una tarea a medias que pasa a mañana, ¿pasa con las mismas personas o sólo como pendiente de la parcela?
-4. ¿Qué evidencia le sirve para dar una tarea por terminada: foto, avance (reguladores, surcos) o su palabra?
+
+**Sobre cómo se reasigna de verdad (Luis, 21 nov, 16 h)**
+1. Cuando cambia el trabajo durante el día, ¿normalmente mueve trabajadores individuales, cuadrillas completas o
+   las dos cosas?
+2. ¿Quién decide la reasignación y quién se la comunica a la gente?
+3. ¿Quién confirma que los trabajadores llegaron al nuevo destino?
+4. ¿Hace falta modificar primero el plan, o basta con registrar el cambio operativo y que el plan quede actualizado
+   solo?
+
+**Sobre el resto**
+5. ¿El motivo del cambio debe ser obligatorio?
+6. Una tarea a medias que pasa a mañana, ¿pasa con las mismas personas o sólo como pendiente de la parcela?
+7. ¿Qué evidencia le sirve para dar una tarea por terminada: foto, avance (reguladores, surcos) o su palabra?
+8. El rato del traslado entre una parcela y otra, ¿de quién es: de la que dejaron, de la nueva, o aparte?
 
 ### Recorrido para hacerlo con él (10 minutos, en su teléfono, con un día real)
 1. La víspera o temprano: mandar las tareas en El día → Reparto.
@@ -94,3 +104,74 @@ Preguntas para Miguel, además de las seis:
 6. Cerrar la jornada, marcar qué pasa a mañana y ponerlo en el plan de mañana.
 Lo que hay que oírle: qué le sobra, qué le falta y qué paso no haría en un día de verdad.
 
+
+## Propuesta en evaluación: «Reasignar equipo» — NO construida (espera a Miguel)
+**El problema que vio Luis:** hoy cambiar el plan y mandar de verdad a la gente son dos operaciones en dos pantallas, y
+el cambio de plan se repite persona por persona. Para mover a cuatro son cinco capturas, y si se hace sólo una de las
+dos la jornada queda incompleta.
+
+**La idea:** una sola captura — escoger a varios, decir destino, tarea, hora y motivo — que registre el cambio de
+manera coordinada.
+
+**Las dos condiciones de Luis, y lo que implican**
+
+| Condición | Lo que obliga |
+|---|---|
+| No puede cambiar sólo el plan y dejar la asignación a medias sin advertirlo | Las dos partes nacen de la misma captura y llevan la misma marca. Si una existe sin la otra, la jornada lo dice con nombre y hora; no se queda callada |
+| No puede inventar horas ni dar por ejecutada una instrucción | Dar la instrucción NO mueve las horas. Las horas en el destino nuevo empiezan cuando alguien confirma que llegaron, con la hora que esa persona dice |
+
+**Cómo quedaría, en tres momentos que no se mezclan**
+1. **Se indica** (quien decide): a quiénes, a dónde, a qué, desde qué hora y por qué. Queda el plan cambiado —con el
+   original guardado, como hoy— y la reasignación «indicada, sin confirmar».
+2. **Se confirma la llegada** (quien Miguel diga: el encargado, el responsable de la cuadrilla o cada trabajador): con
+   su hora. Ahí, y sólo ahí, las horas pasan a la parcela nueva.
+3. **Si nadie confirma**: la jornada lo enseña como pendiente («se indicó a las 10:15, nadie ha confirmado que
+   llegaron») y las horas siguen donde estaban. Al cerrar el día hay que decir qué pasó.
+
+**Tres variantes posibles; cuál conviene depende de las respuestas de Miguel**
+
+| Variante | Cómo funciona | Conviene si Miguel dice… | Riesgo |
+|---|---|---|---|
+| A. Un paso, quien manda está presente | Indicar y confirmar son la misma captura, con la hora de ese momento | «Yo mismo los muevo y los veo irse» | Si la captura se hace antes de que se muevan, las horas quedan adelantadas |
+| B. Dos momentos (la de arriba) | Se indica; otra persona confirma la llegada | «Yo aviso por radio o mensaje y el encargado los recibe allá» | Una captura más; si nadie confirma, queda pendiente |
+| C. Sólo lo operativo | Se registra el movimiento real y el plan se actualiza solo | «No planeo el cambio: lo hago y ya» | El plan deja de ser lo que se dijo y pasa a ser lo que pasó; hay que cuidar que el original no se pierda |
+
+**Lo que ya se sabe y no cambia con ninguna variante**
+- El renglón original del plan se conserva, con quién, cuándo y por qué.
+- Mover a varios es UNA captura con un solo motivo.
+- Cada persona sigue saliendo una vez, y sus horas suman lo que estuvo en el rancho.
+- Nada de esto toca pagos ni costos.
+
+**Lo que falta saber para escoger** (preguntas 1 a 4 y 8 de arriba): si se mueve por persona o por grupo, quién
+decide, quién confirma, si el plan va primero, y de quién es el rato del traslado.
+
+## Qué está demostrado y qué falta comprobar en un día real
+
+**Demostrado con datos inventados** (pruebas automáticas, gente y parcelas de mentira; se pueden repetir cuando sea)
+
+| Qué | Con qué |
+|---|---|
+| El plan original se conserva al cambiarlo | Recorrido en pantallas, 20 de 20 |
+| El cambio guarda quién, hora y motivo, y la jornada lo enseña | Recorrido en pantallas |
+| Ningún trabajador, tarea, hora ni pendiente sale dos veces | Recorrido en pantallas + cuentas (`recorrido_*`) |
+| Las horas de cada persona suman exactamente su tiempo en el rancho | Cuentas |
+| El rato en la parcela original no sale como «fuera del plan» | Recorrido en pantallas |
+| A mañana pasa sólo lo no terminado; lo hecho y lo cambiado no | Recorrido en pantallas + cuentas |
+| El cierre es una foto; lo que llega después se ve aparte | Cuentas y recorrido de la jornada, 13 de 13 |
+| No se crea ninguna actividad, pago ni gasto | Recorrido en pantallas |
+
+**Todavía requiere un día real** (ninguna prueba automática lo puede contestar)
+
+| Qué | Por qué no se sabe |
+|---|---|
+| Si Miguel haría estos pasos en un día de trabajo, y en qué orden | Las pruebas siguen el orden que yo supuse |
+| Si el cambio se captura cuando pasa o al final del día | En la prueba se captura al momento; si se captura tarde, las horas dependen de la hora que se teclee |
+| Si la gente checa entrada y salida de verdad | En la prueba checan los siete, puntuales |
+| Qué pasa con señal mala o con dos teléfonos capturando lo mismo | Probado en otros módulos, no en este recorrido |
+| Si los textos de la pantalla se entienden en el rancho | Sólo lo dice quien la usa |
+| Si los motivos de «no se hizo» son los que usa Miguel | Los propuse yo |
+| Cuánto tarda cerrar la jornada con 30 o 40 personas | La prueba es de siete |
+| Cuadrillas y encargados (no checan) | La jornada dice «no hay con qué saberlo»; falta decidir de dónde saldrá |
+| El aviso al teléfono cuando cambia la tarea de alguien | Sin probar en un teléfono real |
+
+**Regla:** nada de la segunda tabla se da por validado hasta hacerlo con Miguel en el rancho.
