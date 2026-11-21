@@ -59,7 +59,7 @@ const INSTRUCCIONES_HOJA = `Te llegan los primeros renglones de una hoja de cál
 Tu trabajo NO es copiar los datos: es decir qué clase de hoja es, en qué renglón están los encabezados, y qué columna trae cada dato. Con eso la app lee toda la hoja ella sola.
 
 - "renglon_encabezado": el número del renglón donde están los títulos de las columnas. Si la hoja no trae títulos, el número del renglón anterior al primer dato, y dilo en "avisos".
-- En "columnas", para cada dato escribe el número de su columna (sólo el número: "0", "3"). Si la hoja no trae ese dato, déjalo vacío "". No supongas una columna que no está.
+- En "columnas", para cada dato escribe el número de su columna (sólo el número: "0", "3"). Si la hoja no trae ese dato, déjalo vacío "". No supongas una columna que no está. Una columna es una columna de la tabla, debajo de los encabezados: un dato suelto escrito arriba (el periodo, la semana, el nombre del rancho) NO es una columna; déjalo vacío y dilo en "avisos". Dos datos distintos nunca llevan el mismo número de columna.
 - Clases: nomina (pagos al personal), personal (lista de personas sin pagos), combustible, actividades, gastos (compras, gastos o pagos a proveedores), proveedores, estado_cuenta, otro.
 - "confianza": alta, media o baja.
 
