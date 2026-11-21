@@ -78,7 +78,10 @@ export function numeroDicho(texto) {
 // Todos los números de una frase, vengan en cifra o en letra, con lo que
 // dicen a su lado (pesos, litros, cajas, hectáreas).
 const UNIDADES_MEDIDA = ["litros", "litro", "kilos", "kilo", "kg", "cajas", "caja", "bultos", "bulto",
-  "hectareas", "hectarea", "has", "ha", "toneladas", "tonelada", "pesos", "peso", "horas", "hora", "costales", "costal"];
+  "hectareas", "hectarea", "has", "ha", "toneladas", "tonelada", "pesos", "peso", "horas", "hora", "costales", "costal",
+  // Con qué se mide el avance en el campo, y cuánta gente anduvo (un número de personas no es una lista de nombres).
+  "reguladores", "regulador", "camas", "cama", "surcos", "surco", "hilos", "hilo", "melgas", "melga", "tablas", "tabla", "piezas", "pieza", "tareas", "tarea", "personas", "persona", "gentes", "gente"];
+export const UNIDADES_DE_AVANCE_DICHAS = ["reguladores", "regulador", "camas", "cama", "surcos", "surco", "hilos", "hilo", "melgas", "melga", "tablas", "tabla", "piezas", "pieza", "tareas", "tarea", "hectareas", "hectarea", "has", "ha", "cajas", "caja", "toneladas", "tonelada"];
 
 export function numerosDichos(texto) {
   const t = normalizar(texto).toLowerCase();
@@ -204,13 +207,15 @@ export function deQueParcela(texto, parcelas) {
 
 /* ════════════ QUÉ QUISO DECIR ════════════ */
 
-export const TIPOS_DICHO = ["actividad", "gasto", "necesidad", "incidencia", "cosecha", "nota"];
+export const TIPOS_DICHO = ["actividad", "gasto", "necesidad", "incidencia", "cosecha", "avance", "nota"];
 
 const SENAS = {
-  gasto: ["compre", "compramos", "se compro", "pague", "pagamos", "se pago", "costo", "costaron", "gaste", "factura", "ticket", "gasolinera", "pesos"],
+  gasto: ["compre", "compramos", "se compro", "se compraron", "compraron", "pague", "pagamos", "se pago", "costo", "costaron", "gaste", "factura", "ticket", "gasolinera", "pesos"],
   necesidad: ["hace falta", "falta", "necesito", "necesitamos", "se acabo", "ya no hay", "hay que comprar", "urge", "conseguir"],
   incidencia: ["se descompuso", "se rompio", "se poncho", "fallo", "no prende", "se atasco", "accidente", "se lastimo", "se cayo", "problema"],
   cosecha: ["cosechamos", "se cosecho", "cortamos", "se corto", "sacamos", "salieron", "cajas de", "arpillas"],
+  // Cuánto se avanzó de un trabajo, en la unidad en que se dice en el campo («terminamos dos reguladores»).
+  avance: ["terminamos", "acabamos", "se terminaron", "se termino", "avanzamos", "llevamos", "quedaron pendientes", "regulador", "reguladores", "surcos", "camas", "melgas"],
   actividad: ["anduvieron", "trabajaron", "estuvieron", "regando", "sembrando", "fumigando", "barbechando", "rastreando", "limpiando", "aplicando", "desde las", "jornada"],
 };
 
@@ -295,6 +300,14 @@ export function entenderLoDicho({ texto, personas, parcelas, insumos, hoy }) {
       if (!cajas) base.falta.push("cuánto se cosechó");
       if (donde.parcelas.length === 0) base.falta.push("de qué parcela");
     }
+    if (clase.tipo === "avance") {
+      // Sólo lo que se dijo: cuánto y en qué unidad. Ni porcentaje ni superficie: dos reguladores no son «la mitad».
+      const cuanto = numeros.find(n => UNIDADES_DE_AVANCE_DICHAS.includes(n.unidad)) || null, gente = numeros.find(n => /^(personas?|gentes?)$/.test(n.unidad || "")) || null;
+      base.cantidad = cuanto; base.personasN = gente ? gente.valor : null;
+      if (!cuanto) base.falta.push("cuánto se avanzó y en qué (reguladores, surcos, cajas…)");
+      if (donde.parcelas.length === 0) base.falta.push("en qué parcela");
+      if (donde.parcelas.length > 1) base.falta.push("en cuál de las parcelas que nombraste");
+    }
     if (clase.tipo === "necesidad" || clase.tipo === "incidencia") {
       // Estas no necesitan número: lo que necesitan es llegar a alguien.
       base.paraQuien = clase.tipo === "necesidad" ? "quien compra" : "el encargado";
@@ -302,6 +315,19 @@ export function entenderLoDicho({ texto, personas, parcelas, insumos, hoy }) {
     return base;
   });
 
+  // Lo que se dice enseguida de un avance y es DE ese avance —cuánta gente anduvo, qué quedó pendiente— se le pega,
+  // en vez de volverse otra cosa: «trabajaron siete personas y mañana hay que terminar lo que falta» no es una
+  // actividad de siete desconocidos ni una compra.
+  for (let i = 1; i < propuestas.length; i++) {
+    const p = propuestas[i], previo = propuestas.slice(0, i).reverse().find(x => !x.parteDe);
+    if (!previo || previo.tipo !== "avance" || p.tipo === "avance" || p.parcelas.length || p.personas.length) continue;
+    const gente = p.numeros.find(n => /^(personas?|gentes?)$/.test(n.unidad || "")), t = normalizar(p.frase).toLowerCase();
+    const pendiente = /\b(manana|pendiente|pendientes|lo que falta|falta por|terminar|acabar|seguir|continuar)\b/.test(t);
+    if (!gente && !pendiente) continue;
+    if (gente && previo.personasN == null) previo.personasN = gente.valor;
+    if (pendiente) { const q = p.numeros.find(n => UNIDADES_DE_AVANCE_DICHAS.includes(n.unidad)); previo.pendiente = { texto: p.frase, cantidad: q ? q.valor : null, unidad: q ? q.unidad : null }; }
+    p.parteDe = previo.i; p.tipo = "nota"; p.seguro = true; p.porque = "Va con el avance de arriba.";
+  }
   return {
     frases: frases.length,
     propuestas,

@@ -301,6 +301,14 @@ Todo junto: `sh pruebas/todo.sh`.
 1. Vercel: quitar `app.agroselectos.com` del proyecto viejo `vitejs-vite-3ymxjehp` (Settings → Domains → Remove) para poder darlo de alta como dominio propio de `agrogestion-operacion`. Mientras tanto el dominio se apunta a mano a cada publicación.
 2. Supabase → Authentication → URL Configuration: poner `https://app.agroselectos.com` como Site URL y dejar `https://agrogestion-operacion.vercel.app` en Redirect URLs, para que el correo de confirmación regrese al dominio definitivo.
 
+**Operación hablada (21 nov, mañana) — visión y plan en `OPERACION-HABLADA.md`:** revisado en el código qué
+existe (chat, dictado, planeación, checador, bitácora, aplicaciones). **Hecho y publicado:** el camino común de lo
+que entra hablado (entender → preparar → validar → autorizar → ejecutar) conectado a «Dile a la app»; el avance
+de trabajo en la unidad que se dice (sin pago ni porcentaje); y «El día» recuerda lo pendiente. Probado con
+pruebas de cálculo y en navegador con gente y parcelas inventadas. **Sin validar:** que Migue lo diga con sus
+palabras. **Sin hacer:** pasar el chat al camino común; plan → checador; memoria de decisiones de Fito; vista de
+la reunión; préstamos, aplicaciones y almacén hablados; IA para entender; WhatsApp (investigado, no activado).
+
 ## Compromisos abiertos que el mapa NO desplaza (recordado por Luis el 21 nov)
 
 El desarrollo geoespacial va en paralelo. Esto sigue siendo lo primero:
@@ -309,7 +317,7 @@ El desarrollo geoespacial va en paralelo. Esto sigue siendo lo primero:
 |---|---|---|
 | Checador | Hecho y publicado (QR o PIN, tableta cerrada) | **Usarlo en la tableta de la nave, con fila de gente** |
 | Operación diaria (reparto, cuadrillas, entregas del almacén, pagos al personal) | Hecho y publicado | **Un día real de punta a punta con Migue** |
-| WhatsApp | Existe el chat dentro de la app y los mensajes armados para indicaciones y cotizaciones | **Sin definir por escrito qué más se espera: preguntar a Luis** |
+| WhatsApp | Definido por Luis el 21 nov: una puerta más para operar AgroGestión. Investigado (requisitos y costos en `OPERACION-HABLADA.md`) | **Nada activado. Va al final: primero el camino dentro de la app** |
 | Acuerdos de la junta: inventario por bodega con responsable · bitácora de campo por turnos · expediente legal y documental por rancho/parcela · checador | Bodegas y checador: hechos. Bitácora por turnos y expediente legal: **sin construir** | Construir los dos que faltan |
 | Piloto | Presentación y guías entregadas | **Dos semanas en paralelo sin fallas, cero pérdidas al sincronizar, respaldo restaurado** |
 

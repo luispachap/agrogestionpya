@@ -454,6 +454,25 @@ Usuarios reales de la app:
   alguien lo dice. **Ningún módulo de dinero lee el histórico** (hay prueba en
   `cotejo.test.js`): antes hace falta un tabulador histórico confiable. Nómina/efectivo
   como componentes: NO construido, es decisión de Luis (`docs/EXCEL-RAYAS-2024.md` §8).
+- **UNA SOLA OPERACIÓN, VARIAS PUERTAS (Luis, 21 nov; visión y plan en
+  `docs/OPERACION-HABLADA.md`).** Planear, checar, trabajar, avisar, registrar y sugerir
+  son partes del mismo AgroGestión; WhatsApp, cuando exista, es otra puerta, no otra base.
+  **`src/operaciones.js` es el camino común de todo lo que entra hablado**: `preparar`
+  (propuestas con su `naturaleza`: hecho · observación · hipótesis · reporte · decisión ·
+  plan · necesidad; lo que falta se PREGUNTA; mismo mensaje o mismo dinero no se repite)
+  y `ejecutar` (revisa el permiso de quien confirma y devuelve QUÉ escribir, con `origen`:
+  mensaje, frase, quién lo dijo, quién lo confirmó). **La IA o las reglas entienden y
+  proponen; nunca escriben.** Sólo lo HECHO se propone como hecho. Lo que aún no tiene su
+  operación conectada (`POR_CONECTAR`: préstamo, pago, aplicación, almacén) se dice y se
+  manda a su pantalla: no se guarda «parecido». Conectado: «Dile a la app». **El chat de
+  adentro todavía guarda por su cuenta: hay que pasarlo aquí.** Una operación nueva que se
+  pueda decir se agrega a `OPERACIONES` y usa la función que su módulo ya tiene.
+- **`src/avances.js`: avance de trabajo** (`avance_trabajo`): se registra en la unidad
+  que se dice (regulador, surco, caja…). **Avance ≠ pago** (no crea actividades ni costo;
+  «siete personas» es un número) y **avance ≠ porcentaje** (los reguladores no son
+  iguales: `porcentaje: null`). `sugerenciasDeContinuidad` recuerda lo pendiente diciendo
+  en qué se basa, y sólo estima gente con 3 registros iguales. Planear ≠ ejecutar: un plan
+  nunca genera rayas, pagos ni costos.
 - **`src/mapa.js` + `src/Mapa.jsx`: el mapa del rancho** (página `mapa`; plan y costos en
   `docs/MAPA.md`). NO es un sistema aparte: pinta las mismas parcelas, ranchos y ciclos.
   Lo único que agrega son los límites, como evento `limite_geo` (`guardarLimite`,
@@ -631,7 +650,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **213 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **215 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

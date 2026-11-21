@@ -119,6 +119,8 @@ import {
 } from "./chat.js";
 // Hablarle a la app: entender lo dicho, y oírlo.
 import { entenderLoDicho } from "./voz.js";
+import { preparar as prepararOperaciones, ejecutar as ejecutarOperacion, decirPropuesta, NATURALEZAS, OPERACIONES as OPERACIONES_DICHAS } from "./operaciones.js";
+import { sugerenciasDeContinuidad } from "./avances.js";
 import { comoPuedeOir, dictar, grabar } from "./dictado.js";
 import { Ic, ThemeBtn, aplicarTemaGuardado, saludoHora, fechaLarga } from "./icons.jsx";
 // Cálculos puros (dinero, fechas, cancelación). Viven aparte para poder
@@ -2694,6 +2696,17 @@ function ElDia({ data, add, upd, session, onClose }) {
         ))}
       </div>
 
+      {/* Lo que quedó pendiente de días anteriores, dicho por quien lo trabajó. Sugiere; no reparte ni asigna a nadie. */}
+      {(() => { const pend = sugerenciasDeContinuidad(data.eventos || [], today(), data.parcelas || []); if (!pend.length) return null;
+        return (<div className="section-pad" style={{ paddingBottom: 0 }}><div className="card" style={{ borderColor: "var(--gold)" }}>
+          <div className="card-title">Quedó pendiente ({pend.length})</div>
+          {pend.map((x, i) => <div key={i} style={{ borderTop: i ? "1px solid var(--border-soft)" : "none", padding: "6px 0" }}>
+            <div className="text-sm">{x.dice}</div>
+            <div className="text-xs text-muted">{x.estimacion ? x.estimacion.dice : x.sinEstimar}</div>
+          </div>)}
+          <div className="text-xs text-muted" style={{ marginTop: 6 }}>Sale de los avances registrados. Es una sugerencia: quién va y a dónde lo decide quien reparte el día.</div>
+        </div></div>); })()}
+
       {/* ══ CLIMA ══ */}
       {tab === "clima" && (
         <div className="section-pad">
@@ -4027,7 +4040,7 @@ function HojaDeFito({ data, add, upd, session, onClose }) {
    Y el audio se guarda SIEMPRE, se haya entendido o no — la misma idea que la
    foto borrosa del ticket. */
 
-const ICONO_DICHO = { actividad: "👷", gasto: "💵", necesidad: "🛒", incidencia: "⚠️", cosecha: "🌾", nota: "📝" };
+const ICONO_DICHO = { actividad: "👷", gasto: "💵", necesidad: "🛒", incidencia: "⚠️", cosecha: "🌾", nota: "📝", avance: "✅" };
 
 function Dictado({ data, add, session, onClose }) {
   const capacidad = comoPuedeOir();
@@ -4073,45 +4086,21 @@ function Dictado({ data, add, session, onClose }) {
 
   const entender = () => {
     if (!texto.trim()) { alert("Todavía no hay nada que entender. Habla o escribe lo que pasó."); return; }
-    setEntendido(entenderLoDicho({
-      texto, personas, parcelas: data.parcelas, insumos: data.inventario,
-    }));
+    const e = entenderLoDicho({ texto, personas, parcelas: data.parcelas, insumos: data.inventario });
+    // El camino común: de lo entendido a propuestas con su clase, lo que falta y a quién le toca confirmar.
+    const mensaje = { id: `dicho-${session.id}-${Date.now()}`, canal: "app", de: { id: session.id, nombre: session.nombre, rol: session.role }, cuando: new Date().toISOString(), texto };
+    setEntendido({ ...e, plan: prepararOperaciones({ mensaje, entendido: e }) });
   };
 
   // Guarda UNA propuesta, la que la persona confirmó. Una por una a propósito:
-  // así se puede aceptar el gasto y corregir la actividad.
+  // así se puede aceptar el gasto y corregir la actividad. La misma regla que en el chat y que en
+  // WhatsApp cuando exista (`operaciones.js`): revisa permiso y faltantes, y usa la operación de siempre.
+  const [dice, setDice] = useState({});
   const guardar = (pr) => {
-    const comun = {
-      fecha: pr.fecha,
-      origenDicho: pr.frase,
-      // El audio va pegado al movimiento: es la evidencia de lo que se dijo.
-      audio: audio?.dataUrl || null,
-      registradoPor: { rol: session.role, id: session.id, nombre: session.nombre },
-    };
-    if (pr.tipo === "gasto") {
-      if (pr.monto === null) { alert("Falta cuánto costó. Complétalo abajo y vuelve a intentar."); return; }
-      add("egresos", { ...comun, concepto: pr.frase.slice(0, 80), monto: pr.monto, categoria: "insumos" });
-    } else if (pr.tipo === "actividad") {
-      if (pr.personas.length === 0) { alert("Falta decir quién trabajó."); return; }
-      const parcelaId = pr.parcelas[0]?.id || "";
-      for (const per of pr.personas) {
-        add("actividades", {
-          ...comun, parcelaId, tipo: "Trabajo de campo",
-          horas: pr.horas ?? null, trabajadorId: per.id,
-          nota: pr.frase,
-        });
-      }
-    } else if (pr.tipo === "necesidad") {
-      add("solicitudes_compra", { ...comun, concepto: pr.frase, estado: "pendiente", paraQuien: pr.paraQuien });
-    } else if (pr.tipo === "incidencia") {
-      add("incidencias", { ...comun, descripcion: pr.frase, estado: "pendiente" });
-    } else if (pr.tipo === "cosecha") {
-      if (!pr.cantidad) { alert("Falta cuánto se cosechó."); return; }
-      add("cosechas", { ...comun, parcelaId: pr.parcelas[0]?.id || "", registros: [{ cantidad: pr.cantidad.valor, unidad: pr.cantidad.unidad }] });
-    } else {
-      add("bitacora", { ...comun, nota: pr.frase });
-    }
-    setGuardadas(g => ({ ...g, [pr.i]: true }));
+    const r = ejecutarOperacion(pr, { mensaje: entendido.plan.mensaje, quien: { id: session.id, nombre: session.nombre, rol: session.role }, cuando: new Date().toISOString(), fecha: today(), parcelas: data.parcelas || [], evidencia: { audio: audio?.dataUrl || null } });
+    if (!r.ok) { setDice(d => ({ ...d, [pr.i]: r.dice })); return; }
+    r.escrituras.forEach(e => add(e.coleccion, e.registro));
+    setDice(d => ({ ...d, [pr.i]: "" })); setGuardadas(g => ({ ...g, [pr.i]: true }));
   };
 
   // Guardar el audio completo aunque no se haya entendido nada. Nunca se
@@ -4169,40 +4158,40 @@ function Dictado({ data, add, session, onClose }) {
               </div>
             </div>
 
-            {entendido.propuestas.map(pr => (
+            {entendido.plan.propuestas.map(pr => (
               <div key={pr.i} className="card" style={{ padding: 12, opacity: guardadas[pr.i] ? .55 : 1 }}>
                 <div className="flex-b">
-                  <div className="font-bold text-sm"><Ic e={ICONO_DICHO[pr.tipo] || "📝"} /> {pr.tipo}</div>
+                  <div className="font-bold text-sm"><Ic e={ICONO_DICHO[pr.tipo] || "📝"} /> {decirPropuesta(pr)}</div>
                   {guardadas[pr.i] && <span className="badge badge-green">guardado</span>}
                 </div>
                 <div className="text-xs text-muted" style={{ margin: "6px 0", fontStyle: "italic" }}>«{pr.frase}»</div>
+                <div className="text-xs text-muted">{NATURALEZAS[pr.naturaleza]} · queda en {OPERACIONES_DICHAS[pr.tipo].a}</div>
 
-                {pr.personas.length > 0 && <div className="text-xs">Gente: {pr.personas.map(x => x.nombre).join(", ")}</div>}
-                {pr.parcelas.length > 0 && <div className="text-xs">Parcela: {pr.parcelas.map(x => x.nombre).join(", ")}</div>}
-                {pr.horas != null && <div className="text-xs">Horas: {pr.horas}</div>}
-                {pr.monto != null && <div className="text-xs">Monto: {fmt(pr.monto)}</div>}
-                {pr.cantidad && <div className="text-xs">Cantidad: {pr.cantidad.valor} {pr.cantidad.unidad || ""}</div>}
-                {pr.paraQuien && <div className="text-xs">Se le manda a: {pr.paraQuien}</div>}
+                {pr.datos.personas.length > 0 && <div className="text-xs">Gente: {pr.datos.personas.map(x => x.nombre).join(", ")}</div>}
+                {pr.datos.parcelaNombre && <div className="text-xs">Parcela: {pr.datos.parcelaNombre}</div>}
+                {pr.datos.horas != null && <div className="text-xs">Horas: {pr.datos.horas}</div>}
+                {pr.datos.monto != null && <div className="text-xs">Monto: {fmt(pr.datos.monto)}</div>}
+                {pr.tipo !== "avance" && pr.datos.cantidad && <div className="text-xs">Cantidad: {pr.datos.cantidad.valor} {pr.datos.cantidad.unidad || ""}</div>}
+                {pr.tipo === "avance" && <div className="text-xs text-muted">Es sólo el avance: no le registra el día a nadie ni genera pago. No se calcula porcentaje.{pr.datos.pendiente ? ` Pendiente: «${pr.datos.pendiente.texto}»` : ""}</div>}
+                {pr.datos.paraQuien && <div className="text-xs">Se le manda a: {pr.datos.paraQuien}</div>}
+                {pr.aviso && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>{pr.aviso}</div>}
 
-                {/* Lo que la app no pudo llenar, por su nombre. */}
-                {pr.falta.length > 0 && (
+                {/* Lo que la app no pudo llenar se pregunta, por su nombre. */}
+                {pr.preguntas.length > 0 && (
                   <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>
-                    Falta: {pr.falta.join(", ")}. Corrige el texto arriba y vuelve a darle "ver qué entendió".
+                    {pr.preguntas.join(" ")} Dilo o escríbelo arriba y vuelve a darle "ver qué entendió".
                   </div>
                 )}
-                {/* Dos personas con el mismo nombre: que elija Gera. */}
-                {pr.ambiguos.length > 0 && (
-                  <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>
-                    {pr.ambiguos.map(a => `Dijo "${a.dijo}" y puede ser: ${a.candidatos.map(c => c.nombre).join(" o ")}.`).join(" ")}
-                  </div>
-                )}
-                {!pr.seguro && pr.falta.length === 0 && (
+                {pr.mismoDineroQue && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>Es el mismo dinero que otra parte de lo que dijiste: se registra una sola vez.</div>}
+                {!pr.permiso.puede && pr.falta.length === 0 && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>{pr.permiso.dice} Mándalo por el Chat para que le llegue.</div>}
+                {!pr.seguro && pr.falta.length === 0 && !pr.aviso && (
                   <div className="text-xs text-muted mt-2">{pr.porque}</div>
                 )}
+                {dice[pr.i] && <div className="text-xs" style={{ color: "var(--red)", marginTop: 4 }}>{dice[pr.i]}</div>}
 
-                {!guardadas[pr.i] && (
-                  <button className="btn btn-accent btn-sm mt-2" onClick={() => guardar(pr)}>
-                    Sí, guardar como {pr.tipo}
+                {!guardadas[pr.i] && pr.lista && pr.permiso.puede && (
+                  <button className="btn btn-accent btn-sm mt-2" aria-label={`Guardar ${decirPropuesta(pr)}`} onClick={() => guardar(pr)}>
+                    Sí, guardar{pr.tipo === "nota" ? " en la bitácora" : ""}
                   </button>
                 )}
               </div>
