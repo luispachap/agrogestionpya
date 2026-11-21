@@ -100,10 +100,83 @@ actividad, dónde) sí se recuperan; los importes del Excel no se importan.
 | mB | No existe. Se parece a **MAB** (maíz blanco), que es justo el cultivo de «El 51» en el Excel | Dudosa: sugerida, por confirmar |
 | Ajo | «AJO» = ajo morado; aparte «PAJ» = ajo postcosecha | La libreta escribe «Ajo» también en bodega, donde el Excel ponía PAJ |
 
-## 8. Dudas que sólo resuelve el rancho
+## 8. Decisiones cerradas por Luis (21 nov 2026) y cómo quedaron
 
-1. ¿«Bod» de la libreta es siempre «Bodega ajos», o puede ser «Pre ajos»? ¿Sigue valiendo separar ajo (campo) de ajo postcosecha?
-2. ¿RA51 es «El 51» (R51) del Excel? ¿Y «mB» es maíz blanco?
-3. La libreta trae «Domingo 6/10/24»; el Excel de esa semana va de lunes 7 a sábado 12. ¿Se trabajó ese domingo, o esa hoja era el lunes?
-4. A qué parcela de AgroGestión corresponde cada ubicación del Excel (RA1–RA4, SF1–SF4, CA1, CA2, DJ1–DJ3, GU1, GU2, R50, R51, R53, CAN, GON, TUL).
-5. ¿Se quiere conservar la separación «percepciones en nómina / efectivo» del tabulador? No se importó.
+| Tema | Decisión | Cómo quedó en la app |
+|---|---|---|
+| RA51 | Es Rancho 51, del grupo «Ranchos 50s» (50, 51, 53). Conservar las denominaciones del Excel | «R51 · El 51» quedó como **otra forma de escribir** RA51: se lee como Rancho 51 y se conserva cómo venía y cómo se llamaba ahí. R50 y R53 del Excel **no** se juntaron con RA50/RA53: nadie lo ha confirmado |
+| Bod | Es Bodega; no se sabe si siempre es «Bodega ajos» o «Pre ajos» | «Bod» guarda las dos posibilidades. Al comparar no cuenta como diferencia contra ninguna, y se dice que ese papel no distingue cuál |
+| Ajo de campo / ajo postcosecha | Clasificación histórica del Excel; no suponerla en otros papeles | Al comparar, AJO y PAJ se cuentan como el mismo cultivo «clasificado distinto», y se enseña cómo lo escribía cada papel |
+| «mB» | Podría ser maíz blanco; sin confirmar | Se queda como sugerencia. No se guarda como cultivo en ningún renglón |
+| Domingo 6-oct-2024 | Conservar la fecha; no pasarla al lunes | El renglón lleva la marca de domingo y el documento avisa la discrepancia con el formato lunes–sábado del Excel |
+| Ubicación → parcela | Pendiente | En «Claves de las rayas» cada ubicación está «por decir»: parcela · son varias · no es parcela · ya no existe, con nota, quién y cuándo. Se puede corregir y lo anterior se conserva. Mientras esté por decir, lo histórico de ese lugar no se carga a ninguna parcela ni cultivo |
+| Nómina / efectivo | Conservar la posibilidad; no importar importes ni suponer esquemas | **No se construyó nada y no se importó nada.** Hoy un pago guarda por qué medio se entregó, no a qué componente corresponde. Queda descrito abajo como pendiente de diseño |
+| Rayas históricas y salarios | Sin tabulador histórico confiable no hay costo | Las rayas históricas no tienen importe y ningún cálculo de costos ni de pagos las lee. Hay una prueba que truena si un módulo de dinero empieza a leer el histórico |
+
+**Vigencia de una clave.** Una referencia del Excel se puede confirmar de dos formas: «sí, y sigue igual hoy» o «sí,
+pero sólo en esas fechas». La segunda vale para los papeles de ese periodo y no dice nada de lo que la clave
+significa hoy (fuera de esas fechas se sigue preguntando).
+
+**Corregir un catálogo no altera lo confirmado.** Cada renglón incorporado guarda tres cosas: el código como venía en
+el papel, la clave, y lo que se entendió el día que se incorporó. Una corrección posterior cambia cómo se enseña de
+ahí en adelante, pero no reescribe ningún renglón.
+
+**Un día por dos papeles.** Si un día ya está en el histórico por otro documento, se avisa antes de incorporar. Si se
+incorpora, los dos se conservan como evidencia, el día cuenta una sola vez, y en Histórico aparece la comparación.
+La app no escoge un ganador ni junta personas: «podría ser la misma» sale como pista, por confirmar.
+
+**Nómina y efectivo (sólo descripción, sin construir).** Para distinguir componentes haría falta que cada persona
+tenga dicho qué parte de lo que gana va por nómina y qué parte en efectivo, desde qué fecha, y que cada pago diga a
+cuál componente corresponde. Es una decisión con efectos laborales y fiscales: la define Luis con su asesor antes de
+programar nada. Los importes del tabulador de 2024 no se usan para esto.
+
+## 9. Prueba controlada: una semana del Excel contra la libreta (21 nov 2026)
+
+Hecha en la máquina de trabajo, con el Excel verdadero y la lectura verdadera de la libreta (la que ya se había
+pagado: no se gastó crédito). **No se incorporó nada a producción.** Sin nombres de personas en este informe.
+
+**Lo primero que salió:** la libreta es del domingo 6 de octubre y el Excel no tiene domingos. No hay ningún día que
+esté en los dos papeles, así que **no se puede comparar el mismo día**; se comparó contra el sábado 5, el lunes 7 y
+el martes 8.
+
+| | Libreta dom 6 | Excel sáb 5 | Excel lun 7 | Excel mar 8 |
+|---|---|---|---|---|
+| Renglones (personas) | 24 | 22 | 20 | 21 |
+| Desgranar (A07) | 15 | 8 | 13 | 10 |
+| Sembrar (A17) | 2 | 0 | 2 | 2 |
+| Revolver fertilizante (A27) | 2 | 0 | 1 | 2 |
+| Regar (A16) | 1 | 2 | 1 | 2 |
+| Sacar cintilla (A23) | 1 | 0 | 0 | 0 |
+| En bodega | 15 («Bod») | 8 (Bodega ajos) | 13 (Bodega ajos) | 10 (Bodega ajos) |
+| En San Felipe 4 | 4 | 2 | 4 | 4 |
+| Trabajo general | 1 | 1 | 1 | 1 |
+| En Rancho 51 / El 51 | 1 | 0 | 0 | 0 |
+| Cultivo ajo | 19 | 11 | 17 (AJO y PAJ) | 14 |
+
+- **Coincide:** la libreta se parece mucho más al lunes y al martes que al sábado: mismas actividades principales,
+  San Felipe 4 con 4 personas, uno en general. Los significados del Excel (A07 Desgranar, A17 Sembrar, A27 Revolver
+  fertilizante) son coherentes con dónde aparece cada clave en la libreta.
+- **Difiere:** la libreta trae más gente en bodega (15 contra 13 y 10) y un riego en Rancho 51 que el Excel de esos
+  días pone en otros lugares. El Excel trae actividades que la libreta no (A09, A24) y lugares que la libreta no
+  (claves RA4, GU2, GON).
+- **Personas:** de 24 renglones de la libreta, 16 a 18 tienen un posible nombre correspondiente en el Excel (por una
+  palabra del nombre o porque empieza igual); 2 son ambiguos y 4 a 6 no tienen pareja clara. De las parejas del
+  lunes, 11 tienen la misma actividad y 13 el mismo lugar o uno compatible. Son pistas: ninguna se dio por buena.
+- **Qué aporta la libreta que el Excel no:** las faltas (3), los importes anotados al lado (2, tentativos), el
+  domingo, y el cultivo escrito a mano en cada renglón.
+- **Qué aporta el Excel que la libreta no:** el nombre completo de las personas, la actividad en palabras (no sólo
+  el código), la bodega exacta, y la separación ajo de campo / postcosecha.
+- **Guardias:** 424 renglones del Excel y 24 de la libreta entraron sólo al histórico; cero pagos, cero gastos,
+  cero actividades, cero importes; 2 importes tentativos que no suman en nada.
+
+**Para una comparación del mismo día hace falta** una foto de libreta de un día de lunes a sábado entre el 5 de
+agosto y el 27 de octubre de 2024.
+
+## 10. Dudas que sólo resuelve el rancho
+
+1. ¿Se trabajó el domingo 6 de octubre de 2024, o esa hoja de libreta se pasó al Excel como lunes 7? (La comparación
+   sugiere que se parece al lunes, pero no lo demuestra.)
+2. ¿R50 y R53 del Excel son Rancho 50 y Rancho 53 (RA50, RA53)?
+3. ¿«mB» es maíz blanco?
+4. A qué parcela de AgroGestión corresponde cada ubicación (se contesta en la app, una por una, cuando se sepa).
+5. Nómina y efectivo: cómo se quiere llevar (ver sección 8).

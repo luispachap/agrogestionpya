@@ -301,6 +301,17 @@ Todo junto: `sh pruebas/todo.sh`.
 1. Vercel: quitar `app.agroselectos.com` del proyecto viejo `vitejs-vite-3ymxjehp` (Settings → Domains → Remove) para poder darlo de alta como dominio propio de `agrogestion-operacion`. Mientras tanto el dominio se apunta a mano a cada publicación.
 2. Supabase → Authentication → URL Configuration: poner `https://app.agroselectos.com` como Site URL y dejar `https://agrogestion-operacion.vercel.app` en Redirect URLs, para que el correo de confirmación regrese al dominio definitivo.
 
+**Trazabilidad del histórico y prueba controlada (21 nov, madrugada):** cerradas las decisiones de Luis (RA51 =
+Rancho 51 y «R51 · El 51» como otra forma de escribirlo; Bod con dos posibilidades; ajo de campo/postcosecha como
+clasificación histórica; mB sólo sugerencia; el domingo no se pasa al lunes; vigencia de claves por fechas;
+ubicación → parcela «por decir»). Lo incorporado guarda lo que se entendió ese día: corregir un catálogo no lo
+reescribe. Un día por dos papeles se avisa, se coteja y cuenta una vez. Prueba controlada con el Excel verdadero
+(2 semanas) y la lectura verdadera de la libreta del domingo, en la máquina de trabajo: resultados en
+`docs/EXCEL-RAYAS-2024.md` §9. **Límite encontrado:** la libreta es de domingo y el Excel no tiene domingos: no hubo
+ningún día en común, se comparó contra días vecinos. **Sin hacer:** nómina/efectivo como componentes (sólo
+descrito); incorporar las 12 semanas a producción (lo hace Luis desde la app). **Sin validar por una persona:**
+todo lo anterior desde la sesión de Luis.
+
 **Excel de rayas 2024 (21 nov):** ingeniería inversa y matriz contra AgroGestión en `docs/EXCEL-RAYAS-2024.md`.
 Implementado: lectura de sus catálogos como referencias históricas (con procedencia, varias por clave, se sugieren
 y una persona confirma) y de sus 12 semanas como rayas históricas (1,339 días-persona; sin importes ni sueldos); y el

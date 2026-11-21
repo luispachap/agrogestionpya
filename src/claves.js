@@ -64,7 +64,9 @@ export function formaDe(clave) {
 // `grupo`: varias ubicaciones independientes que se juntan para verlas en conjunto; cada una sigue siendo la suya.
 // «Gen» NO es un lugar: es trabajo general, sin rancho específico. Tampoco es, por sí solo, un gasto general.
 export const CLAVES_DICHAS = [
-  { clave: "BOD", clase: "ubicacion", significado: "Bodega" },
+  // «Bod» es Bodega, pero NO se sabe si siempre es «Bodega ajos» o «Pre ajos» (el Excel 2024 las separaba): se conservan
+  // las dos posibilidades (`puedeSer`) y al cotejar no cuenta como diferencia contra ninguna de las dos (Luis, 21 nov 2026).
+  { clave: "BOD", clase: "ubicacion", significado: "Bodega", puedeSer: ["BODEGAAJOS", "BODEGAPREAJOS"] },
   { clave: "SF1", clase: "ubicacion", significado: "San Felipe 1", grupo: "San Felipe" },
   { clave: "SF2", clase: "ubicacion", significado: "San Felipe 2", grupo: "San Felipe" },
   { clave: "SF3", clase: "ubicacion", significado: "San Felipe 3", grupo: "San Felipe" },
@@ -72,26 +74,53 @@ export const CLAVES_DICHAS = [
   { clave: "RA50", clase: "ubicacion", significado: "Rancho 50", grupo: "Ranchos 50s" },
   { clave: "RA51", clase: "ubicacion", significado: "Rancho 51", grupo: "Ranchos 50s" },
   { clave: "RA53", clase: "ubicacion", significado: "Rancho 53", grupo: "Ranchos 50s" },
+  // Otra forma de escribir el MISMO lugar en otra versión: el Excel 2024 le decía «R51 · El 51» a lo que la libreta
+  // escribe «RA51» (confirmado por Luis, 21 nov 2026). Se conserva el código y el nombre originales (`mismaQue`).
+  { clave: "R51", clase: "ubicacion", significado: "El 51", mismaQue: "RA51", denominacionDe: "Excel de rayas 2024" },
   { clave: "GEN", clase: "general", significado: "General (sin rancho específico)" },
+  // El Excel 2024 lo escribía con la palabra completa.
+  { clave: "GENERAL", clase: "general", significado: "General", mismaQue: "GEN", denominacionDe: "Excel de rayas 2024" },
   { clave: "AJO", clase: "cultivo", significado: "Ajo" },
 ];
 
 // El catálogo vigente: lo dicho de arranque + lo aprendido (lo más reciente manda; lo anterior se conserva).
 export function catalogoDeClaves(eventos = []) {
   const m = new Map();
-  for (const c of CLAVES_DICHAS) m.set(c.clave, { ...c, deArranque: true, quien: "", fecha: "", anteriores: [] });
+  for (const c of CLAVES_DICHAS) m.set(c.clave, { ...c, deArranque: true, quien: "", fecha: "", anteriores: [], periodos: [] });
   const ev = vigentes(eventos).filter(e => e.tipo === T_CLAVE).sort((a, b) => String(a.cuando).localeCompare(String(b.cuando)));
   for (const e of ev) {
     const d = e.datos || {}, previo = m.get(d.clave);
-    const anteriores = previo ? [...previo.anteriores, { clase: previo.clase, significado: previo.significado, quien: previo.quien, fecha: previo.fecha, deArranque: !!previo.deArranque }] : [];
-    m.set(d.clave, { clave: d.clave, clase: d.clase, significado: d.significado || "", ...((d.grupo ?? previo?.grupo) ? { grupo: d.grupo ?? previo.grupo } : {}), original: d.original || d.clave, quien: e.quien?.nombre || "", fecha: e.fecha || "", evento: e.id, docId: d.docId || null, anteriores });
+    const esta = { clase: d.clase, significado: d.significado || "", ...(d.grupo ? { grupo: d.grupo } : {}), quien: e.quien?.nombre || "", fecha: e.fecha || "", evento: e.id, ...(d.deReferencia ? { deReferencia: d.deReferencia } : {}) };
+    // Con vigencia («de tal a tal fecha significaba esto»): es un PERIODO de la clave, no cambia lo que significa fuera de él.
+    if (d.desde || d.hasta) {
+      const base = previo || { clave: d.clave, clase: d.clase, significado: "", soloPeriodos: true, original: d.original || d.clave, quien: "", fecha: "", anteriores: [], periodos: [] };
+      m.set(d.clave, { ...base, periodos: [...(base.periodos || []).filter(x => !(x.desde === (d.desde || null) && x.hasta === (d.hasta || null))), { ...esta, desde: d.desde || null, hasta: d.hasta || null }] });
+      continue;
+    }
+    const anteriores = previo && !previo.soloPeriodos ? [...previo.anteriores, { clase: previo.clase, significado: previo.significado, quien: previo.quien, fecha: previo.fecha, deArranque: !!previo.deArranque }] : (previo?.anteriores || []);
+    m.set(d.clave, { clave: d.clave, ...esta, ...((d.grupo ?? previo?.grupo) ? { grupo: d.grupo ?? previo.grupo } : {}), ...(d.mismaQue ? { mismaQue: d.mismaQue } : {}), ...(previo?.puedeSer ? { puedeSer: previo.puedeSer } : {}), original: d.original || d.clave, docId: d.docId || null, anteriores, periodos: previo?.periodos || [] });
   }
   return m;
+}
+// Lo que una clave significa EN UNA FECHA: el periodo que la cubre o, si ninguno, lo que vale sin fecha. null si no se sabe.
+export function entradaEn(entrada, fecha) {
+  if (!entrada) return null;
+  const p = fecha ? (entrada.periodos || []).find(x => (!x.desde || fecha >= x.desde) && (!x.hasta || fecha <= x.hasta)) : null;
+  if (p) return { ...entrada, ...p, dePeriodo: true };
+  return entrada.soloPeriodos ? null : entrada;
+}
+// La clave «de verdad» detrás de otra forma de escribirla (R51 → RA51). Si no es otra forma de nada, ella misma.
+export function canonica(clave, catalogo = new Map()) { const k = normalizarClave(clave).clave, e = catalogo.get(k); return e?.mismaQue && catalogo.get(e.mismaQue) ? e.mismaQue : k; }
+// ¿Dos claves de lugar pueden ser el mismo lugar? Iguales, otra forma de escribir la misma, o una genérica que «puede ser» la otra.
+export function compatibles(a, b, catalogo = new Map()) {
+  const x = canonica(a, catalogo), y = canonica(b, catalogo); if (x === y) return "igual";
+  const px = catalogo.get(x)?.puedeSer || [], py = catalogo.get(y)?.puedeSer || [];
+  return px.includes(y) || py.includes(x) ? "puede_ser" : "distinta";
 }
 export const listaDeClaves = (catalogo) => [...catalogo.values()].sort((a, b) => a.clase.localeCompare(b.clase) || a.clave.localeCompare(b.clave, "es", { numeric: true }));
 
 // Guardar (o corregir) una equivalencia. Devuelve { ok, evento } o { ok:false, dice }.
-export function aprenderClave({ catalogo, clave: escrita, clase, significado = "", grupo = undefined, deReferencia = null, docId = null, quien, cuando, fecha, azar }) {
+export function aprenderClave({ catalogo, clave: escrita, clase, significado = "", grupo = undefined, deReferencia = null, desde = null, hasta = null, mismaQue = null, docId = null, quien, cuando, fecha, azar }) {
   const { clave, original } = normalizarClave(escrita), que = String(significado || "").replace(/\s+/g, " ").trim();
   if (!clave) return { ok: false, dice: "Falta la clave." };
   if (clave.length > 24) return { ok: false, dice: "Eso no parece una clave: es muy largo." };
@@ -104,20 +133,26 @@ export function aprenderClave({ catalogo, clave: escrita, clase, significado = "
   // Dos claves distintas de la misma clase con el mismo significado casi siempre es un error de dedo: se avisa, no se impide.
   const gemela = [...(catalogo?.values() || [])].find(c => c.clave !== clave && c.clase === clase && que && sinAcentos(c.significado).toUpperCase() === sinAcentos(que).toUpperCase());
   const previo = catalogo?.get(clave);
-  if (previo && previo.clase === clase && previo.significado === que && (grupo === undefined || (previo.grupo || "") === String(grupo).trim())) return { ok: false, igual: true, dice: `«${clave}» ya estaba guardada así.` };
+  if (mismaQue && normalizarClave(mismaQue).clave === clave) return { ok: false, dice: "Una clave no puede ser otra forma de escribirse a sí misma." };
+  if (desde && hasta && desde > hasta) return { ok: false, dice: "La vigencia está al revés: empieza después de que termina." };
+  if (!desde && !hasta && !mismaQue && previo && !previo.soloPeriodos && previo.clase === clase && previo.significado === que && (grupo === undefined || (previo.grupo || "") === String(grupo).trim())) return { ok: false, igual: true, dice: `«${clave}» ya estaba guardada así.` };
   return { ok: true, corrige: !!previo, aviso: gemela ? `Ojo: «${gemela.clave}» ya significa «${gemela.significado}». Si son la misma, corrige una.` : "",
-    evento: nuevoEvento({ tipo: T_CLAVE, cuando, fecha, quien, azar, datos: { clave, original, clase, significado: que, ...(deReferencia ? { deReferencia } : {}), ...(typeof grupo === "string" ? { grupo: grupo.replace(/\s+/g, " ").trim() } : {}), ...(docId ? { docId } : {}) } }) };
+    evento: nuevoEvento({ tipo: T_CLAVE, cuando, fecha, quien, azar, datos: { clave, original, clase, significado: que, ...(desde ? { desde } : {}), ...(hasta ? { hasta } : {}), ...(mismaQue ? { mismaQue: normalizarClave(mismaQue).clave } : {}), ...(deReferencia ? { deReferencia } : {}), ...(typeof grupo === "string" ? { grupo: grupo.replace(/\s+/g, " ").trim() } : {}), ...(docId ? { docId } : {}) } }) };
 }
 
 // Parte una celda con varias claves («A07 | Bod», «A07 Bod», «A07, Bod»).
 export const partirClaves = (celda) => { const t = String(celda ?? ""); return (t.includes("|") ? t.split("|") : t.split(/[,;\s]+/)).map(s => s.trim()).filter(Boolean); };
 
 // Cada código de un renglón, con lo que se sabe de él.
-export function leerClaves(escritas = [], catalogo = new Map()) {
+export function leerClaves(escritas = [], catalogo = new Map(), fecha = null) {
   return (escritas || []).map(x => {
-    const { clave, original, ajustada } = normalizarClave(x), sabida = catalogo.get(clave), forma = formaDe(clave);
+    const { clave: leida, original, ajustada } = normalizarClave(x), propia = entradaEn(catalogo.get(leida), fecha);
+    // Otra forma de escribir la misma (R51 = RA51): se lee como la de verdad, y queda dicho cómo venía y cómo se llamaba ahí.
+    const destino = propia?.mismaQue ? entradaEn(catalogo.get(propia.mismaQue), fecha) : null;
+    const sabida = destino || propia, clave = destino ? propia.mismaQue : leida, forma = formaDe(clave);
     const clase = sabida?.clase || forma || null;
     return { original, clave, ajustada, clase, significado: sabida?.significado || "", grupo: sabida?.grupo || "", conocida: !!sabida,
+      ...(destino ? { escritaComo: leida, denominacion: propia.significado, denominacionDe: propia.denominacionDe || "" } : {}), ...(sabida?.puedeSer ? { puedeSer: sabida.puedeSer } : {}), ...(sabida?.dePeriodo ? { dePeriodo: { desde: sabida.desde, hasta: sabida.hasta } } : {}),
       falta: sabida ? null : forma ? "significado" : "todo" };
   }).filter(c => c.clave);
 }
@@ -127,7 +162,7 @@ export function leerClaves(escritas = [], catalogo = new Map()) {
 // cuenta como actividad. Si entre las claves viene una palabra que el catálogo conoce como cultivo, también es cultivo.
 export function relacionDeRenglon({ nombre = "", fecha = null, claves = [], cultivo = "", observacion = "" }, catalogo = new Map()) {
   const escritoCultivo = String(cultivo ?? "").replace(/\s+/g, " ").trim();
-  const leidas = [...leerClaves(claves, catalogo), ...leerClaves(escritoCultivo ? [escritoCultivo] : [], catalogo).map(c => ({ ...c, deCultivo: true }))].filter(c => c.clase !== "ignorar");
+  const leidas = [...leerClaves(claves, catalogo, fecha), ...leerClaves(escritoCultivo ? [escritoCultivo] : [], catalogo, fecha).map(c => ({ ...c, deCultivo: true }))].filter(c => c.clase !== "ignorar");
   const act = leidas.filter(c => c.clase === "actividad"), ubi = leidas.filter(c => c.clase === "ubicacion" || c.clase === "general"), cul = leidas.filter(c => c.clase === "cultivo"), notas = leidas.filter(c => c.clase === "nota"), raras = leidas.filter(c => !c.clase);
   const dudas = [];
   if (!fecha) dudas.push("No se sabe de qué día es.");
@@ -152,7 +187,7 @@ export function relacionDeRenglon({ nombre = "", fecha = null, claves = [], cult
 }
 
 // Cómo se enseña una clave: su significado si se sabe; si no, el código tal cual.
-export const decirClave = (c) => (!c ? "" : c.conocida ? (c.clase === "cultivo" ? `Cultivo: ${c.significado}` : `${c.significado}${c.grupo ? `, de ${c.grupo}` : ""} (${c.clave})`) : c.clase ? `${c.clave}: falta decir qué ${c.clase === "actividad" ? "actividad" : "lugar"} es` : `«${c.original}»: no se sabe qué es`);
+export const decirClave = (c) => (!c ? "" : c.conocida ? (c.clase === "cultivo" ? `Cultivo: ${c.significado}` : `${c.significado}${c.grupo ? `, de ${c.grupo}` : ""} (${c.clave}${c.escritaComo ? `; ahí «${c.escritaComo} · ${c.denominacion}»` : ""})`) : c.clase ? `${c.clave}: falta decir qué ${c.clase === "actividad" ? "actividad" : "lugar"} es` : `«${c.original}»: no se sabe qué es`);
 export function decirRelacion(rel) {
   return [rel.actividad ? decirClave(rel.actividad) : "", rel.ubicacion ? decirClave(rel.ubicacion) : "", rel.cultivo ? decirClave(rel.cultivo) : "", ...rel.claves.filter(c => c !== rel.actividad && c !== rel.ubicacion && c.clase !== "cultivo" && c.clase !== "nota").map(decirClave), ...rel.notas, rel.observacion].filter(Boolean).join(" · ");
 }
@@ -160,7 +195,7 @@ export function decirRelacion(rel) {
 // Lo que hay que preguntar: cada clave sin registrar UNA vez, con cuántas veces sale y un ejemplo. Primero las que más salen.
 export function clavesPorPreguntar(renglones = [], catalogo = new Map()) {
   const m = new Map();
-  for (const r of renglones) for (const c of leerClaves([...(r.claves || []), ...(String(r.cultivo ?? "").trim() ? [String(r.cultivo).trim()] : [])], catalogo)) {
+  for (const r of renglones) for (const c of leerClaves([...(r.claves || []), ...(String(r.cultivo ?? "").trim() ? [String(r.cultivo).trim()] : [])], catalogo, r.fecha || null)) {
     if (c.conocida) continue;
     const x = m.get(c.clave) || { clave: c.clave, original: c.original, clase: c.clase, falta: c.falta, veces: 0, escritas: new Set(), ejemplo: "" };
     x.veces++; x.escritas.add(c.original); if (!x.ejemplo) x.ejemplo = [r.fecha, r.nombre, [...(r.claves || []), r.cultivo].filter(Boolean).join(" · ")].filter(Boolean).join(" — ");
@@ -202,8 +237,11 @@ const mismo = (a, b) => sinAcentos(a).toUpperCase().replace(/\s+/g, " ").trim() 
 //  estado: "nueva" (el catálogo no la tiene) · "coincide" · "difiere" (el catálogo dice otra cosa: las dos se enseñan)
 //          · "otra_clase" (la referencia la usa para otra cosa: actividad contra ubicación, por ejemplo)
 export function sugerenciasDe(clave, referencias = new Map(), catalogo = new Map()) {
-  const k = normalizarClave(clave).clave, sabida = catalogo.get(k), forma = formaDe(k);
-  return (referencias.get(k) || []).map(r => {
+  const k = normalizarClave(clave).clave, forma = formaDe(k), sabida = catalogo.get(k)?.soloPeriodos ? null : catalogo.get(k);   // confirmada sólo para unas fechas: hoy sigue sin saberse
+  // También lo que las referencias decían de las otras formas de escribir la misma clave (R51 para RA51).
+  const otras = [...catalogo.values()].filter(c => c.mismaQue === k && c.clave !== k).flatMap(c => (referencias.get(c.clave) || []).map(r => ({ ...r, escritaComo: c.clave })))
+    .filter(r => !(referencias.get(k) || []).some(x => x.clase === r.clase && mismo(x.significado, r.significado)));
+  return [...(referencias.get(k) || []), ...otras].map(r => {
     const claseActual = sabida?.clase || forma;
     const estado = claseActual && claseActual !== r.clase && !(claseActual === "general" && r.clase === "ubicacion") ? "otra_clase" : !sabida ? "nueva" : mismo(sabida.significado, r.significado) ? "coincide" : "difiere";
     return { ...r, estado, actual: sabida ? { clase: sabida.clase, significado: sabida.significado } : null, variasInterpretaciones: (referencias.get(k) || []).length > 1 };
@@ -220,4 +258,32 @@ export const decirFuente = (f) => `${f.documento || "un documento anterior"}${f.
 // Comparar un conjunto de claves vistas (las de una libreta, por ejemplo) contra las referencias: qué coincide, qué no está.
 export function compararConReferencias(claves = [], referencias = new Map(), catalogo = new Map()) {
   return [...new Set(claves.map(c => normalizarClave(c).clave).filter(Boolean))].map(k => ({ clave: k, enCatalogo: catalogo.get(k) || null, sugerencias: sugerenciasDe(k, referencias, catalogo) }));
+}
+
+/* ════════════ UBICACIÓN HISTÓRICA → PARCELA DE HOY ════════════
+   Una clave de ubicación de una libreta o de un Excel viejo no es todavía una parcela de AgroGestión. La liga la pone
+   una persona, cuando se sabe (`clave_parcela`), y se puede corregir; mientras no exista, la ubicación está «por ligar»
+   y lo histórico de ese lugar NO se le carga a ninguna parcela ni a ningún ciclo. */
+export const T_LIGA = "clave_parcela";
+export const TIPOS_DE_LIGA = { parcela: "Es esta parcela", varias: "Son varias parcelas (no se puede decir cuál)", no_es_parcela: "No es una parcela (bodega, general…)", ya_no_existe: "Ya no se trabaja / no está en la app" };
+export function ligarParcela({ catalogo, clave: escrita, tipo, parcelaId = null, parcelas = [], nota = "", quien, cuando, fecha, azar }) {
+  const clave = canonica(escrita, catalogo), e = catalogo?.get(clave);
+  if (!e || (e.clase !== "ubicacion" && e.clase !== "general")) return { ok: false, dice: "Sólo una ubicación ya confirmada se puede ligar a una parcela." };
+  if (!TIPOS_DE_LIGA[tipo]) return { ok: false, dice: "Falta decir qué es." };
+  if (tipo === "parcela" && !parcelaId) return { ok: false, dice: "Falta escoger la parcela." };
+  if (tipo === "parcela" && parcelas.length && !parcelas.some(p => p.id === parcelaId)) return { ok: false, dice: "Esa parcela no existe." };
+  if (tipo !== "parcela" && String(nota).trim().length < 3 && tipo !== "no_es_parcela") return { ok: false, dice: "Falta una nota que lo explique." };
+  return { ok: true, evento: nuevoEvento({ tipo: T_LIGA, cuando, fecha, quien, azar, datos: { clave, tipo, parcelaId: tipo === "parcela" ? parcelaId : null, nota: String(nota || "").trim() } }) };
+}
+export function ligasDeParcelas(eventos = []) {
+  const m = new Map();
+  for (const e of vigentes(eventos).filter(x => x.tipo === T_LIGA).sort((a, b) => String(a.cuando).localeCompare(String(b.cuando)))) {
+    const d = e.datos, previo = m.get(d.clave);
+    m.set(d.clave, { clave: d.clave, tipo: d.tipo, parcelaId: d.parcelaId || null, nota: d.nota || "", quien: e.quien?.nombre || "", fecha: e.fecha || "", anteriores: previo ? [...previo.anteriores, { tipo: previo.tipo, parcelaId: previo.parcelaId, quien: previo.quien, fecha: previo.fecha }] : [] });
+  }
+  return m;
+}
+// Las ubicaciones confirmadas que todavía no dicen qué parcela son (las otras formas de escribir no cuentan aparte).
+export function ubicacionesPorLigar(catalogo = new Map(), ligas = new Map(), usos = new Map()) {
+  return [...catalogo.values()].filter(c => c.clase === "ubicacion" && !c.mismaQue && !ligas.has(c.clave)).map(c => ({ clave: c.clave, significado: c.significado, grupo: c.grupo || "", usos: usos.get(c.clave) || 0 })).sort((a, b) => b.usos - a.usos || a.clave.localeCompare(b.clave, "es", { numeric: true }));
 }

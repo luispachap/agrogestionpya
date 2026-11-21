@@ -107,7 +107,7 @@ test("lo_que_el_excel_dice_distinto_de_lo_ya_confirmado_se_ensena_no_lo_cambia",
   assert.equal(cat.get("BOD").significado, "Bodega", "el catálogo confirmado no se toca");
   assert.equal(sugerenciasDe("SF4", refs, cat)[0].estado, "coincide");
   // «GEN» en el Excel es a la vez un «cultivo» y una ubicación; hoy es trabajo general. Se enseñan las dos, no se escoge.
-  assert.deepEqual(sugerenciasDe("Gen", refs, cat).map(x => [x.clase, x.estado]).sort(), [["cultivo", "otra_clase"], ["ubicacion", "difiere"]]);
+  assert.deepEqual(sugerenciasDe("Gen", refs, cat).filter(x => !x.escritaComo).map(x => [x.clase, x.estado]).sort(), [["cultivo", "otra_clase"], ["ubicacion", "difiere"]]);
   assert.equal(sugerenciasDe("A07", refs, cat)[0].variasInterpretaciones, false);
 });
 
@@ -125,7 +125,8 @@ test("una_misma_clave_puede_tener_varias_interpretaciones_de_archivos_distintos_
 
 test("la_libreta_contra_el_excel_lo_parecido_se_sugiere_y_no_se_toma", () => {
   const refs = referenciasDeClaves(proponer(libro(), {}).propuestas.map(p => p.datos)), cat = catalogoDeClaves([]);
-  assert.equal(sugerenciasDe("RA51", refs, cat).length, 0, "RA51 no está en ese Excel");
+  // «RA51» no está escrita así en ese Excel, pero Luis confirmó que su «R51 · El 51» es el mismo lugar: se enseña lo que decía, con su código.
+  assert.deepEqual(sugerenciasDe("RA51", refs, cat).map(x => [x.escritaComo, x.significado, x.cultivoAsociado, x.estado]), [["R51", "EL 51", "MAB", "difiere"]]);
   // «RA51» se parece a DOS claves del Excel: «R51» (El 51) y «RA1» (Rancho 1). Por eso parecerse no basta: decide una persona.
   const p = parecidasDe("RA51", refs); assert.deepEqual(p.map(x => [x.claveDeLaReferencia, x.significado, x.estado]).sort(), [["R51", "EL 51", "parecida"], ["RA1", "RANCHO 1", "parecida"]]);
   assert.deepEqual(parecidasDe("mB", refs).map(x => [x.claveDeLaReferencia, x.significado]), [["MAB", "MAIZ BLANCO"]]);

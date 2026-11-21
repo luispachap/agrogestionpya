@@ -50,7 +50,8 @@ import { abrirArchivo, originalDe, guardarPropuesta, leerPropuesta, olvidarPropu
 import { NIVELES as NIVELES_IA, necesitaIA, pedidoDeHoja, pedidoDeTexto, resultadoConIA, metricasDeIA, costoMaximo, enDolares, estadoDelPresupuesto, NOMBRE_DE_RESULTADO } from "./interpretacion.js";
 import { entenderHoja, fecharRaya } from "./importacion.js";
 import { parteDe, resultadoPorCultivo, historialDeParcela } from "./ciclos.js";
-import { CLASES_DE_CLAVE, catalogoDeClaves, listaDeClaves, aprenderClave, relacionDeRenglon, decirRelacion, clavesPorPreguntar, usoDeClaves, referenciasDeClaves, sugerenciasDe, parecidasDe, decirFuente, CLASE_REFERENCIA } from "./claves.js";
+import { CLASES_DE_CLAVE, catalogoDeClaves, listaDeClaves, aprenderClave, relacionDeRenglon, decirRelacion, clavesPorPreguntar, usoDeClaves, referenciasDeClaves, sugerenciasDe, parecidasDe, decirFuente, CLASE_REFERENCIA, ligarParcela, ligasDeParcelas, TIPOS_DE_LIGA } from "./claves.js";
+import { fuentesPorDia, cotejar } from "./cotejo.js";
 import { resultadoDelRancho, flujoDeEfectivo, NOMBRE_DE_FLUJO, DESTINOS_DE_INSUMO, insumosPorClasificar } from "./resultado.js";
 // El resultado y el flujo del rancho: TODAS las pantallas los sacan de aquí, para que digan lo mismo.
 // Cada ajuste de valuación sigue a su consumo: a la parcela, al uso general, o al vehículo (que lo lleva en su propia cuenta).
@@ -5542,12 +5543,13 @@ function ClaveGuardada({ c, usos, onGuardar }) {
   const [grupo, setGrupo] = useState(c.grupo || "");
   const [dice, setDice] = useState("");
   return (<div style={{ borderTop: "1px solid var(--border-soft)", padding: "6px 0" }}>
-    <div className="flex-b text-sm"><span><b>{c.clave}</b> · {c.clase === "ignorar" ? "se ignora" : c.significado || "—"}{c.grupo ? <span className="text-muted"> · grupo {c.grupo}</span> : null}</span><button className="btn-ghost" aria-label={`Corregir ${c.clave}`} onClick={() => { setEdita(x => !x); setQue(c.significado); setClase(c.clase); setGrupo(c.grupo || ""); setDice(""); }}>{edita ? "Cancelar" : "Corregir"}</button></div>
-    <div className="text-xs text-muted">{c.deArranque ? "Lo dijo Luis al arrancar" : `Lo guardó ${c.quien || "alguien"} el ${c.fecha}`}{usos ? ` · sale ${usos} ${usos === 1 ? "vez" : "veces"} en lo ya importado` : ""}{c.anteriores.length ? ` · antes decía: ${c.anteriores.map(a => `«${a.significado || "se ignora"}»`).join(", ")}` : ""}</div>
+    <div className="flex-b text-sm"><span><b>{c.clave}</b> · {c.clase === "ignorar" ? "se ignora" : c.significado || (c.soloPeriodos ? "hoy: sin confirmar" : "—")}{c.grupo ? <span className="text-muted"> · grupo {c.grupo}</span> : null}</span><button className="btn-ghost" aria-label={`Corregir ${c.clave}`} onClick={() => { setEdita(x => !x); setQue(c.significado); setClase(c.clase); setGrupo(c.grupo || ""); setDice(""); }}>{edita ? "Cancelar" : "Corregir"}</button></div>
+    <div className="text-xs text-muted">{c.deArranque ? "Lo dijo Luis al arrancar" : c.soloPeriodos ? "Confirmada sólo para unas fechas; fuera de ellas se sigue preguntando" : `Lo guardó ${c.quien || "alguien"} el ${c.fecha}`}{usos ? ` · sale ${usos} ${usos === 1 ? "vez" : "veces"} en lo ya importado` : ""}{c.anteriores.length ? ` · antes decía: ${c.anteriores.map(a => `«${a.significado || "se ignora"}»`).join(", ")}` : ""}{c.mismaQue ? ` · es otra forma de escribir ${c.mismaQue}${c.denominacionDe ? ` (así venía en ${c.denominacionDe})` : ""}` : ""}{c.puedeSer ? " · puede ser más de un lugar: no se escoge, se pregunta" : ""}</div>
+    {(c.periodos || []).map((x, i) => <div key={i} className="text-xs" style={{ color: "var(--gold)" }}>Del {x.desde || "…"} al {x.hasta || "…"}: «{x.significado}»{x.quien ? ` · lo confirmó ${x.quien}` : ""}</div>)}
     {edita && <><select className="inp" style={{ marginTop: 6 }} aria-label={`Qué es ${c.clave}`} value={clase} onChange={e => setClase(e.target.value)}>{Object.entries(CLASES_DE_CLAVE).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
       <input className="inp" style={{ marginTop: 6 }} aria-label={`Nuevo significado de ${c.clave}`} value={que} onChange={e => setQue(e.target.value)} />
       {clase === "ubicacion" && <input className="inp" style={{ marginTop: 6 }} aria-label={`Grupo de ${c.clave}`} placeholder="Grupo (opcional): San Felipe, Ranchos 50s…" value={grupo} onChange={e => setGrupo(e.target.value)} />}
-      <div className="text-xs text-muted" style={{ marginTop: 4 }}>Al corregir, lo ya importado con {c.clave} se lee con el significado nuevo. El código del papel no cambia.</div>
+      <div className="text-xs text-muted" style={{ marginTop: 4 }}>Al corregir, lo ya importado con {c.clave} se enseña con el significado nuevo, pero cada renglón conserva el código del papel y lo que se entendió el día que se incorporó: nada confirmado se reescribe.</div>
       {dice && <div className="text-xs" style={{ color: "var(--red)", marginTop: 4 }}>{dice}</div>}
       <div className="acc-row" style={{ marginTop: 6 }}><button onClick={() => { const r = onGuardar(c.clave, clase, que, null, clase === "ubicacion" ? grupo : undefined); if (r.ok) setEdita(false); else setDice(r.dice); }}>Guardar corrección</button></div></>}
   </div>);
@@ -5560,6 +5562,12 @@ function ImportarDocumentos({ data, add, session, onClose }) {
   const aprendidos = useMemo(() => aprendidosDe(data.eventos), [data.eventos]);
   const catalogo = useMemo(() => catalogoDeClaves(data.eventos), [data.eventos]);
   const usos = useMemo(() => usoDeClaves(historico), [historico]);
+  const ligas = useMemo(() => ligasDeParcelas(data.eventos), [data.eventos]);
+  const [notaLiga, setNotaLiga] = useState({});
+  const ligar = (clave, valor) => { const tipo = TIPOS_DE_LIGA[valor] ? valor : "parcela", nota = (notaLiga[clave] || "").trim();
+    const r = ligarParcela({ catalogo: catalogoDeClaves(datosRef.current.eventos), clave, tipo, parcelaId: tipo === "parcela" ? valor : null, parcelas: datosRef.current.parcelas || [], nota, ...sello() });
+    if (r.ok) { add("eventos", r.evento); setNotaLiga(x => ({ ...x, [clave]: "", [`dice:${clave}`]: "" })); } else setNotaLiga(x => ({ ...x, [`dice:${clave}`]: r.dice })); };
+  const diasConVarias = useMemo(() => fuentesPorDia(historico).varias, [historico]);
   // Lo que decían los Excel anteriores de cada clave: referencias con su procedencia. Sólo se sugieren.
   const referencias = useMemo(() => referenciasDeClaves(historico), [historico]);
   const pistasDe = (clave, refs = referencias) => { const s = sugerenciasDe(clave, refs, catalogo); return s.length ? s : parecidasDe(clave, refs); };
@@ -5577,7 +5585,7 @@ function ImportarDocumentos({ data, add, session, onClose }) {
   const datosRef = useRef(data); datosRef.current = data;
   const contexto = (extra = {}) => { const d = datosRef.current; return { inicio: ini.inicio, rfcsPropios: (d.titulares || []).map(t => t.rfc).filter(Boolean), egresos: d.egresos || [], historico: historicoDe(d.eventos), trabajadores: d.trabajadores || [], encargados: d.encargados || [], proveedores: d.proveedores || [], maquinaria: d.maquinaria || [], parcelas: d.parcelas || [], documentos: bandejaDe(d.eventos), aprendidos: aprendidosDe(d.eventos), claves: catalogoDeClaves(d.eventos), ...extra }; };
   // Guardar (o corregir) lo que significa una clave de las rayas. Queda para todos los documentos, también los ya importados.
-  const guardarClave = (clave, clase, significado, docId = null, grupo = undefined, deReferencia = null) => { const r = aprenderClave({ catalogo: catalogoDeClaves(datosRef.current.eventos), clave, clase, significado, grupo, docId, deReferencia, ...sello() }); if (r.ok) add("eventos", r.evento); return r; };
+  const guardarClave = (clave, clase, significado, docId = null, grupo = undefined, deReferencia = null, vigencia = {}) => { const r = aprenderClave({ catalogo: catalogoDeClaves(datosRef.current.eventos), clave, clase, significado, grupo, docId, deReferencia, ...vigencia, ...sello() }); if (r.ok) add("eventos", r.evento); return r; };
   const sello = () => ({ quien, cuando: new Date().toISOString(), fecha: hoy });
   const cede = () => new Promise(r => setTimeout(r, 0));
 
@@ -5808,14 +5816,30 @@ function ImportarDocumentos({ data, add, session, onClose }) {
           {referencias.size > 0 && (() => { const filas = [...referencias.entries()].filter(([, l]) => l.some(r => !r.aliasDe)).sort((a, b) => a[0].localeCompare(b[0], "es", { numeric: true }));
             return (<div className="card">
               <div className="card-title">Lo que decían tus Excel anteriores ({filas.length} claves)</div>
-              <div className="text-xs text-muted">Son referencias históricas, no definiciones: dicen qué significaba cada clave en ese archivo y en esas fechas. Los significados cambiaron entre versiones, así que ninguna se aplica sola. Si una sigue siendo cierta, confírmala.</div>
+              <div className="text-xs text-muted">Son referencias históricas, no definiciones: dicen qué significaba cada clave en ese archivo y en esas fechas. Los significados cambiaron entre versiones, así que ninguna se aplica sola. Si una era cierta sólo entonces, confírmala «en esas fechas»: vale para los papeles de ese periodo y no cambia lo que la clave significa hoy.</div>
               {filas.slice(0, 150).map(([clave, lista]) => (<div key={clave} style={{ borderTop: "1px solid var(--border-soft)", padding: "6px 0" }}>
                 <div className="text-sm"><b>{clave}</b>{catalogo.get(clave) ? <span className="text-muted"> · hoy: {catalogo.get(clave).significado || "se ignora"}</span> : <span style={{ color: "var(--gold)" }}> · sin confirmar</span>}</div>
                 {sugerenciasDe(clave, referencias, catalogo).filter(r => !r.aliasDe).map((r, i) => (<div key={i} className="text-xs" style={{ marginTop: 2 }}>
                   {COMO_CLASE[r.clase] || r.clase}: «{r.significado}»{r.cultivoAsociado ? ` · cultivo que tenía: ${r.cultivoAsociado}` : ""} <span className="text-muted">— {r.fuentes.map(decirFuente).join("; ")}{r.estado === "coincide" ? " · coincide con lo confirmado" : r.estado === "difiere" ? " · distinto de lo confirmado: no lo cambia" : r.estado === "otra_clase" ? " · aquí se usa para otra cosa" : ""}</span>
-                  {r.estado === "nueva" && <button className="btn-ghost" aria-label={`Confirmar ${clave} como ${r.significado}`} onClick={() => guardarClave(clave, r.clase, r.significado, null, undefined, { documento: r.fuentes[0]?.documento || "", clave })}>Confirmar</button>}
+                  {r.estado === "nueva" && <button className="btn-ghost" aria-label={`Confirmar ${clave} como ${r.significado}`} onClick={() => guardarClave(clave, r.clase, r.significado, null, undefined, { documento: r.fuentes[0]?.documento || "", clave })}>Sí, y sigue igual hoy</button>}
+                  {r.estado !== "otra_clase" && r.fuentes[0]?.desde && !(catalogo.get(clave)?.periodos || []).some(x => x.desde === r.fuentes[0].desde && x.significado === r.significado) && <button className="btn-ghost" aria-label={`Confirmar ${clave} como ${r.significado} sólo en esas fechas`} onClick={() => guardarClave(clave, r.clase, r.significado, null, undefined, { documento: r.fuentes[0]?.documento || "", clave }, { desde: r.fuentes[0].desde, hasta: r.fuentes[0].hasta || r.fuentes[0].desde })}>Sí, pero sólo en esas fechas</button>}
                 </div>))}
               </div>))}
+            </div>); })()}
+          {(() => { const ubis = lista.filter(c => c.clase === "ubicacion" && !c.mismaQue && !c.soloPeriodos), parcelas = data.parcelas || [], faltan = ubis.filter(c => !ligas.has(c.clave)).length; if (!ubis.length) return null;
+            return (<div className="card">
+              <div className="card-title">¿Qué parcela de hoy es cada ubicación? ({faltan} por decir)</div>
+              <div className="text-xs text-muted">Un lugar de las rayas antiguas no es una parcela de la app hasta que alguien que lo sabe lo dice. Mientras esté «por decir», lo histórico de ese lugar no se le carga a ninguna parcela ni a ningún cultivo. Se puede corregir; lo anterior se conserva.</div>
+              {ubis.map(c => { const l = ligas.get(c.clave), valor = l ? (l.tipo === "parcela" ? l.parcelaId : l.tipo) : "";
+                return (<div key={c.clave} style={{ borderTop: "1px solid var(--border-soft)", padding: "6px 0" }}>
+                  <div className="text-sm"><b>{c.clave}</b> · {c.significado}{c.grupo ? <span className="text-muted"> · grupo {c.grupo}</span> : null}</div>
+                  <select className="inp" style={{ marginTop: 4 }} aria-label={`Parcela de ${c.clave}`} value={valor} onChange={e => e.target.value && ligar(c.clave, e.target.value)}>
+                    <option value="">Por decir</option>{parcelas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}{Object.entries(TIPOS_DE_LIGA).filter(([k]) => k !== "parcela").map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+                  </select>
+                  <input className="inp" style={{ marginTop: 4 }} aria-label={`Nota de ${c.clave}`} placeholder="Nota (hace falta si son varias o ya no existe)" value={notaLiga[c.clave] || ""} onChange={e => setNotaLiga(x => ({ ...x, [c.clave]: e.target.value }))} />
+                  {notaLiga[`dice:${c.clave}`] && <div className="text-xs" style={{ color: "var(--red)" }}>{notaLiga[`dice:${c.clave}`]}</div>}
+                  {l && <div className="text-xs text-muted">Lo dijo {l.quien || "alguien"} el {l.fecha}{l.nota ? ` · ${l.nota}` : ""}{l.anteriores.length ? ` · antes: ${l.anteriores.map(a => a.tipo === "parcela" ? (parcelas.find(p => p.id === a.parcelaId)?.nombre || "otra parcela") : TIPOS_DE_LIGA[a.tipo]).join(", ")}` : ""}</div>}
+                </div>); })}
             </div>); })()}
           {[["actividad", "Actividades"], ["ubicacion", "Ubicaciones"], ["general", "Trabajo general (sin rancho específico)"], ["cultivo", "Cultivos"], ["nota", "Anotaciones"], ["ignorar", "Se ignoran"]].map(([k, titulo]) => { const de = lista.filter(c => c.clase === k); if (!de.length && k !== "actividad") return null;
             return (<div className="card" key={k}><div className="card-title">{titulo} ({de.length})</div>
@@ -5823,6 +5847,20 @@ function ImportarDocumentos({ data, add, session, onClose }) {
               {de.map(c => <ClaveGuardada key={c.clave} c={c} usos={usos.get(c.clave) || 0} onGuardar={guardarClave} />)}</div>); })}
         </>); })()}
 
+      {tab === "historico" && diasConVarias.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}>
+        <div className="card-title">Días que llegaron por más de un papel ({diasConVarias.length})</div>
+        <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Son dos testigos del mismo día, no el doble de trabajo: el día cuenta una sola vez y los dos papeles se conservan. Aquí se comparan; la app no corrige a ninguno ni junta personas por su cuenta.</div>
+        {diasConVarias.slice(0, 30).map(d => { const [a, b] = d.fuentes, c = cotejar({ nombre: a.documento, renglones: a.renglones }, { nombre: b.documento, renglones: b.renglones }, catalogo, referencias);
+          const dif = [...c.actividades, ...c.ubicaciones, ...c.cultivos].filter(x => !["coincide", "compatible: un papel no dice cuál", "mismo cultivo, clasificado distinto"].includes(x.estado));
+          return (<div key={d.fecha} style={{ borderTop: "1px solid var(--border-soft)", padding: "6px 0" }}>
+            <div className="text-sm font-bold">{d.dia} {d.fecha}</div>
+            <div className="text-xs text-muted">A: {a.documento} ({a.renglones.length} renglones) · B: {b.documento} ({b.renglones.length}){d.fuentes.length > 2 ? ` · y ${d.fuentes.length - 2} papel(es) más` : ""}</div>
+            <div className="text-xs">Actividades: {c.actividades.map(x => `${x.clave} ${x.enA}/${x.enB}`).join(" · ") || "—"}</div>
+            <div className="text-xs">Lugares: {c.ubicaciones.map(x => `${x.clave} ${x.enA}/${x.enB}${x.estado.startsWith("compatible") ? " (un papel no dice cuál)" : ""}`).join(" · ") || "—"}</div>
+            <div className="text-xs">Cultivos: {c.cultivos.map(x => `${x.clave} ${x.enA}/${x.enB}`).join(" · ") || "—"}</div>
+            <div className="text-xs" style={{ color: dif.length ? "var(--gold)" : "var(--muted)" }}>{dif.length ? `${dif.length} cosa(s) no coinciden: ${dif.slice(0, 6).map(x => `${x.clave} (${x.estado})`).join(", ")}.` : "Lo que se pudo comparar coincide."} Personas que podrían ser la misma: {c.personas.posibles.length} (por confirmar); sin pareja: {c.personas.sinParejaEnA.length + c.personas.ambiguas.length} en A y {c.personas.sinParejaEnB.length} en B.</div>
+          </div>); })}
+      </div>}
       {tab === "historico" && <div className="card">
         <div className="card-title">Histórico importado</div>
         <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Lo de antes del arranque (y lo que quedó sólo como referencia). Sirve para consultar y comparar. NO está en los costos, ni en el resultado, ni en el flujo, ni en el almacén, ni le debe nada a nadie.</div>
@@ -5860,7 +5898,7 @@ function ImportarDocumentos({ data, add, session, onClose }) {
           {abierto.resultado.propuestas.some(p => p.datos.clase === "raya" && !p.datos.fecha) && <div className="card" style={{ borderColor: "var(--gold)" }}>
             <div className="text-sm"><b>¿De qué día es esta raya?</b> No se alcanzó a leer en el papel. Si lo sabes, ponlo; si no, entra «sin fecha».</div>
             <input className="inp" type="date" style={{ marginTop: 6 }} aria-label="Día de esta raya" value={abierto.dia || ""} onChange={e => setAbierto(a => ({ ...a, dia: e.target.value }))} />
-            <div className="acc-row" style={{ marginTop: 6 }}><button onClick={async () => { const f = fecharRaya(abierto.resultado, abierto.dia || ""); if (!f.ok) { setDice(f.dice); return; } setDice(""); const antes = abierto.resultado.propuestas; await guardarPropuesta(LLAVES.importacion, abierto.doc.id, f.resultado);
+            <div className="acc-row" style={{ marginTop: 6 }}><button onClick={async () => { const f = fecharRaya(abierto.resultado, abierto.dia || "", { historico, claves: catalogo, documento: abierto.doc.nombre }); if (!f.ok) { setDice(f.dice); return; } setDice(""); const antes = abierto.resultado.propuestas; await guardarPropuesta(LLAVES.importacion, abierto.doc.id, f.resultado);
               setAbierto(a => ({ ...a, resultado: f.resultado, marcadas: new Set(f.resultado.propuestas.filter((p, i) => p.accion !== "duplicado" && a.marcadas.has(antes[i].llave)).map(p => p.llave)) })); }}>Poner ese día a los renglones</button></div>
           </div>}
           {(() => { const pend = clavesPorPreguntar(abierto.resultado.propuestas.filter(p => p.datos.clase === "raya" && p.accion !== "duplicado").map(p => ({ nombre: p.datos.contraparte, fecha: p.datos.fecha, claves: p.datos.claves || [], cultivo: p.datos.cultivoEscrito || "" })), catalogo);

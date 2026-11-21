@@ -432,6 +432,21 @@ Usuarios reales de la app:
   entran como rayas históricas con lo que DECÍA el Excel (`escrito`). **No se
   leen trabajadores, tabulador de sueldos ni importes** (muchos venían en #N/A
   y dejaban de contar el costo sin avisar). Una celda con error llega vacía.
+- **Trazabilidad del histórico de rayas (decidido por Luis, 21 nov)** — `claves.js`,
+  `importacion.js`, **`src/cotejo.js`**: una clave puede tener **vigencia** (`desde`/`hasta`
+  en `clave_aprendida` = «en esas fechas significaba esto»; `entradaEn(entrada, fecha)`;
+  fuera del periodo no dice nada) y **otra forma de escribirse** (`mismaQue`: R51 «El 51»
+  = RA51; `canonica`). «Bod» `puedeSer` Bodega ajos o Pre ajos: **no se escoge**
+  (`compatibles` → `puede_ser`). Cada raya incorporada guarda `leido` (lo que se entendió
+  ESE día): **corregir el catálogo nunca reescribe un renglón confirmado**. Un domingo
+  se queda domingo (`domingo: true`, con aviso). Un día que ya está por otro documento
+  se avisa (`otraFuente`) y **cuenta una sola vez** (`unaFuentePorDia`); `cotejar(a, b)`
+  compara dos papeles sin corregir a ninguno ni juntar personas (sólo «posibles»).
+  AJO/PAJ = mismo cultivo «clasificado distinto» (`FAMILIA_DE_CULTIVO`). Ubicación →
+  parcela es un evento aparte (`clave_parcela`, `ligarParcela`): pendiente hasta que
+  alguien lo dice. **Ningún módulo de dinero lee el histórico** (hay prueba en
+  `cotejo.test.js`): antes hace falta un tabulador histórico confiable. Nómina/efectivo
+  como componentes: NO construido, es decisión de Luis (`docs/EXCEL-RAYAS-2024.md` §8).
 - **`src/ciclos.js`: el cultivo de una parcela DEPENDE DE LA FECHA.** Sale del
   ciclo (`siembras`) que la parcela tenía ese día (`cultivoEn`, `partesDe`),
   no de `parcela.cultivo`. Un ciclo terminado sigue contando en sus fechas;
@@ -583,7 +598,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **139 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **140 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

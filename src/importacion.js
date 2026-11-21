@@ -39,7 +39,7 @@
 import { normalizar, aNumero, aFecha } from "./lectura.js";
 import { sumarDinero } from "./calculos.js";
 import { nuevoEvento, vigentes } from "./eventos.js";
-import { catalogoDeClaves, normalizarClave, formaDe, partirClaves, relacionDeRenglon, clavesPorPreguntar, CLASE_REFERENCIA } from "./claves.js";
+import { catalogoDeClaves, normalizarClave, formaDe, partirClaves, relacionDeRenglon, clavesPorPreguntar, CLASE_REFERENCIA, canonica } from "./claves.js";
 import { leerCatalogos, leerRayaSemanal, periodoDelLibro } from "./excelRayas.js";
 
 export const ESTADOS = {
@@ -410,6 +410,9 @@ export function proponer(doc, contexto = {}) {
   }
   /* ── b) Hojas ── */
   const delLibro = periodoDelLibro(doc.hojas || []);
+  // Qué documentos ya traen rayas de cada día (para no contar dos veces un día que viene en el Excel y en una foto).
+  const fuentesDelDia = new Map(), empalmes = new Map();
+  for (const h of historico) if (h.clase === "raya" && h.fecha) { if (!fuentesDelDia.has(h.fecha)) fuentesDelDia.set(h.fecha, new Set()); fuentesDelDia.get(h.fecha).add(h.documento || "otro documento"); }
   for (const h of doc.hojas || []) {
     // Un catálogo de claves de un Excel anterior: entra como REFERENCIA histórica (de qué archivo, de qué fechas), nunca
     // como definición. Los trabajadores y el tabulador de sueldos de esa misma hoja no se leen.
@@ -452,13 +455,20 @@ export function proponer(doc, contexto = {}) {
         // sale un pago ni una actividad. Se guarda la CLAVE (no su significado): lo que se aprenda o se corrija después
         // vale también para lo ya importado.
         const rel = relacionDeRenglon(r, claves);
-        propone({ ...comoHistorico(r, "raya", { contraparte: r.nombre, concepto: [...r.claves, r.cultivo, r.observacion].filter(Boolean).join(" · "), claves: r.claves, actividad: rel.actividad?.clave || null, ubicacion: rel.ubicacion?.clave || null,
+        // Lo que se entendió AL IMPORTAR queda escrito en el renglón (`leido`): si después se corrige una clave, este
+        // renglón ya confirmado no cambia; se sabrá qué decía, qué se entendió entonces y qué significa hoy.
+        const dicho = (c) => (c ? { clave: c.clave, significado: c.conocida ? c.significado : null, ...(c.escritaComo ? { escritaComo: c.escritaComo, denominacion: c.denominacion } : {}), ...(c.puedeSer ? { puedeSer: c.puedeSer } : {}) } : null);
+        const leido = { actividad: dicho(rel.actividad), ubicacion: dicho(rel.ubicacion), cultivo: dicho(rel.cultivo) };
+        // Otro documento ya trae rayas de ese mismo día: son DOS FUENTES del mismo día, no más trabajo. Se avisa y se cotejan.
+        const otras = r.fecha ? [...(fuentesDelDia.get(r.fecha) || [])].filter(d => d !== doc.nombre) : [];
+        if (otras.length) empalmes.set(r.fecha, otras);
+        propone({ ...comoHistorico(r, "raya", { leido, ...(otras.length ? { otraFuente: otras } : {}), ...(r.fecha && new Date(`${r.fecha}T12:00:00Z`).getUTCDay() === 0 ? { domingo: true } : {}), contraparte: r.nombre, concepto: [...r.claves, r.cultivo, r.observacion].filter(Boolean).join(" · "), claves: r.claves, actividad: rel.actividad?.clave || null, ubicacion: rel.ubicacion?.clave || null,
           // El cultivo es un campo propio: lo que venía escrito (`cultivoEscrito`) y, si se reconoce, cuál es (`cultivo`).
           ...(r.cultivo ? { cultivoEscrito: r.cultivo } : {}), cultivo: rel.cultivo?.clave || null, ...(rel.sinLugarFisico ? { general: true } : {}),
           // El número que trae el renglón PROBABLEMENTE es el pago del día, pero no está confirmado: se guarda como
           // tentativo, aparte, y no como importe (así no suma en ningún total ni parece un pago).
           monto: null, ...(r.monto > 0 ? { importeTentativo: r.monto } : {}),
-          ...(r.observacion ? { observacion: r.observacion } : {}), ...(r.dias ? { dias: r.dias } : {}), ...(r.escrito ? { escrito: r.escrito } : {}), referencia: lugar === "operacion" }), origen, llave: llaveDe({ ...r, deDonde: `${String(doc.huella || doc.id || "").slice(0, 12)}-${h.nombre}-${r.renglon}` }) });
+          ...(r.observacion ? { observacion: r.observacion } : {}), ...(r.dias ? { dias: r.dias } : {}), ...(r.escrito ? { escrito: r.escrito } : {}), referencia: lugar === "operacion" }), origen, llave: llaveDe({ ...r, claves: r.claves.map(c => canonica(c, claves)), deDonde: `${String(doc.huella || doc.id || "").slice(0, 12)}-${h.nombre}-${r.renglon}` }) });
       }
       else if (r.clase === "combustible") {
         const m = maquinaria.filter(v => corto(v.nombre) && corto(v.nombre) === corto(r.vehiculo));
@@ -476,6 +486,8 @@ export function proponer(doc, contexto = {}) {
     if (x.registros.some(r => r.clase === "combustible" && situar(r.fecha, inicio) === "operacion" && r.monto > 0 && maquinaria.filter(v => corto(v.nombre) === corto(r.vehiculo)).length !== 1)) excepciones.push(`En «${h.nombre}» hay cargas de combustible de vehículos que no están en el catálogo con ese nombre: no se sabe a cuál cargarlas, quedan como referencia.`);
     const deRaya = x.registros.filter(r => r.clase === "raya");
     if (deRaya.length) {
+      const domingos = [...new Set(deRaya.filter(r => r.fecha && new Date(`${r.fecha}T12:00:00Z`).getUTCDay() === 0).map(r => r.fecha))];
+      if (domingos.length) excepciones.push(`«${h.nombre}» trae renglones de domingo (${domingos.join(", ")}). Se conserva la fecha como viene; no se pasa al lunes aunque otros documentos de esa época sólo tengan de lunes a sábado.`);
       const faltan = clavesPorPreguntar(deRaya, claves), conDuda = deRaya.filter(r => relacionDeRenglon(r, claves).dudas.length).length;
       excepciones.push(`«${h.nombre}» es una raya con claves: entra al histórico como relación de quién hizo qué, dónde y en qué cultivo. NO se crean pagos ni actividades.`);
       if (faltan.length) excepciones.push(`Hay ${faltan.length} clave(s) que todavía no se sabe qué significan (${faltan.slice(0, 8).map(f => f.clave).join(", ")}${faltan.length > 8 ? "…" : ""}). No se inventan: se pueden contestar aquí abajo, o incorporar así —se guardan con su código— y contestarlas después.`);
@@ -505,6 +517,8 @@ export function proponer(doc, contexto = {}) {
   const utiles = propuestas.filter(p => p.accion !== "duplicado"), dobles = propuestas.filter(p => p.accion === "duplicado");
   const periodo = periodoDe(propuestas.map(p => p.datos)) || (doc.cfdi?.fecha ? { desde: doc.cfdi.fecha, hasta: doc.cfdi.fecha } : null);
   const estado = utiles.length ? "propuesto" : dobles.length && !excepciones.some(e => /no se reconoce|no se pudo|hay que decir/i.test(e)) ? "duplicado" : excepciones.length ? "por_revisar" : "sin_uso";
+  if (empalmes.size) { const dias = [...empalmes.keys()].sort();
+    excepciones.push(`OJO: ${dias.length} día(s) de este documento ya están en el histórico por otra fuente (${dias.slice(0, 6).join(", ")}${dias.length > 6 ? "…" : ""}; de ${[...new Set([...empalmes.values()].flat())].slice(0, 3).join(", ")}). Son dos fuentes del MISMO día, no más trabajo: si se incorporan, quedan como evidencia y se cotejan en el Histórico, pero el día cuenta una sola vez.`); }
   const cuenta = (k) => utiles.filter(p => p.destino === k).length;
   const partes = [cuenta("egresos") && `${cuenta("egresos")} gasto(s) por confirmar`, cuenta("historico") && `${cuenta("historico")} renglón(es) al histórico`, cuenta("trabajadores") && `${cuenta("trabajadores")} persona(s) para el catálogo`, cuenta("proveedores") && `${cuenta("proveedores")} proveedor(es) para el catálogo`, dobles.length && `${dobles.length} que ya estaban`, descartadas.length && `${descartadas.length} sin leer`].filter(Boolean);
   return { estado, clase, periodo, propuestas, descartadas, excepciones, hojas: hojasVistas, uuid: doc.cfdi?.uuid || impreso?.uuid || null,
@@ -515,21 +529,30 @@ export function proponer(doc, contexto = {}) {
 // Una libreta a veces no trae el día legible (o lo trae en el mensaje con que se mandó, no en la hoja). La persona lo
 // dice y se le pone a los renglones de raya que NO traían fecha; los que sí traían no se tocan. Queda dicho que la
 // fecha la puso una persona (`fechaDicha`), y las llaves se rehacen para que no se duplique con otra foto del mismo día.
-export function fecharRaya(resultado, fecha) {
+export function fecharRaya(resultado, fecha, { historico = [], claves = catalogoDeClaves([]), documento = "" } = {}) {
   const f = aFecha(fecha); if (!f) return { ok: false, dice: "Falta el día (por ejemplo 06/10/2024)." };
   let n = 0; const usadas = new Set(resultado.propuestas.filter(p => !(p.datos.clase === "raya" && !p.datos.fecha)).map(p => p.llave));
+  const yaHay = new Set(historico.map(h => h.llave).filter(Boolean)), esDomingo = new Date(`${f}T12:00:00Z`).getUTCDay() === 0;
+  // Con el día ya dicho se sabe lo que antes no: si es domingo, si ese día ya llegó por otro documento, y qué significaba
+  // cada clave EN ESA FECHA. Es lo mismo que hace `proponer` cuando el papel sí traía su día.
+  const otras = [...new Set(historico.filter(h => h.clase === "raya" && h.fecha === f && (h.documento || "otro documento") !== documento).map(h => h.documento || "otro documento"))];
+  const dicho = (c) => (c ? { clave: c.clave, significado: c.conocida ? c.significado : null, ...(c.escritaComo ? { escritaComo: c.escritaComo, denominacion: c.denominacion } : {}), ...(c.puedeSer ? { puedeSer: c.puedeSer } : {}) } : null);
   const propuestas = resultado.propuestas.map(p => {
     if (p.datos.clase !== "raya" || p.datos.fecha) return p;
-    const datos = { ...p.datos, fecha: f, mes: f.slice(0, 7), fechaDicha: true }, llave = llaveDe({ clase: "raya", fecha: f, nombre: datos.contraparte, claves: datos.claves, observacion: datos.observacion });
+    const rel = relacionDeRenglon({ nombre: p.datos.contraparte, fecha: f, claves: p.datos.claves || [], cultivo: p.datos.cultivoEscrito || "", observacion: p.datos.observacion || "" }, claves);
+    const datos = { ...p.datos, fecha: f, mes: f.slice(0, 7), fechaDicha: true, leido: { actividad: dicho(rel.actividad), ubicacion: dicho(rel.ubicacion), cultivo: dicho(rel.cultivo) }, ...(esDomingo ? { domingo: true } : {}), ...(otras.length ? { otraFuente: otras } : {}) };
+    const llave = llaveDe({ clase: "raya", fecha: f, nombre: datos.contraparte, claves: (datos.claves || []).map(k => canonica(k, claves)), observacion: datos.observacion });
     n++; if (usadas.has(llave)) return { ...p, datos, llave, accion: "duplicado", nota: "Viene repetido dentro del mismo documento." };
-    usadas.add(llave); return { ...p, datos, llave };
+    usadas.add(llave); if (yaHay.has(llave)) return { ...p, datos, llave, accion: "duplicado", nota: "Este renglón ya está en el histórico." };
+    return { ...p, datos, llave };
   });
   if (!n) return { ok: false, dice: "Todos los renglones ya traían su día." };
-  return { ok: true, puestos: n, resultado: { ...resultado, propuestas, periodo: periodoDe(propuestas.map(p => p.datos)), excepciones: (resultado.excepciones || []).filter(e => !/sin día|No se sabe de qué día/.test(e)) } };
+  const excepciones = (resultado.excepciones || []).filter(e => !/sin día|No se sabe de qué día/.test(e));
+  if (esDomingo) excepciones.push(`El ${f} es domingo. Se conserva la fecha como se dijo; no se pasa al lunes aunque otros documentos de esa época sólo tengan de lunes a sábado.`);
+  if (otras.length) excepciones.push(`OJO: el ${f} ya está en el histórico por otra fuente (${otras.slice(0, 3).join(", ")}). Son dos fuentes del MISMO día, no más trabajo: si se incorporan, quedan como evidencia y se cotejan en el Histórico, pero el día cuenta una sola vez.`);
+  return { ok: true, puestos: n, resultado: { ...resultado, propuestas, periodo: periodoDe(propuestas.map(p => p.datos)), excepciones } };
 }
 
-// Entre que se leyó y que se confirma pueden pasar días, y otro documento pudo traer lo mismo. Antes de incorporar
-// se vuelve a comparar contra lo que YA hay: lo que mientras tanto se registró deja de proponerse.
 export function refrescar(resultado, { egresos = [], historico = [], trabajadores = [], encargados = [], proveedores = [] } = {}) {
   const yaHay = new Set([...egresos.filter(e => !e.cancelado).map(llaveDeEgreso), ...historico.map(h => h.llave).filter(Boolean), ...[...trabajadores, ...encargados].map(p => `persona:${corto(p.nombre)}`), ...proveedores.map(p => `proveedor:${corto(p.nombre)}`)]);
   let cambiaron = 0;

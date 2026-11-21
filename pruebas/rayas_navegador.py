@@ -45,7 +45,7 @@ with sync_playwright() as p:
     g["sembrar"](pg); g["entrar"](pg, "Admin", "7391"); pg.wait_for_timeout(400)
     ir(pg, "importar")
     tab(pg, "Claves de las rayas"); t = pg.locator("body").inner_text()
-    caso("de arranque sólo se sabe lo que dijo Luis: Bodega y San Felipe 1 a 4, y ninguna actividad", "BOD · Bodega" in t and "SF4 · San Felipe 4" in t and "SF1 · San Felipe 1" in t and "Actividades (0)" in t and "Ubicaciones (8)" in t and "RA51 · Rancho 51 · grupo Ranchos 50s" in t and "SF4 · San Felipe 4 · grupo San Felipe" in t and "AJO · Ajo" in t and "GEN · General (sin rancho específico)" in t and "Trabajo general" in t, plano(t)[:500])
+    caso("de arranque sólo se sabe lo que dijo Luis: Bodega y San Felipe 1 a 4, y ninguna actividad", "BOD · Bodega" in t and "SF4 · San Felipe 4" in t and "SF1 · San Felipe 1" in t and "Actividades (0)" in t and "Ubicaciones (9)" in t and "R51 · El 51" in t and "es otra forma de escribir RA51 (así venía en Excel de rayas 2024)" in t and "RA51 · Rancho 51 · grupo Ranchos 50s" in t and "SF4 · San Felipe 4 · grupo San Felipe" in t and "AJO · Ajo" in t and "GEN · General (sin rancho específico)" in t and "Trabajo general" in t, plano(t)[:500])
     tab(pg, "Bandeja")
     pg.get_by_label("Escoger archivos para importar").set_input_files([str(d / "domingo.jpg")])
     pg.wait_for_function("() => !document.body.innerText.includes('Leyendo ')", timeout=60000); pg.wait_for_timeout(800)
