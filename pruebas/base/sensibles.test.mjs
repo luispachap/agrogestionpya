@@ -38,7 +38,7 @@ test("ni_escribiendo_el_sello_a_mano_se_autoriza_solo", async () => {
 
 test("todos_los_tipos_sensibles_se_rechazan_sin_permiso_y_se_autorizan_al_superadministrador", async () => {
   const tipos = (await verdad(db, "select tipo from operaciones_sensibles order by tipo")).map(x => x.tipo);
-  assert.equal(tipos.length, 23);
+  assert.equal(tipos.length, 25);   // 23 de dinero y reglas + 2 de la mensajería (hoja 46), que además piden estar otorgados
   for (const t of tipos) {
     const datos = { ...PAGO };
     assert.ok((await mete("encargado", `s-no-${t}`, t, datos)).ok); assert.equal((await fila(`s-no-${t}`)).validacion, "rechazado", t);

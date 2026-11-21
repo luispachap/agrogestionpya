@@ -96,7 +96,11 @@ export const OPERACIONES = {
   autorizar_prestamos: "Autorizar o rechazar préstamos al personal",
   decidir_asistencia: "Decidir cómo se paga un día y reconocer horas adicionales",
   cambiar_reglas: "Cambiar las reglas del rancho",
+  // Mensajería (hoja 46). Estos dos NO vienen con ser superadministrador: hay que otorgarlos a la cuenta.
+  ver_evidencia: "Ver los mensajes que sustentan un registro, sin participar en la conversación (queda anotado)",
+  supervisar_conversaciones: "Abrir por excepción una conversación completa en la que no participa (con motivo, 24 horas, queda anotado)",
 };
+export const SOLO_OTORGADOS = ["ver_evidencia", "supervisar_conversaciones"];
 // Sin servidor (un aparato que no está conectado a ninguna nube, o las pruebas) no hay quién valide:
 // ahí mandan las reglas de la app. Con servidor, se exige el sello. Lo prende la app al arrancar.
 let conServidor = false;

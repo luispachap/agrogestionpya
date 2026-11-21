@@ -415,3 +415,10 @@ REALES del rancho (fotos de teléfono, letra a mano).
   caja chica → almacén en una confirmación; aplicaciones (Fito); IA para entender (gasto por autorizar).
 - **Siguen abiertos:** checador en la nave, día real con Migue, piloto, bitácora agronómica (Fito), bitácora por
   turnos, expediente legal, reunión de la mañana y autorizaciones (Miguel). WhatsApp y pagos: sin activar.
+
+**Candado en la base, tres niveles de acceso y memoria con origen (21 nov, 9 h) — `MENSAJERIA.md` §2 bis y §8:**
+hoja 46 instalada (una conversación sólo la leen sus participantes; ni el superadministrador por serlo; consulta
+excepcional y evidencia con permiso propio, motivo y bitácora). Pestaña «Memoria» con «¿De dónde salió?» y no
+leídos. **Probado:** 1,156 pruebas de cuenta, 95 contra la base aislada, navegador 23/23. **Falta antes del piloto:**
+avisos con la app cerrada, archivos con candado por conversación y dar de alta las cuentas. Dirección estratégica
+(Agroselectos = empresa, AgroGestión = sistema; mensajería interna como medio principal; WhatsApp opcional).

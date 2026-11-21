@@ -25,16 +25,25 @@ export const GENERAL = "general";
 // Quién tiene mensajería hoy. El personal de campo todavía no (no tiene cuenta propia: ver docs/MENSAJERIA.md).
 export const ROLES_CON_MENSAJES = ["admin", "encargado", "agronomo", "finanzas", "dueno"];
 export const NOMBRE_DE_GRUPO = { admin: "Administración", encargado: "Encargados", agronomo: "Agrónomo", finanzas: "Finanzas", dueno: "Dirección" };
-// Por confirmar con Luis: que la administración pueda abrir cualquier conversación. Hoy sí, y se le dice a todos.
-export const LA_ADMINISTRACION_VE_TODO = true;
+// Decidido por Luis (21 nov): NADIE lee una conversación por su puesto, tampoco la administración. Tres niveles:
+//   1. Lo interpretado y lo registrado: se consulta como cualquier registro, con los permisos de siempre.
+//   2. La evidencia: los mensajes concretos que sustentan un registro. Quien no participa los ve sólo con el
+//      permiso `ver_evidencia`, y cada consulta queda en la bitácora.
+//   3. La conversación completa, sin participar: permiso `supervisar_conversaciones`, motivo, 24 horas y bitácora.
+// Las tres las comprueba la BASE (hoja 46); lo de aquí sólo evita ofrecer lo que la base va a negar.
+export const PERMISO_EVIDENCIA = "ver_evidencia", PERMISO_SUPERVISION = "supervisar_conversaciones";
+export const HORAS_DE_CONSULTA = 24;
 
 // Las reglas, tal como se le enseñan a la gente. Si cambia una regla, cambia aquí y en la pantalla sola.
 export const REGLAS = [
-  "Estos mensajes son de trabajo. No es un lugar para pláticas personales: para eso está tu teléfono.",
-  "AgroGestión lee lo que se escribe aquí para PROPONER registros (una compra, un avance, una falla, un pendiente). No registra nada solo: siempre lo confirma una persona con permiso.",
-  "Una conversación la ven sus participantes" + (LA_ADMINISTRACION_VE_TODO ? " y la administración del rancho." : "."),
-  "Nada se borra ni se edita: un mensaje equivocado se aclara con otro mensaje. Las fotos, audios y documentos se conservan junto al mensaje.",
-  "Cada registro que salga de aquí dice de qué mensaje salió, quién lo dijo, quién lo aclaró y quién lo confirmó.",
+  "Estas conversaciones son institucionales: son de trabajo de Agroselectos. No son para asuntos personales.",
+  "No son para vigilar a nadie. AgroGestión las lee para armar la memoria del rancho: lo que se vio, lo que se decidió, lo que quedó pendiente y lo que se hizo.",
+  "De lo que lee sólo PROPONE. Nada se registra solo: siempre lo confirma una persona con permiso.",
+  "Una conversación la leen sus participantes. Nadie más la lee por su puesto: tampoco la administración ni dirección.",
+  "De cada cosa registrada se puede preguntar «¿de dónde salió?» y ver quién lo dijo, cuándo y en qué conversación. Los mensajes concretos que la sustentan sólo los ve, fuera de la conversación, quien tiene ese permiso; y cada vez queda anotado.",
+  "Una conversación completa sólo puede abrirla alguien que no participa en ella si tiene el permiso de supervisión, dice el motivo y por 24 horas. Queda anotado quién, cuándo y por qué, y esa lista la pueden ver todos.",
+  "Nada se borra ni se edita: un mensaje equivocado se aclara con otro mensaje. Los mensajes, audios, fotos y documentos se conservan mientras AgroGestión esté en uso, porque son el sustento de los registros.",
+  "Siempre se distingue lo que alguien DIJO, lo que AgroGestión INTERPRETÓ, lo que una persona CONFIRMÓ y lo que quedó REGISTRADO.",
   "Escribir aquí no da permisos: un gasto lo sigue confirmando quien lleva las cuentas.",
   "Para pedirle algo a AgroGestión, empieza el mensaje con «Agro,». Si no, se queda callado.",
 ];
@@ -93,11 +102,22 @@ export const ROLES_QUE_ESCRIBEN = ["admin", "encargado", "agronomo", "finanzas"]
 // Abrir una conversación es un evento, y la base sólo deja crear eventos a estos perfiles (hoja 35).
 export const ROLES_QUE_ABREN = ["admin", "encargado", "agronomo"];
 export const puedeEscribir = (c, persona) => ROLES_QUE_ESCRIBEN.includes(persona?.rol) && esParticipante(c, persona);
-export function puedeVer(c, persona) {
+// `consultas` = consultas excepcionales vigentes (las otorga y las vence la base).
+export function puedeVer(c, persona, { consultas = [], ahora } = {}) {
   if (!ROLES_CON_MENSAJES.includes(persona?.rol)) return { ve: false, porque: "Tu perfil todavía no tiene mensajería." };
   if (esParticipante(c, persona)) return { ve: true, porque: "Participas en esta conversación." };
-  if (LA_ADMINISTRACION_VE_TODO && persona.rol === "admin") return { ve: true, comoAdministracion: true, porque: "La ves como administración; no participas en ella." };
+  const t = new Date(ahora || Date.now()).getTime();
+  const consulta = (consultas || []).find(x => x.conversacion === c?.id && x.usuario === persona.id && new Date(x.hasta).getTime() > t);
+  if (consulta) return { ve: true, porConsulta: true, hasta: consulta.hasta, motivo: consulta.motivo, porque: "La abriste por consulta excepcional: sólo lectura, queda anotado." };
   return { ve: false, porque: "No participas en esta conversación." };
+}
+// Pedir una consulta excepcional. No la concede: dice si vale la pena pedírsela a la base y con qué.
+export function pedirConsulta({ conversacion, motivo, persona, otorgados = [] }) {
+  if (!otorgados.includes(PERMISO_SUPERVISION)) return { ok: false, dice: "Abrir una conversación en la que no participas pide el permiso de supervisión, otorgado a tu cuenta. Ser administrador no lo da." };
+  if (!conversacion || conversacion.id === GENERAL) return { ok: false, dice: "Escoge la conversación." };
+  if (esParticipante(conversacion, persona)) return { ok: false, dice: "Ya participas en esa conversación." };
+  if (String(motivo || "").trim().length < 10) return { ok: false, dice: "Di el motivo de la consulta: queda anotado y lo pueden ver los demás." };
+  return { ok: true, conversacion: conversacion.id, motivo: String(motivo).trim() };
 }
 export function tituloDe(c, persona) {
   if (c.clase !== "directa") return c.nombre || "Grupo";
@@ -108,11 +128,12 @@ export const conversacionDe = (mensaje) => mensaje?.conversacion || GENERAL;
 export const mensajesDe = (mensajes, convId) => (mensajes || []).filter(m => m && conversacionDe(m) === convId);
 
 // Mis conversaciones, la más reciente arriba, con su último mensaje y cuántas propuestas esperan.
-export function misConversaciones({ eventos, mensajes, persona }) {
-  return conversacionesDe(eventos).map(c => ({ c, v: puedeVer(c, persona) })).filter(x => x.v.ve).map(({ c, v }) => {
+export function misConversaciones({ eventos, mensajes, persona, consultas = [], ahora, leido = {} }) {
+  return conversacionesDe(eventos).map(c => ({ c, v: puedeVer(c, persona, { consultas, ahora }) })).filter(x => x.v.ve).map(({ c, v }) => {
     const suyos = mensajesDe(mensajes, c.id).sort((a, b) => String(a.cuando).localeCompare(String(b.cuando))), ultimo = suyos[suyos.length - 1] || null;
     const porConfirmar = suyos.reduce((n, m) => n + (m.propuestas || []).filter(p => !p.confirmacion && p.parteDe == null).length, 0);
-    return { ...c, titulo: tituloDe(c, persona), comoAdministracion: !!v.comoAdministracion, cuantos: suyos.length, porConfirmar,
+    const sinLeer = suyos.filter(m => m.de?.id !== persona.id && String(m.cuando || "") > String(leido[c.id] || "")).length;
+    return { ...c, titulo: tituloDe(c, persona), porConsulta: !!v.porConsulta, consultaHasta: v.hasta || null, cuantos: suyos.length, porConfirmar, sinLeer,
       ultimo: ultimo ? { de: ultimo.de?.nombre || ultimo.deQuien || "", texto: String(ultimo.texto || (ultimo.foto ? "📷 Foto" : ultimo.audio ? "🎤 Audio" : ultimo.documento ? `📎 ${ultimo.documento.nombre || "Documento"}` : "")).slice(0, 70), cuando: ultimo.cuando } : null };
   }).sort((a, b) => (a.id === GENERAL ? -1 : b.id === GENERAL ? 1 : String(b.ultimo?.cuando || b.creada || "").localeCompare(String(a.ultimo?.cuando || a.creada || ""))));
 }
@@ -211,3 +232,72 @@ export function propuestasDeLaPlatica(propuestas, { alAsistente = false } = {}) 
   return (propuestas || []).filter(p => typeof p.i !== "number" || alAsistente || p.sobre || p.parteDe != null || esOperativo(p.frase, p.tipo));
 }
 export const esPlatica = (m) => !!m && (m.platica || m.delAsistente || !!m.aclaraA);
+
+/* ── LA MEMORIA: hallazgos con origen verificable ──
+   Un hallazgo es algo que AgroGestión interpretó de lo que alguien dijo. Siempre lleva separadas cuatro cosas:
+     dicho        lo que alguien escribió, literal, con quién, cuándo y en qué conversación
+     interpretado qué entendió AgroGestión y por qué
+     confirmado   quién lo confirmó (o que nadie lo ha confirmado, o que se rechazó)
+     registrado   dónde quedó (o que no quedó en ningún lado)
+   Sale de dos fuentes: los mensajes de las conversaciones en que la persona participa, y los registros que ya
+   existen (bitácora, gastos, incidencias, avances…), que cualquiera con permiso de leerlos puede consultar. */
+const ESTADO = { interpretado: "AgroGestión lo interpretó; nadie lo ha confirmado", confirmado: "Confirmado por una persona", rechazado: "Una persona dijo que no", registrado: "Confirmado y registrado" };
+const TEMA = { gasto: "compra", prestamo: "préstamo", actividad: "trabajo", avance: "avance", cosecha: "cosecha", incidencia: "incidencia", necesidad: "necesidad", fertirriego: "aplicación", nota: "nota" };
+const temaDe = (p) => (/\b(aplic|fumig|herbicida|insecticida|fungicida|fertiliz)/.test(plano(p.frase)) ? "aplicación" : /\b(maleza|hierba|plaga|gusano|mancha)/.test(plano(p.frase)) && p.tipo === "nota" ? "observación de campo" : TEMA[p.tipo] || p.tipo);
+
+export function hallazgosDe({ mensajes = [], conversaciones = [], registros = {} }) {
+  const titulo = (id) => { const c = conversaciones.find(x => x.id === id); return c ? (c.clase === "directa" ? `Conversación directa (${c.miembros.map(nombreDeMiembro).join(" y ")})` : c.nombre) : "una conversación en la que no participas"; };
+  const hallazgos = [], vistos = new Set();
+  for (const m of mensajes) for (const p of m.propuestas || []) {
+    if (p.parteDe != null) continue;
+    const f = p.confirmacion || null, estado = !f ? "interpretado" : f.estado === "rechazado" ? "rechazado" : p.quedoEn ? "registrado" : "confirmado";
+    const conv = conversacionDe(m), clave = `${m.id}|${typeof p.i === "number" ? p.i : p.id}`;
+    vistos.add(m.id);
+    hallazgos.push({ id: clave, tema: temaDe(p), tipo: p.tipo, naturaleza: typeof p.i === "number" ? naturalezaDe(p.frase, p.tipo) : "hecho", cuando: m.cuando, parcelaId: p.parcelaId || p.parcelas?.[0]?.id || "", estado, dice: ESTADO[estado],
+      dicho: [{ mensaje: m.id, quien: m.de?.nombre || m.deQuien || "", cuando: m.cuando, conversacion: conv, enConversacion: titulo(conv), texto: p.frase || p.resumen || m.texto || "", adjuntos: [m.foto ? "foto" : null, m.audio ? "audio" : null, m.documento ? `documento: ${m.documento.nombre || ""}` : null].filter(Boolean), disponible: true },
+        ...(p.aclaraciones || []).map(a => ({ mensaje: a.id, quien: a.de?.nombre || "", cuando: a.cuando, conversacion: conv, enConversacion: titulo(conv), texto: a.texto, aclara: a.pregunta || "lo aclaró por su cuenta", disponible: true }))],
+      interpretado: { que: p.resumen || `${TEMA[p.tipo] || p.tipo}${p.monto != null ? ` de $${Number(p.monto).toLocaleString("es-MX")}` : ""}`, porque: p.porque || "", deAclaraciones: (p.aclaraciones || []).filter(a => a.entendido).map(a => a.entendido), sobre: p.sobre || null, momento: p.momento || null, heredado: p.heredado || [] },
+      confirmado: f ? { quien: f.quien, cuando: f.cuando, estado: f.estado, motivo: f.motivo || null } : null,
+      registrado: p.quedoEn ? { dice: p.quedoEn } : null });
+  }
+  // Lo ya registrado cuyo mensaje de origen no está entre los míos: se sabe quién lo dijo y qué quedó; el mensaje
+  // completo es evidencia y se pide aparte.
+  for (const [coleccion, lista] of Object.entries(registros)) for (const r of lista || []) {
+    const o = r?.origen || r?.datos?.origenDicho; if (!o?.mensaje || vistos.has(o.mensaje) || o.canal == null) continue;
+    hallazgos.push({ id: `reg|${coleccion}|${r.id}`, tema: TEMA[coleccion === "egresos" ? "gasto" : coleccion === "incidencias" ? "incidencia" : "nota"] || coleccion, tipo: coleccion, naturaleza: r.naturaleza || "hecho", cuando: r.origen?.aclaraciones?.[0]?.cuando || r._actualizado || r.fecha, parcelaId: r.parcelaId || r.datos?.parcelaId || "", estado: "registrado", dice: ESTADO.registrado,
+      dicho: [{ mensaje: o.mensaje, quien: o.dijo || "", cuando: null, conversacion: null, enConversacion: "una conversación en la que no participas", texto: o.frase || "", disponible: false },
+        ...(o.aclaraciones || []).map(a => ({ mensaje: a.mensaje, quien: a.dijo || "", cuando: a.cuando, conversacion: null, enConversacion: "una conversación en la que no participas", texto: a.texto, aclara: a.pregunta || "lo aclaró por su cuenta", disponible: false }))],
+      interpretado: { que: r.concepto || r.nota || r.desc || r.notas || coleccion, porque: "", deAclaraciones: (o.aclaraciones || []).filter(a => a.entendido).map(a => a.entendido), sobre: r.sobre || null, momento: r.momento || null, heredado: r.heredado || [] },
+      confirmado: { quien: o.confirmo || "", cuando: null, estado: "confirmado", motivo: null },
+      registrado: { dice: `Quedó en ${coleccion}`, coleccion, id: r.id } });
+  }
+  return hallazgos.sort((a, b) => String(b.cuando || "").localeCompare(String(a.cuando || "")));
+}
+
+// Consultar antecedentes: qué se ha dicho de una parcela, un tema o una palabra, entre fechas.
+export function antecedentes(hallazgos, { parcelaId = "", tema = "", texto = "", desde = "", hasta = "", estado = "" } = {}) {
+  const q = plano(texto).trim();
+  return (hallazgos || []).filter(h => (!parcelaId || h.parcelaId === parcelaId) && (!tema || h.tema === tema) && (!estado || h.estado === estado)
+    && (!desde || String(h.cuando || "").slice(0, 10) >= desde) && (!hasta || String(h.cuando || "").slice(0, 10) <= hasta)
+    && (!q || plano([h.interpretado.que, ...h.dicho.map(d => `${d.texto} ${d.quien}`)].join(" ")).includes(q)));
+}
+export const temasDe = (hallazgos) => [...new Set((hallazgos || []).map(h => h.tema))].sort();
+
+// «¿De dónde sacaste esto?», en palabras y por capas. No mezcla lo dicho con lo interpretado.
+export function deDondeSalio(h) {
+  return {
+    dicho: h.dicho.map(d => ({ ...d, linea: `${d.quien || "Alguien"}${d.cuando ? `, ${String(d.cuando).slice(0, 16).replace("T", " ")} UTC` : ""}, en ${d.enConversacion}${d.aclara ? ` (${d.aclara})` : ""}: «${d.texto}»` })),
+    interpretado: [`AgroGestión lo entendió como: ${h.interpretado.que}.`, h.interpretado.porque, ...h.interpretado.deAclaraciones.map(x => `De una aclaración: ${x}.`),
+      h.interpretado.sobre ? `Lo relacionó con lo que dijo ${h.interpretado.sobre.dijo || "alguien"}: «${h.interpretado.sobre.frase}».` : "", h.interpretado.heredado.includes("parcela") ? "La parcela no se dijo en este mensaje: se tomó del mensaje con que se relacionó." : "",
+      h.interpretado.momento === "ejecutado" ? "Es lo EJECUTADO de algo que antes se dijo como por hacer." : ""].filter(Boolean),
+    confirmado: h.confirmado ? (h.confirmado.estado === "rechazado" ? `${h.confirmado.quien} dijo que no${h.confirmado.motivo ? `: ${h.confirmado.motivo}` : ""}.` : `Lo confirmó ${h.confirmado.quien || "una persona"}.`) : "Nadie lo ha confirmado: es sólo una interpretación.",
+    registrado: h.registrado ? h.registrado.dice : "No quedó registrado en ningún módulo.",
+    evidenciaFuera: h.dicho.filter(d => !d.disponible).map(d => d.mensaje).filter(Boolean),
+  };
+}
+
+// Al confirmarse algo, sus mensajes pasan a ser EVIDENCIA (la base sólo deja consultar como evidencia lo marcado).
+// `sensible`: toca dinero; para verla fuera de la conversación hace falta además poder leer los gastos.
+export function comoEvidencia(mensaje, { sensible = false } = {}) { return { ...mensaje, esEvidencia: true, ...(sensible || mensaje.sensible ? { sensible: true } : {}) }; }
+// Los archivos todavía viven en un almacén común: en una conversación cerrada no se adjuntan hasta que tengan su candado.
+export const admiteArchivos = (conversacion) => conversacion?.id === GENERAL;

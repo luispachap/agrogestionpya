@@ -292,3 +292,25 @@ export async function hayCuentaLigada() {
     return !!data?.session;
   } catch { return false; }
 }
+
+// ── Mensajería institucional (hoja 46): lo que sólo la base puede conceder ──
+export async function consultasDeConversacion() {
+  if (!supabaseListo) return [];
+  const { data, error } = await supabase.from("consultas_de_conversacion").select("usuario, conversacion, motivo, desde, hasta").order("desde", { ascending: false }).limit(200);
+  return error ? [] : data || [];
+}
+export async function consultarConversacion(conversacion, motivo) {
+  if (!supabaseListo) return { ok: false, mensaje: "Sin conexión a la base no se puede abrir una consulta: tiene que quedar anotada." };
+  const { data, error } = await supabase.rpc("consultar_conversacion", { p_conversacion: conversacion, p_motivo: motivo });
+  return error ? { ok: false, mensaje: error.message } : { ok: true, hasta: data };
+}
+export async function verEvidencia(mensajes, motivo) {
+  if (!supabaseListo) return { ok: false, mensaje: "Sin conexión a la base no se puede consultar la evidencia: tiene que quedar anotado." };
+  const { data, error } = await supabase.rpc("ver_evidencia", { p_mensajes: mensajes, p_motivo: motivo || null });
+  return error ? { ok: false, mensaje: error.message } : { ok: true, mensajes: (data || []).map(filaAObjeto) };
+}
+export async function directorioDeCuentas() {
+  if (!supabaseListo) return [];
+  const { data, error } = await supabase.rpc("directorio_de_cuentas");
+  return error ? [] : data || [];
+}

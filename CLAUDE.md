@@ -476,8 +476,17 @@ Usuarios reales de la app:
   con algo que ya se venía hablando — `aclaracion` (misma operación), `seguimiento` (pendiente sobre una
   observación, sin diagnóstico), `ejecucion` (lo ejecutado de algo programado: dos momentos) — y
   `propuestasDeLaPlatica` deja fuera la plática (`platica: true`). El asistente sólo contesta a «Agro,»
-  (`paraElAsistente`). **El candado por conversación todavía NO está en la base** (sólo en la app): no lo presentes
-  como privado. Página `chat` («Mensajes») para admin, encargado, agrónomo, finanzas y dirección (hoja 45).
+  (`paraElAsistente`).
+  **NO ES VIGILANCIA, ES MEMORIA CON ORIGEN (Luis, 21 nov).** Nadie lee una conversación por su puesto, ni el
+  superadministrador. El candado está en la BASE (hoja 46: `conversacion_miembros` se llena sola de los eventos;
+  `ve_conversacion`, `participa_en`). Tres niveles: 1) lo interpretado/registrado, con los permisos de siempre
+  (pestaña «Memoria»: `hallazgosDe`, `antecedentes`, `deDondeSalio` = dicho · interpretado · confirmado ·
+  registrado, que NUNCA se mezclan); 2) evidencia: `ver_evidencia()` con permiso `ver_evidencia`, sólo mensajes
+  `esEvidencia` (`comoEvidencia` al confirmar; `sensible` si es dinero), con bitácora; 3) conversación completa
+  ajena: `consultar_conversacion()` con permiso `supervisar_conversaciones`, motivo, 24 h, sólo lectura, bitácora.
+  Esos dos permisos **no vienen con ser superadministrador** (`SOLO_OTORGADOS`, `tiene_otorgado`). **Los archivos
+  aún no tienen candado por conversación**: fotos y documentos sólo en la general (`admiteArchivos`). No hay avisos
+  con la app cerrada. **Agroselectos = la empresa; AgroGestión = el sistema.** WhatsApp es opcional y futuro. Página `chat` («Mensajes») para admin, encargado, agrónomo, finanzas y dirección (hoja 45).
 - **La conversación continúa** (`aclarar`, `pendienteDe`, `esRespuesta` en `operaciones.js`): lo que falta se
   contesta en corto y se entiende DENTRO de la propuesta pendiente («20 pesos el kilo» × lo que se dijo que se
   compró; sin cantidad se pregunta; «tres kilos» no son tres pesos). La frase original no cambia; cada aclaración

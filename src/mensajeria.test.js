@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { clasificarMensaje } from "./chat.js";
 import { preparar, ejecutar } from "./operaciones.js";
-import { ROLES_QUE_ESCRIBEN, ROLES_QUE_ABREN, crearConversacion, cambiarConversacion, conversacionesDe, misConversaciones, puedeVer, puedeEscribir, tituloDe, mensajesDe, paraElAsistente, respuestaDelAsistente, relacionar, conRelacion, temasAbiertos, REGLAS, GENERAL, T_CONVERSACION } from "./mensajeria.js";
+import { pedirConsulta, PERMISO_SUPERVISION, hallazgosDe, antecedentes, deDondeSalio, comoEvidencia, admiteArchivos, ROLES_QUE_ESCRIBEN, ROLES_QUE_ABREN, crearConversacion, cambiarConversacion, conversacionesDe, misConversaciones, puedeVer, puedeEscribir, tituloDe, mensajesDe, paraElAsistente, respuestaDelAsistente, relacionar, conRelacion, temasAbiertos, REGLAS, GENERAL, T_CONVERSACION } from "./mensajeria.js";
 
 const parcelas = [{ id: "sf4", nombre: "San Felipe 4" }], personas = [{ id: "t1", nombre: "Juan Inventado" }];
 const miguel = { id: "c-mig", nombre: "Miguel de Prueba", rol: "admin" }, fito = { id: "ag1", nombre: "Agrónomo de Prueba", rol: "agronomo" }, capataz = { id: "enc1", nombre: "Capataz de Prueba", rol: "encargado" }, finanzas = { id: "f1", nombre: "Finanzas de Prueba", rol: "finanzas" }, peon = { id: "t1", nombre: "Juan Inventado", rol: "trabajador" };
@@ -23,15 +23,27 @@ test("una_conversacion_directa_es_la_misma_la_abra_quien_la_abra", () => {
   assert.equal(crearConversacion({ clase: "grupo", nombre: " ", miembros: [fito], quien: miguel, ...sello() }).ok, false, "un grupo sin nombre no se encuentra");
 });
 
-test("una_conversacion_la_ven_sus_participantes_y_la_administracion_y_nadie_mas", () => {
+test("una_conversacion_la_leen_sus_participantes_y_nadie_mas_ni_la_administracion", () => {
   const g = crearConversacion({ clase: "grupo", nombre: "Riego", miembros: [fito], quien: capataz, ...sello() }).evento, c = conversacionesDe([g]).find(x => x.id === g.id);
   assert.equal(puedeVer(c, fito).ve, true); assert.equal(puedeVer(c, capataz).ve, true);
   assert.deepEqual([puedeVer(c, finanzas).ve, puedeEscribir(c, finanzas)], [false, false]);
-  const adm = puedeVer(c, miguel); assert.deepEqual([adm.ve, adm.comoAdministracion, puedeEscribir(c, miguel)], [true, true, false], "la administración la ve —y se dice— pero no escribe sin ser participante");
-  assert.equal(puedeVer(c, peon).ve, false, "el personal de campo todavía no tiene mensajería");
-  assert.ok(REGLAS.some(r => /la administración del rancho/.test(r)) && REGLAS.some(r => /No registra nada solo/.test(r)) && REGLAS.some(r => /pláticas personales/.test(r)), "las reglas se dicen en la pantalla");
-  const mias = misConversaciones({ eventos: [g], mensajes: [], persona: finanzas });
-  assert.deepEqual(mias.map(x => x.id), [GENERAL]);
+  assert.deepEqual([puedeVer(c, miguel).ve, puedeEscribir(c, miguel)], [false, false], "ser administrador no abre una conversación ajena");
+  assert.equal(puedeVer(c, peon).ve, false);
+  assert.deepEqual(misConversaciones({ eventos: [g], mensajes: [], persona: miguel }).map(x => x.id), [GENERAL]);
+  assert.ok(REGLAS.some(r => /institucionales/.test(r)) && REGLAS.some(r => /No son para vigilar/.test(r)) && REGLAS.some(r => /tampoco la administración/.test(r)) && REGLAS.some(r => /se conservan/.test(r)) && REGLAS.some(r => /DIJO.*INTERPRETÓ.*CONFIRMÓ.*REGISTRADO/.test(r)));
+});
+
+test("la_consulta_excepcional_pide_permiso_otorgado_y_motivo_es_de_solo_lectura_y_se_vence", () => {
+  const g = crearConversacion({ clase: "grupo", nombre: "Riego", miembros: [fito], quien: capataz, ...sello() }).evento, c = conversacionesDe([g]).find(x => x.id === g.id);
+  const direccion = { id: "d1", nombre: "Dirección de Prueba", rol: "dueno" };
+  assert.match(pedirConsulta({ conversacion: c, motivo: "Revisar una queja de un proveedor", persona: miguel, otorgados: [] }).dice, /Ser administrador no lo da/);
+  assert.equal(pedirConsulta({ conversacion: c, motivo: "ver", persona: direccion, otorgados: [PERMISO_SUPERVISION] }).ok, false, "sin motivo no hay consulta");
+  assert.equal(pedirConsulta({ conversacion: c, motivo: "Revisar una queja de un proveedor", persona: direccion, otorgados: [PERMISO_SUPERVISION] }).ok, true);
+  const consultas = [{ conversacion: c.id, usuario: "d1", motivo: "Revisar una queja de un proveedor", hasta: "2026-11-22T18:00:00.000Z" }];
+  const v = puedeVer(c, direccion, { consultas, ahora: "2026-11-21T19:00:00.000Z" });
+  assert.deepEqual([v.ve, v.porConsulta, puedeEscribir(c, direccion)], [true, true, false]);
+  assert.equal(puedeVer(c, direccion, { consultas, ahora: "2026-11-22T18:00:01.000Z" }).ve, false, "a las 24 horas se cierra");
+  assert.equal(puedeVer(c, miguel, { consultas, ahora: "2026-11-21T19:00:00.000Z" }).ve, false, "la consulta es de quien la pidió");
 });
 
 test("un_grupo_por_funcion_incluye_a_quien_tenga_ese_puesto_y_sus_cambios_dejan_historia", () => {
@@ -122,4 +134,38 @@ test("direccion_lee_y_no_escribe_y_finanzas_participa_pero_no_abre_conversacione
   assert.equal(puedeEscribir(general, finanzas), true);
   assert.equal(crearConversacion({ clase: "grupo", nombre: "Pagos", miembros: [miguel], quien: finanzas, ...sello() }).ok, false, "la base no le deja crear eventos: la app no se lo ofrece");
   assert.deepEqual([ROLES_QUE_ESCRIBEN.includes("dueno"), ROLES_QUE_ABREN.includes("finanzas")], [false, false]);
+});
+
+test("de_un_hallazgo_se_puede_preguntar_de_donde_salio_y_se_separa_lo_dicho_lo_interpretado_lo_confirmado_y_lo_registrado", () => {
+  const g = crearConversacion({ clase: "grupo", nombre: "Campo", miembros: [fito], quien: miguel, ...sello() }).evento, convs = conversacionesDe([g]);
+  const m1 = { ...msj(miguel, "Vimos mucha maleza en San Felipe 4.", 0, g.id) };
+  const m2 = { ...msj(capataz, "Compramos tres kilos de clavos.", 5, g.id) };
+  const conAclaracion = { ...m2, propuestas: m2.propuestas.map(p => ({ ...p, monto: 60, falta: [], aclaraciones: [{ id: "m-a", pregunta: "¿Cuánto costó?", texto: "20 pesos el kilo", de: { id: miguel.id, nombre: miguel.nombre }, cuando: sello(6).cuando, entendido: "$20 por unidad × 3 kilos = $60" }], confirmacion: { estado: "confirmado", quien: "Miguel de Prueba", cuando: sello(7).cuando }, quedoEn: "Gasto: quedó en Egresos." })) };
+  const hs = hallazgosDe({ mensajes: [m1, conAclaracion], conversaciones: convs });
+  const maleza = hs.find(h => /maleza/.test(h.dicho[0].texto)), compra = hs.find(h => h.tipo === "gasto");
+  assert.deepEqual([maleza.tema, maleza.estado, maleza.parcelaId, maleza.dicho[0].quien, maleza.dicho[0].enConversacion], ["observación de campo", "interpretado", "sf4", "Miguel de Prueba", "Campo"]);
+  const r1 = deDondeSalio(maleza);
+  assert.match(r1.dicho[0].linea, /Miguel de Prueba, 2026-11-21 18:00 UTC, en Campo: «Vimos mucha maleza en San Felipe 4\.»/);
+  assert.equal(r1.confirmado, "Nadie lo ha confirmado: es sólo una interpretación."); assert.equal(r1.registrado, "No quedó registrado en ningún módulo.");
+  const r2 = deDondeSalio(compra);
+  assert.deepEqual([compra.estado, r2.dicho.length, r2.dicho[1].quien, r2.dicho[1].aclara], ["registrado", 2, "Miguel de Prueba", "¿Cuánto costó?"]);
+  assert.ok(r2.interpretado.some(x => /De una aclaración: \$20 por unidad × 3 kilos = \$60/.test(x))); assert.match(r2.confirmado, /Lo confirmó Miguel de Prueba/); assert.match(r2.registrado, /Egresos/);
+  // Antecedentes: qué se ha dicho de una parcela o de un tema.
+  assert.deepEqual(antecedentes(hs, { parcelaId: "sf4" }).map(h => h.tema), ["observación de campo"]);
+  assert.deepEqual(antecedentes(hs, { texto: "clavos" }).map(h => h.tipo), ["gasto"]); assert.equal(antecedentes(hs, { tema: "compra", estado: "interpretado" }).length, 0);
+});
+
+test("lo_registrado_de_una_conversacion_ajena_se_consulta_pero_sus_mensajes_son_evidencia_aparte", () => {
+  const gasto = { id: "g1", fecha: "2026-11-21", concepto: "Compramos tres kilos de clavos.", monto: 60, origen: { mensaje: "m-ajeno", canal: "chat", frase: "Compramos tres kilos de clavos.", dijo: "Capataz de Prueba", confirmo: "Miguel de Prueba", aclaraciones: [{ mensaje: "m-ajeno-2", pregunta: "¿Cuánto costó?", texto: "20 pesos el kilo", dijo: "Miguel de Prueba", cuando: sello(6).cuando, entendido: "$60" }] } };
+  const hs = hallazgosDe({ mensajes: [], conversaciones: [], registros: { egresos: [gasto, { id: "g2", monto: 5 }] } });
+  assert.equal(hs.length, 1, "un gasto tecleado a mano no es un hallazgo de conversación");
+  const r = deDondeSalio(hs[0]);
+  assert.deepEqual([hs[0].estado, hs[0].dicho[0].disponible, hs[0].dicho[0].enConversacion], ["registrado", false, "una conversación en la que no participas"]);
+  assert.deepEqual(r.evidenciaFuera, ["m-ajeno", "m-ajeno-2"], "para ver esos mensajes completos hace falta el permiso de evidencia");
+  assert.match(r.confirmado, /Miguel de Prueba/);
+});
+
+test("lo_confirmado_marca_sus_mensajes_como_evidencia_y_lo_de_dinero_como_sensible", () => {
+  assert.deepEqual([comoEvidencia({ id: "a" }).esEvidencia, comoEvidencia({ id: "a" }).sensible, comoEvidencia({ id: "a" }, { sensible: true }).sensible], [true, undefined, true]);
+  assert.equal(admiteArchivos({ id: GENERAL }), true); assert.equal(admiteArchivos({ id: "ev-conv-x" }), false, "los archivos aún no tienen candado por conversación");
 });

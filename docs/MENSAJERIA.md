@@ -30,12 +30,44 @@ rancho lo ha usado.*
 | Rastro | El registro final lleva el mensaje original, cada aclaración (quién, cuándo, qué se entendió) y quién confirmó. Los mensajes de aclaración se conservan en la conversación |
 | Préstamo dicho | Nace como SOLICITUD en Préstamos: no es gasto, no es deuda y no descuenta nada |
 
+## 2 bis. Acceso, memoria y origen (decidido por Luis el 21 nov, 8:54 y 8:57)
+
+*Agroselectos es la empresa; AgroGestión es el sistema que la administra.* La mensajería interna se prueba como
+el medio principal de comunicación de trabajo; WhatsApp queda como integración futura y opcional.
+
+**No es vigilancia: es memoria con origen verificable.** Tres niveles, y los tres los hace cumplir la base (hoja 46):
+
+| Nivel | Qué es | Quién | Rastro |
+|---|---|---|---|
+| 1 | Lo interpretado y lo registrado (pestaña «Memoria» y los módulos de siempre) | Quien ya puede leer esos registros | — |
+| 2 | Los mensajes concretos que sustentan un registro, sin participar en la conversación | Cuenta con el permiso «ver evidencia». Sólo mensajes marcados como evidencia; si tocan dinero, además debe poder leer gastos | Cada consulta queda en la bitácora |
+| 3 | Una conversación completa en la que no se participa | Cuenta con el permiso «supervisar conversaciones», con motivo, 24 horas, sólo lectura | Bitácora, y la lista de consultas la ven todos |
+
+- **Nadie lee una conversación por su puesto.** Ni el administrador ni el superadministrador. Los dos permisos se
+  otorgan cuenta por cuenta en Arranque → Cuentas (también a un superadministrador), y queda quién los otorgó.
+- **«¿De dónde salió?»** En «Memoria» cada hallazgo se abre en cuatro capas que no se mezclan: lo que se dijo
+  (quién, cuándo, en qué conversación, con sus aclaraciones y adjuntos), lo que AgroGestión interpretó (y por qué),
+  lo que una persona confirmó, y lo que quedó registrado. Se busca por palabra, parcela y tema.
+- **Evidencia:** al confirmarse algo, su mensaje y sus aclaraciones quedan marcados como evidencia (y como
+  sensibles si es dinero).
+- **No leídos:** cada conversación dice cuántos mensajes hay sin leer (se recuerda por persona y por aparato).
+
+**Probado:** 6 pruebas atacando la base aislada (participantes, superadministrador sin acceso, nadie se mete solo,
+consulta excepcional con permiso/motivo/vencimiento/bitácora, evidencia, directorio); 15 pruebas de reglas;
+navegador 23/23. **Instalado en la base real** (no había ninguna conversación, así que no hubo nada que migrar).
+**Sin validar:** con cuentas reales de Agroselectos.
+
 ## 3. Lo que NO hace todavía (dicho sin adornos)
 
-1. **El candado por conversación está en la app, no en la base.** Quién ve cada conversación lo decide la pantalla.
-   Una cuenta con lectura de mensajes podría leer la tabla completa llamando directo a la base. Para cerrarlo hace
-   falta una hoja nueva (quién participa en qué, comprobado por la base) y un directorio de cuentas. **Es lo
-   siguiente antes de usarlo con conversaciones delicadas.**
+1. **Los archivos no tienen candado por conversación.** Las fotos y documentos viven en un almacén común; por eso,
+   de momento, **sólo se pueden mandar en la conversación general**. En las demás: texto y audio. Es lo siguiente
+   por cerrar (almacén por conversación; además hoy sólo acepta imágenes y PDF de hasta 3 MB).
+1b. **Avisos con la app cerrada: no hay.** Hoy uno se entera al abrir AgroGestión (contador de no leídos). Para que
+   llegue el aviso al teléfono con la app cerrada hace falta mensajería «push» del navegador: no cuesta, pero pide
+   una función en el servidor y que cada quien instale la app en su teléfono y acepte los avisos. **Es la prioridad
+   para que la gente la adopte.**
+1c. **Un aparato compartido** (el que un encargado liga para su gente) baja lo que puede leer la cuenta del
+   encargado. La pantalla filtra por persona, pero ese aparato no es un lugar privado.
 2. **El personal de campo no tiene mensajería.** No tiene cuenta propia (sube por la del encargado), así que la
    base no puede distinguir quién escribe. Hace falta decidir cómo se identifica (¿cuenta propia?, ¿sólo WhatsApp?).
 3. **«Almacén» no existe como puesto.** Hoy un grupo «Almacén» se arma con las personas que lo atienden.
@@ -55,7 +87,7 @@ rancho lo ha usado.*
 
 | Decisión | Como quedó | Dónde se cambia |
 |---|---|---|
-| ¿La administración puede abrir cualquier conversación? | Sí, y se le dice a todos en las reglas; si no participa, no puede escribir en ella | `LA_ADMINISTRACION_VE_TODO` |
+| ¿Cuánto dura una consulta excepcional? | 24 horas, sólo lectura | hoja 46 |
 | ¿Dirección escribe mensajes? | No: lee, como en el resto de la app | `ROLES_QUE_ESCRIBEN` y hoja 45 |
 | ¿Quién abre conversaciones? | Administrador, encargado y agrónomo (finanzas participa, no abre) | `ROLES_QUE_ABREN` |
 | ¿Cuánto dura abierta una pregunta? | 24 horas y los últimos 12 mensajes | `HORAS`, `HACIA_ATRAS` |
@@ -94,3 +126,27 @@ de WhatsApp tienen requisitos aparte. Nada de eso está activo.
 4. Con Fito: la bitácora agronómica sobre este mismo mecanismo (observación → decisión → aplicación → resultado).
 5. Bitácora por turnos: un grupo por turno con su resumen del día (ya hay «Hoy» por conversación).
 6. Personal de campo y WhatsApp, cuando se autoricen.
+
+## 8. Qué está construido, qué sólo se probó con datos inventados y qué falta validar (21 nov, 9 h)
+
+| Pieza | Construido | Probado sólo con datos inventados | Falta validar con Agroselectos |
+|---|---|---|---|
+| Conversaciones directas y de grupo, texto y audio | Sí | Sí | Uso real entre Miguel, Fito y encargados |
+| Candado por conversación en la base | Sí, instalado | Sí (base aislada) | Con cuentas reales |
+| Memoria y «¿de dónde salió?» | Sí | Sí | Que lo interpretado sirva y no estorbe |
+| Tres niveles de acceso, con bitácora | Sí, instalado | Sí | Otorgar los permisos y hacer una consulta real |
+| Seguir la conversación (lo que falta se contesta) | Sí | Sí | Frases reales de la gente |
+| No leídos | Sí (por aparato) | Sí | — |
+| Avisos con la app cerrada | **No** | — | — |
+| Fotos y documentos en conversaciones cerradas | **No** (sólo en la general) | — | — |
+| Compra → caja → almacén en una confirmación | A medias | Sí | Definir contigo |
+| Indicación de Miguel → asignación de mañana desde la plática | **No** (se hace en «El día») | — | Miguel |
+| Incidencia de maquinaria → pendiente de mantenimiento | Se registra la incidencia; el pendiente de mantenimiento no existe | Sí | — |
+| Bitácora agronómica (decisiones de Fito) | **No** | — | Fito |
+| Plan del día y checador que dice a qué va cada quien | Sí | Sí | En la nave, con Miguel |
+| Bitácora por turnos, expediente legal | **No** | — | — |
+| Entender con IA | **No** (reglas) | — | Autorización de gasto |
+| WhatsApp | Preparado, apagado, opcional | Sí | — |
+
+**Para el piloto con Miguel, Fito y algunos encargados faltan, en este orden:** avisos con la app cerrada,
+archivos con candado, y dar de alta sus cuentas. Lo demás se puede probar ya.

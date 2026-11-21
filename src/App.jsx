@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component, createContext, useContext } from "react";
 // Una operación, múltiples consecuencias: el evento se captura una vez.
-import { estaVigente, cambioPermitido, sinRepetir, juntarEventos, cancelarEvento, exigirValidacion, sinValidar, OPERACION_DE, OPERACIONES } from "./eventos.js";
+import { estaVigente, cambioPermitido, sinRepetir, juntarEventos, cancelarEvento, exigirValidacion, sinValidar, OPERACION_DE, OPERACIONES, SOLO_OTORGADOS } from "./eventos.js";
 import { abrirAlmacenDeEventos, borrarAlmacenDeEventos } from "./almacenEventos.js";
 // El checador: credenciales, marcas de entrada y salida, y la jornada que sale de ellas.
 import {
@@ -29,7 +29,7 @@ import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarra
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
 import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo, caminoDeEntrada, quienEntraConPin, entrarConCredencial, puertaDeAsistencia } from "./acceso.js";
-import { migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde, horaDelServidor, cuandoSelle, misPermisos, permisosDeTodos, cambiarPermiso } from "./dataApi";
+import { consultasDeConversacion, consultarConversacion, verEvidencia, directorioDeCuentas, migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde, horaDelServidor, cuandoSelle, misPermisos, permisosDeTodos, cambiarPermiso } from "./dataApi";
 import { desfaseDe, selloDeReloj, estadoDelReloj } from "./reloj.js";
 // Pagos al personal: ausencias, lo que corresponde, lo entregado, lo pendiente y los recibos.
 import { registrarAusencia, justificarFalta, ausenciasDe, semanaDe, leToca, DIAS_DE_SIEMPRE, cuentasDeCuadrillas, registrarPago, pagosA, saldoDe, emitirRecibo, recibosDe, reciboAlDia,
@@ -103,7 +103,7 @@ import {
 } from "./fertiriego.js";
 // El día: el clima de copiloto, el reparto de tareas y lo que se va a acabar.
 import { traerPronostico, planDelDia, alertasDelClima, riegoNecesario, describirEdad } from "./clima.js";
-import { misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro } from "./mensajeria.js";
+import { misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro, hallazgosDe, antecedentes, temasDe, deDondeSalio, comoEvidencia, admiteArchivos, pedirConsulta, conversacionesDe as todasLasConversaciones, PERMISO_EVIDENCIA, PERMISO_SUPERVISION } from "./mensajeria.js";
 import { planDelDia as planMandadoDe, loQueLeToca, quitarAsignacion, cambiarAsignacion } from "./asignaciones.js";
 import { repartirElDia, aQueSeVaCadaQuien, quienNoTieneNada, chocanLasTareas, indicacionParaElTrabajador, comoVaElDia } from "./plan.js";
 import { loQueVaAFaltar } from "./prediccion.js";
@@ -3432,6 +3432,17 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
   const [verReglas, setVerReglas] = useState(false);
   const [doc, setDoc] = useState(null);
   const [resp, setResp] = useState({});                // lo que se está contestando a cada propuesta
+  const [vista, setVista] = useState("conversaciones"); // en la lista: conversaciones · memoria · consulta
+  const [filtro, setFiltro] = useState({ texto: "", parcelaId: "", tema: "" });
+  const [rastro, setRastro] = useState(null);          // el hallazgo del que se preguntó «¿de dónde salió?»
+  const [evidencia, setEvidencia] = useState({});      // mensajes de evidencia traídos de la base, por hallazgo
+  const [consultas, setConsultas] = useState([]);      // consultas excepcionales (las concede y las vence la base)
+  const [cuentas, setCuentas] = useState([]);
+  const [pide, setPide] = useState({ conversacion: "", motivo: "", dice: "" });
+  const llaveLeido = `${LLAVES.menu}:mensajes-leidos:${session.id}`;
+  const [leido, setLeido] = useState(() => { try { return JSON.parse(localStorage.getItem(llaveLeido) || "{}"); } catch { return {}; } });
+  const otorgados = (PERMISOS && PERMISOS.operaciones) || [];
+  useEffect(() => { let vivo = true; consultasDeConversacion().then(c => { if (vivo) setConsultas(c); }); directorioDeCuentas().then(c => { if (vivo) setCuentas(c); }); return () => { vivo = false; }; }, []);
   const docRef = useRef(null);
   const grabadora = useRef(null);
   const dictador = useRef(null);
@@ -3451,7 +3462,31 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
   // La mensajería institucional: los mismos mensajes de siempre, ahora por conversación.
   const yo = { id: session.id, nombre: session.nombre, rol: session.role };
   const todos = data.chat || [];
-  const convs = misConversaciones({ eventos: data.eventos || [], mensajes: todos, persona: yo });
+  const convs = misConversaciones({ eventos: data.eventos || [], mensajes: todos, persona: yo, consultas, leido });
+  // Al abrir una conversación se da por leída hasta su último mensaje (se recuerda en este aparato, por persona).
+  useEffect(() => {
+    if (!convId) return;
+    const ultimo = mensajesDe(todos, convId).reduce((m, x) => (String(x.cuando || "") > m ? String(x.cuando) : m), "");
+    if (ultimo && ultimo !== leido[convId]) { const n = { ...leido, [convId]: ultimo }; setLeido(n); try { localStorage.setItem(llaveLeido, JSON.stringify(n)); } catch { /* sin espacio: sólo no se recuerda */ } }
+  }, [convId, todos.length]);
+  // La memoria: lo interpretado de mis conversaciones y lo ya registrado que salió de alguna conversación.
+  const hallazgos = hallazgosDe({ mensajes: todos.filter(m => convs.some(c => c.id === (m?.conversacion || CONV_GENERAL)) && !esPlatica(m)), conversaciones: convs,
+    registros: { egresos: data.egresos, bitacora: data.bitacora, incidencias: data.incidencias, solicitudes_compra: data.solicitudes_compra, cosechas: data.cosechas, actividades: data.actividades, eventos: (data.eventos || []).filter(e => e.datos?.origenDicho) } });
+  const encontrados = antecedentes(hallazgos, filtro);
+  const ajenas = todasLasConversaciones(data.eventos || []).filter(c => c.id !== CONV_GENERAL && !convs.some(x => x.id === c.id));
+  const abrirConsulta = async () => {
+    const c = ajenas.find(x => x.id === pide.conversacion);
+    const r = pedirConsulta({ conversacion: c, motivo: pide.motivo, persona: yo, otorgados });
+    if (!r.ok) { setPide(x => ({ ...x, dice: r.dice })); return; }
+    const b = await consultarConversacion(r.conversacion, r.motivo);
+    if (!b.ok) { setPide(x => ({ ...x, dice: b.mensaje })); return; }
+    setConsultas(await consultasDeConversacion());
+    setPide({ conversacion: "", motivo: "", dice: "La consulta quedó anotada. La conversación se baja a este aparato en la siguiente sincronización y se cierra sola en 24 horas." });
+  };
+  const traerEvidencia = async (h, ids) => {
+    const r = await verEvidencia(ids, `Consulta del origen de: ${h.interpretado.que}`.slice(0, 200));
+    setEvidencia(e => ({ ...e, [h.id]: r.ok ? { mensajes: r.mensajes } : { dice: r.mensaje } }));
+  };
   const conv = convs.find(c => c.id === convId) || null;
   const visibles = new Set(convs.map(c => c.id));
   const mensajes = conv ? mensajesDe(todos, conv.id) : todos.filter(m => visibles.has(m?.conversacion || CONV_GENERAL));
@@ -3466,6 +3501,7 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
     ...(data.agronomos || []).map(x => ({ tipo: "persona", id: x.id, nombre: x.nombre, rol: "agronomo" })),
     ...todos.filter(m => m?.de?.id && ROLES_CON_MENSAJES.includes(m.de.rol)).map(m => ({ tipo: "persona", id: m.de.id, nombre: m.de.nombre, rol: m.de.rol })),
     ...convs.flatMap(c => c.miembros.filter(m => m.tipo === "persona")),
+    ...cuentas.filter(c => ROLES_CON_MENSAJES.includes(c.rol)).map(c => ({ tipo: "persona", id: c.id, nombre: c.nombre, rol: c.rol })),
   ].filter((x, i, a) => x.id !== yo.id && x.nombre && a.findIndex(y => y.id === x.id) === i);
   const abrirNueva = () => {
     const r = crearConversacion({ clase: nueva.clase, nombre: nueva.nombre, miembros: Object.values(nueva.miembros), quien: yo, cuando: new Date().toISOString(), fecha: today() });
@@ -3532,6 +3568,7 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
   const mandar = async () => {
     if (!texto.trim() && !foto && !audio && !doc) { alert("Escribe algo, o manda una foto, un audio o un documento."); return; }
     if (!puedoEscribir) { alert("No participas en esta conversación."); return; }
+    if ((foto || doc) && !admiteArchivos(conv)) { alert("Por ahora las fotos y los documentos sólo se mandan en la conversación general: en las demás se activan cuando los archivos tengan su candado en la base. El texto y el audio sí."); return; }
     setMandando(true);
     try {
       let adjunto = null;
@@ -3625,8 +3662,11 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
     if (!r.ok) { alert(r.dice); return; }
     const firmada = hecho ? { ...r.propuesta, quedoEn: hecho.dice, ...(hecho.aviso ? { avisoAlGuardar: hecho.aviso } : {}) } : r.propuesta;
     const nuevas = (mensaje.propuestas || []).map(x => (x.id === propuesta.id ? { ...firmada, destino: x.destino } : x));
-    const actualizado = { ...mensaje, propuestas: nuevas };
+    // Lo confirmado vuelve EVIDENCIA a los mensajes que lo sustentan (el original y sus aclaraciones).
+    const sensible = !!hecho && !!OPERACIONES_DICHAS[hecho.tipo || propuesta.tipo]?.dinero;
+    const actualizado = hecho ? comoEvidencia({ ...mensaje, propuestas: nuevas }, { sensible }) : { ...mensaje, propuestas: nuevas };
     upd("chat", { ...actualizado, estado: estadoParaLaTabla(actualizado) });
+    if (hecho) for (const a of todos.filter(x => x.aclaraA?.mensaje === mensaje.id && x.aclaraA?.propuesta === propuesta.id && !x.esEvidencia)) upd("chat", comoEvidencia(a, { sensible }));
     setNoSePudo(null);
 
     // Al confirmar es cuando el movimiento entra de verdad al sistema.
@@ -3712,22 +3752,98 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
           <div className="modal-sheet msj-reglas">
             <div className="card-title">Cómo funcionan estos mensajes</div>
             {REGLAS_DE_MENSAJES.map((r, i) => <div key={i} className="text-sm" style={{ padding: "5px 0", borderBottom: "1px solid var(--border)" }}>{r}</div>)}
-            <div className="text-xs text-muted" style={{ marginTop: 8 }}>El personal de campo todavía no tiene mensajería propia. WhatsApp no está conectado.</div>
+            <div className="text-xs text-muted" style={{ marginTop: 8 }}>Estas reglas las hace cumplir la base de datos, no sólo la pantalla. El personal de campo todavía no tiene mensajería propia. Las fotos y documentos, por ahora, sólo en la conversación general.</div>
             <button className="btn btn-accent" style={{ marginTop: 12 }} onClick={() => setVerReglas(false)}>Entendido</button>
           </div>
         </div>
       )}
 
       {!conv && !nueva && (
+        <div className="tabs-row">
+          {[["conversaciones", `Conversaciones${convs.reduce((n, c) => n + c.sinLeer, 0) ? ` (${convs.reduce((n, c) => n + c.sinLeer, 0)})` : ""}`], ["memoria", "Memoria"], ["consulta", "Consultas"]].map(([v, lb]) => (
+            <button key={v} className={`tab-pill${vista === v ? " active" : ""}`} onClick={() => { setVista(v); setRastro(null); }}>{lb}</button>
+          ))}
+        </div>
+      )}
+
+      {!conv && !nueva && vista === "memoria" && (
+        <div className="section-pad msj-memoria">
+          <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Lo que AgroGestión ha entendido de las conversaciones de trabajo y de lo ya registrado. De cada cosa se puede preguntar de dónde salió.</div>
+          <input className="inp" aria-label="Buscar en la memoria" placeholder="Buscar: maleza, clavos, un nombre…" value={filtro.texto} onChange={e => setFiltro(f => ({ ...f, texto: e.target.value }))} style={{ marginBottom: 6 }} />
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            <select className="inp" aria-label="Parcela" value={filtro.parcelaId} onChange={e => setFiltro(f => ({ ...f, parcelaId: e.target.value }))}>
+              <option value="">Todas las parcelas</option>
+              {(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            </select>
+            <select className="inp" aria-label="Tema" value={filtro.tema} onChange={e => setFiltro(f => ({ ...f, tema: e.target.value }))}>
+              <option value="">Todos los temas</option>
+              {temasDe(hallazgos).map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          {encontrados.length === 0 && <div className="text-xs text-muted">No hay nada con eso todavía.</div>}
+          {encontrados.slice(0, 60).map(h => { const r = rastro === h.id ? deDondeSalio(h) : null; const ev = evidencia[h.id]; return (
+            <div key={h.id} className="card msj-hallazgo" style={{ padding: 12 }}>
+              <div className="flex-b"><div className="text-sm font-bold">{h.tema}</div><span className={`badge${h.estado === "registrado" ? " badge-green" : h.estado === "interpretado" ? " badge-gold" : ""}`}>{h.estado}</span></div>
+              <div className="text-sm" style={{ margin: "4px 0" }}>{h.interpretado.que}</div>
+              <div className="text-xs text-muted">{h.dicho[0].quien || "Alguien"}{h.cuando ? ` · ${String(h.cuando).slice(0, 10)}` : ""}{h.parcelaId ? ` · ${(data.parcelas || []).find(p => p.id === h.parcelaId)?.nombre || ""}` : ""}</div>
+              <button className="btn btn-outline btn-sm mt-2" onClick={() => setRastro(rastro === h.id ? null : h.id)}>{rastro === h.id ? "Cerrar" : "¿De dónde salió?"}</button>
+              {r && (
+                <div className="msj-rastro" style={{ marginTop: 8 }}>
+                  <div className="text-xs" style={{ fontWeight: 800 }}>1 · Lo que se dijo</div>
+                  {r.dicho.map((d, k) => <div key={k} className="text-xs" style={{ padding: "2px 0" }}>{d.linea}{d.adjuntos?.length ? ` [${d.adjuntos.join(", ")}]` : ""}{!d.disponible ? " — es la frase que quedó en el registro; el mensaje completo es evidencia." : ""}</div>)}
+                  <div className="text-xs" style={{ fontWeight: 800, marginTop: 6 }}>2 · Lo que AgroGestión interpretó</div>
+                  {r.interpretado.map((x, k) => <div key={k} className="text-xs" style={{ padding: "2px 0" }}>{x}</div>)}
+                  <div className="text-xs" style={{ fontWeight: 800, marginTop: 6 }}>3 · Lo que una persona confirmó</div>
+                  <div className="text-xs">{r.confirmado}</div>
+                  <div className="text-xs" style={{ fontWeight: 800, marginTop: 6 }}>4 · Lo que quedó registrado</div>
+                  <div className="text-xs">{r.registrado}</div>
+                  {r.evidenciaFuera.length > 0 && !ev && (otorgados.includes(PERMISO_EVIDENCIA)
+                    ? <button className="btn btn-outline btn-sm mt-2" onClick={() => traerEvidencia(h, r.evidenciaFuera)}>Ver los mensajes de evidencia (queda anotado)</button>
+                    : <div className="text-xs text-muted mt-2">Los mensajes completos son de una conversación en la que no participas. Verlos pide el permiso de evidencia.</div>)}
+                  {ev?.dice && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>{ev.dice}</div>}
+                  {ev?.mensajes && (ev.mensajes.length === 0 ? <div className="text-xs text-muted mt-2">No hay evidencia que puedas ver de esto.</div> : ev.mensajes.map(m => <div key={m.id} className="text-xs" style={{ padding: "3px 0" }}>📌 {m.de?.nombre || m.deQuien}: «{m.texto}»</div>))}
+                </div>
+              )}
+            </div>
+          ); })}
+        </div>
+      )}
+
+      {!conv && !nueva && vista === "consulta" && (
+        <div className="section-pad msj-consulta">
+          <div className="card" style={{ padding: 12 }}>
+            <div className="card-title">Consulta excepcional de una conversación</div>
+            <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Para abrir una conversación en la que no participas hace falta el permiso de supervisión otorgado a tu cuenta, decir el motivo, y dura 24 horas en sólo lectura. Queda anotado y todos pueden verlo aquí abajo.</div>
+            {!otorgados.includes(PERMISO_SUPERVISION) ? <div className="text-xs" style={{ color: "var(--gold)" }}>Tu cuenta no tiene ese permiso. Ser administrador no lo da: lo otorga un superadministrador en Arranque → Cuentas, y queda registrado quién lo dio.</div> : <>
+              <select className="inp" aria-label="Conversación a consultar" value={pide.conversacion} onChange={e => setPide(x => ({ ...x, conversacion: e.target.value, dice: "" }))} style={{ marginBottom: 6 }}>
+                <option value="">Escoge la conversación…</option>
+                {ajenas.map(c => <option key={c.id} value={c.id}>{c.clase === "directa" ? c.miembros.map(nombreDeMiembro).join(" y ") : c.nombre}</option>)}
+              </select>
+              <input className="inp" aria-label="Motivo de la consulta" placeholder="Motivo (obligatorio, lo verán los demás)" value={pide.motivo} onChange={e => setPide(x => ({ ...x, motivo: e.target.value, dice: "" }))} style={{ marginBottom: 6 }} />
+              <button className="btn btn-accent btn-sm" onClick={abrirConsulta}>Abrir por 24 horas</button>
+            </>}
+            {pide.dice && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 6 }}>{pide.dice}</div>}
+          </div>
+          <div className="card" style={{ padding: 12 }}>
+            <div className="card-title">Consultas que se han hecho</div>
+            {consultas.length === 0 && <div className="text-xs text-muted">Nadie ha abierto una conversación ajena.</div>}
+            {consultas.map((c, k) => { const cv = todasLasConversaciones(data.eventos || []).find(x => x.id === c.conversacion); const quien = cuentas.find(x => x.id === c.usuario); return (
+              <div key={k} className="text-xs" style={{ padding: "5px 0", borderBottom: "1px solid var(--border)" }}>{quien?.nombre || "Una cuenta"} abrió «{cv ? (cv.clase === "directa" ? cv.miembros.map(nombreDeMiembro).join(" y ") : cv.nombre) : c.conversacion}» el {String(c.desde).slice(0, 10)}. Motivo: {c.motivo}</div>
+            ); })}
+          </div>
+        </div>
+      )}
+
+      {!conv && !nueva && vista === "conversaciones" && (
         <div className="section-pad msj-lista">
           <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Mensajes de trabajo del rancho. AgroGestión los lee para proponer registros; nada se registra solo.</div>
           {convs.map(c => (
             <button key={c.id} className="card msj-conv" style={{ padding: 12, width: "100%", textAlign: "left", display: "block" }} onClick={() => { setConvId(c.id); setTab("hilo"); }}>
               <div className="flex-b">
                 <div className="text-sm font-bold">{c.titulo}</div>
-                {c.porConfirmar > 0 && <span className="badge badge-gold">{c.porConfirmar} por confirmar</span>}
+                <span>{c.sinLeer > 0 && <span className="badge badge-green msj-nuevos" style={{ marginRight: 4 }}>{c.sinLeer} sin leer</span>}{c.porConfirmar > 0 && <span className="badge badge-gold">{c.porConfirmar} por confirmar</span>}</span>
               </div>
-              <div className="text-xs text-muted">{c.clase === "directa" ? "Directa" : c.clase === "general" ? "Todos los que tienen mensajería" : c.miembros.map(nombreDeMiembro).join(", ")}{c.comoAdministracion ? " · la ves como administración" : ""}</div>
+              <div className="text-xs text-muted">{c.clase === "directa" ? "Directa" : c.clase === "general" ? "Todos los que tienen mensajería" : c.miembros.map(nombreDeMiembro).join(", ")}{c.porConsulta ? " · abierta por consulta excepcional (sólo lectura)" : ""}</div>
               {c.ultimo && <div className="text-xs" style={{ marginTop: 4 }}>{c.ultimo.de ? `${c.ultimo.de}: ` : ""}{c.ultimo.texto}</div>}
             </button>
           ))}
@@ -3771,7 +3887,7 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
       {conv && tab === "hilo" && (
         <div className="section-pad">
           <div className="text-xs text-muted msj-aviso" style={{ marginBottom: 8 }}>
-            Conversación de trabajo{conv.clase !== "general" ? ` · ${conv.miembros.map(nombreDeMiembro).join(", ")}` : ""}. AgroGestión la lee para proponer registros.{conv.comoAdministracion ? " La ves como administración: no participas en ella." : ""}
+            Conversación de trabajo{conv.clase !== "general" ? ` · ${conv.miembros.map(nombreDeMiembro).join(", ")}` : ""}. Conversación institucional: AgroGestión la lee para proponer registros.{conv.porConsulta ? " La abriste por consulta excepcional: sólo lectura, y quedó anotado." : ""}
           </div>
           {/* ── Escribir ── */}
           {puedoEscribir && <div className="card ab">
@@ -8206,7 +8322,8 @@ function ArranqueLimpio({ data, add, upd, setInv, session, onClose }) {
               <div className="card-title">Cuentas</div>
               <div className="text-xs text-muted mb-2">Cerrar la semana, determinar prestaciones, registrar pagos, decidir cómo se paga un día y cambiar reglas son permisos aparte: se dan cuenta por cuenta. Tener perfil de encargado no da ninguno, y un teléfono ligado a la cuenta de un encargado tampoco los hereda. La base los comprueba cada vez que recibe una de esas operaciones.</div>
               {perfiles.map(p => <div key={p.id} className="text-sm" style={{ padding: "6px 0", borderBottom: "1px solid var(--border)" }}><b>{p.nombre}</b> · {p.rol}
-                {p.rol === "superadmin" ? <div className="text-xs text-muted">Puede todas las operaciones.</div> : Object.entries(OPERACIONES).map(([op, texto]) => { const tiene = permisosOp.find(x => x.usuario === p.id && x.operacion === op && !x.revocado); return (
+                {p.rol === "superadmin" && <div className="text-xs text-muted">Puede todas las operaciones, menos las dos de mensajería, que se otorgan aparte:</div>}
+                {Object.entries(OPERACIONES).filter(([op]) => p.rol !== "superadmin" || SOLO_OTORGADOS.includes(op)).map(([op, texto]) => { const tiene = permisosOp.find(x => x.usuario === p.id && x.operacion === op && !x.revocado); return (
                   <label key={op} className="text-xs" style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
                     <input type="checkbox" aria-label={`${p.nombre}: ${texto}`} checked={!!tiene} onChange={async e => { const r = await cambiarPermiso(p.id, op, e.target.checked); if (!r.ok) setMsg({ tipo: "err", txt: `No se pudo cambiar el permiso (${r.mensaje}).` }); refrescar(); }} />
                     <span>{texto}{tiene ? <span className="text-muted"> · desde el {fechaLocal(new Date(tiene.otorgado))}, lo dio {perfiles.find(x => x.id === tiene.otorgado_por)?.nombre || "un administrador"}</span> : null}</span>
