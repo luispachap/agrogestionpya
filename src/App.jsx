@@ -104,6 +104,7 @@ import {
 // El día: el clima de copiloto, el reparto de tareas y lo que se va a acabar.
 import { traerPronostico, planDelDia, alertasDelClima, riegoNecesario, describirEdad } from "./clima.js";
 import { destinoDe as destinoDeAviso, estadoDelAparato, CLASES_DE_AVISO } from "./avisos.js";
+import { esNativo, prepararNativo, avisarNativo, alTocarAviso, vigilarMensajes, CANALES as CANALES_NATIVOS } from "./nativo.js";
 import { activarAvisos, desactivarAvisos, avisoDePrueba, misPreferenciasDeAvisos, guardarPreferenciasDeAvisos, quitarAvisosDe, suscripcionDeEsteAparato } from "./avisosRed.js";
 import { misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro, hallazgosDe, antecedentes, temasDe, deDondeSalio, comoEvidencia, admiteArchivos, carpetaDe, pedirConsulta, conversacionesDe as todasLasConversaciones, PERMISO_EVIDENCIA, PERMISO_SUPERVISION } from "./mensajeria.js";
 import { planDelDia as planMandadoDe, loQueLeToca, quitarAsignacion, cambiarAsignacion } from "./asignaciones.js";
@@ -3863,6 +3864,12 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
                       <button className="btn btn-outline btn-sm" onClick={async () => { const r = await desactivarAvisos(); setAvisos(a => ({ ...a, activo: !r.ok, dice: r.dice || "" })); }}>Apagarlos aquí</button>
                     </>}
                 </div>
+                {esNativo() && <div style={{ marginTop: 8 }}>
+                  <div className="text-xs text-muted" style={{ marginBottom: 4 }}>App Android (prototipo): cada clase de aviso tiene su tono. Pruébalos:</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {CANALES_NATIVOS.map(c => <button key={c.id} className="btn btn-outline btn-sm" onClick={() => avisarNativo({ clase: c.clases[0], titulo: `Prueba de ${c.name.toLowerCase()}`, cuerpo: "Así suena este aviso en AgroGestión.", url: "/?ir=chat" })}>{c.name}</button>)}
+                  </div>
+                </div>}
                 {avisos.dice && <div className="text-xs" style={{ marginTop: 6 }}>{avisos.dice}</div>}
                 <div className="text-xs text-muted" style={{ margin: "8px 0 4px" }}>Qué quiero que me avise (vale para todos mis aparatos). El aviso no enseña el texto del mensaje ni importes.</div>
                 {CLASES_DE_AVISO.map(c => (
@@ -7188,6 +7195,14 @@ function AppInner() {
     pendiente(); document.addEventListener("visibilitychange", alVolver); window.addEventListener("focus", alVolver);
     return () => { navigator.serviceWorker?.removeEventListener?.("message", oir); document.removeEventListener("visibilitychange", alVolver); window.removeEventListener("focus", alVolver); };
   }, [setPage]);
+  // PROTOTIPO Android: canales con tono propio, mensajes nuevos mientras la app vive, y abrir al tocar.
+  useEffect(() => {
+    if (!esNativo() || !session) return;
+    prepararNativo();
+    const soltar = alTocarAviso((url) => { const d = destinoDeAviso(new URL(url, window.location.origin).href); if (d) { setDesdeAviso({ ...d, n: Date.now() }); setPage(d.pagina); } });
+    const parar = vigilarMensajes({ yo: session.id, leer: async (desde) => (await supabase.from("chat").select("id,datos,actualizado,borrado").gt("actualizado", desde).order("actualizado").limit(20)).data });
+    return () => { soltar(); parar(); };
+  }, [session, setPage]);
   // Sólo en desarrollo: las pruebas leen aquí lo calculado para cruzar una pantalla contra otra.
   useEffect(() => { if (import.meta.env.DEV) window.__agroDatos = data; }, [data]);
 
