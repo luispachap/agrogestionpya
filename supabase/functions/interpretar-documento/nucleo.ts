@@ -96,15 +96,17 @@ const ESQUEMA_HOJA = {
 async function preguntar(llave: string, cuerpo: Record<string, unknown>, esquema: unknown) {
   const cab = { "x-api-key": llave, "anthropic-version": "2023-06-01", "content-type": "application/json" };
   let r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: cab, body: JSON.stringify({ ...cuerpo, output_config: { format: { type: "json_schema", schema: esquema } } }) });
+  let formato = "estructurado", rechazo = "";
   if (r.status === 400) {
     const t = await r.text();
     if (/output_config|json_schema|format|schema/i.test(t)) {
       const sistema = `${cuerpo.system}\n\nEl JSON debe cumplir exactamente este esquema (JSON Schema), sin texto antes ni después:\n${JSON.stringify(esquema)}`;
+      formato = "con_palabras"; rechazo = t.slice(0, 300);
       r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: cab, body: JSON.stringify({ ...cuerpo, system: sistema }) });
     } else return { ok: false as const, estado: 400, dice: t.slice(0, 300) };
   }
   if (!r.ok) return { ok: false as const, estado: r.status, dice: (await r.text()).slice(0, 300) };
-  return { ok: true as const, datos: await r.json() };
+  return { ok: true as const, datos: await r.json(), formato, rechazo };
 }
 const sacarJson = (texto: string) => { const a = texto.indexOf("{"), b = texto.lastIndexOf("}"); if (a < 0 || b <= a) throw new Error("sin JSON"); return JSON.parse(texto.slice(a, b + 1)); };
 
@@ -158,7 +160,7 @@ export async function interpretar(c: Pedido, cuenta: string | null): Promise<Sal
       await cerrar(null, null, null, null, true);
       const sinSaldo = r.estado === 400 && /credit balance/i.test(r.dice), malaLlave = r.estado === 401 || r.estado === 403;
       return responder({ error: sinSaldo ? "sin_saldo" : malaLlave ? "llave_invalida" : "fallo_la_lectura",
-        dice: sinSaldo ? "La cuenta de la IA se quedó sin saldo. El documento queda guardado." : malaLlave ? "La llave de la IA que está en el servidor no es válida. Hay que volver a ponerla." : `No se pudo leer con IA (${r.estado}). El documento queda guardado y se puede reintentar.` }, 502);
+        dice: sinSaldo ? "La cuenta de la IA se quedó sin saldo. El documento queda guardado." : malaLlave ? "La llave de la IA que está en el servidor no es válida. Hay que volver a ponerla." : `No se pudo leer con IA (${r.estado}). El documento queda guardado y se puede reintentar.`, detalle: r.dice }, 502);
     }
     const d = r.datos, entrada = Number(d.usage?.input_tokens ?? 0) + Number(d.usage?.cache_creation_input_tokens ?? 0) + Number(d.usage?.cache_read_input_tokens ?? 0), salida = Number(d.usage?.output_tokens ?? 0);
     const micro = Math.ceil(entrada * m.entrada + salida * m.salida);
@@ -172,7 +174,7 @@ export async function interpretar(c: Pedido, cuenta: string | null): Promise<Sal
     }
     const cortada = d.stop_reason === "max_tokens";
     await cerrar(entrada, salida, micro, lectura, false);
-    return responder({ ok: true, modo, lectura, cortada, uso: { modelo: m.modelo, nivel, entrada, salida, microusd: micro } });
+    return responder({ ok: true, modo, lectura, cortada, uso: { modelo: m.modelo, modeloQueContesto: d.model ?? null, formato: r.formato, ...(r.rechazo ? { rechazoDelFormato: r.rechazo } : {}), nivel, entrada, salida, microusd: micro } });
   } catch (e) {
     await cerrar(null, null, null, null, true);
     return responder({ error: "fallo_la_lectura", dice: `No se pudo leer con IA (${e instanceof Error ? e.message : String(e)}). El documento queda guardado y se puede reintentar.` }, 502);
