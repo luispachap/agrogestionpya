@@ -301,6 +301,15 @@ Todo junto: `sh pruebas/todo.sh`.
 1. Vercel: quitar `app.agroselectos.com` del proyecto viejo `vitejs-vite-3ymxjehp` (Settings → Domains → Remove) para poder darlo de alta como dominio propio de `agrogestion-operacion`. Mientras tanto el dominio se apunta a mano a cada publicación.
 2. Supabase → Authentication → URL Configuration: poner `https://app.agroselectos.com` como Site URL y dejar `https://agrogestion-operacion.vercel.app` en Redirect URLs, para que el correo de confirmación regrese al dominio definitivo.
 
+**Rayas con claves (20 nov, noche):** catálogo de claves que se llena solo (`src/claves.js`): A + número =
+actividad; Bod y SF1–SF4 = ubicación (dicho por Luis). Ninguna actividad tiene significado todavía: se preguntan
+conforme salen. Una raya entra siempre al histórico (quién · día · actividad · ubicación), con el código original;
+no crea pagos ni actividades. Probado con pruebas automáticas (personas inventadas) y con UNA lectura real de la
+foto de la libreta del domingo que mandó Luis: 24 de 24 renglones, claves copiadas tal cual («SF4» lo leyó «5f4»: la
+app ya lo toma como SF4), 3 «falta», el mes de la fecha no se alcanzó a leer (lo pone una persona) y la columna de
+marcas no se tomó por dinero. Costo: 0.0027 USD la hoja. **Sin validar:** que Luis o Migue lo hagan desde la app con
+sus fotos originales, y el significado de cada clave A (nadie lo ha contestado).
+
 **Lectura con IA en la importación (20 nov, noche) — comprobada con la API real, con documentos ficticios:**
 ticket en foto con el nivel económico (Haiku 5.5): todos los datos correctos, 0.0008 USD; el mismo ticket otra
 vez: salió de la memoria, 0 USD; hoja de raya desordenada: reconoció las columnas, 0.0005 USD; el ticket con el

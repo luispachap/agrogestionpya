@@ -11,7 +11,7 @@ const aprende = (eventos, clave, clase, significado) => { const r = aprenderClav
 test("la_misma_clave_escrita_a_mano_de_tres_formas_es_una_sola_y_no_pierde_como_venia", () => {
   for (const escrita of ["A07", "Ao7", "a 07", "A7", "A O7"]) assert.equal(normalizarClave(escrita).clave, "A07", escrita);
   assert.equal(normalizarClave("Ao7").original, "Ao7");
-  assert.equal(normalizarClave("sf 4").clave, "SF4"); assert.equal(normalizarClave("Bod").clave, "BOD"); assert.equal(normalizarClave("Bod.").clave, "BOD");
+  assert.equal(normalizarClave("sf 4").clave, "SF4"); assert.equal(normalizarClave("5f4").clave, "SF4", "así la leyó la IA en la primera libreta real"); assert.equal(normalizarClave("5f4").original, "5f4"); assert.equal(normalizarClave("Bod").clave, "BOD"); assert.equal(normalizarClave("Bod.").clave, "BOD");
   assert.equal(normalizarClave("Alma").clave, "ALMA", "un nombre que empieza con A no es una clave de actividad");
   assert.equal(formaDe("ALMA"), null);
 });

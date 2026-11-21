@@ -27,11 +27,12 @@ const RAYA = (fecha) => ({ clase: 'raya', confianza: 'media', emisor: '', fecha,
   renglones: [R({ nombre: 'Chon Inventado', claves: 'A27 | Sf4' }), R({ nombre: 'Lupe Inventada', claves: 'Ao7 | Bod' }), R({ nombre: 'Beto Inventado', claves: 'A07 | Bod' }), R({ nombre: 'Rigo Inventado', claves: 'A16 | RASI' }), R({ nombre: 'Gus Inventado', observacion: 'falta' })] });
 window.__agroPresupuestoIA = () => ({ tope: window.__ia.tope, gastado: window.__ia.gastado, apartado: 0, lecturas: window.__ia.lecturas });
 window.__agroIA = (p) => { window.__ia.pedidos.push(p.nombre); window.__ia.gastado += 900; window.__ia.lecturas++;
-  return { ok: true, modo: 'documento', uso: { modelo: 'claude-haiku-5-5', nivel: p.nivel, entrada: 2700, salida: 1300, microusd: 900 }, lectura: RAYA(/lunes/.test(p.nombre) ? '2024-10-07' : '2024-10-06') }; };
+  return { ok: true, modo: 'documento', uso: { modelo: 'claude-haiku-5-5', nivel: p.nivel, entrada: 2700, salida: 1300, microusd: 900 }, lectura: RAYA(/sindia/.test(p.nombre) ? '' : /lunes/.test(p.nombre) ? '2024-10-07' : '2024-10-06') }; };
 """
 d = pathlib.Path(tempfile.mkdtemp())
 Image.new("RGB", (900, 1200), (150, 200, 170)).save(d / "domingo.jpg", quality=70)
 Image.new("RGB", (900, 1200), (150, 190, 180)).save(d / "lunes.jpg", quality=70)
+Image.new("RGB", (900, 1200), (140, 180, 190)).save(d / "sindia.jpg", quality=70)
 
 with sync_playwright() as p:
     b = p.chromium.launch()
@@ -91,6 +92,19 @@ with sync_playwright() as p:
     caso("corregir guarda la nueva y deja a la vista la anterior", len(ev) == 2 and "A07 · Relimpia de ajo" in t and "antes decía: «Limpia de ajo»" in t, plano(t)[:600])
     lotes2 = de(pg, "historico_lote")
     caso("corregir no toca lo ya importado: el histórico conserva el código y se lee con el significado vigente", len(lotes2) == 1 and lotes2[0]["datos"]["renglones"] == r)
+    # ── Una libreta sin día legible: lo dice una persona; y si resulta ser un día ya importado, no se duplica ──
+    tab(pg, "Bandeja"); pg.get_by_label("Escoger archivos para importar").set_input_files([str(d / "sindia.jpg")])
+    pg.wait_for_function("() => !document.body.innerText.includes('Leyendo ')", timeout=60000); pg.wait_for_timeout(800)
+    pg.get_by_label("Abrir sindia.jpg").click(); pg.wait_for_timeout(400)
+    pg.get_by_role("button", name="Leer con IA (hasta").click(); pg.wait_for_timeout(1500)
+    m = pg.locator(".modal-sheet").inner_text()
+    caso("si el día no se leyó, se pregunta; no se supone", "¿De qué día es esta raya?" in m and "sin día" in m, plano(m)[:400])
+    pg.get_by_label("Día de esta raya").fill("2024-10-08"); pg.get_by_role("button", name="Poner ese día a los renglones").click(); pg.wait_for_timeout(500)
+    m = pg.locator(".modal-sheet").inner_text()
+    caso("con el día dicho, los renglones lo llevan y deja de preguntarse", "¿De qué día es esta raya?" not in m and "2024-10-08" in m, plano(m)[:300])
+    pg.get_by_role("button", name="Marcar todos").click(); pg.get_by_role("button", name="Incorporar lo marcado").click(); pg.wait_for_timeout(700)
+    l3 = de(pg, "historico_lote"); r3 = l3[-1]["datos"]["renglones"] if len(l3) == 2 else []
+    caso("queda en el histórico con ese día y la marca de que lo dijo una persona", len(r3) == 5 and all(x["fecha"] == "2024-10-08" and x.get("fechaDicha") for x in r3), r3[:1])
     caso("ninguna pantalla tronó", not g["trono"](pg) and not errs, errs[:2])
     b.close()
 print(f"\n{sum(res)}/{len(res)} pasan"); sys.exit(0 if all(res) else 1)

@@ -1,7 +1,7 @@
 // Una raya con claves, de punta a punta: de la hoja (o de lo que leyó la IA) a la propuesta histórica.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { proponer, confirmarIncorporacion, historicoDe, entenderHoja, eventoDeAprendizaje } from "./importacion.js";
+import { proponer, confirmarIncorporacion, historicoDe, entenderHoja, eventoDeAprendizaje, fecharRaya, refrescar } from "./importacion.js";
 import { hojasDeLectura, resultadoConIA } from "./interpretacion.js";
 import { catalogoDeClaves, aprenderClave, relacionDeRenglon, clavesPorPreguntar } from "./claves.js";
 
@@ -72,6 +72,21 @@ test("una_raya_sin_dia_entra_sin_fecha_y_no_se_le_supone", () => {
   const r = proponer(doc(hojasDeLectura({ ...LECTURA, fecha: "" })), {});
   assert.ok(r.propuestas.every(p => p.datos.fecha === null)); assert.match(r.excepciones.join(" "), /sin día/);
   assert.equal(new Set(r.propuestas.map(p => p.llave)).size, r.propuestas.length, "sin fecha, cada renglón sigue siendo distinto");
+});
+
+// En la primera libreta real la IA no alcanzó a leer el mes: el día lo dice una persona.
+test("el_dia_que_no_se_leyo_lo_dice_una_persona_y_ya_no_se_duplica_con_otra_foto_del_mismo_dia", () => {
+  const sinDia = proponer(doc(hojasDeLectura({ ...LECTURA, fecha: "" })), {});
+  assert.equal(fecharRaya(sinDia, "").ok, false);
+  const f = fecharRaya(sinDia, "06/10/2024"); assert.equal(f.ok, true); assert.equal(f.puestos, 5);
+  assert.ok(f.resultado.propuestas.every(p => p.datos.fecha === "2024-10-06" && p.datos.mes === "2024-10" && p.datos.fechaDicha === true));
+  assert.ok(!f.resultado.excepciones.some(e => /sin día/.test(e))); assert.deepEqual(f.resultado.periodo, { desde: "2024-10-06", hasta: "2024-10-06" });
+  // Con el día puesto, las llaves son las mismas que las de una foto que sí lo traía: lo ya incorporado no entra otra vez.
+  const conDia = proponer({ ...doc(hojasDeLectura(LECTURA)), id: "doc-9", huella: "m".repeat(64) }, {});
+  assert.deepEqual(f.resultado.propuestas.map(p => p.llave).sort(), conDia.propuestas.map(p => p.llave).sort());
+  const c = confirmarIncorporacion({ doc: { id: "doc-9", nombre: "otra.jpg", estado: "propuesto" }, resultado: conDia, ...sello("05"), azar: 0.4 });
+  assert.equal(refrescar(f.resultado, { historico: historicoDe(c.eventos) }).propuestas.filter(p => p.accion !== "duplicado").length, 0);
+  assert.equal(fecharRaya(conDia, "07/10/2024").ok, false, "a lo que ya traía su día no se le cambia");
 });
 
 test("lo_que_lee_la_ia_de_una_raya_llega_como_propuesta_por_revisar_no_como_hecho", () => {

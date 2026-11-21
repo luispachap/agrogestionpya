@@ -48,7 +48,7 @@ import { T_BONO, CLASES_DE_BONO, TRATAMIENTOS_DE_BONO, NOMBRE_DE_ESTADO as ESTAD
 import { ESTADOS as ESTADOS_DOC, CLASES as CLASES_DOC, CAMPOS_DE, NOMBRE_DE_CAMPO, esBasura, proponer, refrescar, recibirDocumento, anotarLectura, confirmarIncorporacion, descartarDocumento, eventoDeAprendizaje, bandejaDe, historicoDe, aprendidosDe, resumenDeBandeja, resumenDelHistorico } from "./importacion.js";
 import { abrirArchivo, originalDe, guardarPropuesta, leerPropuesta, olvidarPropuesta, imagenParaIA, paginasParaIA, pedirInterpretacion, leerPresupuestoIA } from "./importador.js";
 import { NIVELES as NIVELES_IA, necesitaIA, pedidoDeHoja, pedidoDeTexto, resultadoConIA, metricasDeIA, costoMaximo, enDolares, estadoDelPresupuesto, NOMBRE_DE_RESULTADO } from "./interpretacion.js";
-import { entenderHoja } from "./importacion.js";
+import { entenderHoja, fecharRaya } from "./importacion.js";
 import { CLASES_DE_CLAVE, catalogoDeClaves, listaDeClaves, aprenderClave, relacionDeRenglon, decirRelacion, clavesPorPreguntar, usoDeClaves } from "./claves.js";
 import { resultadoDelRancho, flujoDeEfectivo, NOMBRE_DE_FLUJO, DESTINOS_DE_INSUMO, insumosPorClasificar } from "./resultado.js";
 // El resultado y el flujo del rancho: TODAS las pantallas los sacan de aquí, para que digan lo mismo.
@@ -5830,6 +5830,12 @@ function ImportarDocumentos({ data, add, session, onClose }) {
               <div className="acc-row" style={{ marginTop: 8 }}><button onClick={ensenar}>Guardar y volver a leer</button><button onClick={() => { setEnsena(null); setDice(""); }}>Cancelar</button></div>
             </> : <div className="acc-row" style={{ marginTop: 6 }}><button onClick={() => { setEnsena({ hoja: { ...h, encabezadosVistos: h.primeraFila || [] }, clase: "", mapa: {} }); setDice(""); }}>Decir qué es</button></div>}
           </div>)}
+          {abierto.resultado.propuestas.some(p => p.datos.clase === "raya" && !p.datos.fecha) && <div className="card" style={{ borderColor: "var(--gold)" }}>
+            <div className="text-sm"><b>¿De qué día es esta raya?</b> No se alcanzó a leer en el papel. Si lo sabes, ponlo; si no, entra «sin fecha».</div>
+            <input className="inp" type="date" style={{ marginTop: 6 }} aria-label="Día de esta raya" value={abierto.dia || ""} onChange={e => setAbierto(a => ({ ...a, dia: e.target.value }))} />
+            <div className="acc-row" style={{ marginTop: 6 }}><button onClick={async () => { const f = fecharRaya(abierto.resultado, abierto.dia || ""); if (!f.ok) { setDice(f.dice); return; } setDice(""); const antes = abierto.resultado.propuestas; await guardarPropuesta(LLAVES.importacion, abierto.doc.id, f.resultado);
+              setAbierto(a => ({ ...a, resultado: f.resultado, marcadas: new Set(f.resultado.propuestas.filter((p, i) => p.accion !== "duplicado" && a.marcadas.has(antes[i].llave)).map(p => p.llave)) })); }}>Poner ese día a los renglones</button></div>
+          </div>}
           {(() => { const pend = clavesPorPreguntar(abierto.resultado.propuestas.filter(p => p.datos.clase === "raya" && p.accion !== "duplicado").map(p => ({ nombre: p.datos.contraparte, fecha: p.datos.fecha, claves: p.datos.claves || [] })), catalogo);
             return pend.length === 0 ? null : (<div className="card" style={{ borderColor: "var(--gold)" }}>
               <div className="text-sm"><b>Claves que falta decir qué son ({pend.length}).</b> Contesta las que sepas; las demás se pueden dejar para después: el renglón se guarda con su código.</div>

@@ -36,6 +36,8 @@ export function normalizarClave(texto) {
   // Clave de actividad: A + uno o dos dígitos (una «O» escrita a mano es un cero; una «I» o «L», un uno).
   const act = /^A([0-9OIL]{1,2})$/.exec(c);
   if (act) { const n = act[1].replace(/O/g, "0").replace(/[IL]/g, "1"); c = `A${n.padStart(2, "0")}`; }
+  // «SF4» a mano se lee fácil como «5f4»: no existe ninguna clave que empiece con 5F, así que es la misma.
+  if (/^5F[0-9OIL]$/.test(c)) c = `S${c.slice(1)}`;
   const sf = /^SF([0-9OIL])$/.exec(c);
   if (sf) c = `SF${sf[1].replace(/O/g, "0").replace(/[IL]/g, "1")}`;
   return { clave: c, original, ajustada: !!c && c !== sinAcentos(original).toUpperCase() };

@@ -479,6 +479,22 @@ export function proponer(doc, contexto = {}) {
     resumen: `${CLASES[clase]}${periodo ? ` · ${periodo.desde === periodo.hasta ? periodo.desde : `${periodo.desde} a ${periodo.hasta}`}` : ""}${partes.length ? ` · ${partes.join(" · ")}` : ""}` };
 }
 
+// Una libreta a veces no trae el día legible (o lo trae en el mensaje con que se mandó, no en la hoja). La persona lo
+// dice y se le pone a los renglones de raya que NO traían fecha; los que sí traían no se tocan. Queda dicho que la
+// fecha la puso una persona (`fechaDicha`), y las llaves se rehacen para que no se duplique con otra foto del mismo día.
+export function fecharRaya(resultado, fecha) {
+  const f = aFecha(fecha); if (!f) return { ok: false, dice: "Falta el día (por ejemplo 06/10/2024)." };
+  let n = 0; const usadas = new Set(resultado.propuestas.filter(p => !(p.datos.clase === "raya" && !p.datos.fecha)).map(p => p.llave));
+  const propuestas = resultado.propuestas.map(p => {
+    if (p.datos.clase !== "raya" || p.datos.fecha) return p;
+    const datos = { ...p.datos, fecha: f, mes: f.slice(0, 7), fechaDicha: true }, llave = llaveDe({ clase: "raya", fecha: f, nombre: datos.contraparte, claves: datos.claves, observacion: datos.observacion });
+    n++; if (usadas.has(llave)) return { ...p, datos, llave, accion: "duplicado", nota: "Viene repetido dentro del mismo documento." };
+    usadas.add(llave); return { ...p, datos, llave };
+  });
+  if (!n) return { ok: false, dice: "Todos los renglones ya traían su día." };
+  return { ok: true, puestos: n, resultado: { ...resultado, propuestas, periodo: periodoDe(propuestas.map(p => p.datos)), excepciones: (resultado.excepciones || []).filter(e => !/sin día|No se sabe de qué día/.test(e)) } };
+}
+
 // Entre que se leyó y que se confirma pueden pasar días, y otro documento pudo traer lo mismo. Antes de incorporar
 // se vuelve a comparar contra lo que YA hay: lo que mientras tanto se registró deja de proponerse.
 export function refrescar(resultado, { egresos = [], historico = [], trabajadores = [], encargados = [], proveedores = [] } = {}) {
