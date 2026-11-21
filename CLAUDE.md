@@ -389,7 +389,11 @@ Usuarios reales de la app:
   `metricasDeIA` (costo por documento; aceptado tal cual / con cambios /
   descartado; sin decididos no hay tasa). No se mandan CURP, NSS ni cuentas
   (`sinDatosSensibles`). `pruebas/funcion_ia.test.mjs` prueba la función con
-  base y API de mentira: **ninguna prueba gasta crédito**. Los precios están
+  base y API de mentira: **ninguna prueba gasta crédito**. La función va en dos
+  archivos: `index.ts` (quién llama) y `nucleo.ts` (todo lo que cuesta). Una
+  llave que no está ligada a un espacio de trabajo de la Consola necesita
+  además el secreto `ANTHROPIC_WORKSPACE_ID` (pasó en la primera llamada real,
+  20 nov: la API la rechazó sin cobrar → `falta_espacio_de_trabajo`). Los precios están
   en `MODELOS` (servidor) y `PRECIOS` (app): si cambian, se cambian en los dos.
 - **Un gasto de «insumos» no es siempre una compra para el almacén**
   (`claseDeInsumo`, `resultado.js`): `destinoInsumo` = inventario · produccion ·
