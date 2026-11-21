@@ -105,7 +105,7 @@ import {
 import { traerPronostico, planDelDia, alertasDelClima, riegoNecesario, describirEdad } from "./clima.js";
 import { destinoDe as destinoDeAviso, estadoDelAparato, CLASES_DE_AVISO } from "./avisos.js";
 import { activarAvisos, desactivarAvisos, avisoDePrueba, misPreferenciasDeAvisos, guardarPreferenciasDeAvisos, quitarAvisosDe, suscripcionDeEsteAparato } from "./avisosRed.js";
-import { misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro, hallazgosDe, antecedentes, temasDe, deDondeSalio, comoEvidencia, admiteArchivos, pedirConsulta, conversacionesDe as todasLasConversaciones, PERMISO_EVIDENCIA, PERMISO_SUPERVISION } from "./mensajeria.js";
+import { misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro, hallazgosDe, antecedentes, temasDe, deDondeSalio, comoEvidencia, admiteArchivos, carpetaDe, pedirConsulta, conversacionesDe as todasLasConversaciones, PERMISO_EVIDENCIA, PERMISO_SUPERVISION } from "./mensajeria.js";
 import { planDelDia as planMandadoDe, loQueLeToca, quitarAsignacion, cambiarAsignacion } from "./asignaciones.js";
 import { repartirElDia, aQueSeVaCadaQuien, quienNoTieneNada, chocanLasTareas, indicacionParaElTrabajador, comoVaElDia } from "./plan.js";
 import { loQueVaAFaltar } from "./prediccion.js";
@@ -148,7 +148,7 @@ import {
   papelesParecidos, avisoDeParecidos,
 } from "./lectura.js";
 // Las fotos y los PDF viven fuera de los registros (teléfono + almacén privado).
-import { sacarArchivos, esReferencia, estadoDeConsumo, lecturaYaHecha, sha256Hex, partirDataUrl } from "./archivos.js";
+import { sacarArchivos, esReferencia, estadoDeConsumo, lecturaYaHecha, sha256Hex, partirDataUrl, revisarArchivo } from "./archivos.js";
 import {
   abrirAlmacen, almacenListo, guardarEnTelefono, enlaceDeArchivo, contenidoDeArchivo,
   subirArchivosPendientes, archivosSinSubir,
@@ -3576,7 +3576,7 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
   const mandar = async () => {
     if (!texto.trim() && !foto && !audio && !doc) { alert("Escribe algo, o manda una foto, un audio o un documento."); return; }
     if (!puedoEscribir) { alert("No participas en esta conversación."); return; }
-    if ((foto || doc) && !admiteArchivos(conv)) { alert("Por ahora las fotos y los documentos sólo se mandan en la conversación general: en las demás se activan cuando los archivos tengan su candado en la base. El texto y el audio sí."); return; }
+    if (doc) { const pd = partirDataUrl(doc.dataUrl), rv = pd ? revisarArchivo({ tipo: pd.tipo, bytes: pd.bytes.length }) : { sube: false, dice: "No se pudo leer el documento." }; if (!rv.sube) { alert(`Ese documento no se puede compartir: ${rv.dice}`); return; } }
     setMandando(true);
     try {
       let adjunto = null;
@@ -3760,7 +3760,7 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
           <div className="modal-sheet msj-reglas">
             <div className="card-title">Cómo funcionan estos mensajes</div>
             {REGLAS_DE_MENSAJES.map((r, i) => <div key={i} className="text-sm" style={{ padding: "5px 0", borderBottom: "1px solid var(--border)" }}>{r}</div>)}
-            <div className="text-xs text-muted" style={{ marginTop: 8 }}>Estas reglas las hace cumplir la base de datos, no sólo la pantalla. El personal de campo todavía no tiene mensajería propia. Las fotos y documentos, por ahora, sólo en la conversación general.</div>
+            <div className="text-xs text-muted" style={{ marginTop: 8 }}>Estas reglas las hace cumplir la base de datos, no sólo la pantalla. El personal de campo todavía no tiene mensajería propia. Las fotos y documentos de una conversación sólo los pueden abrir sus participantes.</div>
             <button className="btn btn-accent" style={{ marginTop: 12 }} onClick={() => setVerReglas(false)}>Entendido</button>
           </div>
         </div>
@@ -7293,8 +7293,11 @@ function AppInner() {
   const apartarArchivos = useCallback((sec, item) => {
     if (sec === "archivos" || !almacenListo()) return item;
     let r;
-    try { r = sacarArchivos(item); } catch { return item; }
+    // Los adjuntos de una conversación cerrada van a su carpeta, y NO dejan ficha en la lista común de archivos.
+    const carpeta = sec === "chat" ? carpetaDe(item?.conversacion) : "";
+    try { r = sacarArchivos(item, { carpeta }); } catch { return item; }
     if (r.archivos.length === 0) return item;
+    if (carpeta) { r.archivos.forEach(a => guardarEnTelefono(a)); return r.registro; }
     const fichas = r.archivos.map(a => {
       guardarEnTelefono(a);
       return marcarTocado({ id: a.id, ruta: a.ruta, tipo: a.tipo, bytes: a.bytes, de: sec, cuando: new Date().toISOString() });

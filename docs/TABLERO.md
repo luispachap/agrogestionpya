@@ -422,3 +422,10 @@ excepcional y evidencia con permiso propio, motivo y bitácora). Pestaña «Memo
 leídos. **Probado:** 1,156 pruebas de cuenta, 95 contra la base aislada, navegador 23/23. **Falta antes del piloto:**
 avisos con la app cerrada, archivos con candado por conversación y dar de alta las cuentas. Dirección estratégica
 (Agroselectos = empresa, AgroGestión = sistema; mensajería interna como medio principal; WhatsApp opcional).
+
+**Bloqueadores del piloto de mensajería (21 nov, 9:30–10 h):**
+- **Archivos por conversación: cerrado** (hoja 48, instalada; 7 pruebas atacando la base aislada).
+- **Avisos al teléfono: construidos e instalados** (hoja 47 + función `avisar` desplegada; la base llama a la función
+  en producción y contesta bien). 8 pruebas de la función, 5 de la base, 4 del aparato. **Falta la prueba en un
+  Android real** (`AVISOS.md` §6): sin ella NO está validado.
+- Pendientes de avisos: resumen de la víspera, vencidos, observaciones agronómicas, quien entra con PIN.

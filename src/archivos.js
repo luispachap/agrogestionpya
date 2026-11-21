@@ -92,13 +92,15 @@ const esArchivoIncrustado = (v) =>
 // Devuelve el registro ya ligero y la lista de archivos que hay que guardar.
 // El mismo archivo dos veces en el registro (la foto del papel y la del egreso)
 // sale UNA vez. No modifica el registro original.
-export function sacarArchivos(registro) {
+// `carpeta`: los archivos de una conversación cerrada van en SU carpeta del almacén («c/<conversación>/»), que la
+// base sólo le abre a sus participantes. Sin carpeta, el archivo es un comprobante de siempre.
+export function sacarArchivos(registro, { carpeta = "" } = {}) {
   const archivos = new Map();
   const andar = (v, hondo) => {
     if (esArchivoIncrustado(v)) {
       const p = partirDataUrl(v);
       if (!p) return v;                       // no se pudo leer: se deja como estaba, no se pierde
-      const id = sha256Hex(p.bytes);
+      const id = `${carpeta}${sha256Hex(p.bytes)}`;
       if (!archivos.has(id)) archivos.set(id, { id, tipo: p.tipo, bytes: p.bytes.length, ruta: `${id}.${EXT[p.tipo] || "bin"}`, dataUrl: v });
       return referenciaDe(id, p.tipo);
     }

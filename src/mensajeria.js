@@ -299,5 +299,7 @@ export function deDondeSalio(h) {
 // Al confirmarse algo, sus mensajes pasan a ser EVIDENCIA (la base sólo deja consultar como evidencia lo marcado).
 // `sensible`: toca dinero; para verla fuera de la conversación hace falta además poder leer los gastos.
 export function comoEvidencia(mensaje, { sensible = false } = {}) { return { ...mensaje, esEvidencia: true, ...(sensible || mensaje.sensible ? { sensible: true } : {}) }; }
-// Los archivos todavía viven en un almacén común: en una conversación cerrada no se adjuntan hasta que tengan su candado.
-export const admiteArchivos = (conversacion) => conversacion?.id === GENERAL;
+// Los archivos de una conversación cerrada van en su propia carpeta del almacén, que la base sólo le abre a sus
+// participantes (hoja 48). Los de la general siguen como comprobantes de siempre.
+export const carpetaDe = (conversacionId) => (!conversacionId || conversacionId === GENERAL ? "" : `c/${String(conversacionId).replace(/[^A-Za-z0-9_-]/g, "")}/`);
+export const admiteArchivos = () => true;

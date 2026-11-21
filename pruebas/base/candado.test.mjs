@@ -83,3 +83,22 @@ test("la_general_sigue_como_estaba_y_el_directorio_solo_da_nombre_y_puesto", asy
   assert.deepEqual(Object.keys(dir[0]).sort(), ["id", "nombre", "rol"]); assert.ok(dir.some(d => d.rol === "admin") && !dir.some(d => d.rol === "superadmin"));
   assert.equal(((await como(db, "intruso", "select * from directorio_de_cuentas()")).filas || []).length, 0);
 });
+
+test("los_archivos_de_una_conversacion_solo_los_ve_baja_o_sube_quien_participa_en_ella", async () => {
+  const sube = (quien, name) => como(db, quien, "insert into storage.objects (bucket_id, name, metadata) values ('comprobantes', $1, '{\"size\": 1000}'::jsonb)", [name]);
+  const ve = async (quien) => ((await como(db, quien, "select name from storage.objects order by name")).filas || []).map(f => f.name);
+  assert.ok((await sube("encargado", "c/conv-d/aaa.jpg")).ok); assert.ok((await sube("agronomo", "c/conv-d/bbb.pdf")).ok);
+  assert.ok((await sube("encargado", "ticket-de-siempre.jpg")).ok);
+  assert.equal((await sube("finanzas", "c/conv-d/colado.jpg")).ok, false, "quien no participa no sube a esa carpeta");
+  assert.equal((await sube("luis", "c/conv-d/colado2.jpg")).ok, false, "tampoco el superadministrador");
+  assert.equal((await sube("encargado", "c/no-existe/x.jpg")).ok, false);
+  assert.deepEqual(await ve("agronomo"), ["c/conv-d/aaa.jpg", "c/conv-d/bbb.pdf", "ticket-de-siempre.jpg"]);
+  assert.deepEqual(await ve("finanzas"), ["ticket-de-siempre.jpg"], "ni los ve en la lista ni los puede bajar");
+  assert.deepEqual(await ve("luis"), ["ticket-de-siempre.jpg"]);
+  assert.deepEqual(await ve("intruso"), []); assert.deepEqual(await ve(null), []);
+  // Con una consulta excepcional vigente se ven (sólo lectura); al vencer, ya no.
+  await db.query("insert into consultas_de_conversacion (usuario, conversacion, motivo, hasta) values ($1, 'conv-d', 'revisión de prueba', now() + interval '1 hour')", [CUENTAS.finanzas]);
+  assert.ok((await ve("finanzas")).includes("c/conv-d/aaa.jpg")); assert.equal((await sube("finanzas", "c/conv-d/colado3.jpg")).ok, false);
+  await db.query("update consultas_de_conversacion set hasta = now() - interval '1 minute' where usuario = $1", [CUENTAS.finanzas]);
+  assert.deepEqual(await ve("finanzas"), ["ticket-de-siempre.jpg"]);
+});

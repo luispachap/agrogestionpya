@@ -484,9 +484,15 @@ Usuarios reales de la app:
   registrado, que NUNCA se mezclan); 2) evidencia: `ver_evidencia()` con permiso `ver_evidencia`, sólo mensajes
   `esEvidencia` (`comoEvidencia` al confirmar; `sensible` si es dinero), con bitácora; 3) conversación completa
   ajena: `consultar_conversacion()` con permiso `supervisar_conversaciones`, motivo, 24 h, sólo lectura, bitácora.
-  Esos dos permisos **no vienen con ser superadministrador** (`SOLO_OTORGADOS`, `tiene_otorgado`). **Los archivos
-  aún no tienen candado por conversación**: fotos y documentos sólo en la general (`admiteArchivos`). No hay avisos
-  con la app cerrada. **Agroselectos = la empresa; AgroGestión = el sistema.** WhatsApp es opcional y futuro. Página `chat` («Mensajes») para admin, encargado, agrónomo, finanzas y dirección (hoja 45).
+  Esos dos permisos **no vienen con ser superadministrador** (`SOLO_OTORGADOS`, `tiene_otorgado`). **Los archivos de una
+  conversación van a `c/<conversación>/` del almacén** (`carpetaDe`, `sacarArchivos(…, {carpeta})`, hoja 48: sólo
+  sus participantes los ven, bajan, listan o suben; no dejan ficha en `archivos`).
+  **AVISOS AL TELÉFONO (hoja 47, `docs/AVISOS.md`)**: web push por cuenta. La base avisa a la función `avisar`
+  (`supabase/functions/avisar`, `verify_jwt` apagado: se autentica con el secreto de `avisos_llaves`, tabla que
+  ninguna cuenta lee y donde la función genera sus llaves). El aviso NO lleva texto ni importes; agrupa por
+  conversación (`tag`), no duplica (`avisos_enviados`), lo obligatorio (asignación, autorización) no se silencia.
+  `src/avisos.js` (puro) y `src/avisosRed.js`; `public/sw.js` enseña y abre (`destinoDe`). Si cambias `nucleo.ts`
+  hay que volver a desplegar la función. **Sin probar en un teléfono real.** **Agroselectos = la empresa; AgroGestión = el sistema.** WhatsApp es opcional y futuro. Página `chat` («Mensajes») para admin, encargado, agrónomo, finanzas y dirección (hoja 45).
 - **La conversación continúa** (`aclarar`, `pendienteDe`, `esRespuesta` en `operaciones.js`): lo que falta se
   contesta en corto y se entiende DENTRO de la propuesta pendiente («20 pesos el kilo» × lo que se dijo que se
   compró; sin cantidad se pregunta; «tres kilos» no son tres pesos). La frase original no cambia; cada aclaración
@@ -690,7 +696,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **217 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **219 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

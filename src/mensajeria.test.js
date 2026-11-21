@@ -167,5 +167,16 @@ test("lo_registrado_de_una_conversacion_ajena_se_consulta_pero_sus_mensajes_son_
 
 test("lo_confirmado_marca_sus_mensajes_como_evidencia_y_lo_de_dinero_como_sensible", () => {
   assert.deepEqual([comoEvidencia({ id: "a" }).esEvidencia, comoEvidencia({ id: "a" }).sensible, comoEvidencia({ id: "a" }, { sensible: true }).sensible], [true, undefined, true]);
-  assert.equal(admiteArchivos({ id: GENERAL }), true); assert.equal(admiteArchivos({ id: "ev-conv-x" }), false, "los archivos aún no tienen candado por conversación");
+  assert.equal(admiteArchivos({ id: "ev-conv-x" }), true, "los archivos ya tienen candado por conversación (hoja 48)");
+});
+
+test("los_adjuntos_de_una_conversacion_cerrada_van_a_su_carpeta_y_los_de_la_general_no", async () => {
+  const { carpetaDe } = await import("./mensajeria.js"); const { sacarArchivos, leerReferencia } = await import("./archivos.js");
+  assert.equal(carpetaDe(GENERAL), ""); assert.equal(carpetaDe(undefined), ""); assert.equal(carpetaDe("ev-conv-d-a-b"), "c/ev-conv-d-a-b/"); assert.equal(carpetaDe("../otra/x"), "c/otrax/", "no se puede salir de la carpeta");
+  const foto = `data:image/jpeg;base64,${Buffer.from("x".repeat(5000)).toString("base64")}`;
+  const r = sacarArchivos({ id: "m1", foto: { dataUrl: foto } }, { carpeta: carpetaDe("ev-conv-1") });
+  assert.match(r.registro.foto.dataUrl, /^archivo:c\/ev-conv-1\/[0-9a-f]{64}\.jpg$/); assert.match(r.archivos[0].ruta, /^c\/ev-conv-1\/[0-9a-f]{64}\.jpg$/);
+  assert.equal(leerReferencia(r.registro.foto.dataUrl).ruta, r.archivos[0].ruta);
+  const comun = sacarArchivos({ id: "m2", foto: { dataUrl: foto } });
+  assert.match(comun.archivos[0].ruta, /^[0-9a-f]{64}\.jpg$/); assert.notEqual(comun.archivos[0].id, r.archivos[0].id, "el mismo archivo en dos lugares son dos archivos: cada uno con su candado");
 });

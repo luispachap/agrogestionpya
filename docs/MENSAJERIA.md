@@ -59,13 +59,10 @@ navegador 23/23. **Instalado en la base real** (no había ninguna conversación,
 
 ## 3. Lo que NO hace todavía (dicho sin adornos)
 
-1. **Los archivos no tienen candado por conversación.** Las fotos y documentos viven en un almacén común; por eso,
-   de momento, **sólo se pueden mandar en la conversación general**. En las demás: texto y audio. Es lo siguiente
-   por cerrar (almacén por conversación; además hoy sólo acepta imágenes y PDF de hasta 3 MB).
-1b. **Avisos con la app cerrada: no hay.** Hoy uno se entera al abrir AgroGestión (contador de no leídos). Para que
-   llegue el aviso al teléfono con la app cerrada hace falta mensajería «push» del navegador: no cuesta, pero pide
-   una función en el servidor y que cada quien instale la app en su teléfono y acepte los avisos. **Es la prioridad
-   para que la gente la adopte.**
+1. **Archivos: cerrado (hoja 48).** Las fotos y documentos de una conversación se guardan en su propia carpeta
+   del almacén y la base sólo se los deja ver, bajar, listar o subir a sus participantes (probado atacando la base
+   aislada). Tope: 3 MB por archivo; fotos, PDF, Excel, Word, CSV y XML.
+1b. **Avisos con la app cerrada: construidos e instalados (hoja 47, `AVISOS.md`). Falta la prueba en un Android real.**
 1c. **Un aparato compartido** (el que un encargado liga para su gente) baja lo que puede leer la cuenta del
    encargado. La pantalla filtra por persona, pero ese aparato no es un lugar privado.
 2. **El personal de campo no tiene mensajería.** No tiene cuenta propia (sube por la del encargado), así que la
