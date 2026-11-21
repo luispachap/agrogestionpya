@@ -1,9 +1,9 @@
 # AgroGestión — Agroselectos P&A
 
 App de gestión agrícola para una empresa familiar de ajo en Zacatecas (bodega en
-Aguascalientes). PWA móvil en React. La versión vigente vive en
-https://agrogestion-operacion.vercel.app; app.agroselectos.com todavía sirve la
-versión vieja y no se toca hasta que Luis lo diga.
+Aguascalientes). PWA móvil en React. La dirección definitiva es
+https://app.agroselectos.com (desde el 20 nov 2026 sirve la versión vigente);
+https://agrogestion-operacion.vercel.app queda como respaldo.
 
 ## Con quién trabajas
 
@@ -356,6 +356,42 @@ Usuarios reales de la app:
   (al volver queda sin asignar; se ofrece «continuar»); el tiempo sin asignar es
   «por aclarar» y nunca se distribuye solo; las horas adicionales se registran y
   acumulan sin cambiar el pago (reconocerlas es otra decisión).
+- **`src/importacion.js` + `src/importador.js`** (en pantalla: «Importar
+  documentos», página `importar`): muchos papeles de un jalón. `importador`
+  abre el archivo EN EL APARATO (XML de CFDI, Excel, CSV, PDF con texto, Word
+  .docx; gratis, sin IA); `importacion` decide qué es y PROPONE (`proponer`),
+  nunca registra solo. Reglas: no inventa (renglón ilegible → `descartadas`);
+  no duplica (huella del archivo, folio fiscal, y renglón por fecha+importe+
+  contraparte); **lo anterior al inicio de operaciones va al HISTÓRICO**
+  (`historico_lote`) y no crea gastos, pagos, deudas ni existencias — y sin
+  fecha de inicio declarada, TODO es histórico; **nunca crea pagos al personal
+  ni actividades**; de lo posterior sólo propone gastos y altas de catálogo.
+  La bandeja son eventos (`doc_recibido`, `doc_leido`, `doc_incorporado`,
+  `doc_descartado`, `hoja_aprendida`); las propuestas sin confirmar viven sólo
+  en el aparato (`LLAVES.importacion`). Imágenes y escaneos: `necesita_lectura`
+  (falta la llave de IA). Una hoja que no se reconoce se le ENSEÑA
+  (`eventoDeAprendizaje`) y queda aprendida por la firma de sus encabezados.
+- **Un gasto de «insumos» no es siempre una compra para el almacén**
+  (`claseDeInsumo`, `resultado.js`): `destinoInsumo` = inventario · produccion ·
+  general · otro; sin decir → **por clasificar** (ni gasto ni inventario; en el
+  flujo sí). Se clasifica en Finanzas → Resultados.
+- **Bonos y salario integrado**: `integra` es `si` | `no` | `revisar` (por
+  defecto `revisar`; la app no lo decide por el nombre del bono). Decidirlo
+  después es `bono_revision` (sensible, hoja 42), con fundamento.
+- **Maquinaria**: la diferencia cuota−real se reparte por defecto a las parcelas
+  que usaron la máquina, en proporción a la cuota. Si falta combustible,
+  depreciación (o `sin_depreciacion`) o un precio, la cuenta está `incompleta`
+  y **no hay diferencia a favor**: se conserva la cuota. El uso general del
+  rancho no va a parcelas. Los ajustes de valuación de un vehículo se quedan
+  en ese vehículo (`consumosConAjustes`).
+- **Compras a medias** (`seguimientoDeCompras`): sin recibir, sin precio o con
+  diferencias, con días, responsable y aviso al abrir (`compra_aviso_d`,
+  `compra_escala_d`).
+- **UNA SOLA ENTRADA** (`acceso.js`: `caminoDeEntrada`, `quienEntraConPin`,
+  `entrarConCredencial`, `puertaDeAsistencia`): nadie escoge perfil; el PIN o
+  el correo dicen quién es. **La credencial sola no abre sesión** (pide el
+  PIN). Un PIN repetido no deja entrar a nadie. Checar desde la pantalla de
+  entrada, sin sesión, sólo en un aparato ligado por un encargado.
 - **`src/almacenEventos.js`**: los eventos NO viven en el cajón de 5 MB: viven
   en IndexedDB (`LLAVES.eventos`), uno por renglón (`useCajon`). De la nube se
   bajan aparte, sólo lo nuevo y por páginas (`leerEventosDesde`), cada 2 min.
@@ -476,7 +512,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **133 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **135 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

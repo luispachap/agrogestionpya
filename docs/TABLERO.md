@@ -283,3 +283,22 @@ Todo junto: `sh pruebas/todo.sh`.
 ## Versiones (nada se ha eliminado)
 
 `main` intacta (versión de mayo). `produccion/fase-1-auditoria` conservada como registro. El sistema del despacho **no** está en este repositorio; sigue donde estaba, sin tocar.
+
+
+## 20 nov 2026 (tarde) — Nueva etapa integral
+
+| Etapa | Estado | Probado con |
+|---|---|---|
+| Costos: maquinaria (diferencia a parcelas, cuenta incompleta, uso no productivo), ajustes de valuación con su destino, insumos por clasificar, bonos por revisar, compras a medias | Publicado | pruebas de cálculo y `decisiones_navegador.py` (25 casos) |
+| Importación de documentos por montones (XML, Excel, CSV, PDF con texto, Word), bandeja, histórico | Publicado, primera versión | `importacion.test.js` (19) e `importar_navegador.py` (19) |
+| Entrada única, credencial + PIN, checar aparte de abrir sesión | Publicado | `acceso.test.js` y `entrada_navegador.py` (17) |
+| Dominio app.agroselectos.com | Sirve la versión vigente con HTTPS | comprobado contra el archivo publicado |
+| Capacitación y piloto | Entregados: presentación (.pptx) y guías por rol (.docx) | capturas reales con datos de ejemplo |
+
+**Sin validar en el rancho** (nada de lo anterior se ha usado en un día real): cámara del checador en la tableta de la nave, cargas grandes de documentos reales, el piloto.
+
+**Pendiente de una acción de Luis en un panel** (no en el registrador del dominio):
+1. Vercel: quitar `app.agroselectos.com` del proyecto viejo `vitejs-vite-3ymxjehp` (Settings → Domains → Remove) para poder darlo de alta como dominio propio de `agrogestion-operacion`. Mientras tanto el dominio se apunta a mano a cada publicación.
+2. Supabase → Authentication → URL Configuration: poner `https://app.agroselectos.com` como Site URL y dejar `https://agrogestion-operacion.vercel.app` en Redirect URLs, para que el correo de confirmación regrese al dominio definitivo.
+
+**Sigue sin activarse:** lectura de fotos y escaneos con IA (gasto por autorizar).

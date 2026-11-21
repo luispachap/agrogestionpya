@@ -368,6 +368,10 @@ textarea.inp{min-height:90px;resize:none;}
 .tabs-pill::-webkit-scrollbar{display:none;}
 .tab-pill{padding:8px 18px;border-radius:50px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:'Nunito',sans-serif;transition:all .15s;}
 .tab-pill.active{background:var(--accent);border-color:var(--accent);color:#0a1405;}
+.acc-row{display:flex;gap:8px;flex-wrap:wrap;}
+.acc-row button{flex:1 1 auto;min-height:40px;padding:9px 14px;border-radius:12px;border:1.5px solid var(--border);background:transparent;color:var(--text);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+.acc-row button:first-child{background:var(--accent);border-color:var(--accent);color:#0a1405;}
+.acc-row button:disabled{opacity:.5;cursor:default;}
 .login-bg{min-height:100vh;display:flex;flex-direction:column;background:radial-gradient(ellipse at 50% 0%,#233012 0%,#101708 45%,#0A0F05 100%);position:relative;}
 .login-hero{flex:1;min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px 20px 20px;}
 .login-logo{animation:float 4s ease-in-out infinite;display:flex;align-items:center;justify-content:center;}
