@@ -84,3 +84,17 @@ no activarlos (y se puede apagar del lado del servidor borrando la dirección de
 | 10 | Cerrar sesión en el Android y mandar otro mensaje | Ya NO llega nada a ese teléfono |
 
 Si algún paso falla, con decirme cuál y qué apareció en pantalla es suficiente para corregirlo.
+
+## 7. Prueba en el Android de Luis (21 nov) — estado
+
+| Qué | Resultado |
+|---|---|
+| Aviso de prueba con la app cerrada | Llegó |
+| Mensaje real, prioridad normal | Sólo llegó al abrir Chrome → ahora todo sale con prioridad alta |
+| Mensaje real, prioridad alta, Chrome cerrado y teléfono bloqueado | Llegó solo |
+| Sonido y vibración | Primero mudo; con `vibrate` + `silent:false` sonó y vibró |
+| Tocar el aviso con la app abierta en el fondo | Abrió la conversación correcta |
+| Tocar el aviso con la app cerrada o dormida | **FALLÓ dos veces** (no llevó a la conversación). Tercer arreglo: el aviso deja apuntado su destino y la app lo lee al abrir o volver al frente. **Sin comprobar en el teléfono.** |
+| Se quita el «sin leer» | Sin comprobar |
+
+La entrega (llegar, sonar) está comprobada en un teléfono. Abrir la conversación al tocar NO.

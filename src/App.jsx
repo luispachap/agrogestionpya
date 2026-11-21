@@ -7175,7 +7175,18 @@ function AppInner() {
     if (window.location.search.includes("ir=")) { abrir(window.location.href); try { window.history.replaceState(null, "", window.location.pathname); } catch { /* da igual */ } }
     const oir = (e) => { if (e.data?.tipo === "abrir") abrir(e.data.url); };
     navigator.serviceWorker?.addEventListener?.("message", oir);
-    return () => navigator.serviceWorker?.removeEventListener?.("message", oir);
+    // El aviso también deja su destino APUNTADO (public/sw.js): una ventana dormida no siempre oye el recado ni
+    // conserva la dirección (teléfono real, 21 nov). Se lee al abrir y cada vez que la app vuelve al frente.
+    const pendiente = async () => {
+      try {
+        const r = await caches.match("/__aviso_pendiente"); if (!r) return;
+        const p = await r.json(); await (await caches.open("agrogestion-aviso")).delete("/__aviso_pendiente");
+        if (p?.url && Date.now() - (p.cuando || 0) < 120000) abrir(new URL(p.url, window.location.origin).href);
+      } catch { /* sin almacén: quedan los otros dos caminos */ }
+    };
+    const alVolver = () => { if (document.visibilityState === "visible") pendiente(); };
+    pendiente(); document.addEventListener("visibilitychange", alVolver); window.addEventListener("focus", alVolver);
+    return () => { navigator.serviceWorker?.removeEventListener?.("message", oir); document.removeEventListener("visibilitychange", alVolver); window.removeEventListener("focus", alVolver); };
   }, [setPage]);
   // Sólo en desarrollo: las pruebas leen aquí lo calculado para cruzar una pantalla contra otra.
   useEffect(() => { if (import.meta.env.DEV) window.__agroDatos = data; }, [data]);

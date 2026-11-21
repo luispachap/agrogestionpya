@@ -23,7 +23,7 @@ self.addEventListener("install", (e) => {
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_APP && k !== CACHE_EXT).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_APP && k !== CACHE_EXT && k !== "agrogestion-aviso").map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -111,6 +111,8 @@ self.addEventListener("notificationclick", (e) => {
     // Una ventana que quedó dormida en el fondo no siempre se deja traer al frente ni recibe el recado (teléfono real,
     // 21 nov: el aviso desapareció y no abrió nada). Por eso se la LLEVA a la dirección del aviso, y si no se puede
     // traer al frente, se abre una nueva.
+    // Además se deja APUNTADO a dónde iba: la app lo lee al abrir o al volver al frente, llegue como llegue.
+    try { await (await caches.open("agrogestion-aviso")).put("/__aviso_pendiente", new Response(JSON.stringify({ url, cuando: Date.now() }), { headers: { "Content-Type": "application/json" } })); } catch { /* sin almacén */ }
     const abiertas = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     for (const c of abiertas) {
       if (new URL(c.url).origin !== self.location.origin) continue;
