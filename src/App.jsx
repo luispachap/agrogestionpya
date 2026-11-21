@@ -49,6 +49,7 @@ import { ESTADOS as ESTADOS_DOC, CLASES as CLASES_DOC, CAMPOS_DE, NOMBRE_DE_CAMP
 import { abrirArchivo, originalDe, guardarPropuesta, leerPropuesta, olvidarPropuesta, imagenParaIA, paginasParaIA, pedirInterpretacion, leerPresupuestoIA } from "./importador.js";
 import { NIVELES as NIVELES_IA, necesitaIA, pedidoDeHoja, pedidoDeTexto, resultadoConIA, metricasDeIA, costoMaximo, enDolares, estadoDelPresupuesto, NOMBRE_DE_RESULTADO } from "./interpretacion.js";
 import { entenderHoja } from "./importacion.js";
+import { CLASES_DE_CLAVE, catalogoDeClaves, listaDeClaves, aprenderClave, relacionDeRenglon, decirRelacion, clavesPorPreguntar, usoDeClaves } from "./claves.js";
 import { resultadoDelRancho, flujoDeEfectivo, NOMBRE_DE_FLUJO, DESTINOS_DE_INSUMO, insumosPorClasificar } from "./resultado.js";
 // El resultado y el flujo del rancho: TODAS las pantallas los sacan de aquí, para que digan lo mismo.
 // Cada ajuste de valuación sigue a su consumo: a la parcela, al uso general, o al vehículo (que lo lleva en su propia cuenta).
@@ -5507,12 +5508,48 @@ function useInicioDeOperaciones() {
   return v;
 }
 const NOMBRE_DE_DESTINO = { egresos: "Gasto por registrar", historico: "Al histórico (no crea nada de hoy)", trabajadores: "Persona para el catálogo", proveedores: "Proveedor para el catálogo" };
-const CLASE_HISTORICA = { gasto: "Compras y gastos", nomina: "Pagos al personal", combustible: "Combustible", actividad: "Actividades", venta: "Ventas", otro: "Otros comprobantes" };
+const CLASE_HISTORICA = { gasto: "Compras y gastos", raya: "Rayas (quién hizo qué y dónde)", nomina: "Pagos al personal", combustible: "Combustible", actividad: "Actividades", venta: "Ventas", otro: "Otros comprobantes" };
+// Una clave de una raya que todavía no se sabe qué significa. La app pregunta; no propone significado.
+function PreguntaDeClave({ p, onGuardar }) {
+  const [clase, setClase] = useState(p.clase || "");
+  const [que, setQue] = useState("");
+  const [dice, setDice] = useState(null);
+  const pide = clase === "actividad" || clase === "ubicacion" || clase === "nota";
+  const otras = (p.escritas || []).filter(x => x !== p.clave);
+  return (<div style={{ borderTop: "1px solid var(--border-soft)", padding: "8px 0" }}>
+    <div className="text-sm"><b>{p.clave}</b>{otras.length ? <span className="text-muted"> (en el papel: {otras.join(", ")})</span> : null} · sale {p.veces} {p.veces === 1 ? "vez" : "veces"}</div>
+    {p.ejemplo && <div className="text-xs text-muted">Por ejemplo: {p.ejemplo}</div>}
+    {p.clase ? <div className="text-xs text-muted" style={{ marginTop: 2 }}>Por cómo está escrita, es una clave de {p.clase === "actividad" ? "actividad" : "ubicación"}.</div>
+      : <select className="inp" style={{ marginTop: 6 }} aria-label={`Qué es ${p.clave}`} value={clase} onChange={e => { setClase(e.target.value); setDice(null); }}><option value="">¿Qué es «{p.original}»?</option>{Object.entries(CLASES_DE_CLAVE).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>}
+    {pide && <input className="inp" style={{ marginTop: 6 }} aria-label={`Qué significa ${p.clave}`} placeholder={clase === "actividad" ? `¿Qué actividad es ${p.clave}?` : clase === "ubicacion" ? `¿Qué lugar es ${p.clave}?` : "¿Qué quiere decir?"} value={que} onChange={e => { setQue(e.target.value); setDice(null); }} />}
+    {dice && <div className="text-xs" style={{ color: dice.ok ? "var(--gold)" : "var(--red)", marginTop: 4 }}>{dice.texto}</div>}
+    {clase && <div className="acc-row" style={{ marginTop: 6 }}><button onClick={() => { const r = onGuardar(p.original, clase, que); if (!r.ok || r.aviso) setDice({ ok: r.ok, texto: r.ok ? r.aviso : r.dice }); }}>Guardar {p.clave}</button></div>}
+  </div>);
+}
+// Una equivalencia ya guardada: se puede corregir; lo anterior queda a la vista.
+function ClaveGuardada({ c, usos, onGuardar }) {
+  const [edita, setEdita] = useState(false);
+  const [que, setQue] = useState(c.significado);
+  const [clase, setClase] = useState(c.clase);
+  const [dice, setDice] = useState("");
+  return (<div style={{ borderTop: "1px solid var(--border-soft)", padding: "6px 0" }}>
+    <div className="flex-b text-sm"><span><b>{c.clave}</b> · {c.clase === "ignorar" ? "se ignora" : c.significado || "—"}</span><button className="btn-ghost" aria-label={`Corregir ${c.clave}`} onClick={() => { setEdita(x => !x); setQue(c.significado); setClase(c.clase); setDice(""); }}>{edita ? "Cancelar" : "Corregir"}</button></div>
+    <div className="text-xs text-muted">{c.deArranque ? "Lo dijo Luis al arrancar" : `Lo guardó ${c.quien || "alguien"} el ${c.fecha}`}{usos ? ` · sale ${usos} ${usos === 1 ? "vez" : "veces"} en lo ya importado` : ""}{c.anteriores.length ? ` · antes decía: ${c.anteriores.map(a => `«${a.significado || "se ignora"}»`).join(", ")}` : ""}</div>
+    {edita && <><select className="inp" style={{ marginTop: 6 }} aria-label={`Qué es ${c.clave}`} value={clase} onChange={e => setClase(e.target.value)}>{Object.entries(CLASES_DE_CLAVE).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
+      <input className="inp" style={{ marginTop: 6 }} aria-label={`Nuevo significado de ${c.clave}`} value={que} onChange={e => setQue(e.target.value)} />
+      <div className="text-xs text-muted" style={{ marginTop: 4 }}>Al corregir, lo ya importado con {c.clave} se lee con el significado nuevo. El código del papel no cambia.</div>
+      {dice && <div className="text-xs" style={{ color: "var(--red)", marginTop: 4 }}>{dice}</div>}
+      <div className="acc-row" style={{ marginTop: 6 }}><button onClick={() => { const r = onGuardar(c.clave, clase, que); if (r.ok) setEdita(false); else setDice(r.dice); }}>Guardar corrección</button></div></>}
+  </div>);
+}
+
 function ImportarDocumentos({ data, add, session, onClose }) {
   const hoy = today(), quien = quienDe(session);
   const docs = useMemo(() => bandejaDe(data.eventos), [data.eventos]);
   const historico = useMemo(() => historicoDe(data.eventos), [data.eventos]);
   const aprendidos = useMemo(() => aprendidosDe(data.eventos), [data.eventos]);
+  const catalogo = useMemo(() => catalogoDeClaves(data.eventos), [data.eventos]);
+  const usos = useMemo(() => usoDeClaves(historico), [historico]);
   const ini = useInicioDeOperaciones();
   const [tab, setTab] = useState("bandeja");
   const [filtro, setFiltro] = useState("atender");
@@ -5525,7 +5562,9 @@ function ImportarDocumentos({ data, add, session, onClose }) {
   const trabajando = useRef(false);
   const archivosRef = useRef(null), carpetaRef = useRef(null);
   const datosRef = useRef(data); datosRef.current = data;
-  const contexto = (extra = {}) => { const d = datosRef.current; return { inicio: ini.inicio, rfcsPropios: (d.titulares || []).map(t => t.rfc).filter(Boolean), egresos: d.egresos || [], historico: historicoDe(d.eventos), trabajadores: d.trabajadores || [], encargados: d.encargados || [], proveedores: d.proveedores || [], maquinaria: d.maquinaria || [], parcelas: d.parcelas || [], documentos: bandejaDe(d.eventos), aprendidos: aprendidosDe(d.eventos), ...extra }; };
+  const contexto = (extra = {}) => { const d = datosRef.current; return { inicio: ini.inicio, rfcsPropios: (d.titulares || []).map(t => t.rfc).filter(Boolean), egresos: d.egresos || [], historico: historicoDe(d.eventos), trabajadores: d.trabajadores || [], encargados: d.encargados || [], proveedores: d.proveedores || [], maquinaria: d.maquinaria || [], parcelas: d.parcelas || [], documentos: bandejaDe(d.eventos), aprendidos: aprendidosDe(d.eventos), claves: catalogoDeClaves(d.eventos), ...extra }; };
+  // Guardar (o corregir) lo que significa una clave de las rayas. Queda para todos los documentos, también los ya importados.
+  const guardarClave = (clave, clase, significado, docId = null) => { const r = aprenderClave({ catalogo: catalogoDeClaves(datosRef.current.eventos), clave, clase, significado, docId, ...sello() }); if (r.ok) add("eventos", r.evento); return r; };
   const sello = () => ({ quien, cuando: new Date().toISOString(), fecha: hoy });
   const cede = () => new Promise(r => setTimeout(r, 0));
 
@@ -5673,7 +5712,7 @@ function ImportarDocumentos({ data, add, session, onClose }) {
   return (
     <div className="section-pad">
       <div className="flex-b mb-3"><div className="font-syne font-bold" style={{ fontSize: 18 }}>Importar documentos</div>{onClose && <button className="btn-ghost" onClick={onClose}>Cerrar</button>}</div>
-      <div style={{ display: "flex", gap: 8, overflowX: "auto", marginBottom: 10 }}>{[["bandeja", `Bandeja${res.porAtender ? ` (${res.porAtender})` : ""}`], ["ia", "Lectura con IA"], ["historico", "Histórico"], ["como", "Qué lee y qué no"]].map(([k, t]) => <button key={k} className={`tab-pill${tab === k ? " active" : ""}`} onClick={() => setTab(k)}>{t}</button>)}</div>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", marginBottom: 10 }}>{[["bandeja", `Bandeja${res.porAtender ? ` (${res.porAtender})` : ""}`], ["ia", "Lectura con IA"], ["claves", "Claves de las rayas"], ["historico", "Histórico"], ["como", "Qué lee y qué no"]].map(([k, t]) => <button key={k} className={`tab-pill${tab === k ? " active" : ""}`} onClick={() => setTab(k)}>{t}</button>)}</div>
 
       {tab === "bandeja" && <>
         <div className="card" onDragOver={e => e.preventDefault()} onDrop={soltar} style={{ borderStyle: "dashed" }}>
@@ -5741,6 +5780,22 @@ function ImportarDocumentos({ data, add, session, onClose }) {
         </div>}
       </>}
 
+      {tab === "claves" && (() => { const lista = listaDeClaves(catalogo), pend = clavesPorPreguntar(historico.filter(h => h.clase === "raya").map(h => ({ nombre: h.contraparte, fecha: h.fecha, claves: h.claves || [] })), catalogo);
+        return (<>
+          <div className="card">
+            <div className="card-title">Claves de las rayas</div>
+            <div className="text-xs text-muted">En las libretas cada renglón trae códigos: unos dicen qué se hizo (los que empiezan con A) y otros dónde (Bod, SF4). Aquí está lo que ya se sabe. La app no inventa ninguno: los va preguntando conforme salen en los documentos, y lo que contestes sirve para todos.</div>
+          </div>
+          {pend.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}>
+            <div className="card-title">Salen en lo ya importado y falta decir qué son ({pend.length})</div>
+            {pend.slice(0, 40).map(p => <PreguntaDeClave key={p.clave} p={p} onGuardar={guardarClave} />)}
+          </div>}
+          {[["actividad", "Actividades"], ["ubicacion", "Ubicaciones"], ["nota", "Anotaciones"], ["ignorar", "Se ignoran"]].map(([k, titulo]) => { const de = lista.filter(c => c.clase === k); if (!de.length && k !== "actividad") return null;
+            return (<div className="card" key={k}><div className="card-title">{titulo} ({de.length})</div>
+              {de.length === 0 && <div className="text-sm text-muted">Todavía no se ha guardado ninguna. Aparecen aquí conforme se contestan.</div>}
+              {de.map(c => <ClaveGuardada key={c.clave} c={c} usos={usos.get(c.clave) || 0} onGuardar={guardarClave} />)}</div>); })}
+        </>); })()}
+
       {tab === "historico" && <div className="card">
         <div className="card-title">Histórico importado</div>
         <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Lo de antes del arranque (y lo que quedó sólo como referencia). Sirve para consultar y comparar. NO está en los costos, ni en el resultado, ni en el flujo, ni en el almacén, ni le debe nada a nadie.</div>
@@ -5753,7 +5808,7 @@ function ImportarDocumentos({ data, add, session, onClose }) {
 
       {tab === "como" && <div className="card">
         <div className="card-title">Qué lee y qué no</div>
-        <div className="text-sm" style={{ marginBottom: 8 }}><b>Lee solo, exacto y sin costo</b> (en este aparato, sin mandar el documento a ningún lado): el XML de una factura o de un recibo de nómina; hojas de Excel y CSV de personal, pagos al personal, combustible, actividades, compras y gastos, y proveedores; tablas dentro de un PDF con texto o de un Word.</div>
+        <div className="text-sm" style={{ marginBottom: 8 }}><b>Las rayas con claves</b> (A07, Bod, SF4…) entran como relación de quién hizo qué y dónde, siempre al histórico. Lo que significa cada clave no se inventa: se pregunta una vez y queda guardado en «Claves de las rayas» para todos los documentos. </div><div className="text-sm" style={{ marginBottom: 8 }}><b>Lee solo, exacto y sin costo</b> (en este aparato, sin mandar el documento a ningún lado): el XML de una factura o de un recibo de nómina; hojas de Excel y CSV de personal, pagos al personal, combustible, actividades, compras y gastos, y proveedores; tablas dentro de un PDF con texto o de un Word.</div>
         <div className="text-sm" style={{ marginBottom: 8 }}><b>Con IA, sólo si tú lo pides:</b> fotos, tickets, escaneos y hojas desordenadas que los lectores gratuitos no pudieron. Cada lectura cuesta (fracciones de centavo de dólar con el nivel económico) y sale de un presupuesto con tope; el documento viaja al servidor de la IA para leerse. Lo que lea entra por el mismo camino: propuesta, comparación contra el original y tu confirmación.</div>
         <div className="text-sm" style={{ marginBottom: 8 }}><b>No adivina:</b> un renglón sin fecha o sin importe legible no se inventa: se dice cuál es. De una factura en PDF no saca el total (por eso pide su XML). Una hoja que no reconoce te pregunta qué es y cuáles son sus columnas, y lo aprende para la siguiente.</div>
         <div className="text-sm" style={{ marginBottom: 8 }}><b>No duplica:</b> el mismo archivo no se recibe dos veces; la misma factura (mismo folio fiscal) tampoco, aunque llegue como XML y como PDF; y un renglón igual a algo ya registrado no se propone otra vez.</div>
@@ -5770,16 +5825,22 @@ function ImportarDocumentos({ data, add, session, onClose }) {
           {(abierto.resultado.hojas || []).filter(h => h.clase === "desconocido").map((h, i) => <div key={i} className="card" style={{ borderColor: "var(--gold)" }}>
             <div className="text-sm"><b>La hoja «{h.nombre}» no se reconoce.</b> Dime qué es y cuáles son sus columnas; queda aprendido para las siguientes que vengan igual.</div>
             {ensena?.hoja.nombre === h.nombre ? <>
-              <select className="inp" style={{ marginTop: 6 }} aria-label="Qué es esta hoja" value={ensena.clase} onChange={e => setEnsena(x => ({ ...x, clase: e.target.value, mapa: {} }))}><option value="">¿Qué es?</option>{["gastos", "nomina", "personal", "combustible", "actividades", "proveedores"].map(k => <option key={k} value={k}>{CLASES_DOC[k]}</option>)}</select>
+              <select className="inp" style={{ marginTop: 6 }} aria-label="Qué es esta hoja" value={ensena.clase} onChange={e => setEnsena(x => ({ ...x, clase: e.target.value, mapa: {} }))}><option value="">¿Qué es?</option>{["gastos", "raya", "nomina", "personal", "combustible", "actividades", "proveedores"].map(k => <option key={k} value={k}>{CLASES_DOC[k]}</option>)}</select>
               {ensena.clase && CAMPOS_DE(ensena.clase).map(c => <label key={c} className="text-xs text-muted" style={{ display: "block", marginTop: 6 }}>{NOMBRE_DE_CAMPO[c]}<select className="inp" aria-label={`Columna de ${NOMBRE_DE_CAMPO[c]}`} value={ensena.mapa[c] ?? ""} onChange={e => setEnsena(x => ({ ...x, mapa: { ...x.mapa, [c]: e.target.value } }))}><option value="">(no viene)</option>{ensena.hoja.encabezadosVistos.map((t, k) => t ? <option key={k} value={k}>{t}</option> : null)}</select></label>)}
               <div className="acc-row" style={{ marginTop: 8 }}><button onClick={ensenar}>Guardar y volver a leer</button><button onClick={() => { setEnsena(null); setDice(""); }}>Cancelar</button></div>
             </> : <div className="acc-row" style={{ marginTop: 6 }}><button onClick={() => { setEnsena({ hoja: { ...h, encabezadosVistos: h.primeraFila || [] }, clase: "", mapa: {} }); setDice(""); }}>Decir qué es</button></div>}
           </div>)}
+          {(() => { const pend = clavesPorPreguntar(abierto.resultado.propuestas.filter(p => p.datos.clase === "raya" && p.accion !== "duplicado").map(p => ({ nombre: p.datos.contraparte, fecha: p.datos.fecha, claves: p.datos.claves || [] })), catalogo);
+            return pend.length === 0 ? null : (<div className="card" style={{ borderColor: "var(--gold)" }}>
+              <div className="text-sm"><b>Claves que falta decir qué son ({pend.length}).</b> Contesta las que sepas; las demás se pueden dejar para después: el renglón se guarda con su código.</div>
+              {pend.slice(0, 30).map(p => <PreguntaDeClave key={p.clave} p={p} onGuardar={(c, k, q) => guardarClave(c, k, q, abierto.doc.id)} />)}
+            </div>); })()}
           {abierto.resultado.propuestas.length > 0 && <>
             <div className="text-sm font-bold" style={{ marginTop: 6 }}>Lo que se propone ({abierto.marcadas.size} marcado(s) de {abierto.resultado.propuestas.filter(p => p.accion !== "duplicado").length})</div>
+            {abierto.resultado.propuestas.filter(p => p.accion !== "duplicado").length > 3 && <div className="acc-row" style={{ margin: "6px 0" }}><button onClick={() => setAbierto(a => ({ ...a, marcadas: new Set(a.resultado.propuestas.filter(p => p.accion !== "duplicado").map(p => p.llave)) }))}>Marcar todos</button><button onClick={() => setAbierto(a => ({ ...a, marcadas: new Set() }))}>Quitar todos</button></div>}
             {abierto.resultado.propuestas.slice(0, 150).map((p, i) => <label key={i} className="text-sm" style={{ display: "flex", gap: 8, alignItems: "flex-start", borderTop: "1px solid var(--border-soft)", padding: "6px 0", opacity: p.accion === "duplicado" ? 0.55 : 1 }}>
               <input type="checkbox" disabled={p.accion === "duplicado"} aria-label={`Incorporar ${p.datos.concepto || p.datos.nombre || p.datos.contraparte || p.llave}`} checked={p.accion !== "duplicado" && abierto.marcadas.has(p.llave)} onChange={e => setAbierto(a => { const m = new Set(a.marcadas); e.target.checked ? m.add(p.llave) : m.delete(p.llave); return { ...a, marcadas: m }; })} />
-              <span style={{ flex: 1 }}>{p.datos.nombre || (p.destino === "historico" ? p.datos.contraparte || p.datos.concepto : p.datos.concepto || p.datos.proveedor) || "Renglón"}{p.datos.monto != null ? <b> · {fmt(p.datos.monto)}</b> : null}<div className="text-xs text-muted">{[p.datos.fecha, p.destino === "historico" ? (p.datos.contraparte ? p.datos.concepto : "") : p.datos.proveedor, p.datos.puesto, p.datos.litros ? `${p.datos.litros} L` : "", p.datos.parcela].filter(Boolean).join(" · ")}</div><div className="text-xs" style={{ color: p.accion === "duplicado" ? "var(--muted)" : p.destino === "historico" ? "var(--muted)" : "var(--accent)" }}>{p.accion === "duplicado" ? p.nota : `${p.viaIA ? "Leído con IA · " : ""}${NOMBRE_DE_DESTINO[p.destino]}${p.datos.referencia ? " · posterior al arranque: sólo referencia" : ""}${p.destino === "egresos" && p.datos.categoria ? ` · ${p.datos.categoria}` : ""}`}</div></span>
+              <span style={{ flex: 1 }}>{p.datos.nombre || (p.destino === "historico" ? p.datos.contraparte || p.datos.concepto : p.datos.concepto || p.datos.proveedor) || "Renglón"}{p.datos.monto != null ? <b> · {fmt(p.datos.monto)}</b> : null}{p.datos.clase === "raya" && (() => { const rel = relacionDeRenglon({ nombre: p.datos.contraparte, fecha: p.datos.fecha, claves: p.datos.claves || [], observacion: p.datos.observacion || "" }, catalogo); return rel.dudas.length ? <div className="text-xs" style={{ color: "var(--gold)" }}>{rel.dudas.join(" ")}</div> : null; })()}<div className="text-xs text-muted">{[p.datos.fecha || (p.datos.clase === "raya" ? "sin día" : ""), p.datos.clase === "raya" ? decirRelacion(relacionDeRenglon({ claves: p.datos.claves || [], observacion: p.datos.observacion || "", fecha: p.datos.fecha, nombre: p.datos.contraparte }, catalogo)) : p.destino === "historico" ? (p.datos.contraparte ? p.datos.concepto : "") : p.datos.proveedor, p.datos.puesto, p.datos.litros ? `${p.datos.litros} L` : "", p.datos.parcela].filter(Boolean).join(" · ")}</div><div className="text-xs" style={{ color: p.accion === "duplicado" ? "var(--muted)" : p.destino === "historico" ? "var(--muted)" : "var(--accent)" }}>{p.accion === "duplicado" ? p.nota : `${p.viaIA ? "Leído con IA · " : ""}${NOMBRE_DE_DESTINO[p.destino]}${p.datos.referencia ? " · posterior al arranque: sólo referencia" : ""}${p.destino === "egresos" && p.datos.categoria ? ` · ${p.datos.categoria}` : ""}`}</div></span>
             </label>)}
             {abierto.resultado.propuestas.length > 150 && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Se enseñan 150 de {abierto.resultado.propuestas.length}; al incorporar entran todos los marcados.</div>}
           </>}

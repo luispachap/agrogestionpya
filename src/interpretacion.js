@@ -61,7 +61,7 @@ export const pedidoDeTexto = (texto, max = 12000) => sinDatosSensibles(String(te
 
 /* ════════════ 3 · LO QUE CONTESTÓ, EN LA FORMA DE SIEMPRE ════════════ */
 const ENCABEZADOS = {
-  nomina: ["Nombre", "Fecha", "Importe", "Días", "Puesto"], personal: ["Nombre", "Puesto", "Sueldo diario", "Fecha de ingreso"],
+  nomina: ["Nombre", "Fecha", "Importe", "Días", "Puesto"], raya: ["Fecha", "Nombre", "Claves", "Importe", "Observaciones"], personal: ["Nombre", "Puesto", "Sueldo diario", "Fecha de ingreso"],
   combustible: ["Fecha", "Vehículo", "Litros", "Importe"], actividades: ["Fecha", "Actividad", "Parcela", "Trabajador", "Importe"],
   gastos: ["Fecha", "Proveedor", "Concepto", "Total", "Folio"], proveedores: ["Proveedor", "Concepto"],
 };
@@ -74,7 +74,7 @@ export function hojasDeLectura(lectura) {
     const concepto = r.map(x => t(x.concepto)).filter(Boolean).slice(0, 4).join(" · ").slice(0, 120) || ({ ticket: "Compra de mostrador", factura: "Factura", nota: "Nota" })[l.clase];
     return [{ nombre: "Leído con IA", filas: [ENCABEZADOS.gastos, [t(l.fecha), t(l.emisor), concepto, t(l.total), t(l.folio)]] }];
   }
-  const filaDe = { nomina: x => [t(x.nombre), t(x.fecha) || t(l.fecha), t(x.importe), t(x.dias), t(x.puesto)], personal: x => [t(x.nombre), t(x.puesto), t(x.importe), t(x.fecha)],
+  const filaDe = { raya: x => [t(x.fecha) || t(l.fecha), t(x.nombre), t(x.claves), t(x.importe), t(x.observacion)], nomina: x => [t(x.nombre), t(x.fecha) || t(l.fecha), t(x.importe), t(x.dias), t(x.puesto)], personal: x => [t(x.nombre), t(x.puesto), t(x.importe), t(x.fecha)],
     combustible: x => [t(x.fecha) || t(l.fecha), t(x.vehiculo), t(x.litros), t(x.importe)], actividades: x => [t(x.fecha) || t(l.fecha), t(x.concepto), t(x.parcela), t(x.nombre), t(x.importe)],
     gastos: x => [t(x.fecha) || t(l.fecha), t(x.nombre) || t(l.emisor), t(x.concepto), t(x.importe), ""], proveedores: x => [t(x.nombre), t(x.concepto)] }[l.clase];
   if (!filaDe) return [];
@@ -82,7 +82,7 @@ export function hojasDeLectura(lectura) {
 }
 // Una lectura de hoja (qué columna es cada cosa) → un «aprendido» provisional para esos encabezados. NO se guarda como
 // aprendido de verdad hasta que una persona confirma el documento: sólo se aprende de lo confirmado.
-const CAMPOS_VALIDOS = ["fecha", "nombre", "puesto", "sueldo", "ingreso", "dias", "importe", "proveedor", "concepto", "litros", "vehiculo", "horometro", "parcela", "actividad", "personas", "folio", "periodo"];
+const CAMPOS_VALIDOS = ["fecha", "nombre", "puesto", "sueldo", "ingreso", "dias", "importe", "proveedor", "concepto", "litros", "vehiculo", "horometro", "parcela", "actividad", "personas", "folio", "periodo", "claves"];
 export function aprendidoDeLectura(lectura, filas) {
   const l = lectura || {}, i = Number.parseInt(l.renglon_encabezado, 10);
   if (!ENCABEZADOS[l.clase]) return { ok: false, dice: l.clase === "estado_cuenta" ? "La IA dice que es un estado de cuenta del banco: se sube en la pantalla Banco." : "La IA tampoco reconoció qué es esta hoja." };

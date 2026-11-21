@@ -395,6 +395,20 @@ Usuarios reales de la app:
   además el secreto `ANTHROPIC_WORKSPACE_ID` (pasó en la primera llamada real,
   20 nov: la API la rechazó sin cobrar → `falta_espacio_de_trabajo`). Los precios están
   en `MODELOS` (servidor) y `PRECIOS` (app): si cambian, se cambian en los dos.
+- **`src/claves.js`: las claves de las rayas** (pestaña «Claves de las rayas» en
+  Importar documentos). En las libretas cada renglón trae códigos: `A07`
+  (actividad: A + número) y `Bod`, `SF1…SF4` (ubicación). **La app no inventa
+  el significado de ninguna**: lo pregunta una vez (`clavesPorPreguntar`) y lo
+  guarda como evento `clave_aprendida`; corregir es otro evento y lo anterior
+  queda en `anteriores`. Una actividad no se guarda como ubicación ni al revés
+  (`formaDe`). De arranque sólo se sabe lo que dijo Luis (`CLAVES_DICHAS`:
+  Bodega y San Felipe 1–4). Una raya (clase `raya`: de una hoja con columna de
+  claves o de la IA, que copia los códigos TAL CUAL) entra SIEMPRE al
+  histórico como quién · día · actividad · ubicación; **nunca crea pagos ni
+  actividades**. El histórico guarda el código original (`claves`) y la clave
+  normalizada, NO el significado: lo que se aprenda o corrija después vale
+  también para lo ya importado. Lo que no se reconoce en un renglón queda como
+  duda (`relacionDeRenglon().dudas`), no se le asigna papel por su columna.
 - **Un gasto de «insumos» no es siempre una compra para el almacén**
   (`claseDeInsumo`, `resultado.js`): `destinoInsumo` = inventario · produccion ·
   general · otro; sin decir → **por clasificar** (ni gasto ni inventario; en el
@@ -536,7 +550,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **136 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **137 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

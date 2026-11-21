@@ -41,10 +41,11 @@ Tu trabajo es decir QUÉ ES el documento y copiar sus datos a los campos pedidos
 - "confianza": alta si todo se lee claro; media si hubo algo dudoso pero lo principal está; baja si la imagen está borrosa, cortada o no estás seguro de qué es.
 - Si no es un documento del rancho o no se entiende, clase "otro" o "ilegible", sin renglones.
 
-Clases: ticket (compra de mostrador), factura (factura impresa con datos fiscales), nota (nota o remisión sin impuestos), nomina (pagos al personal: lista de raya, nómina), personal (lista de personas con puesto o sueldo, sin pagos), combustible (cargas de diésel o gasolina), actividades (trabajos en parcelas), gastos (relación de varios gastos o compras), proveedores (lista de proveedores), estado_cuenta (del banco), otro, ilegible.
+Clases: ticket (compra de mostrador), factura (factura impresa con datos fiscales), nota (nota o remisión sin impuestos), raya (libreta o lista de raya a mano con CLAVES: una persona por renglón y códigos cortos como A07, Bod, SF4), nomina (pagos al personal SIN claves: lista de raya, nómina), personal (lista de personas con puesto o sueldo, sin pagos), combustible (cargas de diésel o gasolina), actividades (trabajos en parcelas), gastos (relación de varios gastos o compras), proveedores (lista de proveedores), estado_cuenta (del banco), otro, ilegible.
 
 En "renglones" usa sólo los campos que apliquen y deja los demás vacíos:
 - ticket, factura, nota: un renglón por artículo (concepto, cantidad, unidad, importe). El proveedor, la fecha, el folio y el total van arriba.
+- raya: un renglón por persona. "nombre" como viene escrito (aunque sea un apodo). En "claves" copia TODOS los códigos cortos del renglón, TAL CUAL están escritos y en su orden, separados por " | " (ejemplo: "Ao7 | Bod"). NO los traduzcas, NO los corrijas, NO digas qué significan y NO decidas cuál es actividad y cuál es lugar: eso lo hace la app con su catálogo. Si un código no se lee claro, cópialo como lo ves y dilo en "avisos". "observacion": palabras sueltas del renglón que no son código (por ejemplo "falta"). "importe": SÓLO si es claramente una cantidad de dinero; si es un garabato o una marca que no sabes qué es, déjalo vacío y dilo en "avisos". El día o la fecha escritos arriba de la lista van en "fecha" del documento. No todas las columnas de una raya significan lo mismo en todos los renglones: no las fuerces.
 - nomina: un renglón por persona (nombre, importe = lo que se le pagó, dias, puesto, fecha si la trae).
 - personal: nombre, puesto, importe = sueldo por día si lo trae, fecha = fecha de ingreso si la trae.
 - combustible: fecha, vehiculo, litros, importe.
@@ -60,7 +61,7 @@ Tu trabajo NO es copiar los datos: es decir qué clase de hoja es, en qué rengl
 
 - "renglon_encabezado": el número del renglón donde están los títulos de las columnas. Si la hoja no trae títulos, el número del renglón anterior al primer dato, y dilo en "avisos".
 - En "columnas", para cada dato escribe el número de su columna (sólo el número: "0", "3"). Si la hoja no trae ese dato, déjalo vacío "". No supongas una columna que no está. Una columna es una columna de la tabla, debajo de los encabezados: un dato suelto escrito arriba (el periodo, la semana, el nombre del rancho) NO es una columna; déjalo vacío y dilo en "avisos". Dos datos distintos nunca llevan el mismo número de columna.
-- Clases: nomina (pagos al personal), personal (lista de personas sin pagos), combustible, actividades, gastos (compras, gastos o pagos a proveedores), proveedores, estado_cuenta, otro.
+- Clases: raya (lista de personas con una columna de CLAVES o códigos cortos como A07, Bod, SF4: esa columna es "claves"), nomina (pagos al personal, sin claves), personal (lista de personas sin pagos), combustible, actividades, gastos (compras, gastos o pagos a proveedores), proveedores, estado_cuenta, otro.
 - "confianza": alta, media o baja.
 
 Responde solamente con el JSON pedido.`;
@@ -70,20 +71,20 @@ const ESQUEMA_DOCUMENTO = {
   type: "object", additionalProperties: false,
   required: ["clase", "confianza", "emisor", "fecha", "folio", "subtotal", "total", "moneda", "renglones", "no_se_leyo", "avisos"],
   properties: {
-    clase: { type: "string", enum: ["ticket", "factura", "nota", "nomina", "personal", "combustible", "actividades", "gastos", "proveedores", "estado_cuenta", "otro", "ilegible"] },
+    clase: { type: "string", enum: ["ticket", "factura", "nota", "raya", "nomina", "personal", "combustible", "actividades", "gastos", "proveedores", "estado_cuenta", "otro", "ilegible"] },
     confianza: { type: "string", enum: ["alta", "media", "baja"] },
     emisor: S, fecha: S, folio: S, subtotal: S, total: S, moneda: S,
     renglones: { type: "array", items: { type: "object", additionalProperties: false,
-      required: ["fecha", "nombre", "concepto", "cantidad", "unidad", "importe", "litros", "vehiculo", "parcela", "dias", "puesto"],
-      properties: { fecha: S, nombre: S, concepto: S, cantidad: S, unidad: S, importe: S, litros: S, vehiculo: S, parcela: S, dias: S, puesto: S } } },
+      required: ["fecha", "nombre", "concepto", "cantidad", "unidad", "importe", "litros", "vehiculo", "parcela", "dias", "puesto", "claves", "observacion"],
+      properties: { fecha: S, nombre: S, concepto: S, cantidad: S, unidad: S, importe: S, litros: S, vehiculo: S, parcela: S, dias: S, puesto: S, claves: S, observacion: S } } },
     no_se_leyo: { type: "array", items: S }, avisos: { type: "array", items: S },
   },
 };
-const CAMPOS_HOJA = ["fecha", "nombre", "puesto", "sueldo", "ingreso", "dias", "importe", "proveedor", "concepto", "litros", "vehiculo", "horometro", "parcela", "actividad", "personas", "folio", "periodo"];
+const CAMPOS_HOJA = ["fecha", "nombre", "puesto", "sueldo", "ingreso", "dias", "importe", "proveedor", "concepto", "litros", "vehiculo", "horometro", "parcela", "actividad", "personas", "folio", "periodo", "claves"];
 const ESQUEMA_HOJA = {
   type: "object", additionalProperties: false, required: ["clase", "confianza", "renglon_encabezado", "columnas", "avisos"],
   properties: {
-    clase: { type: "string", enum: ["nomina", "personal", "combustible", "actividades", "gastos", "proveedores", "estado_cuenta", "otro"] },
+    clase: { type: "string", enum: ["raya", "nomina", "personal", "combustible", "actividades", "gastos", "proveedores", "estado_cuenta", "otro"] },
     confianza: { type: "string", enum: ["alta", "media", "baja"] },
     renglon_encabezado: S,
     columnas: { type: "object", additionalProperties: false, required: CAMPOS_HOJA, properties: Object.fromEntries(CAMPOS_HOJA.map((c) => [c, S])) },

@@ -39,6 +39,7 @@
 import { normalizar, aNumero, aFecha } from "./lectura.js";
 import { sumarDinero } from "./calculos.js";
 import { nuevoEvento, vigentes } from "./eventos.js";
+import { catalogoDeClaves, normalizarClave, formaDe, partirClaves, relacionDeRenglon, clavesPorPreguntar } from "./claves.js";
 
 export const ESTADOS = {
   recibido: "Recibido, falta abrirlo",
@@ -59,6 +60,7 @@ export const CLASES = {
   cfdi_otro: "Comprobante fiscal de otro tipo",
   personal: "Lista de personal",
   nomina: "Nómina o lista de pagos al personal",
+  raya: "Lista de raya con claves de actividad y de lugar",
   combustible: "Bitácora de combustible",
   actividades: "Actividades agrícolas",
   gastos: "Compras, gastos o pagos",
@@ -136,11 +138,14 @@ const PALABRAS = {
   folio: ["FOLIO", "FACTURA", "NO. FACTURA", "UUID", "FOLIO FISCAL", "NUMERO", "TICKET"],
   saldo: ["SALDO"], cargo: ["CARGO", "CARGOS", "RETIRO", "RETIROS"], abono: ["ABONO", "ABONOS", "DEPOSITO", "DEPOSITOS"],
   periodo: ["PERIODO", "SEMANA", "QUINCENA"],
+  claves: ["CLAVES", "CLAVE", "CODIGOS", "CODIGO", "CLAVES DE ACTIVIDAD Y LUGAR"],
 };
 // Qué campos hacen falta y cuáles ayudan, por clase de hoja. El orden importa: gana la primera que junte más.
 const RECETAS = [
   { clase: "banco", pide: ["fecha", "saldo"], ayuda: ["cargo", "abono", "concepto"] },
   { clase: "combustible", pide: ["fecha", "litros"], ayuda: ["vehiculo", "importe", "horometro", "proveedor", "nombre"] },
+  // Una raya con claves («A07 · Bod»): quién, qué hizo y dónde. El importe ayuda, pero no hace falta.
+  { clase: "raya", pide: ["nombre", "claves"], ayuda: ["fecha", "importe", "concepto", "dias"] },
   { clase: "nomina", pide: ["nombre", "importe"], ayuda: ["fecha", "dias", "periodo", "puesto", "sueldo"] },
   { clase: "personal", pide: ["nombre"], alguna: ["puesto", "sueldo", "ingreso"], ayuda: ["puesto", "sueldo", "ingreso", "telefono"], prohibe: ["importe", "litros"] },
   { clase: "actividades", pide: ["fecha", "actividad"], ayuda: ["parcela", "personas", "importe", "nombre", "cantidad"] },
@@ -208,7 +213,7 @@ export function aprenderHoja(aprendidos = [], { encabezados, clase, mapa, quien 
   return { ok: true, patron: nuevo, aprendidos: [...aprendidos.filter(a => a.firma !== firma), nuevo] };
 }
 export const CAMPOS_DE = (clase) => { const r = RECETAS.find(x => x.clase === clase); return r ? [...r.pide, ...r.ayuda] : []; };
-export const NOMBRE_DE_CAMPO = { fecha: "Fecha", nombre: "Nombre de la persona", puesto: "Puesto", sueldo: "Sueldo por día", ingreso: "Fecha de ingreso", dias: "Días", importe: "Importe", proveedor: "Proveedor", concepto: "Concepto", rfc: "RFC", telefono: "Teléfono", litros: "Litros", vehiculo: "Vehículo o máquina", horometro: "Horómetro o kilometraje", parcela: "Parcela", actividad: "Actividad", personas: "Número de personas", cantidad: "Cantidad", folio: "Folio", saldo: "Saldo", cargo: "Cargo", abono: "Abono", periodo: "Periodo" };
+export const NOMBRE_DE_CAMPO = { claves: "Claves (A07, Bod, SF4…)", fecha: "Fecha", nombre: "Nombre de la persona", puesto: "Puesto", sueldo: "Sueldo por día", ingreso: "Fecha de ingreso", dias: "Días", importe: "Importe", proveedor: "Proveedor", concepto: "Concepto", rfc: "RFC", telefono: "Teléfono", litros: "Litros", vehiculo: "Vehículo o máquina", horometro: "Horómetro o kilometraje", parcela: "Parcela", actividad: "Actividad", personas: "Número de personas", cantidad: "Cantidad", folio: "Folio", saldo: "Saldo", cargo: "Cargo", abono: "Abono", periodo: "Periodo" };
 
 /* ════════════ 4 · DE LA HOJA A RENGLONES LIMPIOS ════════════ */
 const texto = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
@@ -234,6 +239,15 @@ export function extraerDeHoja(entendida, filas) {
       const nombre = texto(de(fila, "nombre")); if (nombre.length < 5) { descarta("No trae el nombre de la persona."); continue; }
       if (!(importe > 0)) { descarta("No se pudo leer cuánto se le pagó."); continue; }
       registros.push({ clase: "nomina", fecha, nombre, monto: importe, dias: aNumero(de(fila, "dias")), periodo: texto(de(fila, "periodo")), puesto: texto(de(fila, "puesto")), renglon: n + 1 });
+    } else if (clase === "raya") {
+      // Los nombres de una libreta son cortos («Rigo», «Gus»): con dos letras basta. Las claves se copian TAL CUAL:
+      // qué es cada una lo decide el catálogo, no la columna donde venía.
+      const nombre = texto(de(fila, "nombre")); if (nombre.length < 2) { descarta("No trae el nombre de la persona."); continue; }
+      const usadas = new Set(Object.values(mapa));
+      const sueltas = fila.map((c, col) => ({ c: texto(c), col })).filter(x => x.c && !usadas.has(x.col) && formaDe(normalizarClave(x.c).clave)).map(x => x.c);
+      const claves = [...partirClaves(texto(de(fila, "claves"))), ...sueltas], observacion = texto(de(fila, "concepto"));
+      if (claves.length === 0 && !observacion) { descarta("No trae ninguna clave ni anotación."); continue; }
+      registros.push({ clase: "raya", fecha, nombre, claves, observacion, monto: importe > 0 ? importe : null, dias: aNumero(de(fila, "dias")), renglon: n + 1 });
     } else if (clase === "combustible") {
       const litros = aNumero(de(fila, "litros"));
       if (!fecha) { descarta("No se pudo leer la fecha."); continue; }
@@ -317,6 +331,7 @@ export function llaveDe(r) {
   if (r.clase === "personal") return `persona:${corto(r.nombre)}`;
   if (r.clase === "proveedores") return `proveedor:${corto(r.nombre)}`;
   if (r.clase === "nomina") return `nomina:${r.fecha || r.periodo || ""}:${corto(r.nombre)}:${pesos(r.monto)}`;
+  if (r.clase === "raya") return `raya:${r.fecha || `sinfecha-${r.deDonde || ""}`}:${corto(r.nombre)}:${(r.claves || []).map(c => normalizarClave(c).clave).sort().join("+") || corto(r.observacion)}`;
   if (r.clase === "combustible") return `combustible:${r.fecha}:${corto(r.vehiculo)}:${r.litros}`;
   if (r.clase === "actividades") return `actividad:${r.fecha}:${corto(r.parcela)}:${corto(r.actividad)}:${pesos(r.monto)}`;
   return `gasto:${r.fecha}:${pesos(r.monto)}:${corto(r.proveedor || r.concepto)}`;
@@ -340,7 +355,7 @@ export const categoriaDe = (textoConcepto) => { const t = normalizar(textoConcep
 //   contexto   { inicio, rfcsPropios: [], egresos, historico, trabajadores, encargados, proveedores, maquinaria, parcelas, documentos (los ya recibidos), aprendidos }
 // Devuelve   { estado, clase, periodo, propuestas, descartadas, excepciones, resumen, hojas }
 export function proponer(doc, contexto = {}) {
-  const { inicio = null, rfcsPropios = [], egresos = [], historico = [], trabajadores = [], encargados = [], proveedores = [], maquinaria = [], parcelas = [], documentos = [], aprendidos = [] } = contexto;
+  const { inicio = null, rfcsPropios = [], egresos = [], historico = [], trabajadores = [], encargados = [], proveedores = [], maquinaria = [], parcelas = [], documentos = [], aprendidos = [], claves = catalogoDeClaves([]) } = contexto;
   const base = { clase: "desconocido", periodo: null, propuestas: [], descartadas: [], excepciones: [], hojas: [] };
   // 1. El mismo archivo, otra vez.
   const gemelo = documentos.find(d => d.id !== doc.id && d.huella && d.huella === doc.huella && d.estado !== "error");
@@ -408,6 +423,14 @@ export function proponer(doc, contexto = {}) {
       if (r.clase === "personal") propone({ destino: "trabajadores", accion: "agregar", origen, datos: { clase: "personal", nombre: r.nombre, puesto: r.puesto, sueldo_dia: r.sueldo, fechaIngreso: r.fechaIngreso } });
       else if (r.clase === "proveedores") propone({ destino: "proveedores", accion: "agregar", origen, datos: { clase: "proveedores", nombre: r.nombre, rfc: r.rfc, telefono: r.telefono, giro: r.giro } });
       else if (r.clase === "nomina") propone({ ...comoHistorico(r, "nomina", { contraparte: r.nombre, concepto: [r.puesto, r.periodo, r.dias ? `${r.dias} días` : ""].filter(Boolean).join(" · "), referencia: lugar === "operacion" }), origen, llave: llaveDe(r) });
+      else if (r.clase === "raya") {
+        // Trabajador · fecha · actividad · ubicación, SIEMPRE como histórico o referencia: de una raya importada nunca
+        // sale un pago ni una actividad. Se guarda la CLAVE (no su significado): lo que se aprenda o se corrija después
+        // vale también para lo ya importado.
+        const rel = relacionDeRenglon(r, claves);
+        propone({ ...comoHistorico(r, "raya", { contraparte: r.nombre, concepto: [...r.claves, r.observacion].filter(Boolean).join(" · "), claves: r.claves, actividad: rel.actividad?.clave || null, ubicacion: rel.ubicacion?.clave || null,
+          ...(r.observacion ? { observacion: r.observacion } : {}), ...(r.dias ? { dias: r.dias } : {}), referencia: lugar === "operacion" }), origen, llave: llaveDe({ ...r, deDonde: `${String(doc.huella || doc.id || "").slice(0, 12)}-${h.nombre}-${r.renglon}` }) });
+      }
       else if (r.clase === "combustible") {
         const m = maquinaria.filter(v => corto(v.nombre) && corto(v.nombre) === corto(r.vehiculo));
         if (lugar === "operacion" && r.monto > 0 && m.length === 1) propone({ destino: "egresos", accion: "agregar", origen, llave: llaveDe(r), datos: { fecha: r.fecha, concepto: `Combustible: ${r.litros} L${r.horometro != null ? ` · lectura ${r.horometro}` : ""}`, proveedor: r.proveedor, monto: r.monto, categoria: "combustible", vehiculoId: m[0].id, litros: r.litros } });
@@ -422,6 +445,14 @@ export function proponer(doc, contexto = {}) {
     if (x.registros.some(r => r.clase === "actividades" && situar(r.fecha, inicio) === "operacion")) excepciones.push(`La hoja «${h.nombre}» trae actividades posteriores al arranque. NO se crean solas (la mano de obra sale del checador y de las asignaciones): quedan como referencia.`);
     if (x.registros.some(r => r.clase === "combustible" && situar(r.fecha, inicio) === "operacion" && !(r.monto > 0))) excepciones.push(`En «${h.nombre}» hay cargas de combustible posteriores al arranque sin importe: no se proponen como gasto, quedan como referencia.`);
     if (x.registros.some(r => r.clase === "combustible" && situar(r.fecha, inicio) === "operacion" && r.monto > 0 && maquinaria.filter(v => corto(v.nombre) === corto(r.vehiculo)).length !== 1)) excepciones.push(`En «${h.nombre}» hay cargas de combustible de vehículos que no están en el catálogo con ese nombre: no se sabe a cuál cargarlas, quedan como referencia.`);
+    const deRaya = x.registros.filter(r => r.clase === "raya");
+    if (deRaya.length) {
+      const faltan = clavesPorPreguntar(deRaya, claves), conDuda = deRaya.filter(r => relacionDeRenglon(r, claves).dudas.length).length;
+      excepciones.push(`«${h.nombre}» es una raya con claves: entra al histórico como relación de quién hizo qué y dónde. NO se crean pagos ni actividades.`);
+      if (faltan.length) excepciones.push(`Hay ${faltan.length} clave(s) que todavía no se sabe qué significan (${faltan.slice(0, 8).map(f => f.clave).join(", ")}${faltan.length > 8 ? "…" : ""}). No se inventan: se pueden contestar aquí abajo, o incorporar así —se guardan con su código— y contestarlas después.`);
+      if (deRaya.some(r => !r.fecha)) excepciones.push(`En «${h.nombre}» hay renglones sin día: entran al histórico «sin fecha».`);
+      if (conDuda > faltan.length && conDuda) excepciones.push(`${conDuda} renglón(es) de «${h.nombre}» traen alguna duda (se enseña en cada uno).`);
+    }
     if (x.registros.some(r => r.clase === "nomina" && !r.fecha)) excepciones.push(`La hoja «${h.nombre}» no trae la fecha de cada pago: esos renglones entran al histórico «sin fecha» (no se supone de qué semana son). Si quieres ubicarlos por mes, agrégale una columna de fecha y vuelve a subirla.`);
     if (x.descartadas.length) excepciones.push(`En «${h.nombre}» hay ${x.descartadas.length} renglón(es) que no se pudieron leer: no se adivinaron.`);
   }
