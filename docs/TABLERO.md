@@ -453,3 +453,9 @@ tiene historial (0 trabajadores, 0 actividades), así que no hay con qué sugeri
 un permiso propio, sólo otorgado; 8 pruebas atacando la base aislada; no se le dio a nadie). Catálogo único de
 actividades con requisitos legal · interno · experiencia (`ESPECIALIDADES.md` §13); nada restringe todavía. **Probado:**
 1,200 pruebas de cuenta, 116 contra la base aislada, navegador 24/24. Recomendaciones apagadas. Sin validar en campo.
+
+**Ejecutores y catálogo ampliado (21 nov, 20 h) — `ESPECIALIDADES.md` §13 a §19:** cada actividad y aplicación guarda
+aparte quién ordenó, capturó, ejecutó y confirmó (sin inventar a nadie; lo de antes se lee como estaba). El catálogo
+cubre las 25 actividades que ya ofrecía alguna pantalla, bodega incluida; umbral para sugerir por actividad; requisito
+legal con fundamento y vigencia. Diseñados (sin construir): confirmación de tareas, importación selectiva de libretas,
+consulta del trabajador. Recomendaciones, restricciones y facultades: sin tocar. **Sin publicar** hasta que Luis lo diga.

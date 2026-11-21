@@ -1,7 +1,9 @@
 # Motor de especialidades y recomendaciones
 
-**Estado (21 nov 2026, 19 h): construido SÓLO el catálogo único de actividades y sus requisitos (sección 13).**
-Todo lo demás sigue siendo diseño. Las recomendaciones están apagadas y ningún requisito restringe nada todavía.
+**Estado (21 nov 2026, 20 h): construidos el catálogo único de actividades con sus requisitos (sección 13) y la
+identificación de quién ordenó, capturó, ejecutó y confirmó (sección 14).** Todo lo demás sigue siendo diseño. Las
+recomendaciones están apagadas, ningún requisito restringe nada y no se cambió ninguna facultad de mando.
+**Empieza por la sección 15: qué se recopila desde la primera jornada real y para qué servirá.**
 Complementa `ORGANIZACION.md` (etapas 2 y 5).
 Pedido por Luis: que las especialidades no sean sólo etiquetas tecleadas, sino que salgan también del trabajo real; y
 que AgroGestión pueda sugerir gente para una actividad y actividades para la gente disponible. No se activa ninguna
@@ -293,23 +295,27 @@ Las recomendaciones nacen apagadas y se encienden cuando Luis lo apruebe.
 | Recomendaciones | Apagadas hasta tener datos suficientes y pruebas satisfactorias. Sin historial, se dice claro y los responsables pueden declarar y validar capacidades para empezar |
 | Costos | Cálculo propio, sin IA, para las recomendaciones ordinarias |
 
-**Quedan por decidir (antes de autorizar la siguiente etapa)**
+**Segunda ronda de decisiones (21 nov, 17:30)**
 
-1. **Normas.** ¿Quién va a documentar qué norma pide qué, actividad por actividad (asesor de seguridad, Fito, un
-   despacho)? El catálogo ya tiene dónde escribirlo; hoy no hay ninguna capturada.
-2. **Mínimos para sugerir una especialidad.** Mi propuesta de arranque: 10 días distintos y 40 horas medidas en el
-   último año, con al menos una jornada confirmada. ¿Se valida con Miguel?
-3. **Quién ejecutó.** Para cerrar el hueco hay que cambiar tres capturas: que la actividad tecleada diga quién la
-   hizo (no sólo quién la registró), que la aplicación diga quién aplicó, y que la cuadrilla siga como está. ¿Se
-   autoriza tocar esas pantallas?
-4. **Quién confirma la terminación.** Es el criterio pendiente de la jornada con Miguel. Sin eso no hay «trabajo
-   validado» y, por lo decidido arriba, no se enciende ninguna sugerencia.
-5. **Libretas viejas.** Queda la posibilidad. Para usarlas como antecedente hace falta que una persona ligue cada
-   nombre de la libreta con su ficha. ¿Se hace ahora, después, o sólo para algunas personas?
-6. **¿Los trabajadores ven su propia experiencia y especialidades?**
-7. **Catálogo.** ¿Agrego de una vez un ámbito de «Bodega» con sus actividades? Hoy el catálogo sólo trae las doce
-   que las pantallas ya ofrecían (ocho de campo y cuatro de vehículos); las de bodega viven en otra pantalla y no
-   las moví.
+| Tema | Decisión | Cómo quedó |
+|---|---|---|
+| Normas y habilitaciones | El catálogo registra requisitos legales con fundamento, vigencia y responsable de validación. Fito ayuda a identificar requisitos técnicos; la validación normativa la hace una persona competente en la materia. No se activan bloqueos por requisitos no determinados | **Construido** el registro (sección 13). Nada bloquea |
+| Umbrales | 10 días distintos y 40 horas en 12 meses, con al menos una jornada confirmada, sólo para SUGERIR. Configurables por especialidad. No acreditan ni autorizan | **Construido** el umbral por actividad. La sugerencia en sí no existe todavía |
+| Ejecutores | Las capturas manuales y las aplicaciones distinguen quién ordenó, registró, ejecutó y confirmó; varios ejecutores cuando corresponda; lo histórico incompleto se conserva sin inventar | **Construido** (sección 14) |
+| Confirmación | Por responsable autorizado, varias tareas de un equipo en una operación, cada tarea con sus ejecutores, evidencia y estado. La forma definitiva se valida con Miguel | **Diseñado** (sección 16). No construido |
+| Libretas | Importación selectiva, primero quienes siguen en Agroselectos; el vínculo nombre ↔ ficha se confirma antes de atribuir experiencia; lo importado no es experiencia validada | **Diseñado** (sección 17). No construido |
+| Visibilidad al trabajador | Cada quien ve su experiencia y especialidades sólo con sesión de identidad individual verificada; en teléfonos compartidos con PIN no se enseña | **Diseñado** (sección 18). No construido |
+| Bodega | Sus actividades entran al catálogo único sin cambiar su funcionamiento ni sus permisos, sin duplicar y conservando los nombres originales | **Construido** (sección 13) |
+| Organización | Pantalla publicada; estructura provisional sin activar; preparar el otorgamiento del permiso a una cuenta autorizada, sin dárselo a terceros | Listo para otorgarse (sección 19). **No se otorgó a nadie** |
+
+**Quedan por decidir**
+
+1. **Quién va a validar las normas.** Hace falta nombrar a la persona competente (asesor de seguridad e higiene, un
+   despacho, protección civil…). El catálogo ya pide su nombre y la fecha.
+2. **A qué cuenta se le otorga el permiso de administración organizacional** (sección 19).
+3. **La forma de confirmar una tarea terminada**, con Miguel (sección 16).
+4. **Qué libretas y de qué personas** se importan primero (sección 17).
+5. **Cuándo tendrán cuenta propia los trabajadores**, que es lo que les abre la consulta de su experiencia (sección 18).
 
 ---
 
@@ -317,8 +323,17 @@ Las recomendaciones nacen apagadas y se encienden cuando Luis lo apruebe.
 
 Está en la pantalla **Organización**, pestaña **Actividades**.
 
-- **Una sola lista** para Equipos de trabajo, Cuadrillas y la actividad tecleada. De arranque trae sólo las doce que
-  esas pantallas ya ofrecían; no inventé ninguna. Las pantallas ya no tienen su propia lista escrita aparte.
+- **Una sola lista.** Trae las 25 actividades que alguna pantalla ya ofrecía, con su mismo nombre; no inventé ninguna.
+  Son las doce de Equipos de trabajo y Cuadrillas (ocho de campo y cuatro de vehículos) y las trece de las capturas por
+  oficio: tractorista, dronero, cuadrilla, externo y la captura del administrador, que es la que registra el trabajo
+  de bodega. Hay una prueba que lee todas las listas de las pantallas y falla si alguna actividad no está en el catálogo.
+- **Bodega.** La bodega es un lugar, no una actividad: la «Limpieza» en bodega es la misma «Limpieza» (el registro ya
+  dice que fue en bodega). Sólo «Empaque» es propia de bodega. No se duplicó nada, no cambió cómo se captura ni quién
+  puede hacerlo, y lo ya registrado se reconoce con su nombre original.
+- **Equipos de trabajo y Cuadrillas ofrecen lo mismo que antes** (sus doce) más lo que una persona agregue. Las
+  actividades de oficio se reconocen, pero no se metieron a esas listas.
+- **Umbral para sugerir, por actividad**: de arranque 10 días distintos, 40 horas y 1 jornada confirmada en 12 meses.
+  Se cambia actividad por actividad, con motivo. No se acepta un umbral sin jornadas confirmadas.
 - **Agregar, renombrar o dar de baja** una actividad deja historial. La dada de baja ya no se ofrece, pero lo
   registrado con ella se sigue entendiendo.
 - **«Por ligar»**: lo que está escrito en los registros y el catálogo no reconoce (por ejemplo algo tecleado en
@@ -327,13 +342,175 @@ Está en la pantalla **Organización**, pestaña **Actividades**.
 - **Requisitos por actividad, en tres clases que no se mezclan**: legal, interno y experiencia recomendada.
   - Un requisito **legal** nace «por validar». Para darlo por validado hay que escribir qué norma lo pide y quién
     validó que aplica. La app no decide qué es de ley, y ninguna actividad trae un requisito legal de fábrica.
+    Guarda el fundamento, la vigencia (desde y hasta), quién lo validó y cuándo. Con la vigencia terminada lo dice y
+    deja de contar como validado.
   - Un requisito **interno** no puede llevar norma ni convertirse en legal: son renglones distintos.
   - La **experiencia recomendada** nunca impide nada.
 - **Nada restringe todavía.** Los requisitos son informativos; ninguna asignación se bloquea ni se avisa por ellos.
 - Lo captura sólo quien tiene el permiso otorgado, y lo valida la base (la misma hoja 52 de la organización).
 
-Probado con datos inventados: 7 pruebas de cuentas y el recorrido en pantalla (dentro de los 24 pasos de
+Probado con datos inventados: 9 pruebas de cuentas y el recorrido en pantalla (dentro de los 24 pasos de
 `pruebas/organizacion_navegador.py`). **Sin validar con nadie del rancho.**
 
-Lo que este catálogo todavía NO hace: no liga las claves de las libretas (A07…) con las actividades, no incluye las
-actividades de bodega, y los registros siguen guardando el texto tal cual (se normaliza al leer, no al guardar).
+Lo que este catálogo todavía NO hace: no liga las claves de las libretas (A07…) con las actividades, y los registros
+siguen guardando el texto tal cual (se normaliza al leer, no al guardar). Las capturas por oficio conservan sus
+tarjetas con icono; lo que cambió es que ya todas están en el catálogo.
+
+---
+
+## 14. Lo construido: quién ordenó, quién capturó, quién ejecutó y quién confirmó (21 nov, 20 h)
+
+Cada actividad tecleada y cada aplicación de agroquímicos guarda ahora, aparte y sin mezclar:
+
+| Quién | De dónde sale | Si no se sabe |
+|---|---|---|
+| **Lo ordenó** | Se escoge en la captura (opcional) | Queda «no se dijo» |
+| **Lo capturó** | La sesión que está tecleando | — |
+| **Lo ejecutó** | En una actividad, la persona a nombre de quien se registra; en una aplicación, las personas que se marcan como aplicadores (una o varias) | Queda vacío. **Quien registra una aplicación no cuenta como quien la aplicó** |
+| **Lo confirmó** | Todavía nadie: la confirmación está diseñada, no construida | Vacío |
+
+- **Varios ejecutores:** una aplicación puede marcar a varias personas. En las actividades, el registro de varias
+  personas a la vez sigue creando un renglón por persona (así se costea desde antes) y cada uno lleva a su ejecutor.
+- **Cuadrillas:** se anotan como grupo, con cuántas personas. A ningún integrante se le atribuye el trabajo.
+- **Registros de antes:** se leen como estaban. De una actividad vieja se sabe a nombre de quién se registró y, a
+  veces, quién la capturó. De una aplicación vieja sólo quién la capturó: **no se le supone aplicador**. La pantalla lo
+  dice («registro de antes de que se anotara quién aplica»). Nada se reescribió.
+- **No cambia pagos ni costos.** Los módulos de dinero siguen leyendo lo mismo que antes; hay prueba de que el costo
+  de mano de obra sale idéntico y de que ningún módulo de dinero lee este dato.
+
+Dónde se ve: en la captura de aplicaciones («¿Quién aplicó?», «¿Quién la indicó?») y en su detalle; y en la captura de
+actividades del administrador («¿Quién lo ordenó?»).
+
+Probado con datos inventados: 7 pruebas de cuentas y un recorrido de 8 pasos en pantalla
+(`pruebas/ejecutores_navegador.py`). **Sin validar con Fito ni con Miguel.**
+
+---
+
+## 15. Qué empieza a recopilar AgroGestión desde la primera jornada real, y para qué servirá
+
+Nada de lo de abajo pide capturar algo «para el motor». Es lo que ya se registra para operar; el motor sólo lo lee.
+
+### Lo que queda registrado en un día normal
+
+| Momento del día | Qué se registra | Quién lo registra | Qué dato deja para después |
+|---|---|---|---|
+| Víspera o temprano | Las tareas mandadas: quién, a qué, dónde | Quien reparte | Quién **ordenó** y qué se planeó |
+| Llegada | Entrada en el checador | Cada trabajador | Que vino y a qué hora |
+| Reparto real | A quién se manda, a qué actividad y a qué parcela o vehículo | El encargado | Actividad del catálogo, y quién **mandó** |
+| Cambio a media jornada | Otro reparto, con su hora | El encargado | Los minutos reales en cada actividad |
+| Durante el día | Avances e incidencias | Quien los reporta | Qué se logró y qué falló |
+| Aplicación de agroquímicos | Productos, parcela, **quién aplicó** y quién la indicó | Quien la captura | Experiencia de aplicador, con nombre |
+| Actividad tecleada | Actividad, parcela, **quién la hizo**, quién la ordenó | Quien la captura | Experiencia de quien no pasa por el checador |
+| Cuadrilla | Quiénes vinieron y a qué | El encargado | Experiencia del grupo (no de cada persona) |
+| Salida | Salida en el checador | Cada trabajador | Las horas medidas |
+| Cierre de la jornada | Qué se hizo, qué no y por qué | Quien cierra | El estado de cada tarea |
+
+### De cada registro, qué se podrá saber
+
+Por cada persona, actividad y día:
+
+- **en qué actividad trabajó** (ya normalizada contra el catálogo: «regar» y «Riego» cuentan juntas);
+- **cuántas horas**, medidas con el checador, no dichas;
+- **quién se lo ordenó** y **quién lo registró**;
+- **en qué parcela o vehículo**;
+- si esa jornada fue **confirmada** por un responsable (cuando exista la confirmación);
+- si hubo una **incidencia** ligada.
+
+### Cómo se usará después (todavía apagado)
+
+| Uso | Con qué datos | Cuándo se podrá |
+|---|---|---|
+| **Ver la experiencia de una persona** | Días, horas y fechas por actividad | En cuanto haya jornadas registradas |
+| **Sugerir una especialidad** | Lo anterior contra el umbral de esa actividad, con jornadas confirmadas | Tras unas semanas de operación y con la confirmación funcionando |
+| **Validarla** | Un responsable con esa facultad revisa la sugerencia | Cuando Dirección confirme quién valida |
+| **Recomendar gente para una actividad** | Especialidad, experiencia reciente, disponibilidad del día, equipo, dónde está, requisitos | Después de órdenes y facultades |
+| **Recomendar actividades a gente libre** | Pendientes que ya existen + lo que esa gente sabe hacer | Igual |
+| **Avisar de capacidades faltantes** | Cuánta gente habilitada hay contra lo que se necesita | Cuando haya requisitos documentados |
+
+### Lo que conviene cuidar desde el primer día, para que el dato sirva
+
+1. **Que la gente cheque entrada y salida.** Sin salida, el día cuenta pero las horas no.
+2. **Que el reparto real se capture cuando pasa**, no al final del día: de ahí salen los minutos por actividad.
+3. **Escoger la actividad del catálogo** y no «Otra cosa…». Lo que se escriba libre sale «por ligar» y alguien lo
+   tendrá que ligar después.
+4. **En las aplicaciones, marcar quién aplicó.** Si no se marca, esa aplicación no le suma experiencia a nadie.
+5. **Cerrar la jornada.** Es lo que dice qué se hizo y qué no.
+
+### Lo que NO se recopila ni se usará
+
+- No se guarda un expediente aparte: la experiencia se calcula de estos mismos registros.
+- No se califica a las personas ni se usa para pagos, bonos o descuentos.
+- Lo importado de libretas viejas va marcado como antecedente, no como experiencia verificada.
+- Mientras no haya historial, la app dirá «todavía no hay historial» y los responsables podrán declarar y validar
+  capacidades a mano para empezar.
+
+---
+
+## 16. Diseño: confirmar que una tarea se terminó (no construido; se valida con Miguel)
+
+- **Quién confirma:** un responsable con la facultad de «confirmar ejecución» sobre ese equipo. Lo dicho por el
+  trabajador («ya terminé») queda como **dice que terminó**, no como confirmado.
+- **Varias a la vez:** el responsable ve las tareas del día de su equipo y puede marcar varias y confirmarlas en una
+  sola operación. Aun así, **cada tarea guarda su propio registro**: sus ejecutores, su evidencia y su estado.
+- **Estados de una tarea:** confirmada · confirmada en parte (con nota de lo que faltó) · no se hizo (con motivo) ·
+  sin confirmar.
+- **Evidencia:** opcional de arranque (foto, avance en reguladores o surcos, nota). Qué evidencia basta es justo lo
+  que hay que preguntarle a Miguel.
+- **No toca dinero:** confirmar no paga, no descuenta y no cambia horas. Sólo dice que el trabajo quedó validado.
+- **No reescribe:** corregir una confirmación es otro registro con su motivo.
+- **Lo valida la base**, como lo demás; esa facultad llega con la etapa 3.
+
+Preguntas para Miguel: ¿confirma tarea por tarea o por equipo y parcela?, ¿al final del día o al terminar cada cosa?,
+¿qué pasa con lo que nadie confirma: se queda así o vence?, ¿qué evidencia le sirve?
+
+---
+
+## 17. Diseño: importación selectiva de libretas viejas (no construido)
+
+1. **Se escoge a quién.** La lista arranca con las personas que siguen en Agroselectos (las que están activas en el
+   catálogo de personal). No se importa «todo».
+2. **Se liga el nombre.** Para cada persona escogida, la app enseña los nombres parecidos que aparecen en las
+   libretas. **Una persona confirma** cuáles son ella. Sin esa confirmación no se le atribuye nada. Un nombre de
+   libreta puede quedar «sin ligar» para siempre; no pasa nada.
+3. **Se liga la actividad.** Las claves de la libreta (A07…) se ligan al catálogo con el mismo mecanismo de «por
+   ligar». Clave sin ligar = antecedente sin actividad conocida.
+4. **Cómo entra.** Como **antecedente importado**: persona · día · actividad · lugar, con el documento de origen. Sin
+   horas (las libretas no las miden) y sin dinero.
+5. **Cómo se enseña.** Siempre aparte de lo registrado en AgroGestión: «antecedente de libreta, 2024, sin
+   verificar». **No cuenta para el umbral de sugerencia** mientras Luis no decida otra cosa, y nunca se vuelve
+   especialidad validada por sí solo: un responsable puede usarlo como apoyo al validar a mano.
+6. **Se puede deshacer.** Desligar un nombre quita esos antecedentes de la persona, sin borrar el documento.
+
+Ya existe: leer las libretas y el Excel, guardar el histórico, y comparar dos documentos del mismo día sin contar
+doble. Falta: escoger personas, la pantalla para ligar nombres y la vista de antecedentes por persona.
+
+---
+
+## 18. Diseño: que cada trabajador vea su experiencia y sus especialidades (no construido)
+
+- **Sólo con identidad individual verificada**: una cuenta propia, con su sesión ante el servidor.
+- **En un teléfono compartido con PIN no se enseña.** Ahí la base ve la cuenta del encargado, no la del trabajador, y
+  ya está decidido que un PIN local no equivale a una identidad. Mientras eso no se resuelva, el trabajador no ve su
+  expediente en ese aparato, y nadie ve el de otro.
+- **Lo que vería, en cinco bloques que no se mezclan:** experiencia observada (días, horas, última vez, por
+  actividad) · especialidad sugerida por el sistema · especialidad validada (por quién y cuándo) · capacitaciones
+  (con vigencia) · habilitaciones (con vigencia).
+- **Lo que no vería:** la experiencia de otras personas, ni comparaciones.
+- **La base lo protege:** cada cuenta lee sólo lo suyo; los responsables, lo de su equipo según sus facultades.
+- Depende de dos cosas que hoy no existen: cuentas propias para los trabajadores y el aislamiento entre personas en
+  aparatos compartidos (pendiente del trabajo de Android).
+
+---
+
+## 19. El permiso de administración organizacional: listo para otorgarse, sin otorgar
+
+- **Dónde:** Arranque → Cuentas. En el renglón de cada cuenta aparece «Capturar la organización (áreas, equipos,
+  responsables) y el catálogo de actividades y sus requisitos».
+- **Quién lo otorga:** un superadministrador. Queda quién lo dio, a quién y cuándo; se puede retirar.
+- **A quién se le puede dar:** a cualquier cuenta con perfil, incluida la del propio superadministrador (ser
+  superadministrador no lo trae).
+- **Qué da:** capturar el mapa y el catálogo. **Nada más**: ni pagos, ni cierres, ni reglas, ni mando.
+- **Estado hoy:** nadie lo tiene. Mientras nadie lo tenga, la pantalla se puede ver pero no capturar, y la estructura
+  provisional sigue sin crearse.
+
+No se lo otorgué a ninguna cuenta: lo hace una persona desde la app, cuando Luis decida a quién.

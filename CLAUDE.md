@@ -561,7 +561,15 @@ Usuarios reales de la app:
   otra lista de actividades en una pantalla.** `normalizar` no adivina; lo no reconocido sale en `porLigar` y lo liga una
   persona (`act_equivalencia`). Requisitos (`act_requisito`): legal · interno · experiencia; lo legal nace `por_validar` y
   no se valida sin norma y sin quién validó; lo interno no lleva norma ni cambia de clase. `RESTRICCIONES_ACTIVAS = false`:
-  nada restringe todavía. **Etapas 2 a 6 y el motor de especialidades (`docs/ESPECIALIDADES.md`): SÓLO DISEÑO, sin autorizar.** No
+  nada restringe todavía. El catálogo trae TODO lo que alguna captura ya ofrecía (25; una prueba lee las listas de
+  `App.jsx` y falla si falta una); la bodega es un lugar, no una actividad; `nombres()` sólo ofrece en Reparto/Cuadrillas
+  las doce de siempre + lo agregado. Umbral para SUGERIR por actividad (`UMBRAL_PROVISIONAL` 10 días · 40 h · 1 confirmada ·
+  12 meses): no acredita ni autoriza. Requisito legal: norma, vigencia, quién validó y cuándo.
+  **`src/ejecucion.js`: QUIÉN ORDENÓ · CAPTURÓ · EJECUTÓ · CONFIRMÓ**: `add` le pone `quienes` a toda actividad y
+  aplicación (`conQuienes`); se lee con `quienesDe` (los registros de antes: `origen: "registro_anterior"`, sin rellenar).
+  **Quien registra una aplicación NO es por eso quien la aplicó**; una cuadrilla es un grupo; `confirmo` nace vacío. Los
+  módulos de dinero NO leen `quienes` (hay prueba): siguen con `registradoPor`/`trabajadorId`.
+  **Etapas 2 a 6 y el motor de especialidades (`docs/ESPECIALIDADES.md`): SÓLO DISEÑO, sin autorizar.** No
   cambies permisos ni actives recomendaciones; la estructura real espera a Miguel, Fito y Dirección. Lo acordado: cuatro
   niveles (experiencia observada · especialidad declarada · capacitación · habilitación); la experiencia se calcula y
   nunca se vuelve autorización; una habilitación legal no tiene excepción interna; las facultades serán operaciones de
@@ -754,7 +762,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **222 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **223 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

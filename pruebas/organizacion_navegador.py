@@ -71,7 +71,7 @@ with sync_playwright() as p:
 
     # ── 5 bis. El catálogo único de actividades ──
     pg.get_by_role("button", name="Actividades").click(); pg.wait_for_timeout(400); t = pg.locator(".organizacion").inner_text()
-    caso("el catálogo trae sólo las doce actividades que ya se ofrecían, sin ningún requisito", pg.locator(".org-actividad").count() == 12 and t.count("Sin requisitos") == 12 and "todavía no impiden ninguna asignación" in t and "la app no decide qué es de ley" in t, pg.locator(".org-actividad").count())
+    caso("el catálogo trae sólo las actividades que las pantallas ya ofrecían (25), sin ningún requisito", pg.locator(".org-actividad").count() == 25 and t.count("Sin requisitos") == 25 and "Bodega" in t and "Empaque" in t and "todavía no impiden ninguna asignación" in t and "la app no decide qué es de ley" in t, pg.locator(".org-actividad").count())
     caso("lo que está escrito en los registros y no se reconoce sale «por ligar», sin adivinar", "Por ligar (1)" in t and "«Pizca»" in t and "Actividades registradas" in t, plano(pg.locator(".org-por-ligar").inner_text()) if pg.locator(".org-por-ligar").count() else t[:300])
     pg.get_by_role("button", name="Es una que ya está").click(); pg.get_by_label("Actividad del catálogo").select_option("act-cosecha"); pg.get_by_role("button", name="Guardar").click(); pg.wait_for_timeout(400)
     caso("se liga con una decisión de una persona y deja de estar pendiente", "«Pizca» se entiende como Cosecha" in pg.locator(".org-dice").inner_text() and pg.locator(".org-por-ligar").count() == 0, pg.locator(".org-dice").inner_text())
@@ -94,7 +94,7 @@ with sync_playwright() as p:
     pg.locator(".chk-teclas button.ok").click(); pg.wait_for_timeout(400); pg.clock.run_for(13000)
     ir(pg, "reparto"); pg.get_by_role("button", name="Marcar todos").click(); pg.wait_for_timeout(200)
     ops = pg.get_by_label("Qué van a hacer").locator("option").all_inner_texts()
-    caso("la actividad nueva ya se ofrece en Equipos de trabajo, junto con las de siempre: es la misma lista", "Poda inventada" in ops and "Riego" in ops and "Traslado de personal" in ops and "Pizca" not in ops, ops)
+    caso("la actividad nueva ya se ofrece en Equipos de trabajo, junto con las de siempre: es la misma lista", "Poda inventada" in ops and "Riego" in ops and "Traslado de personal" in ops and "Pizca" not in ops and "Subsoleo" not in ops and "Empaque" not in ops and len([o for o in ops if o not in ("¿A hacer qué?", "Otra cosa…")]) == 13, ops)
     # ── 7. Sólo un administrador ──
     g["sembrar"](pg); g["entrar"](pg, "Encargado", "5501"); pg.wait_for_timeout(400); ir(pg, "organizacion")
     caso("el encargado no tiene la pantalla de Organización", pg.locator(".organizacion").count() == 0 and pg.locator(".login-bg").count() == 0)

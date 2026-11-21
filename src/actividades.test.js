@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { catalogoEn, porLigar, guardarActividad, ligarTexto, ponerRequisito, claveDe, DE_FABRICA, TIPOS, OPERACION, RESTRICCIONES_ACTIVAS, CLASES_DE_REQUISITO } from "./actividades.js";
+import { catalogoEn, porLigar, guardarActividad, ligarTexto, ponerRequisito, claveDe, DE_FABRICA, TIPOS, OPERACION, RESTRICCIONES_ACTIVAS, CLASES_DE_REQUISITO, UMBRAL_PROVISIONAL } from "./actividades.js";
 import { OPERACION_DE, nuevoEvento, exigirValidacion } from "./eventos.js";
 
 const HOY = "2026-11-23", jefa = { id: "adm1", nombre: "ADMINISTRADORA INVENTADA", rol: "admin" };
@@ -15,6 +15,15 @@ test("de_fabrica_solo_estan_las_actividades_que_las_pantallas_ya_ofrecian", () =
   assert.deepEqual(c.nombres(["campo"]), ["Control de plagas", "Cosecha", "Deshierbe", "Fertilización", "Limpieza", "Preparación de suelo", "Riego", "Siembra"]);
   assert.deepEqual(c.nombres(["vehiculo"]), ["Acarreo de cosecha", "Acarreo de insumos", "Mantenimiento del vehículo", "Traslado de personal"]);
   assert.equal(c.actividades.length, DE_FABRICA.length); assert.ok(c.actividades.every(a => a.deFabrica && a.requisitos.length === 0), "ninguna nace con requisitos: la app no decide qué pide cada una");
+  // Todo lo que CUALQUIER captura ya ofrecía está en el catálogo con su mismo nombre: nada queda «por ligar» de fábrica
+  // y nada nació duplicado (incluye el trabajo de bodega, que usa la captura del administrador).
+  const app0 = readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const ofrecidas = new Set([...app0.matchAll(/\{ label: "([^"]+)", icon: "[^"]+" \}/g)].map(m => m[1]).filter(n => n !== "Otro"));
+  assert.ok(ofrecidas.size >= 20, "se leyeron las listas de las capturas");
+  for (const n of ofrecidas) assert.ok(c.normalizar(n).actividadId, `«${n}» se ofrece en una captura y no está en el catálogo`);
+  assert.equal(new Set(c.actividades.map(a => claveDe(a.nombre))).size, c.actividades.length, "ninguna repetida");
+  assert.equal(c.porId.get("act-empaque").ambito, "bodega"); assert.equal(c.normalizar("Limpieza").nombre, "Limpieza", "la bodega es un lugar: su limpieza es la misma Limpieza");
+  assert.ok(!c.nombres().includes("Subsoleo") && !c.nombres().includes("Empaque"), "las de las capturas por oficio se reconocen, pero no se meten a Equipos de trabajo ni a Cuadrillas");
   // Y son las mismas que usa la app: una sola lista, no una copia.
   const app = readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
   assert.ok(!/const ACTIVIDADES_DE_CAMPO = \[/.test(app) && !/const tiposAct = \["Preparación/.test(app), "las pantallas ya no traen su propia lista escrita a mano");
@@ -98,4 +107,29 @@ test("el_catalogo_lo_captura_quien_tiene_el_permiso_y_con_base_no_cuenta_hasta_q
     assert.ok(!catalogoEn([{ ...r.evento, _validacion: "rechazado" }], HOY).nombres().includes("Poda"));
   } finally { exigirValidacion(false); }
   assert.equal(claveDe("  Preparación   de SUELO. "), "preparacion de suelo");
+});
+
+test("el_minimo_para_sugerir_una_especialidad_es_provisional_configurable_por_actividad_y_no_autoriza_nada", () => {
+  const ev = [], c0 = catalogoEn(ev, HOY);
+  assert.deepEqual(UMBRAL_PROVISIONAL, { dias: 10, horas: 40, confirmadas: 1, meses: 12 });
+  assert.ok(c0.actividades.every(a => !a.umbralPropio && a.umbral === UMBRAL_PROVISIONAL));
+  const base = { eventos: ev, actividadId: "act-riego", nombre: "Riego", ambito: "campo" };
+  assert.match(guardarActividad({ ...base, umbral: { dias: 5, horas: 20, confirmadas: 0, meses: 12 }, motivo: "x", ...ctx() }).dice, /Sin ninguna jornada confirmada no se sugiere/);
+  va(ev, guardarActividad({ ...base, umbral: { dias: 20, horas: 80, confirmadas: 3, meses: 12 }, motivo: "el riego pide más práctica", ...ctx() }));
+  const c = catalogoEn(ev, HOY);
+  assert.deepEqual([c.porId.get("act-riego").umbral, c.porId.get("act-riego").umbralPropio], [{ dias: 20, horas: 80, confirmadas: 3, meses: 12 }, true]);
+  assert.equal(c.porId.get("act-siembra").umbralPropio, false, "las demás siguen con el provisional");
+  assert.ok(c.porId.get("act-riego").requisitos.length === 0 && RESTRICCIONES_ACTIVAS === false, "el umbral no crea requisitos ni autoriza nada");
+});
+
+test("un_requisito_legal_guarda_fundamento_vigencia_y_quien_lo_valido_y_vencido_ya_no_restringiria", () => {
+  const ev = [], A = "act-aplicacion-agroquimicos";
+  const base = { actividadId: A, clase: "legal", descripcion: "Capacitación vigente", norma: "Norma inventada 000, numeral 2", aplicabilidad: "validada", validadoPor: "ASESORA INVENTADA (seguridad)" };
+  assert.equal(ponerRequisito({ eventos: ev, ...base, vigenteDesde: "2026-12-01", vigenteHasta: "2026-11-01", ...ctx() }).ok, false);
+  const r = va(ev, ponerRequisito({ eventos: ev, ...base, vigenteDesde: "2026-01-01", vigenteHasta: "2026-12-31", ...ctx() }));
+  assert.equal(r.evento.datos.validadoEl, HOY);
+  const q = catalogoEn(ev, HOY).porId.get(A).requisitos[0];
+  assert.deepEqual([q.norma, q.validadoPor, q.validadoEl, q.vigenteDesde, q.vigenteHasta, q.vencido, q.restringiria, q.restringeHoy], ["Norma inventada 000, numeral 2", "ASESORA INVENTADA (seguridad)", HOY, "2026-01-01", "2026-12-31", false, true, false]);
+  const v = catalogoEn(ev, "2027-01-05").porId.get(A).requisitos[0];
+  assert.deepEqual([v.vencido, v.restringiria], [true, false]); assert.match(v.estado, /vigencia terminó/);
 });

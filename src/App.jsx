@@ -108,6 +108,7 @@ import { destinoDe as destinoDeAviso, estadoDelAparato, CLASES_DE_AVISO } from "
 import { activarAvisos, desactivarAvisos, avisoDePrueba, misPreferenciasDeAvisos, guardarPreferenciasDeAvisos, quitarAvisosDe, suscripcionDeEsteAparato } from "./avisosRed.js";
 import { idConAsistente, abrirConAsistente, esConAsistente, misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro, hallazgosDe, antecedentes, temasDe, deDondeSalio, comoEvidencia, admiteArchivos, carpetaDe, pedirConsulta, conversacionesDe as todasLasConversaciones, PERMISO_EVIDENCIA, PERMISO_SUPERVISION } from "./mensajeria.js";
 import { planDelDia as planMandadoDe, loQueLeToca, quitarAsignacion, cambiarAsignacion } from "./asignaciones.js";
+import { conQuienes, quienesDe, textoDe as textoDeQuienes, CLASES as CLASES_CON_QUIENES } from "./ejecucion.js";
 import { catalogoEn as catalogoDeActividades, porLigar as actividadesPorLigar, guardarActividad, ligarTexto as ligarTextoDeActividad, ponerRequisito, DE_FABRICA as ACTIVIDADES_DE_FABRICA, AMBITOS as AMBITOS_DE_ACTIVIDAD, CLASES_DE_REQUISITO } from "./actividades.js";
 import { organizacionEn, superiorDe, crearUnidad, cambiarUnidad, cerrarUnidad, nombrarResponsable, quitarResponsable, adscribir, quitarAdscripcion, apoyar, cancelarHecho, historialDe as historialDeOrg, estructuraProvisional, CLASES as CLASES_DE_UNIDAD, OPERACION as OPERACION_ORG, LO_QUE_NO_ES as LO_QUE_NO_ES_EL_MAPA, T_UNIDAD as T_UNIDAD_ORG } from "./organizacion.js";
 import { jornadaDe, cerrarJornada, reabrirJornada, cierreDe as cierreDeJornada, diferenciasDelCierre as diferenciasDeJornada, tareasParaManana, MOTIVOS as MOTIVOS_DE_JORNADA, ESTADOS as ESTADOS_DE_JORNADA, ROLES_QUE_CIERRAN as ROLES_QUE_CIERRAN_JORNADA } from "./jornada.js";
@@ -7536,6 +7537,9 @@ function AppInner() {
   // nueva la foto del sueldo con que se costea ese día.
   const trabajadoresRef = useRef([]);
   trabajadoresRef.current = data.trabajadores || [];
+  // Para anotar, al guardar una actividad o una aplicación, quién la capturó y quién la ejecutó (`src/ejecucion.js`).
+  const sesionRef = useRef(null); sesionRef.current = session;
+  const catalogosRef = useRef({}); catalogosRef.current = { trabajadores: data.trabajadores, encargados: data.encargados, agronomos: data.agronomos, cuadrillas: data.cuadrillas, externos: data.externos };
   const encargadosRef = useRef([]);
   encargadosRef.current = data.encargados || [];
   // El catálogo tal como está guardado (sin lo que le suman los movimientos al enseñarlo).
@@ -7573,6 +7577,8 @@ function AppInner() {
 
   const add = useCallback((sec, item) => {
     if (sec === "actividades") item = sellarSueldoDelDia(item, trabajadoresRef.current);
+    // Quién lo ordenó, capturó, ejecutó y confirmó van aparte, sin suponer a nadie. No cambia pagos ni costos.
+    if (CLASES_CON_QUIENES.includes(sec)) item = conQuienes(sec, item, { sesion: sesionRef.current, catalogos: catalogosRef.current });
     if (sec === "inventario") item = paraGuardarArticulo(item);
     item = apartarArchivos(sec, item);
     // Cada evento nace diciendo cuánto difería el reloj de este teléfono del servidor (o que no se ha podido cotejar).
@@ -8526,9 +8532,9 @@ function Organizacion({ data, add, upd, session, onClose }) {
   const guardaAct = (r) => { if (!r.ok) { setDice({ ok: false, txt: r.dice }); return; } add("eventos", r.evento); setDice({ ok: true, txt: r.dice }); setFa(null); };
   const aplicaAct = () => {
     const c = ctx();
-    if (fa.modo === "actividad") return guardaAct(guardarActividad({ ...c, actividadId: fa.actividadId, nombre: fa.nombre, ambito: fa.ambito, activa: fa.activa, motivo: fa.motivo }));
+    if (fa.modo === "actividad") return guardaAct(guardarActividad({ ...c, actividadId: fa.actividadId, nombre: fa.nombre, ambito: fa.ambito, activa: fa.activa, ...(fa.actividadId ? { umbral: { dias: fa.uDias, horas: fa.uHoras, confirmadas: fa.uConf, meses: fa.uMeses } } : {}), motivo: fa.motivo }));
     if (fa.modo === "ligar") return guardaAct(ligarTextoDeActividad({ ...c, escrito: fa.escrito, actividadId: fa.actividadId || null, motivo: fa.motivo }));
-    if (fa.modo === "requisito") return guardaAct(ponerRequisito({ ...c, requisitoId: fa.requisitoId, actividadId: fa.actividadId, clase: fa.clase, descripcion: fa.descripcion, norma: fa.clase === "legal" ? fa.norma : "", aplicabilidad: fa.validada ? "validada" : "por_validar", validadoPor: fa.validadoPor, obliga: fa.obliga, motivo: fa.motivo }));
+    if (fa.modo === "requisito") return guardaAct(ponerRequisito({ ...c, requisitoId: fa.requisitoId, actividadId: fa.actividadId, clase: fa.clase, descripcion: fa.descripcion, norma: fa.clase === "legal" ? fa.norma : "", aplicabilidad: fa.validada ? "validada" : "por_validar", validadoPor: fa.validadoPor, vigenteDesde: fa.vigenteDesde || "", vigenteHasta: fa.vigenteHasta || "", obliga: fa.obliga, motivo: fa.motivo }));
     if (fa.modo === "quitar-requisito") return guardaAct(ponerRequisito({ ...c, requisitoId: fa.requisitoId, actividadId: fa.actividadId, activo: false, motivo: fa.motivo }));
   };
   const formAct = fa && (
@@ -8538,6 +8544,12 @@ function Organizacion({ data, add, upd, session, onClose }) {
         <input className="inp" aria-label="Nombre de la actividad" placeholder="Nombre de la actividad" value={fa.nombre} onChange={e => setFa(x => ({ ...x, nombre: e.target.value }))} style={{ marginBottom: 6 }} />
         <select className="inp" aria-label="De qué es" value={fa.ambito} onChange={e => setFa(x => ({ ...x, ambito: e.target.value }))} style={{ marginBottom: 6 }}>{Object.entries(AMBITOS_DE_ACTIVIDAD).map(([k, n]) => <option key={k} value={k}>{n}</option>)}</select>
         {fa.actividadId && <label className="text-xs" style={{ display: "flex", gap: 6, marginBottom: 6 }}><input type="checkbox" aria-label="Se sigue ofreciendo" checked={!!fa.activa} onChange={e => setFa(x => ({ ...x, activa: e.target.checked }))} />Se sigue ofreciendo en las pantallas</label>}
+        {fa.actividadId && <>
+          <div className="text-xs text-muted" style={{ marginBottom: 4 }}>Mínimo para que el sistema SUGIERA esta especialidad (no acredita ni autoriza nada):</div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+            {[["uDias", "Días distintos"], ["uHoras", "Horas"], ["uConf", "Jornadas confirmadas"], ["uMeses", "En cuántos meses"]].map(([k, l]) => <label key={k} className="text-xs text-muted" style={{ flex: 1 }}>{l}<input className="inp" type="number" min="1" aria-label={l} value={fa[k]} onChange={e => setFa(x => ({ ...x, [k]: e.target.value }))} /></label>)}
+          </div>
+        </>}
       </>}
       {fa.modo === "ligar" && (
         <select className="inp" aria-label="Actividad del catálogo" value={fa.actividadId} onChange={e => setFa(x => ({ ...x, actividadId: e.target.value }))} style={{ marginBottom: 6 }}>
@@ -8552,8 +8564,12 @@ function Organizacion({ data, add, upd, session, onClose }) {
         {fa.clase === "legal" && <>
           <input className="inp" aria-label="Norma" placeholder="Qué norma lo pide (nombre y artículo o numeral)" value={fa.norma} onChange={e => setFa(x => ({ ...x, norma: e.target.value }))} style={{ marginBottom: 6 }} />
           <label className="text-xs" style={{ display: "flex", gap: 6, marginBottom: 6 }}><input type="checkbox" aria-label="Aplicabilidad validada" checked={!!fa.validada} onChange={e => setFa(x => ({ ...x, validada: e.target.checked }))} />Ya se validó que esa norma aplica a esta actividad</label>
-          {fa.validada && <input className="inp" aria-label="Quién lo validó" placeholder="Quién lo validó (nombre y cargo)" value={fa.validadoPor} onChange={e => setFa(x => ({ ...x, validadoPor: e.target.value }))} style={{ marginBottom: 6 }} />}
+          {fa.validada && <input className="inp" aria-label="Quién lo validó" placeholder="Quién lo validó: persona competente en la materia (nombre y cargo)" value={fa.validadoPor} onChange={e => setFa(x => ({ ...x, validadoPor: e.target.value }))} style={{ marginBottom: 6 }} />}
         </>}
+        <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+          <label className="text-xs text-muted" style={{ flex: 1 }}>Vigente desde (opcional)<input className="inp" type="date" aria-label="Vigente desde" value={fa.vigenteDesde || ""} onChange={e => setFa(x => ({ ...x, vigenteDesde: e.target.value }))} /></label>
+          <label className="text-xs text-muted" style={{ flex: 1 }}>Vigente hasta (opcional)<input className="inp" type="date" aria-label="Vigente hasta" value={fa.vigenteHasta || ""} onChange={e => setFa(x => ({ ...x, vigenteHasta: e.target.value }))} /></label>
+        </div>
         {fa.clase === "interno" && <label className="text-xs" style={{ display: "flex", gap: 6, marginBottom: 6 }}><input type="checkbox" aria-label="El rancho lo pide como obligatorio" checked={!!fa.obliga} onChange={e => setFa(x => ({ ...x, obliga: e.target.checked }))} />El rancho lo pide como obligatorio (no sólo recomendado)</label>}
       </>}
       {(fa.modo !== "actividad" || fa.actividadId) && (fa.modo !== "requisito" || fa.requisitoId) && <input className="inp" aria-label="Motivo" placeholder="Motivo" value={fa.motivo} onChange={e => setFa(x => ({ ...x, motivo: e.target.value }))} style={{ marginBottom: 6 }} />}
@@ -8683,18 +8699,19 @@ function Organizacion({ data, add, upd, session, onClose }) {
                   </div>
                   {actAbierta === a.id && (
                     <div style={{ marginTop: 6 }}>
+                      <div className="text-xs text-muted">Para sugerir la especialidad: {a.umbral.dias} días distintos y {a.umbral.horas} horas en {a.umbral.meses} meses, con {a.umbral.confirmadas} jornada(s) confirmada(s){a.umbralPropio ? "" : " (provisional)"}. Sugerir no es acreditar ni autorizar.</div>
                       {catalogo.equivalencias.filter(q => q.actividadId === a.id).length > 0 && <div className="text-xs text-muted">También se escribe: {catalogo.equivalencias.filter(q => q.actividadId === a.id).map(q => `«${q.escrito}»`).join(", ")}</div>}
                       {a.requisitos.map(r => (
                         <div key={r.id} className="org-requisito" style={{ padding: "4px 0" }}>
                           <div className="text-sm">{r.descripcion}</div>
-                          <div className="text-xs text-muted">{CLASES_DE_REQUISITO[r.clase].nombre} · {r.estado}{r.norma ? ` · ${r.norma}` : ""}{r.validadoPor ? ` · validó: ${r.validadoPor}` : ""}</div>
-                          {puede && <div style={{ display: "flex", gap: 8 }}><button className="btn-ghost text-xs" style={{ textDecoration: "underline" }} onClick={() => { setDice(null); setFa({ modo: "requisito", requisitoId: r.id, actividadId: a.id, clase: r.clase, descripcion: r.descripcion, norma: r.norma, validada: r.aplicabilidad === "validada", validadoPor: r.validadoPor, obliga: r.obliga, motivo: "" }); }}>Cambiar</button><button className="btn-ghost text-xs" style={{ textDecoration: "underline" }} onClick={() => { setDice(null); setFa({ modo: "quitar-requisito", requisitoId: r.id, actividadId: a.id, motivo: "" }); }}>Quitar</button></div>}
+                          <div className="text-xs text-muted">{CLASES_DE_REQUISITO[r.clase].nombre} · {r.estado}{r.norma ? ` · ${r.norma}` : ""}{r.validadoPor ? ` · validó: ${r.validadoPor}${r.validadoEl ? ` el ${r.validadoEl}` : ""}` : ""}{r.vigenteDesde || r.vigenteHasta ? ` · vigencia: ${r.vigenteDesde || "…"} a ${r.vigenteHasta || "sin fecha de término"}` : ""}</div>
+                          {puede && <div style={{ display: "flex", gap: 8 }}><button className="btn-ghost text-xs" style={{ textDecoration: "underline" }} onClick={() => { setDice(null); setFa({ modo: "requisito", requisitoId: r.id, actividadId: a.id, clase: r.clase, descripcion: r.descripcion, norma: r.norma, validada: r.aplicabilidad === "validada", validadoPor: r.validadoPor, vigenteDesde: r.vigenteDesde, vigenteHasta: r.vigenteHasta, obliga: r.obliga, motivo: "" }); }}>Cambiar</button><button className="btn-ghost text-xs" style={{ textDecoration: "underline" }} onClick={() => { setDice(null); setFa({ modo: "quitar-requisito", requisitoId: r.id, actividadId: a.id, motivo: "" }); }}>Quitar</button></div>}
                         </div>
                       ))}
                       {puede && (
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
                           <button className="btn btn-outline btn-sm" onClick={() => { setDice(null); setFa({ modo: "requisito", actividadId: a.id, clase: "experiencia", descripcion: "", norma: "", validada: false, validadoPor: "", obliga: false, motivo: "" }); }}>Agregar requisito</button>
-                          <button className="btn btn-outline btn-sm" onClick={() => { setDice(null); setFa({ modo: "actividad", actividadId: a.id, nombre: a.nombre, ambito: a.ambito, activa: a.activa, motivo: "" }); }}>Cambiar</button>
+                          <button className="btn btn-outline btn-sm" onClick={() => { setDice(null); setFa({ modo: "actividad", actividadId: a.id, nombre: a.nombre, ambito: a.ambito, activa: a.activa, uDias: a.umbral.dias, uHoras: a.umbral.horas, uConf: a.umbral.confirmadas, uMeses: a.umbral.meses, motivo: "" }); }}>Cambiar</button>
                         </div>
                       )}
                       {fa && fa.actividadId === a.id && fa.modo !== "ligar" && formAct}
@@ -15116,7 +15133,7 @@ function RegistroActividadAdmin({ data, add, upd, setInv, session, onClose }) {
   const FORM0 = {
     ejecutorTipo: "", ejecutorId: "", parcelaId: "", cultivoBodega: "", siembraId: "", tipo: "", fecha: today(),
     horas_trab: 8, maquinariaId: "", insumos: [], observaciones: "",
-    cosechaCant: "", cosechaUnidad: "kg", hectareas_trab: "",
+    cosechaCant: "", cosechaUnidad: "kg", hectareas_trab: "", ordenoId: "",
     // cuadrilla
     modalidad: "jornal", tarifa: 0, unidades: 0, personas: 1, flete: 0,
   };
@@ -15126,6 +15143,8 @@ function RegistroActividadAdmin({ data, add, upd, setInv, session, onClose }) {
 
   const esCuadrilla = form.ejecutorTipo === "cuadrilla";
   const parcelaSel = data.parcelas.find(p => p.id === form.parcelaId);
+  // Quién pudo haberlo ordenado: la gente con mando que la app conoce, y quien está capturando. Es opcional: si no se sabe, se deja así.
+  const quienesMandan = [{ id: session.id, nombre: session.nombre }, ...(data.encargados || []), ...(data.agronomos || [])].filter((x, i, l) => x?.id && x.nombre && l.findIndex(y => y.id === x.id) === i).map(x => ({ id: x.id, nombre: x.nombre }));
   const tipos = [
     { label: "Preparación de suelo", icon: "🚜" }, { label: "Siembra", icon: "🌱" }, { label: "Fertilización", icon: "🧪" },
     { label: "Riego", icon: "💧" }, { label: "Control de plagas", icon: "🧴" }, { label: "Deshierbe", icon: "🌿" },
@@ -15186,6 +15205,7 @@ function RegistroActividadAdmin({ data, add, upd, setInv, session, onClose }) {
       observaciones: form.observaciones, flete: esCuadrilla ? form.flete : 0,
       ...(esCuadrilla ? { modalidadPago: form.modalidad, cuadrilla_tarifa: form.tarifa, cuadrilla_unidades: form.unidades, cuadrilla_personas: form.personas } : {}),
       extras: {}, registradoEnNombrePor: { rol: session.role, id: session.id, nombre: session.nombre },
+      ordenadoPor: quienesMandan.find(x => x.id === form.ordenoId) || null,
       hectareas_trab: esBodega ? 0 : (parseFloat(form.hectareas_trab) || 0),
       cosecha: (!esBodega && form.tipo === "Cosecha") ? { cantidad: parseFloat(form.cosechaCant) || 0, unidad: form.cosechaUnidad } : null,
     });
@@ -15439,6 +15459,13 @@ function RegistroActividadAdmin({ data, add, upd, setInv, session, onClose }) {
             <div className="divider" />
             <div className="form-group"><label className="form-label">Fecha</label><input type="date" className="inp" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} max={today()} /></div>
             <label className="form-label">Notas (opcional)</label>
+            <div className="form-group"><label className="form-label">¿Quién lo ordenó? (si se sabe)</label>
+              <select className="inp" aria-label="Quién lo ordenó" value={form.ordenoId} onChange={e => setForm(f => ({ ...f, ordenoId: e.target.value }))}>
+                <option value="">No se sabe o no se dijo</option>
+                {quienesMandan.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+              </select>
+              <div className="text-xs text-muted" style={{ marginTop: 4 }}>Queda aparte de quién lo hizo y de quién lo está capturando (tú). No cambia el pago.</div>
+            </div>
             <textarea className="inp mb-3" placeholder="Observaciones..." value={form.observaciones} onChange={e => setForm(f => ({ ...f, observaciones: e.target.value }))} />
             <div className="gap-row">
               <button className="btn btn-outline" style={{ flex: "0 0 auto", width: "auto", padding: "14px 20px" }} onClick={() => setPaso(2)}>‹</button>
@@ -17351,7 +17378,10 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
   const [showForm, setShowForm] = useState(false);
   const [detalle, setDetalle] = useState(null);
   const [filtroParcela, setFiltroParcela] = useState("");
-  const F0 = { parcelaId: "", tipo: "Fertirriego", fecha: today(), notas: "", productos: [] };
+  const F0 = { parcelaId: "", tipo: "Fertirriego", fecha: today(), notas: "", productos: [], aplicaron: [], indicoId: "" };
+  // Quién pudo aplicar o indicar: la gente que la app conoce. Una aplicación puede tener varios aplicadores.
+  const genteAp = [...(data.trabajadores || []), ...(data.encargados || []), ...(data.agronomos || []), { id: session.id, nombre: session.nombre }].filter((x, i, l) => x?.id && x.nombre && x.activo !== false && l.findIndex(y => y.id === x.id) === i).map(x => ({ id: x.id, nombre: x.nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  const catalogosAp = { trabajadores: data.trabajadores, encargados: data.encargados, agronomos: data.agronomos };
   const [form, setForm] = useState(F0);
   const [prod, setProd] = useState({ nombre: "", dosis: "", unidad: "kg/ha", insumoId: "", ingredienteActivo: "", paraQueSirve: "", tipoAgro: "" });
 
@@ -17370,9 +17400,12 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
     if (!form.parcelaId) { alert("Elige una parcela"); return; }
     if ((form.productos || []).length === 0) { alert("Agrega al menos un producto"); return; }
     const apId = `ap${Date.now()}`;
+    const { aplicaron, indicoId, ...loDemas } = form;
     add("aplicaciones", {
-      ...form, id: apId, cultivo: parcelaSel?.cultivo || "",
+      ...loDemas, id: apId, cultivo: parcelaSel?.cultivo || "",
       superficie, registradoPor: session.id,
+      // Quien registra no es por eso quien aplicó: si no se dice quién aplicó, queda vacío y así se enseña.
+      ejecutores: genteAp.filter(g => aplicaron.includes(g.id)), ordenadoPor: genteAp.find(g => g.id === indicoId) || null,
     });
     // Descontar del inventario y calcular el costo de los insumos aplicados
     let costoAplicacion = 0;
@@ -17415,6 +17448,16 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
             <div className="confirm-row"><span className="cr-label">Cultivo</span><span className="cr-val">{a.cultivo || "—"}</span></div>
             <div className="confirm-row"><span className="cr-label">Superficie</span><span className="cr-val">{a.superficie} ha</span></div>
           </div>
+          {(() => { const q = quienesDe("aplicaciones", a, catalogosAp); return (
+            <div className="card ap-quienes-detalle">
+              <div className="card-title">Quién</div>
+              <div className="confirm-row"><span className="cr-label">La aplicó</span><span className="cr-val" style={{ color: q.sabeQuienEjecuto ? undefined : "var(--gold)" }}>{q.sabeQuienEjecuto ? textoDeQuienes(q.ejecutaron) : "No se dijo quién aplicó"}</span></div>
+              <div className="confirm-row"><span className="cr-label">La indicó</span><span className="cr-val">{q.ordeno?.nombre || "No se dijo"}</span></div>
+              <div className="confirm-row"><span className="cr-label">La registró</span><span className="cr-val">{q.capturo?.nombre || "No quedó anotado"}</span></div>
+              <div className="confirm-row"><span className="cr-label">La confirmó</span><span className="cr-val">{q.confirmo?.nombre || "Todavía nadie"}</span></div>
+              {q.origen === "registro_anterior" && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Registro de antes de que se anotara quién aplica: no se le supone aplicador.</div>}
+            </div>
+          ); })()}
           <div className="card">
             <div className="card-title">Productos aplicados</div>
             {(a.productos || []).map((pr, i) => (
@@ -17529,6 +17572,19 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
                 ))}
               </div>
             )}
+            <div className="card ap-quienes" style={{ padding: 12, marginTop: 12 }}>
+              <div className="card-title">¿Quién aplicó?</div>
+              <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Pueden ser varias personas. Quien registra la aplicación no cuenta como quien la aplicó: si no lo marcas, queda «no se dijo quién aplicó».</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {genteAp.map(g => <label key={g.id} className="text-sm" style={{ display: "flex", gap: 4, alignItems: "center", border: "1px solid var(--border)", borderRadius: 50, padding: "4px 10px" }}><input type="checkbox" aria-label={`Aplicó ${g.nombre}`} checked={form.aplicaron.includes(g.id)} onChange={e => setForm(f => ({ ...f, aplicaron: e.target.checked ? [...f.aplicaron, g.id] : f.aplicaron.filter(x => x !== g.id) }))} />{g.nombre}</label>)}
+              </div>
+              <div className="form-group" style={{ marginTop: 10 }}><label className="form-label">¿Quién la indicó? (si se sabe)</label>
+                <select className="inp" aria-label="Quién indicó la aplicación" value={form.indicoId} onChange={e => setForm(f => ({ ...f, indicoId: e.target.value }))}>
+                  <option value="">No se sabe o no se dijo</option>
+                  {genteAp.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+                </select>
+              </div>
+            </div>
             <div className="form-group" style={{ marginTop: 12 }}><label className="form-label">Notas (opcional)</label><textarea className="inp" value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} /></div>
             <button className="btn btn-accent" onClick={guardar}>Guardar aplicación</button>
           </div>
@@ -17555,7 +17611,7 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
         {apls.filter(a => !filtroParcela || a.parcelaId === filtroParcela).map(a => {
           const p = data.parcelas.find(x => x.id === a.parcelaId);
           return (
-            <div key={a.id} className="card" style={{ cursor: "pointer" }} onClick={() => setDetalle(a.id)}>
+            <div key={a.id} className="card ap-fila" style={{ cursor: "pointer" }} onClick={() => setDetalle(a.id)}>
               <div className="flex-b mb-2">
                 <div className="font-bold">{a.tipo}</div>
                 <span className="text-xs text-muted">{a.fecha}</span>
