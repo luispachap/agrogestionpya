@@ -301,6 +301,15 @@ Todo junto: `sh pruebas/todo.sh`.
 1. Vercel: quitar `app.agroselectos.com` del proyecto viejo `vitejs-vite-3ymxjehp` (Settings → Domains → Remove) para poder darlo de alta como dominio propio de `agrogestion-operacion`. Mientras tanto el dominio se apunta a mano a cada publicación.
 2. Supabase → Authentication → URL Configuration: poner `https://app.agroselectos.com` como Site URL y dejar `https://agrogestion-operacion.vercel.app` en Redirect URLs, para que el correo de confirmación regrese al dominio definitivo.
 
+**Rayas, aclaraciones del rancho (20 nov, 8 pm):** cinco cosas por renglón (trabajador, fecha, actividad,
+ubicación, cultivo). «Ajo» es cultivo, no A07. «Gen» = General (no es lugar). RA50/51/53 = Ranchos 50s; SF1–4 = San
+Felipe (grupos). El número al lado es importe TENTATIVO (no suma, no es pago). Segunda lectura real de la libreta
+del domingo con Haiku: 24/24 renglones; A07 en 15, los 15 con Bod y con el cultivo aparte (leído «9jo» → Ajo);
+RA51, SF4 y Gen bien; 420 y 420 como tentativos y el 200 sin asignar por no estar claro de quién es; «mB» sin
+saber qué es; mes de la fecha sin leer. 0.0039 USD. Gastado en total: 0.022 de 4 USD. Sesión: comprobado que la
+función arranca, contesta al navegador de la app, se niega sin sesión, tiene sus cinco variables, y que la cuenta
+que existe tiene permiso (`puede_interpretar`) — **falta que una persona lo haga desde la app; no está validado.**
+
 **Rayas con claves (20 nov, noche):** catálogo de claves que se llena solo (`src/claves.js`): A + número =
 actividad; Bod y SF1–SF4 = ubicación (dicho por Luis). Ninguna actividad tiene significado todavía: se preguntan
 conforme salen. Una raya entra siempre al histórico (quién · día · actividad · ubicación), con el código original;
