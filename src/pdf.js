@@ -154,6 +154,24 @@ export async function leerPdf(file, { maxPaginas = 40 } = {}) {
   }
 }
 
+// Las primeras páginas de un PDF escaneado, como imágenes: es lo que se le manda a la IA cuando el PDF no trae texto.
+// Se dibujan aquí, en el aparato, y a lo más de `lado` pixeles por el lado largo: más grande sólo cuesta más.
+export async function paginasComoImagenes(file, { maxPaginas = 3, lado = 1568, calidad = 0.8 } = {}) {
+  const lector = await cargarLector();
+  if (!lector.ok) return { ok: false, dice: lector.dice };
+  try {
+    const doc = await lector.pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise, imagenes = [];
+    for (let i = 1; i <= Math.min(doc.numPages, maxPaginas); i++) {
+      const pag = await doc.getPage(i), base = pag.getViewport({ scale: 1 }), escala = Math.min(2.5, lado / Math.max(base.width, base.height));
+      const vista = pag.getViewport({ scale: escala }), lienzo = document.createElement("canvas");
+      lienzo.width = Math.round(vista.width); lienzo.height = Math.round(vista.height);
+      await pag.render({ canvasContext: lienzo.getContext("2d"), viewport: vista }).promise;
+      imagenes.push({ tipoMedio: "image/jpeg", base64: lienzo.toDataURL("image/jpeg", calidad).split(",")[1] });
+    }
+    return { ok: true, imagenes, paginasTotales: doc.numPages };
+  } catch (e) { return { ok: false, dice: `No se pudo preparar el PDF para leerlo (${e?.message || e}).` }; }
+}
+
 /* ════════════ DE RENGLONES A COLUMNAS ════════════ */
 
 // Un estado de cuenta en PDF ES una tabla, y el PDF ya trae la posición X de

@@ -168,6 +168,9 @@ export function entenderHoja(filas, aprendidos = []) {
   const tope = Math.min((filas || []).length, 25);
   for (let i = 0; i < tope; i++) {
     const fila = filas[i] || []; if (fila.filter(c => String(c ?? "").trim()).length < 2) continue;
+    // Un renglón de encabezados trae títulos, no datos: si alguna celda es un número o una fecha, es un renglón de datos
+    // (aunque diga «PROVEEDOR 3» o «TOTAL 500») y no se toma como encabezado.
+    if (fila.some(c => typeof c === "number" || (String(c ?? "").trim() !== "" && (aNumero(c) != null || /^\d{1,4}[/\-.]\d{1,2}[/\-.]\d{1,4}$/.test(String(c).trim()))))) continue;
     const firma = firmaDe(fila), sabido = aprendidos.find(a => a.firma === firma);
     if (sabido) return { i, encabezados: fila.map(c => String(c ?? "").trim()), firma, clase: sabido.clase, mapa: { ...sabido.mapa }, aprendido: true, puntaje: 99, faltan: [], dudas: [] };
     // A cada campo, la columna que mejor le queda; una columna no sirve a dos campos (salvo cargo/importe, que se llaman igual).
@@ -342,7 +345,7 @@ export function proponer(doc, contexto = {}) {
   // 1. El mismo archivo, otra vez.
   const gemelo = documentos.find(d => d.id !== doc.id && d.huella && d.huella === doc.huella && d.estado !== "error");
   if (gemelo) return { ...base, estado: "duplicado", duplicadoDe: gemelo.id, resumen: `Es el mismo archivo que «${gemelo.nombre}», que ya se había recibido${gemelo.recibido ? ` el ${String(gemelo.recibido).slice(0, 10)}` : ""}.` };
-  if (doc.formato === "imagen" || doc.escaneado) return { ...base, estado: "necesita_lectura", resumen: doc.escaneado ? "Es un PDF escaneado (una foto dentro de un PDF): no trae texto que se pueda leer aquí." : "Es una imagen: para leerla hace falta la lectura con IA, que todavía no está activada. El original queda guardado; se puede capturar a mano en Papeles." };
+  if (doc.formato === "imagen" || doc.escaneado) return { ...base, estado: "necesita_lectura", resumen: doc.escaneado ? "Es un PDF escaneado (una foto dentro de un PDF): no trae texto que se pueda leer aquí." : "Es una imagen: los lectores gratuitos no la leen. El original queda guardado; se puede leer con IA (si tú lo pides) o capturar a mano en Papeles." };
   if (doc.formato === "word_viejo") return { ...base, estado: "por_revisar", excepciones: ["Es un Word del formato antiguo (.doc), que no se puede abrir aquí. Guárdalo como .docx o como PDF y vuelve a subirlo."], resumen: "Word del formato antiguo: no se pudo abrir." };
 
   const yaHay = new Set([...egresos.filter(e => !e.cancelado).map(llaveDeEgreso), ...historico.map(h => h.llave).filter(Boolean)]);
@@ -353,7 +356,7 @@ export function proponer(doc, contexto = {}) {
     const llave = p.llave || llaveDe(p.datos);
     if (yaHay.has(llave) || persona.has(llave) || prov.has(llave)) { propuestas.push({ ...p, llave, accion: "duplicado", nota: "Ya está registrado: no se propone otra vez." }); return; }
     if (enEsteLote.has(llave)) { propuestas.push({ ...p, llave, accion: "duplicado", nota: "Viene repetido dentro del mismo documento." }); return; }
-    enEsteLote.add(llave); propuestas.push({ ...p, llave });
+    enEsteLote.add(llave); propuestas.push({ ...p, llave, ...(doc.viaIA ? { viaIA: true } : {}) });
   };
   const comoHistorico = (r, clase, mas = {}) => ({ destino: "historico", accion: "agregar", datos: { clase, fecha: r.fecha || null, mes: (r.fecha || "").slice(0, 7) || null, monto: r.monto ?? null, ...mas } });
 
@@ -506,18 +509,21 @@ export function recibirDocumento({ huella, nombre, ruta = "", formato, bytes, lo
   return { ok: true, evento: nuevoEvento({ id: `doc-${huella.slice(0, 32)}`, tipo: T_DOC.recibido, cuando, fecha, quien, azar, datos: { huella, nombre: limpio(nombre), ruta: limpio(ruta), formato, bytes: bytes || 0, lote: lote || "", ...(original ? { original } : {}) } }) };
 }
 // Lo que salió de leerlo. Los renglones propuestos NO van aquí (pueden ser miles): se quedan en el aparato hasta confirmarse.
-export function anotarLectura({ doc, resultado, error = "", quien, cuando, fecha, azar }) {
+export function anotarLectura({ doc, resultado, error = "", ia = null, quien, cuando, fecha, azar }) {
   const utiles = (resultado?.propuestas || []).filter(p => p.accion !== "duplicado"), n = {};
   for (const p of utiles) n[p.destino] = (n[p.destino] || 0) + 1;
-  const datos = error ? { docId: doc.id, estado: "error", error: limpio(error).slice(0, 300), intento: (doc.intentos || 0) + 1 }
+  // Para saber después si a este documento le serviría la IA: cuántas hojas no se reconocieron, o si el texto no se entendió.
+  const sinReconocer = (resultado?.hojas || []).filter(h => h.clase === "desconocido").length, sinEntender = !!resultado && resultado.estado === "por_revisar" && resultado.clase === "desconocido" && sinReconocer === 0 && !(resultado.uuid) && !ia;
+  const datos = error ? { docId: doc.id, estado: "error", error: limpio(error).slice(0, 300), intento: (doc.intentos || 0) + 1, ...(ia ? { ia } : {}) }
     : { docId: doc.id, estado: resultado.estado, clase: resultado.clase, periodo: resultado.periodo || null, resumen: resultado.resumen || "", excepciones: (resultado.excepciones || []).slice(0, 12), uuid: resultado.uuid || null,
         n, duplicados: (resultado.propuestas || []).length - utiles.length, sinLeer: (resultado.descartadas || []).length, total: resultado.total || 0, intento: (doc.intentos || 0) + 1,
+        ...(sinReconocer ? { hojasSinReconocer: sinReconocer } : {}), ...(sinEntender ? { sinEntender: true } : {}), ...(ia ? { ia } : {}),
         ...(resultado.duplicadoDe ? { duplicadoDe: resultado.duplicadoDe } : {}), ...(resultado.relacionadoCon ? { relacionadoCon: resultado.relacionadoCon } : {}) };
   return nuevoEvento({ tipo: T_DOC.leido, cuando, fecha, quien, azar, datos });
 }
 // Confirmar: devuelve TODO lo que hay que guardar — los registros (gastos, personas, proveedores), los lotes del
 // histórico y la marca de «incorporado». Si no se escogió nada, no hace nada.
-export function confirmarIncorporacion({ doc, resultado, escogidas = null, quien, cuando, fecha, azar = Math.random, nuevoId }) {
+export function confirmarIncorporacion({ doc, resultado, escogidas = null, conIA = false, quien, cuando, fecha, azar = Math.random, nuevoId }) {
   if (doc.estado === "incorporado") return { ok: false, dice: "Ese documento ya se incorporó. Un papel se aplica una sola vez." };
   const { ops, cuenta, incorporadas } = incorporar(doc, resultado, { escogidas, quien, fecha, ...(nuevoId ? { nuevoId } : {}) });
   if (ops.length === 0) return { ok: false, dice: "No hay nada escogido que incorporar." };
@@ -525,7 +531,9 @@ export function confirmarIncorporacion({ doc, resultado, escogidas = null, quien
   const eventos = [];
   for (let i = 0; i < renglones.length; i += RENGLONES_POR_LOTE)
     eventos.push(nuevoEvento({ tipo: T_DOC.historico, cuando, fecha, quien, azar: typeof azar === "function" ? azar() : azar + i / 1e9, datos: { docId: doc.id, documento: doc.nombre, parte: i / RENGLONES_POR_LOTE + 1, renglones: renglones.slice(i, i + RENGLONES_POR_LOTE) } }));
-  eventos.push(nuevoEvento({ tipo: T_DOC.incorporado, cuando, fecha, quien, azar: typeof azar === "function" ? azar() : azar + 0.5, datos: { docId: doc.id, cuenta, renglones: incorporadas.length, registros: registros.map(o => ({ sec: o.sec, id: o.item.id })), lotes: eventos.map(e => e.id) } }));
+  eventos.push(nuevoEvento({ tipo: T_DOC.incorporado, cuando, fecha, quien, azar: typeof azar === "function" ? azar() : azar + 0.5, datos: { docId: doc.id, cuenta, renglones: incorporadas.length, registros: registros.map(o => ({ sec: o.sec, id: o.item.id })), lotes: eventos.map(e => e.id),
+    // Si lo leyó la IA: ¿la persona aceptó todo lo propuesto, o quitó algo? De ahí sale qué tan bien lee.
+    ...(conIA ? { ia: { sinCambios: incorporadas.length === resultado.propuestas.filter(p => p.accion !== "duplicado").length } } : {}) } }));
   return { ok: true, registros, eventos, cuenta };
 }
 export function descartarDocumento({ doc, motivo, quien, cuando, fecha, azar }) {
@@ -547,7 +555,8 @@ export function bandejaDe(eventos = []) {
   for (const e of v) {
     const d = docs.get(e.datos?.docId); if (!d) continue;
     if (e.tipo === T_DOC.leido && d.estado !== "incorporado" && d.estado !== "descartado") Object.assign(d, { estado: e.datos.estado, clase: e.datos.clase || d.clase, periodo: e.datos.periodo || null, resumen: e.datos.resumen || "", excepciones: e.datos.excepciones || [], uuid: e.datos.uuid || d.uuid || null,
-      n: e.datos.n || {}, duplicados: e.datos.duplicados || 0, sinLeer: e.datos.sinLeer || 0, total: e.datos.total || 0, intentos: e.datos.intento || d.intentos + 1, error: e.datos.error || "", duplicadoDe: e.datos.duplicadoDe || null, relacionadoCon: e.datos.relacionadoCon || null, leido: e.cuando });
+      n: e.datos.n || {}, duplicados: e.datos.duplicados || 0, sinLeer: e.datos.sinLeer || 0, total: e.datos.total || 0, intentos: e.datos.intento || d.intentos + 1, error: e.datos.error || "", duplicadoDe: e.datos.duplicadoDe || null, relacionadoCon: e.datos.relacionadoCon || null, leido: e.cuando,
+      hojasSinReconocer: e.datos.hojasSinReconocer || 0, sinEntender: !!e.datos.sinEntender, ia: e.datos.ia || d.ia || null, iaMicrousd: (d.iaMicrousd || 0) + (Number(e.datos.ia?.microusd) || 0) });
     else if (e.tipo === T_DOC.incorporado) Object.assign(d, { estado: "incorporado", cuenta: e.datos.cuenta || {}, incorporado: e.cuando, incorporo: e.quien?.nombre || "", registros: e.datos.registros || [], lotes: e.datos.lotes || [], eventoIncorporacion: e.id });
     else if (e.tipo === T_DOC.descartado) Object.assign(d, { estado: "descartado", motivo: e.datos.motivo, descarto: e.quien?.nombre || "" });
   }

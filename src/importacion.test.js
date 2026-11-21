@@ -221,3 +221,9 @@ test("si_entre_leer_y_confirmar_alguien_ya_lo_registro_deja_de_proponerse", () =
   const c = confirmarIncorporacion({ doc: doc({}), resultado: r, ...en("2026-12-01"), azar: az });
   assert.equal(c.registros.length, 1); assert.equal(c.registros[0].item.monto, 120);
 });
+
+test("un_renglon_de_datos_no_se_toma_por_encabezado_aunque_diga_proveedor_o_total", () => {
+  const filas = [["F.", "Quién", "Cuánto"], ["27/11/2026", "PROVEEDOR 3 DE PRUEBA", 120], ["28/11/2026", "TOTAL FERRETERIA", "300.00"]];
+  assert.equal(entenderHoja(filas).clase, "desconocido", "los títulos no se reconocen, y los datos de abajo no son títulos");
+  assert.equal(entenderHoja([["Fecha", "Proveedor", "Total"], ["27/11/2026", "PROVEEDOR 3", 120]]).i, 0);
+});

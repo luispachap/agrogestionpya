@@ -371,6 +371,26 @@ Usuarios reales de la app:
   en el aparato (`LLAVES.importacion`). Imágenes y escaneos: `necesita_lectura`
   (falta la llave de IA). Una hoja que no se reconoce se le ENSEÑA
   (`eventoDeAprendizaje`) y queda aprendida por la firma de sus encabezados.
+- **La IA en la importación** (`src/interpretacion.js`, función del servidor
+  `supabase/functions/interpretar-documento`, hoja 44; pestaña «Lectura con
+  IA»): SÓLO para lo que los lectores gratuitos no pudieron (`necesitaIA`:
+  fotos, escaneos, hojas sin reconocer, texto sin entender) y SÓLO cuando una
+  persona lo pide, viendo antes el costo máximo. Dos niveles: `economico`
+  (Haiku) y `superior` (Sonnet, a petición). **El tope es TOTAL, no mensual**
+  (`limites.ia_importacion_tope_microusd`, 4 USD): el servidor APARTA lo
+  máximo antes de llamar (`reservar_ia`, atómico) y anota lo real después
+  (`cerrar_ia`), en millonésimas de dólar; sólo un superadministrador sube el
+  tope. De una hoja sólo viajan sus primeros 30 renglones y la IA sólo dice
+  qué columna es cada cosa (`pedidoDeHoja` → `aprendidoDeLectura`); la hoja
+  completa la lee la app. Lo leído se convierte a hojas (`hojasDeLectura`) y
+  entra por `proponer`: mismo camino de duplicados, histórico y confirmación.
+  La aritmética la hace la app (`revisarLectura`); lo dudoso llega SIN marcar.
+  Las columnas que reconoció la IA se aprenden sólo al confirmar. Medidas:
+  `metricasDeIA` (costo por documento; aceptado tal cual / con cambios /
+  descartado; sin decididos no hay tasa). No se mandan CURP, NSS ni cuentas
+  (`sinDatosSensibles`). `pruebas/funcion_ia.test.mjs` prueba la función con
+  base y API de mentira: **ninguna prueba gasta crédito**. Los precios están
+  en `MODELOS` (servidor) y `PRECIOS` (app): si cambian, se cambian en los dos.
 - **Un gasto de «insumos» no es siempre una compra para el almacén**
   (`claseDeInsumo`, `resultado.js`): `destinoInsumo` = inventario · produccion ·
   general · otro; sin decir → **por clasificar** (ni gasto ni inventario; en el
@@ -512,7 +532,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **135 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **136 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

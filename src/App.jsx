@@ -46,7 +46,9 @@ import { conciliarMes } from "./conciliacion.js";
 import { estadoDeCompra, repartoDeCompras, posibleDuplicado, esParaAlmacen, seguimientoDeCompras } from "./compras.js";
 import { T_BONO, CLASES_DE_BONO, TRATAMIENTOS_DE_BONO, NOMBRE_DE_ESTADO as ESTADO_DE_BONO, INTEGRA, decidirIntegracion, otorgarBono, pagarBono, bonosDe, renglonesDeBonos } from "./bonos.js";
 import { ESTADOS as ESTADOS_DOC, CLASES as CLASES_DOC, CAMPOS_DE, NOMBRE_DE_CAMPO, esBasura, proponer, refrescar, recibirDocumento, anotarLectura, confirmarIncorporacion, descartarDocumento, eventoDeAprendizaje, bandejaDe, historicoDe, aprendidosDe, resumenDeBandeja, resumenDelHistorico } from "./importacion.js";
-import { abrirArchivo, originalDe, guardarPropuesta, leerPropuesta, olvidarPropuesta } from "./importador.js";
+import { abrirArchivo, originalDe, guardarPropuesta, leerPropuesta, olvidarPropuesta, imagenParaIA, paginasParaIA, pedirInterpretacion, leerPresupuestoIA } from "./importador.js";
+import { NIVELES as NIVELES_IA, necesitaIA, pedidoDeHoja, pedidoDeTexto, resultadoConIA, metricasDeIA, costoMaximo, enDolares, estadoDelPresupuesto, NOMBRE_DE_RESULTADO } from "./interpretacion.js";
+import { entenderHoja } from "./importacion.js";
 import { resultadoDelRancho, flujoDeEfectivo, NOMBRE_DE_FLUJO, DESTINOS_DE_INSUMO, insumosPorClasificar } from "./resultado.js";
 // El resultado y el flujo del rancho: TODAS las pantallas los sacan de aquí, para que digan lo mismo.
 // Cada ajuste de valuación sigue a su consumo: a la parcela, al uso general, o al vehículo (que lo lleva en su propia cuenta).
@@ -5581,14 +5583,65 @@ function ImportarDocumentos({ data, add, session, onClose }) {
     setDice(""); setMotivo(""); setEnsena(null);
     let res = await leerPropuesta(LLAVES.importacion, d.id);
     if (res) res = refrescar(res, contexto());
-    setAbierto({ doc: d, resultado: res, marcadas: new Set((res?.propuestas || []).filter(p => p.accion !== "duplicado").map(p => p.llave)) });
+    // Lo que leyó la IA sin estar segura llega SIN marcar: la persona lo compara contra el papel y marca lo que sí va.
+    const dudoso = !!res?.ia && !res.ia.confiable;
+    setAbierto({ doc: d, resultado: res, marcadas: new Set(dudoso ? [] : (res?.propuestas || []).filter(p => p.accion !== "duplicado").map(p => p.llave)) });
   };
+  // ── La lectura con IA: sólo para lo que los lectores gratuitos no pudieron, y sólo cuando una persona la pide ──
+  const [presu, setPresu] = useState(undefined);
+  const verPresupuesto = useCallback(async () => { setPresu(await leerPresupuestoIA()); }, []);
+  useEffect(() => { verPresupuesto(); }, [verPresupuesto, tab, abierto?.doc?.id]);   // se vuelve a preguntar al abrir la pestaña o un documento: otro aparato pudo gastar
+  const leerConIA = async (d, nivel = "economico") => {
+    const nec = necesitaIA(d) || (d.ia ? { modo: d.ia.modo || "documento", via: d.ia.modo === "hoja" ? "hoja" : d.formato === "imagen" ? "imagen" : d.formato === "pdf" && !d.sinEntender ? "paginas" : "texto" } : null);
+    if (!nec) return { error: "Este documento no necesita lectura con IA." };
+    if (!d.original) return { error: "El original de este documento no está guardado: vuelve a subirlo." };
+    const contenido = await contenidoDeArchivo(d.original);
+    if (!contenido) return { error: "El original no está en este aparato ni en la nube: vuelve a subirlo." };
+    const blob = await (await fetch(contenido)).blob();
+    const pedido = { huella: d.huella, nivel, modo: nec.modo, nombre: d.nombre, imagenes: [], texto: "" }; let hojas = null, hojaIA = 0;
+    if (nec.via === "imagen") { const r = await imagenParaIA(blob); if (!r.ok) return { error: r.dice }; pedido.imagenes = [r.imagen]; }
+    else if (nec.via === "paginas") { const r = await paginasParaIA(blob, d.nombre); if (!r.ok) return { error: r.dice }; pedido.imagenes = r.imagenes; }
+    else {
+      const a = await abrirArchivo(new File([blob], d.nombre, { type: blob.type })); if (a.error) return { error: a.error };
+      hojas = a.hojas || [];
+      if (nec.via === "hoja") { hojaIA = hojas.findIndex(h => entenderHoja(h.filas, aprendidosDe(datosRef.current.eventos)).clase === "desconocido"); if (hojaIA < 0) return { error: "Esta hoja ya se reconoce sola: vuelve a leerla, sin IA." }; pedido.texto = pedidoDeHoja(hojas[hojaIA].filas); }
+      else pedido.texto = pedidoDeTexto(a.texto || "");
+      if (!pedido.texto.trim()) return { error: "El documento no trae texto que mandar a leer." };
+    }
+    const respuesta = await pedirInterpretacion(pedido);
+    const r = resultadoConIA({ ...d, hojas: hojas || undefined, hojaIA }, respuesta, contexto());
+    verPresupuesto();
+    if (r.error) return { error: r.error, motivo: r.motivo };
+    const res = { ...r.resultado, ia: r.ia, ...(r.aprendido ? { aprendidoIA: r.aprendido } : {}) };
+    await guardarPropuesta(LLAVES.importacion, d.id, res);
+    add("eventos", anotarLectura({ doc: d, resultado: res, ia: r.ia, ...sello() }));
+    return { estado: res.estado, res };
+  };
+  const leerVariosConIA = async (lista) => {
+    if (trabajando.current || lista.length === 0) return; trabajando.current = true; const notas = []; let hechos = 0;
+    for (let i = 0; i < lista.length; i++) {
+      setAvance({ total: lista.length, hechas: i, actual: `${lista[i].nombre} (con IA)` }); await cede();
+      const r = await leerConIA(lista[i]);
+      if (r.error) { notas.push(`${lista[i].nombre}: ${r.error}`); if (["sin_presupuesto", "sin_llave", "sin_saldo", "llave_invalida", "sin_permiso", "sin_nube", "sin_senal", "sin_libreta"].includes(r.motivo)) { notas.push(`Se detuvo ahí: faltaron ${lista.length - i - 1} por leer.`); break; } }
+      else hechos++;
+    }
+    setAvance(null); trabajando.current = false; setAviso([`Leídos con IA: ${hechos} de ${lista.length}. Revisa cada uno antes de incorporarlo.`, ...notas.slice(0, 6)]);
+  };
+  const leerEsteConIA = async (nivel) => {
+    const d = abierto.doc; setDice(""); setLeyendoIA(true);
+    const r = await leerConIA(d, nivel); setLeyendoIA(false);
+    if (r.error) { setDice(r.error); return; }
+    abrir({ ...d, estado: r.estado, resumen: r.res.resumen, excepciones: r.res.excepciones, ia: r.res.ia, iaMicrousd: (d.iaMicrousd || 0) + (r.res.ia?.microusd || 0) });
+  };
+  const [leyendoIA, setLeyendoIA] = useState(false);
   const confirmar = () => {
     const { doc, resultado, marcadas } = abierto;
-    const c = confirmarIncorporacion({ doc, resultado: refrescar(resultado, contexto()), escogidas: [...marcadas], ...sello(), azar: Math.random });
+    const c = confirmarIncorporacion({ doc, resultado: refrescar(resultado, contexto()), escogidas: [...marcadas], conIA: !!resultado.ia, ...sello(), azar: Math.random });
     if (!c.ok) { setDice(c.dice); return; }
     for (const o of c.registros) add(o.sec, o.item);
     for (const e of c.eventos) add("eventos", e);
+    // Sólo se aprende de lo que una persona confirmó: ahora sí, las columnas que reconoció la IA quedan para las siguientes hojas iguales.
+    if (resultado.aprendidoIA) { const a = eventoDeAprendizaje({ aprendidos, ...resultado.aprendidoIA, ...sello() }); if (a.ok) add("eventos", a.evento); }
     olvidarPropuesta(LLAVES.importacion, doc.id);
     const partes = Object.entries(c.cuenta).map(([k, n]) => `${n} ${({ egresos: "gasto(s)", historico: "renglón(es) al histórico", trabajadores: "persona(s)", proveedores: "proveedor(es)" })[k] || k}`);
     setAbierto(null); setAviso([`«${doc.nombre}» incorporado: ${partes.join(" · ")}.${c.cuenta.egresos ? " Los gastos quedaron en Finanzas; los de «insumos» hay que decir qué fueron." : ""}`]);
@@ -5608,6 +5661,9 @@ function ImportarDocumentos({ data, add, session, onClose }) {
   };
 
   const res = resumenDeBandeja(docs);
+  const pe = estadoDelPresupuesto(presu), mi = useMemo(() => metricasDeIA(data.eventos), [data.eventos]);
+  const candidatos = docs.filter(d => necesitaIA(d) && d.original && !d.ia);
+  const costoDeCandidatos = candidatos.reduce((s, d) => s + costoMaximo("economico", { imagenes: d.formato === "imagen" ? 1 : d.formato === "pdf" && d.estado === "necesita_lectura" ? 3 : 0, caracteres: d.formato === "imagen" ? 0 : 6000 }), 0);
   const FILTROS = { atender: ["propuesto", "por_revisar", "necesita_lectura", "error", "recibido"], incorporado: ["incorporado"], duplicado: ["duplicado", "sin_uso", "descartado"], todos: null };
   const lista = docs.filter(d => !FILTROS[filtro] || FILTROS[filtro].includes(d.estado));
   const colorDe = (e) => ({ propuesto: "var(--accent)", incorporado: "var(--safe)", por_revisar: "var(--gold)", necesita_lectura: "var(--gold)", error: "var(--red)" })[e] || "var(--muted)";
@@ -5617,7 +5673,7 @@ function ImportarDocumentos({ data, add, session, onClose }) {
   return (
     <div className="section-pad">
       <div className="flex-b mb-3"><div className="font-syne font-bold" style={{ fontSize: 18 }}>Importar documentos</div>{onClose && <button className="btn-ghost" onClick={onClose}>Cerrar</button>}</div>
-      <div style={{ display: "flex", gap: 8, overflowX: "auto", marginBottom: 10 }}>{[["bandeja", `Bandeja${res.porAtender ? ` (${res.porAtender})` : ""}`], ["historico", "Histórico"], ["como", "Qué lee y qué no"]].map(([k, t]) => <button key={k} className={`tab-pill${tab === k ? " active" : ""}`} onClick={() => setTab(k)}>{t}</button>)}</div>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", marginBottom: 10 }}>{[["bandeja", `Bandeja${res.porAtender ? ` (${res.porAtender})` : ""}`], ["ia", "Lectura con IA"], ["historico", "Histórico"], ["como", "Qué lee y qué no"]].map(([k, t]) => <button key={k} className={`tab-pill${tab === k ? " active" : ""}`} onClick={() => setTab(k)}>{t}</button>)}</div>
 
       {tab === "bandeja" && <>
         <div className="card" onDragOver={e => e.preventDefault()} onDrop={soltar} style={{ borderStyle: "dashed" }}>
@@ -5631,6 +5687,7 @@ function ImportarDocumentos({ data, add, session, onClose }) {
           {ini.sabido && !ini.inicio && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 8 }}>Todavía no se declara la fecha de inicio de operaciones (se declara en Arranque). Mientras tanto, TODO lo que se importe entra como histórico: sirve para consultar y comparar, y no crea gastos, pagos ni existencias.</div>}
           {ini.sabido && ini.inicio && <div className="text-xs text-muted" style={{ marginTop: 8 }}>La operación arrancó el {ini.inicio}. Lo anterior a esa fecha entra como histórico (no crea nada de hoy); lo posterior se propone como gasto por confirmar.</div>}
           {aviso.map((a, i) => <div key={i} className="text-sm" style={{ color: "var(--gold)", marginTop: 6 }}>{a}</div>)}
+          {candidatos.length > 0 && !avance && <div className="text-xs text-muted" style={{ marginTop: 8 }}>{candidatos.length} documento(s) no se pudieron leer gratis (fotos, escaneos u hojas desordenadas). Se pueden leer con IA, uno por uno o todos, en la pestaña «Lectura con IA».</div>}
           {(pendientesDeLeer.length > 0 || conError.length > 0) && !avance && <div className="acc-row" style={{ marginTop: 8 }}>
             {pendientesDeLeer.length > 0 && <button onClick={() => releerVarios(pendientesDeLeer)}>Seguir leyendo los {pendientesDeLeer.length} que faltan</button>}
             {conError.length > 0 && <button onClick={() => releerVarios(conError)}>Reintentar los {conError.length} que fallaron</button>}
@@ -5649,6 +5706,41 @@ function ImportarDocumentos({ data, add, session, onClose }) {
         </div>
       </>}
 
+      {tab === "ia" && <>
+        <div className="card" style={{ borderColor: pe.agotado ? "var(--red)" : undefined }}>
+          <div className="card-title">Presupuesto de la lectura con IA</div>
+          <div className="text-sm" style={{ color: pe.seSabe ? undefined : "var(--gold)" }}>{pe.dice}</div>
+          {pe.seSabe && <div className="progress"><div className="progress-fill green" style={{ width: `${Math.min(100, Math.round((pe.tope - pe.queda) / pe.tope * 100))}%` }} /></div>}
+          <div className="text-xs text-muted" style={{ marginTop: 6 }}>Es un tope total, no mensual: al acabarse, el servidor deja de leer con IA y no gasta más hasta que un superadministrador autorice subirlo. La llave de la IA vive en el servidor; nunca en este aparato.</div>
+          {pe.agotado && <div className="text-sm" style={{ color: "var(--red)", marginTop: 6 }}>Se acabó lo autorizado. Los documentos quedan guardados; se pueden capturar a mano.</div>}
+        </div>
+        <div className="card">
+          <div className="card-title">Qué tan bien está leyendo</div>
+          {mi.documentos === 0 ? <div className="text-sm text-muted">Todavía no se ha leído ningún documento con IA.</div> : <>
+            <div className="stat-row"><div className="stat-card"><div className="stat-label">Documentos</div><div className="stat-val">{mi.documentos}</div></div><div className="stat-card"><div className="stat-label">Costo</div><div className="stat-val">{enDolares(mi.microusd)}</div></div><div className="stat-card"><div className="stat-label">Por documento</div><div className="stat-val">{enDolares(mi.promedio)}</div></div></div>
+            <div className="mo-act" style={{ marginTop: 8 }}><span>Aceptados tal cual</span><span /><b>{mi.correctos}</b></div>
+            <div className="mo-act"><span>Aceptados, pero alguien quitó o corrigió algo</span><span /><b>{mi.conCambios}</b></div>
+            <div className="mo-act"><span>Descartados por una persona</span><span /><b>{mi.descartados}</b></div>
+            <div className="mo-act"><span>La IA no pudo leerlos</span><span /><b>{mi.noPudo}</b></div>
+            <div className="mo-act"><span>Leídos, falta que alguien los confirme</span><span /><b>{mi.pendientes}</b></div>
+            <div className="mo-act"><span>La app pidió revisión humana (dudas, sumas que no cuadran, datos sin leer)</span><span /><b>{mi.pidieronRevision}</b></div>
+            <div className="text-sm" style={{ marginTop: 8 }}>{mi.tasa == null ? "Todavía no hay documentos confirmados o descartados por una persona: no hay con qué medir." : `De ${mi.decididos} documento(s) ya decididos por una persona, ${mi.tasa} % se aceptaron tal cual.`}{mi.superior ? ` ${mi.superior} necesitaron el nivel superior.` : ""}</div>
+          </>}
+        </div>
+        {candidatos.length > 0 && <div className="card">
+          <div className="card-title">Documentos que podrían leerse con IA ({candidatos.length})</div>
+          <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Son los que los lectores gratuitos no pudieron: fotos, escaneos y hojas desordenadas. Leerlos todos con el nivel económico costaría, a lo más, {enDolares(costoDeCandidatos)}. Nada se manda si no lo pides.</div>
+          <div className="acc-row"><button disabled={!!avance || !pe.seSabe || pe.agotado} onClick={() => leerVariosConIA(candidatos)}>Leer con IA los {candidatos.length}</button></div>
+        </div>}
+        {mi.filas.length > 0 && <div className="card">
+          <div className="card-title">Costo por documento</div>
+          {mi.filas.slice(0, 100).map(f => <div key={f.docId} style={{ borderTop: "1px solid var(--border-soft)", padding: "6px 0" }}>
+            <div className="flex-b"><b className="text-sm" style={{ wordBreak: "break-word" }}>{f.nombre}</b><span className="text-sm" style={{ whiteSpace: "nowrap", marginLeft: 8 }}>{enDolares(f.microusd)}</span></div>
+            <div className="text-xs text-muted">{NOMBRE_DE_RESULTADO[f.resultado]} · {f.lecturas} lectura(s) · {f.modelo}{f.revision.length ? ` · pidió revisión: ${f.revision[0]}` : ""}</div>
+          </div>)}
+        </div>}
+      </>}
+
       {tab === "historico" && <div className="card">
         <div className="card-title">Histórico importado</div>
         <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Lo de antes del arranque (y lo que quedó sólo como referencia). Sirve para consultar y comparar. NO está en los costos, ni en el resultado, ni en el flujo, ni en el almacén, ni le debe nada a nadie.</div>
@@ -5662,7 +5754,7 @@ function ImportarDocumentos({ data, add, session, onClose }) {
       {tab === "como" && <div className="card">
         <div className="card-title">Qué lee y qué no</div>
         <div className="text-sm" style={{ marginBottom: 8 }}><b>Lee solo, exacto y sin costo</b> (en este aparato, sin mandar el documento a ningún lado): el XML de una factura o de un recibo de nómina; hojas de Excel y CSV de personal, pagos al personal, combustible, actividades, compras y gastos, y proveedores; tablas dentro de un PDF con texto o de un Word.</div>
-        <div className="text-sm" style={{ marginBottom: 8 }}><b>Guarda pero no lee todavía:</b> fotos, escaneos y PDF que son una foto. Para leerlos hace falta la lectura con IA, que es un gasto y no está activada. Quedan en la bandeja como «falta leerlo», con su original guardado.</div>
+        <div className="text-sm" style={{ marginBottom: 8 }}><b>Con IA, sólo si tú lo pides:</b> fotos, tickets, escaneos y hojas desordenadas que los lectores gratuitos no pudieron. Cada lectura cuesta (fracciones de centavo de dólar con el nivel económico) y sale de un presupuesto con tope; el documento viaja al servidor de la IA para leerse. Lo que lea entra por el mismo camino: propuesta, comparación contra el original y tu confirmación.</div>
         <div className="text-sm" style={{ marginBottom: 8 }}><b>No adivina:</b> un renglón sin fecha o sin importe legible no se inventa: se dice cuál es. De una factura en PDF no saca el total (por eso pide su XML). Una hoja que no reconoce te pregunta qué es y cuáles son sus columnas, y lo aprende para la siguiente.</div>
         <div className="text-sm" style={{ marginBottom: 8 }}><b>No duplica:</b> el mismo archivo no se recibe dos veces; la misma factura (mismo folio fiscal) tampoco, aunque llegue como XML y como PDF; y un renglón igual a algo ya registrado no se propone otra vez.</div>
         <div className="text-sm"><b>Nunca crea solo:</b> pagos al personal, préstamos, deudas, existencias del almacén ni actividades. Lo anterior al arranque entra al histórico; de lo posterior sólo propone gastos, y personas y proveedores para el catálogo, y espera tu sí.</div>
@@ -5687,12 +5779,24 @@ function ImportarDocumentos({ data, add, session, onClose }) {
             <div className="text-sm font-bold" style={{ marginTop: 6 }}>Lo que se propone ({abierto.marcadas.size} marcado(s) de {abierto.resultado.propuestas.filter(p => p.accion !== "duplicado").length})</div>
             {abierto.resultado.propuestas.slice(0, 150).map((p, i) => <label key={i} className="text-sm" style={{ display: "flex", gap: 8, alignItems: "flex-start", borderTop: "1px solid var(--border-soft)", padding: "6px 0", opacity: p.accion === "duplicado" ? 0.55 : 1 }}>
               <input type="checkbox" disabled={p.accion === "duplicado"} aria-label={`Incorporar ${p.datos.concepto || p.datos.nombre || p.datos.contraparte || p.llave}`} checked={p.accion !== "duplicado" && abierto.marcadas.has(p.llave)} onChange={e => setAbierto(a => { const m = new Set(a.marcadas); e.target.checked ? m.add(p.llave) : m.delete(p.llave); return { ...a, marcadas: m }; })} />
-              <span style={{ flex: 1 }}>{p.datos.nombre || (p.destino === "historico" ? p.datos.contraparte || p.datos.concepto : p.datos.concepto || p.datos.proveedor) || "Renglón"}{p.datos.monto != null ? <b> · {fmt(p.datos.monto)}</b> : null}<div className="text-xs text-muted">{[p.datos.fecha, p.destino === "historico" ? (p.datos.contraparte ? p.datos.concepto : "") : p.datos.proveedor, p.datos.puesto, p.datos.litros ? `${p.datos.litros} L` : "", p.datos.parcela].filter(Boolean).join(" · ")}</div><div className="text-xs" style={{ color: p.accion === "duplicado" ? "var(--muted)" : p.destino === "historico" ? "var(--muted)" : "var(--accent)" }}>{p.accion === "duplicado" ? p.nota : `${NOMBRE_DE_DESTINO[p.destino]}${p.datos.referencia ? " · posterior al arranque: sólo referencia" : ""}${p.destino === "egresos" && p.datos.categoria ? ` · ${p.datos.categoria}` : ""}`}</div></span>
+              <span style={{ flex: 1 }}>{p.datos.nombre || (p.destino === "historico" ? p.datos.contraparte || p.datos.concepto : p.datos.concepto || p.datos.proveedor) || "Renglón"}{p.datos.monto != null ? <b> · {fmt(p.datos.monto)}</b> : null}<div className="text-xs text-muted">{[p.datos.fecha, p.destino === "historico" ? (p.datos.contraparte ? p.datos.concepto : "") : p.datos.proveedor, p.datos.puesto, p.datos.litros ? `${p.datos.litros} L` : "", p.datos.parcela].filter(Boolean).join(" · ")}</div><div className="text-xs" style={{ color: p.accion === "duplicado" ? "var(--muted)" : p.destino === "historico" ? "var(--muted)" : "var(--accent)" }}>{p.accion === "duplicado" ? p.nota : `${p.viaIA ? "Leído con IA · " : ""}${NOMBRE_DE_DESTINO[p.destino]}${p.datos.referencia ? " · posterior al arranque: sólo referencia" : ""}${p.destino === "egresos" && p.datos.categoria ? ` · ${p.datos.categoria}` : ""}`}</div></span>
             </label>)}
             {abierto.resultado.propuestas.length > 150 && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Se enseñan 150 de {abierto.resultado.propuestas.length}; al incorporar entran todos los marcados.</div>}
           </>}
           {(abierto.resultado.descartadas || []).length > 0 && <div style={{ marginTop: 8 }}><div className="text-sm font-bold">Renglones que no se pudieron leer ({abierto.resultado.descartadas.length})</div>{abierto.resultado.descartadas.slice(0, 15).map((x, i) => <div key={i} className="text-xs text-muted">{x.hoja ? `${x.hoja}, ` : ""}renglón {x.renglon}: {x.porque} {x.vista ? `(${x.vista})` : ""}</div>)}</div>}
         </>}
+        {abierto.doc.ia && <div className="text-xs" style={{ color: abierto.doc.ia.confiable ? "var(--muted)" : "var(--gold)", marginTop: 8 }}>Leído con IA ({NIVELES_IA[abierto.doc.ia.nivel] || abierto.doc.ia.nivel}{abierto.doc.ia.deMemoria ? ", de memoria: no volvió a costar" : ""}) · este documento lleva {enDolares(abierto.doc.iaMicrousd ?? abierto.doc.ia.microusd)}. {abierto.doc.ia.confiable ? "No encontró nada dudoso; aun así, compáralo contra el papel antes de incorporarlo." : "Hay algo por revisar: lo propuesto llega sin marcar. Compáralo contra el papel y marca sólo lo que esté bien."}</div>}
+        {abierto.doc.formato === "imagen" && abierto.doc.original && (abierto.doc.ia || necesitaIA(abierto.doc)) && <Foto src={abierto.doc.original} alt={`Original de ${abierto.doc.nombre}`} style={{ width: "100%", borderRadius: 10, marginTop: 8 }} />}
+        {(() => { const nec = necesitaIA(abierto.doc), ya = abierto.doc.ia; if (!abierto.doc.original || ["incorporado", "descartado"].includes(abierto.doc.estado) || (!nec && !ya)) return null;
+          const tam = { imagenes: abierto.doc.formato === "imagen" ? 1 : abierto.doc.formato === "pdf" && !abierto.doc.sinEntender ? 3 : 0, caracteres: abierto.doc.formato === "imagen" ? 0 : 6000 };
+          return (<div className="card" style={{ marginTop: 8 }}>
+            <div className="text-sm">{ya ? "¿No quedó bien? Se puede intentar con el nivel superior, que lee mejor y cuesta unas veinte veces más." : `${nec.porque} Se puede mandar a leer con IA.`}</div>
+            <div className="text-xs text-muted" style={{ margin: "4px 0 8px" }}>{pe.dice}</div>
+            <div className="acc-row">
+              {!ya && <button disabled={leyendoIA || !pe.seSabe || pe.agotado} onClick={() => leerEsteConIA("economico")}>{leyendoIA ? "Leyendo…" : `Leer con IA (hasta ${enDolares(costoMaximo("economico", tam))})`}</button>}
+              {ya && ya.nivel !== "superior" && <button disabled={leyendoIA || !pe.seSabe || pe.agotado} onClick={() => leerEsteConIA("superior")}>{leyendoIA ? "Leyendo…" : `Intentar con el nivel superior (hasta ${enDolares(costoMaximo("superior", tam))})`}</button>}
+            </div>
+          </div>); })()}
         {dice && <div className="text-sm" style={{ color: "var(--red)", margin: "8px 0" }}>{dice}</div>}
         <div className="acc-row" style={{ marginTop: 10 }}>
           {abierto.resultado && abierto.doc.estado === "propuesto" && <button onClick={confirmar}>Incorporar lo marcado</button>}

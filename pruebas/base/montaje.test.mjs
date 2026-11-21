@@ -171,3 +171,39 @@ test("sin_sesion_no_se_puede_llamar_ninguna_funcion_y_las_internas_no_las_llama_
   assert.equal((await como(db, "encargado", "select tiene_perfil() as t")).filas[0].t, true);
   assert.equal((await como(db, "encargado", `insert into tareas (id, datos) values ('tras33', '{}')`)).ok, true, "los candados internos siguen disparándose solos");
 });
+
+// ── La IA en la importación: un tope total que no se pasa ───
+test("la_ia_de_la_importacion_aparta_antes_de_gastar_y_no_pasa_del_tope_ni_con_dos_a_la_vez", async () => {
+  const F = "interpretar-documento";
+  const tope = (await verdad(db, "select ia_importacion_tope_microusd t from limites where id = 'unico'"))[0].t;
+  assert.equal(Number(tope), 4000000, "arranca en 4 dólares");
+  const aparta = async (max) => (await verdad(db, `select reservar_ia('${F}', 'hh', null, 'claude-haiku-5-5', 'economico', ${max}) id`))[0].id;
+  const a = await aparta(3000000); assert.ok(a, "cabe");
+  assert.equal(await aparta(1500000), null, "con lo apartado ya no cabe otra de 1.5: no se llama a la IA");
+  // Costó mucho menos de lo apartado: se anota lo real y se libera el resto.
+  await verdad(db, `select cerrar_ia('${a}', 2500, 800, 650, '{"clase":"ticket"}'::jsonb)`);
+  const p1 = (await como(db, "luis", `select presupuesto_ia() p`)).filas[0].p;
+  assert.equal(p1.gastado, 650); assert.equal(p1.lecturas, 1); assert.equal(p1.apartado, 0); assert.equal(p1.por_modelo["claude-haiku-5-5"].microusd, 650);
+  const b = await aparta(1500000); assert.ok(b, "ahora sí cabe");
+  // Falló: cuesta cero y no deja respuesta guardada.
+  await verdad(db, `select cerrar_ia('${b}', null, null, null, null, true)`);
+  const p2 = (await como(db, "migue", `select presupuesto_ia() p`)).filas[0].p;
+  assert.equal(p2.gastado, 650); assert.equal(p2.fallidas, 1);
+  // Al acabarse, se acaba.
+  const c = await aparta(4000000 - 650); assert.ok(c); await verdad(db, `select cerrar_ia('${c}', 1, 1, ${4000000 - 650}, '{}'::jsonb)`);
+  assert.equal(await aparta(1), null, "ni una millonésima más");
+  await verdad(db, `delete from uso_ia where funcion = '${F}'`);
+});
+
+test("solo_el_servidor_aparta_y_cierra_y_solo_un_superadministrador_sube_el_tope", async () => {
+  for (const q of ["luis", "finanzas", "encargado"]) {
+    assert.ok(negado(await como(db, q, "select reservar_ia('interpretar-documento', 'x', null, 'm', 'economico', 10)")), `${q} no aparta`);
+    assert.ok(negado(await como(db, q, "select cerrar_ia(gen_random_uuid(), 1, 1, 0, '{}'::jsonb)")), `${q} no cierra`);
+  }
+  assert.ok(negado(await como(db, "finanzas", "update limites set ia_importacion_tope_microusd = 99000000 where id = 'unico'")));
+  assert.ok(negado(await como(db, "encargado", "update limites set ia_importacion_tope_microusd = 99000000 where id = 'unico'")));
+  assert.equal((await como(db, "luis", "update limites set ia_importacion_tope_microusd = 4000000 where id = 'unico'")).afectadas, 1);
+  assert.equal((await como(db, "finanzas", "select puede_interpretar() p")).filas[0].p, true);
+  assert.equal((await como(db, "encargado", "select puede_interpretar() p")).filas[0].p, false, "la gente de campo no pide lecturas con IA");
+  assert.equal((await como(db, "encargado", "select presupuesto_ia() p")).filas[0].p.tope, 4000000, "pero cualquiera con perfil puede ver cuánto queda");
+});

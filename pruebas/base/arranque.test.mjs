@@ -15,7 +15,7 @@ test("las_hojas_no_siembran_ni_un_solo_registro_de_operacion", async () => {
   const limpia = new PGlite();
   await limpia.exec(`create schema auth; create table auth.users (id uuid primary key, email text, email_confirmed_at timestamptz, raw_user_meta_data jsonb);
     create function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;
-    create role anon nologin; create role authenticated nologin;
+    create role anon nologin; create role authenticated nologin; create role service_role nologin;
     create schema storage;
     create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
     create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid, metadata jsonb);

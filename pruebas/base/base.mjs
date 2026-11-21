@@ -33,7 +33,7 @@ export async function armarBase({ con24 = true } = {}) {
     create table auth.users (id uuid primary key, email text, email_confirmed_at timestamptz default now(), raw_user_meta_data jsonb);
     create function auth.uid() returns uuid language sql stable as
       $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-    create role anon nologin; create role authenticated nologin;
+    create role anon nologin; create role authenticated nologin; create role service_role nologin;
     grant usage on schema public, auth to anon, authenticated;
     alter default privileges in schema public grant all on tables to anon, authenticated;
     alter default privileges in schema public grant execute on functions to anon, authenticated;

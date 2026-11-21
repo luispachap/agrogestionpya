@@ -12,6 +12,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import * as XLSX from "xlsx";
 import { sha256Hex } from "./archivos.js";
+import { supabase, supabaseListo } from "./supabase";
 import { formatoDe, leerCfdi, csvAFilas, docxAContenido, entenderHoja } from "./importacion.js";
 
 export const TOPE_DE_LECTURA = 20 * 1024 * 1024;     // más que esto no se abre en un teléfono sin atorarlo
@@ -76,3 +77,45 @@ const pedir = (r) => new Promise((ok) => { r.onsuccess = () => ok(r.result); r.o
 export async function guardarPropuesta(nombreBD, id, resultado) { enMemoria.set(id, resultado); const b = await abrir(nombreBD); if (b) await pedir(b.transaction("propuestas", "readwrite").objectStore("propuestas").put({ id, resultado, cuando: new Date().toISOString() })); }
 export async function leerPropuesta(nombreBD, id) { if (enMemoria.has(id)) return enMemoria.get(id); const b = await abrir(nombreBD); if (!b) return null; const r = await pedir(b.transaction("propuestas", "readonly").objectStore("propuestas").get(id)); if (r?.resultado) enMemoria.set(id, r.resultado); return r?.resultado || null; }
 export async function olvidarPropuesta(nombreBD, id) { enMemoria.delete(id); const b = await abrir(nombreBD); if (b) await pedir(b.transaction("propuestas", "readwrite").objectStore("propuestas").delete(id)); }
+
+/* ──── La lectura con IA: preparar lo que se manda, y pedirla al servidor ──── */
+// Una foto se achica ANTES de mandarla: más de 1568 pixeles por lado no se lee mejor y sí cuesta más.
+export function imagenParaIA(blob, { lado = 1568, calidad = 0.82 } = {}) {
+  return new Promise((ok) => {
+    const url = URL.createObjectURL(blob), img = new Image();
+    img.onload = () => {
+      try {
+        const e = Math.min(1, lado / Math.max(img.naturalWidth, img.naturalHeight)), lienzo = document.createElement("canvas");
+        lienzo.width = Math.max(1, Math.round(img.naturalWidth * e)); lienzo.height = Math.max(1, Math.round(img.naturalHeight * e));
+        lienzo.getContext("2d").drawImage(img, 0, 0, lienzo.width, lienzo.height);
+        ok({ ok: true, imagen: { tipoMedio: "image/jpeg", base64: lienzo.toDataURL("image/jpeg", calidad).split(",")[1] } });
+      } catch (err) { ok({ ok: false, dice: `No se pudo preparar la imagen (${err?.message || err}).` }); }
+      finally { URL.revokeObjectURL(url); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); ok({ ok: false, dice: "Este aparato no pudo abrir la imagen (¿es un formato que el navegador no conoce, como HEIC?). Conviértela a JPG y vuelve a subirla." }); };
+    img.src = url;
+  });
+}
+export async function paginasParaIA(blob, nombre) { const pdf = await import("./pdf.js"); return pdf.paginasComoImagenes(new File([blob], nombre || "documento.pdf", { type: "application/pdf" })); }
+
+// Pedirle la lectura al servidor. La llave de la IA vive allá; aquí sólo se manda el documento y se recibe lo leído y lo que costó.
+// Nunca truena: si no se pudo, devuelve { error, dice }.
+export async function pedirInterpretacion(pedido) {
+  // (En desarrollo, las pruebas ponen aquí un servidor de mentira: no se gasta ni un centavo probando.)
+  if (import.meta.env.DEV && typeof window !== "undefined" && typeof window.__agroIA === "function") return window.__agroIA(pedido);
+  if (!supabaseListo) return { error: "sin_nube", dice: "Este aparato no está conectado a la nube: la lectura con IA se pide al servidor." };
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return { error: "sin_senal", dice: "Leer con IA necesita señal. El documento queda guardado." };
+  try {
+    const { data, error } = await supabase.functions.invoke("interpretar-documento", { body: pedido });
+    if (error) {
+      let cuerpo = null; try { cuerpo = await error.context?.json?.(); } catch { /* sin cuerpo */ }
+      return cuerpo?.error ? cuerpo : { error: "fallo", dice: `No se pudo pedir la lectura con IA (${error.message}).` };
+    }
+    return data || { error: "fallo", dice: "El servidor no contestó nada." };
+  } catch (e) { return { error: "fallo", dice: `No se pudo pedir la lectura con IA (${e?.message || e}).` }; }
+}
+export async function leerPresupuestoIA() {
+  if (import.meta.env.DEV && typeof window !== "undefined" && window.__agroPresupuestoIA) return typeof window.__agroPresupuestoIA === "function" ? window.__agroPresupuestoIA() : window.__agroPresupuestoIA;
+  if (!supabaseListo) return null;
+  try { const { data, error } = await supabase.rpc("presupuesto_ia"); return error ? null : data; } catch { return null; }
+}

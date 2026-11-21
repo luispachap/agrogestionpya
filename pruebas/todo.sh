@@ -5,6 +5,7 @@ set -e
 cd "$(dirname "$0")/.."
 echo "── 1/4 · cálculos, reglas y nombres sin definir"; npm test 2>&1 | grep -E "^# (pass|fail)"
 echo "── 2/4 · la base armada desde cero y atacada directo"; npm run test:base > /tmp/agro-base.log 2>&1 || true; grep -E "^not ok|^# (pass|fail)" /tmp/agro-base.log; grep -q "^# fail 0" /tmp/agro-base.log || { echo "   (el detalle quedó en /tmp/agro-base.log)"; grep -A14 "^not ok" /tmp/agro-base.log | head -40; exit 1; }
+printf "   la función del servidor que pide la lectura con IA (sin red, sin gasto): "; node --test pruebas/funcion_ia.test.mjs 2>&1 | grep -E "^# (pass|fail)" | tr "\n" " "; echo
 echo "── 3/4 · compilación"; npm run build 2>&1 | grep -E "modules|built"
 echo "── 4/4 · navegador real"
 pkill -f "vite" 2>/dev/null || true
@@ -13,7 +14,7 @@ npx vite --port 5173 >/dev/null 2>&1 &
 VITE_SUPABASE_URL=http://localhost:5199 VITE_SUPABASE_ANON_KEY=prueba npx vite --port 5174 >/dev/null 2>&1 &
 python3 -c "import time; time.sleep(6)"
 falla=0
-for t in humo recorrido archivos campo arranque cuentas menu checador cuadrillas eventuales almacen dosaparatos pagos prestaciones sensibles mes bajas cruces decisiones importar entrada; do
+for t in humo recorrido archivos campo arranque cuentas menu checador cuadrillas eventuales almacen dosaparatos pagos prestaciones sensibles mes bajas cruces decisiones importar entrada ia; do
   printf "   %s: " "$t"
   # El resultado es el de la prueba, no el de "tail": si truena a medias también cuenta como falla.
   if python3 pruebas/${t}_navegador.py > /tmp/agro_prueba.log 2>&1; then tail -1 /tmp/agro_prueba.log; else tail -3 /tmp/agro_prueba.log; echo "   ^^^ FALLÓ $t"; falla=1; fi
