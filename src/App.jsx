@@ -108,6 +108,7 @@ import { destinoDe as destinoDeAviso, estadoDelAparato, CLASES_DE_AVISO } from "
 import { activarAvisos, desactivarAvisos, avisoDePrueba, misPreferenciasDeAvisos, guardarPreferenciasDeAvisos, quitarAvisosDe, suscripcionDeEsteAparato } from "./avisosRed.js";
 import { idConAsistente, abrirConAsistente, esConAsistente, misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro, hallazgosDe, antecedentes, temasDe, deDondeSalio, comoEvidencia, admiteArchivos, carpetaDe, pedirConsulta, conversacionesDe as todasLasConversaciones, PERMISO_EVIDENCIA, PERMISO_SUPERVISION } from "./mensajeria.js";
 import { planDelDia as planMandadoDe, loQueLeToca, quitarAsignacion, cambiarAsignacion } from "./asignaciones.js";
+import { organizacionEn, superiorDe, crearUnidad, cambiarUnidad, cerrarUnidad, nombrarResponsable, quitarResponsable, adscribir, quitarAdscripcion, apoyar, cancelarHecho, historialDe as historialDeOrg, estructuraProvisional, CLASES as CLASES_DE_UNIDAD, PUEDE_CONFIGURAR as PUEDE_CONFIGURAR_ORG, LO_QUE_NO_ES as LO_QUE_NO_ES_EL_MAPA, T_UNIDAD as T_UNIDAD_ORG } from "./organizacion.js";
 import { jornadaDe, cerrarJornada, reabrirJornada, cierreDe as cierreDeJornada, diferenciasDelCierre as diferenciasDeJornada, tareasParaManana, MOTIVOS as MOTIVOS_DE_JORNADA, ESTADOS as ESTADOS_DE_JORNADA, ROLES_QUE_CIERRAN as ROLES_QUE_CIERRAN_JORNADA } from "./jornada.js";
 import { repartirElDia, aQueSeVaCadaQuien, quienNoTieneNada, chocanLasTareas, indicacionParaElTrabajador, comoVaElDia } from "./plan.js";
 import { loQueVaAFaltar } from "./prediccion.js";
@@ -7990,6 +7991,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "mano-obra" && <ManoDeObra data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "jornadas" && <Jornadas data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "arranque" && <ArranqueLimpio data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
+              {page === "organizacion" && <Organizacion data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "seguridad" && <PanelSeguridad data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "panel-financiero" && <PanelFinanciero data={data} onClose={() => setPage("home")} />}
               {page === "subir-nube" && <SubirCatalogos data={data} setData={setData} session={session} onClose={() => setPage("home")} />}
@@ -8447,6 +8449,181 @@ function LoginScreen({ data, add, upd, onLogin, vinculo = null, eventosListos = 
 // Con qué se abre la operación: cuentas nuevas, inventario por conteo físico,
 // saldos con su evidencia y la fecha oficial de inicio. Nada se copia de antes
 // y nada se inventa. Las reglas viven en arranque.js, con sus pruebas.
+/* ══ ORGANIZACIÓN: áreas, equipos, responsables y de quién depende cada quien (etapa 1; `src/organizacion.js`) ══
+   Es sólo el mapa: no da permisos, no asigna trabajo y no mueve a nadie solo. Todo queda con fecha e historial. */
+function Organizacion({ data, add, upd, session, onClose }) {
+  const hoy = today();
+  const [fecha, setFecha] = useState(hoy);
+  const [tab, setTab] = useState("mapa");
+  const [abierta, setAbierta] = useState(null);
+  const [f, setF] = useState(null);          // el formulario abierto: { modo, unidadId, ... }
+  const [dice, setDice] = useState(null);    // { ok, txt }
+  const eventos = data.eventos || [];
+  const quien = { id: session.id, nombre: session.nombre, rol: session.role };
+  const puede = PUEDE_CONFIGURAR_ORG.includes(session.role);
+  // La gente que la app conoce: el catálogo de personal, encargados y agrónomos, y quien está viendo la pantalla.
+  const gente = useMemo(() => { const m = new Map(); for (const p of [...(data.trabajadores || []), ...(data.encargados || []), ...(data.agronomos || []), { id: session.id, nombre: session.nombre }]) if (p?.id && p.nombre && p.activo !== false && !m.has(p.id)) m.set(p.id, { id: p.id, nombre: p.nombre }); return [...m.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")); }, [data.trabajadores, data.encargados, data.agronomos, session.id, session.nombre]);
+  const org = useMemo(() => organizacionEn(eventos, fecha, { personas: gente }), [eventos, fecha, gente]);
+  const hayAlgo = eventos.some(e => e.tipo === T_UNIDAD_ORG);
+  const ctx = () => ({ eventos, quien, cuando: new Date().toISOString(), hoy });
+  const guarda = (r) => { if (!r.ok) { setDice({ ok: false, txt: r.dice }); return false; } for (const e of r.eventos || [r.evento]) add("eventos", e); setDice({ ok: true, txt: r.dice }); setF(null); return true; };
+  const abre = (modo, extra = {}) => { setDice(null); setF({ modo, desde: hoy, hasta: hoy, motivo: "", nombre: "", clase: "equipo", dependeDe: "", personaId: "", provisional: true, ...extra }); };
+  const P = (id) => gente.find(g => g.id === id);
+  const aplica = () => {
+    const c = ctx();
+    if (f.modo === "unidad") return guarda(crearUnidad({ ...c, nombre: f.nombre, clase: f.clase, dependeDe: f.dependeDe || null, desde: f.desde, provisional: f.provisional }));
+    if (f.modo === "cambiar") return guarda(cambiarUnidad({ ...c, unidadId: f.unidadId, nombre: f.nombre, dependeDe: f.dependeDe || null, desde: f.desde, motivo: f.motivo }));
+    if (f.modo === "validar") return guarda(cambiarUnidad({ ...c, unidadId: f.unidadId, provisional: false, desde: f.desde, motivo: f.motivo }));
+    if (f.modo === "cerrar") return guarda(cerrarUnidad({ ...c, unidadId: f.unidadId, hasta: f.hasta, motivo: f.motivo }));
+    if (f.modo === "responsable") return guarda(nombrarResponsable({ ...c, unidadId: f.unidadId, persona: P(f.personaId), desde: f.desde, provisional: f.provisional, motivo: f.motivo }));
+    if (f.modo === "sin-responsable") return guarda(quitarResponsable({ ...c, unidadId: f.unidadId, hasta: f.hasta, motivo: f.motivo }));
+    if (f.modo === "persona") return guarda(adscribir({ ...c, persona: P(f.personaId), unidadId: f.unidadId, desde: f.desde, motivo: f.motivo }));
+    if (f.modo === "sale") return guarda(quitarAdscripcion({ ...c, personaId: f.personaId, hasta: f.hasta, motivo: f.motivo }));
+    if (f.modo === "apoyo") return guarda(apoyar({ ...c, persona: P(f.personaId), unidadId: f.unidadId, desde: f.desde, hasta: f.hasta, motivo: f.motivo }));
+  };
+  const error = (h) => {
+    const motivo = window.prompt("¿Por qué fue un error? El registro queda tachado en el historial."); if (motivo === null) return;
+    const ev = eventos.find(e => e.id === h.evento), r = ev ? cancelarHecho(ev, { motivo, quien, cuando: new Date().toISOString() }) : { ok: false, dice: "No se encontró ese registro." };
+    if (!r.ok) { setDice({ ok: false, txt: r.dice }); return; } upd("eventos", r.evento); setDice({ ok: true, txt: "Quedó tachado. Ya no cuenta." });
+  };
+  const TITULO = { unidad: "Nueva área o equipo", cambiar: "Cambiar nombre o de quién depende", validar: "Dar por validada esta unidad", cerrar: "Cerrar esta unidad", responsable: "Nombrar responsable", "sin-responsable": "Dejar sin responsable", persona: "Agregar a alguien a este equipo", sale: "Sacar del equipo", apoyo: "Apoyo temporal de otro equipo" };
+  const usaHasta = f && ["cerrar", "sin-responsable", "sale", "apoyo"].includes(f.modo), usaDesde = f && !["cerrar", "sin-responsable", "sale"].includes(f.modo);
+  const formulario = f && (
+    <div className="card org-form" style={{ padding: 12, borderColor: "var(--accent)" }}>
+      <div className="card-title">{TITULO[f.modo]}{f.unidadId && org.porId.get(f.unidadId) ? ` · ${org.porId.get(f.unidadId).nombre}` : ""}</div>
+      {(f.modo === "unidad" || f.modo === "cambiar") && <>
+        <input className="inp" aria-label="Nombre de la unidad" placeholder="Nombre" value={f.nombre} onChange={e => setF(x => ({ ...x, nombre: e.target.value }))} style={{ marginBottom: 6 }} />
+        {f.modo === "unidad" && <select className="inp" aria-label="Clase de unidad" value={f.clase} onChange={e => setF(x => ({ ...x, clase: e.target.value }))} style={{ marginBottom: 6 }}>{Object.entries(CLASES_DE_UNIDAD).map(([k, n]) => <option key={k} value={k}>{n}</option>)}</select>}
+        <select className="inp" aria-label="Depende de" value={f.dependeDe} onChange={e => setF(x => ({ ...x, dependeDe: e.target.value }))} style={{ marginBottom: 6 }}>
+          <option value="">No depende de ninguna (es la de arriba)</option>
+          {org.unidades.filter(u => u.id !== f.unidadId).map(u => <option key={u.id} value={u.id}>Depende de {u.nombre}</option>)}
+        </select>
+      </>}
+      {["responsable", "persona", "apoyo"].includes(f.modo) && (
+        <select className="inp" aria-label="Persona" value={f.personaId} onChange={e => setF(x => ({ ...x, personaId: e.target.value }))} style={{ marginBottom: 6 }}>
+          <option value="">¿Quién?</option>
+          {gente.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+        </select>
+      )}
+      {usaDesde && <label className="text-xs text-muted">{f.modo === "apoyo" ? "Desde" : "Vale desde"}<input className="inp" type="date" aria-label="Desde" value={f.desde} onChange={e => setF(x => ({ ...x, desde: e.target.value }))} style={{ marginBottom: 6 }} /></label>}
+      {usaHasta && <label className="text-xs text-muted">{f.modo === "apoyo" ? "Hasta" : "Último día"}<input className="inp" type="date" aria-label="Hasta" value={f.hasta} onChange={e => setF(x => ({ ...x, hasta: e.target.value }))} style={{ marginBottom: 6 }} /></label>}
+      {(f.modo === "unidad" || f.modo === "responsable") && <label className="text-xs" style={{ display: "flex", gap: 6, marginBottom: 6 }}><input type="checkbox" aria-label="Por confirmar" checked={!!f.provisional} onChange={e => setF(x => ({ ...x, provisional: e.target.checked }))} />Queda por confirmar (provisional)</label>}
+      {f.modo !== "unidad" && <input className="inp" aria-label="Motivo" placeholder={["responsable", "persona"].includes(f.modo) ? "Motivo (obligatorio si reemplaza a alguien o cambia de equipo)" : "Motivo"} value={f.motivo} onChange={e => setF(x => ({ ...x, motivo: e.target.value }))} style={{ marginBottom: 6 }} />}
+      {f.modo === "responsable" && <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Nombrar responsable no le da permisos en el sistema.</div>}
+      <div style={{ display: "flex", gap: 6 }}>
+        <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => { setF(null); setDice(null); }}>Dejarlo como estaba</button>
+        <button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={aplica}>Guardar</button>
+      </div>
+    </div>
+  );
+  const fechaBonita = (x) => fechaLarga(new Date(`${x}T12:00:00`));
+  return (
+    <div className="organizacion">
+      <div className="top-bar">
+        <button className="btn-ghost" onClick={onClose}>‹</button>
+        <h2>Organización</h2>
+      </div>
+      <div className="section-pad">
+        <div className="alert alert-blue org-aviso" style={{ marginBottom: 10 }}>{LO_QUE_NO_ES_EL_MAPA}</div>
+        <div className="tabs-pill" style={{ padding: "0 0 12px" }}>
+          {[["mapa", "El mapa"], ["gente", "La gente"], ["historial", "Historial"]].map(([k, l]) => <button key={k} className={`tab-pill${tab === k ? " active" : ""}`} onClick={() => { setTab(k); setDice(null); setF(null); }}>{l}</button>)}
+        </div>
+        {tab !== "historial" && (
+          <div className="card" style={{ padding: 12 }}>
+            <label className="text-xs text-muted">Ver cómo estaba el día<input className="inp" type="date" aria-label="Fecha de la organización" value={fecha} onChange={e => setFecha(e.target.value || hoy)} /></label>
+            {fecha !== hoy && <div className="text-xs" style={{ marginTop: 6, color: "var(--gold)" }}>Estás viendo la organización del {fechaBonita(fecha)}, no la de hoy. <button className="btn-ghost" style={{ textDecoration: "underline" }} onClick={() => setFecha(hoy)}>Volver a hoy</button></div>}
+          </div>
+        )}
+        {dice && <div className={`alert alert-${dice.ok ? "green" : "red"} org-dice`}>{dice.txt}</div>}
+
+        {tab === "mapa" && <>
+          {!hayAlgo && (
+            <div className="card" style={{ padding: 12 }}>
+              <div className="card-title">Todavía no hay organización capturada</div>
+              <div className="text-sm text-muted">Se puede empezar con una estructura provisional —Dirección, Operaciones agrícolas generales, Operaciones agronómicas y el equipo de Riegos—, sin personas ni responsables, para después validarla; o dar de alta las unidades una por una.</div>
+              {puede && <button className="btn btn-accent" style={{ marginTop: 10 }} onClick={() => guarda(estructuraProvisional({ ...ctx(), desde: hoy }))}>Crear la estructura provisional</button>}
+            </div>
+          )}
+          {hayAlgo && org.unidades.length === 0 && <div className="card text-sm text-muted" style={{ padding: 12 }}>Ese día todavía no había ninguna unidad.</div>}
+          {org.unidades.map(u => (
+            <div key={u.id} className="card org-unidad" style={{ padding: 12, marginLeft: Math.min(u.nivel, 4) * 14 }}>
+              <div className="flex-b" style={{ gap: 8, cursor: "pointer" }} onClick={() => { setAbierta(abierta === u.id ? null : u.id); setF(null); setDice(null); }}>
+                <div className="text-sm"><b>{u.nombre}</b></div>
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}><span className="badge">{CLASES_DE_UNIDAD[u.clase]}</span>{u.provisional && <span className="badge badge-gold">Por validar</span>}</div>
+              </div>
+              <div className="text-xs" style={{ marginTop: 3, color: u.responsable ? undefined : "var(--gold)" }}>{u.responsable ? `Responde: ${u.responsable.nombre}${u.responsable.provisional ? " (por confirmar)" : ""}` : "Sin responsable"}{u.huerfana ? " · falta decir de quién depende" : ""}</div>
+              <div className="text-xs text-muted">{u.miembros.length} persona(s){u.apoyos.length ? ` · ${u.apoyos.length} de apoyo` : ""}</div>
+              {abierta === u.id && (
+                <div style={{ marginTop: 8, borderTop: "1px solid var(--border-soft)", paddingTop: 8 }}>
+                  {u.miembros.map(m => <div key={m.personaId} className="flex-b text-sm" style={{ padding: "3px 0", gap: 8 }}><span>{m.nombre} <span className="text-xs text-muted">· desde {m.desde}</span></span>{puede && fecha === hoy && <button className="btn-ghost text-xs" onClick={() => abre("sale", { personaId: m.personaId, unidadId: u.id })}>Sacar</button>}</div>)}
+                  {u.apoyos.map(a => <div key={a.evento} className="text-sm" style={{ padding: "3px 0" }}>{a.nombre} <span className="text-xs text-muted">· de apoyo hasta el {a.hasta}: {a.motivo}</span></div>)}
+                  {u.miembros.length === 0 && u.apoyos.length === 0 && <div className="text-xs text-muted">Nadie adscrito a esta unidad.</div>}
+                  {puede && fecha === hoy && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                      <button className="btn btn-outline btn-sm" onClick={() => abre("responsable", { unidadId: u.id, personaId: u.responsable?.personaId || "", provisional: !u.responsable })}>{u.responsable ? (u.responsable.provisional ? "Confirmar o cambiar responsable" : "Cambiar responsable") : "Nombrar responsable"}</button>
+                      {u.responsable && <button className="btn btn-outline btn-sm" onClick={() => abre("sin-responsable", { unidadId: u.id })}>Dejar sin responsable</button>}
+                      <button className="btn btn-outline btn-sm" onClick={() => abre("persona", { unidadId: u.id })}>Agregar persona</button>
+                      <button className="btn btn-outline btn-sm" onClick={() => abre("apoyo", { unidadId: u.id })}>Apoyo temporal</button>
+                      <button className="btn btn-outline btn-sm" onClick={() => abre("unidad", { dependeDe: u.id })}>Equipo dentro</button>
+                      <button className="btn btn-outline btn-sm" onClick={() => abre("cambiar", { unidadId: u.id, nombre: u.nombre, dependeDe: u.dependeDe || "" })}>Cambiar</button>
+                      {u.provisional && <button className="btn btn-outline btn-sm" onClick={() => abre("validar", { unidadId: u.id })}>Dar por validada</button>}
+                      <button className="btn btn-outline btn-sm" onClick={() => abre("cerrar", { unidadId: u.id })}>Cerrar</button>
+                    </div>
+                  )}
+                  {puede && fecha !== hoy && <div className="text-xs text-muted" style={{ marginTop: 6 }}>Los cambios se capturan viendo el día de hoy (cada cambio lleva su propia fecha «desde»).</div>}
+                  {f && (f.unidadId === u.id || (f.modo === "unidad" && f.dependeDe === u.id)) && formulario}
+                  <div className="text-xs text-muted" style={{ marginTop: 8, fontWeight: 700 }}>Lo que ha pasado con esta unidad</div>
+                  {historialDeOrg(eventos, { unidadId: u.id }).slice(0, 6).map(h => <div key={h.evento} className="text-xs" style={{ padding: "2px 0", textDecoration: h.cancelado ? "line-through" : undefined }}>{h.vale} · {h.dice}{h.motivo ? ` — «${h.motivo}»` : ""}</div>)}
+                </div>
+              )}
+            </div>
+          ))}
+          {puede && fecha === hoy && hayAlgo && <button className="btn btn-outline" style={{ marginTop: 6 }} onClick={() => { setAbierta(null); abre("unidad"); }}>Nueva área o equipo</button>}
+          {f && f.modo === "unidad" && !abierta && formulario}
+          {!puede && <div className="text-xs text-muted" style={{ marginTop: 8 }}>La organización la captura un administrador.</div>}
+          {org.avisos.length > 0 && (
+            <div className="card" style={{ padding: 12, marginTop: 10 }}>
+              <div className="card-title" style={{ color: "var(--gold)" }}>Lo que falta decir ({org.avisos.length})</div>
+              {org.avisos.map((a, i) => <div key={i} className="text-sm" style={{ padding: "3px 0" }}>{a.dice}</div>)}
+              <div className="text-xs text-muted" style={{ marginTop: 4 }}>No se le supone responsable a ninguna: se queda así hasta que alguien lo diga.</div>
+            </div>
+          )}
+        </>}
+
+        {tab === "gente" && <>
+          <div className="card" style={{ padding: 12 }}>
+            <div className="text-sm">{gente.length} persona(s) en el catálogo · <b>{org.sinEquipo.length}</b> sin equipo.</div>
+            <div className="text-xs text-muted" style={{ marginTop: 4 }}>A nadie se le pone equipo ni superior solo: se captura en el mapa, persona por persona.</div>
+          </div>
+          {gente.map(g => { const d = org.dePersona(g.id), s = superiorDe(org, g.id); return (
+            <div key={g.id} className="card org-persona" style={{ padding: 12 }}>
+              <div className="text-sm"><b>{g.nombre}</b></div>
+              <div className="text-xs" style={{ marginTop: 2, color: d.equipo ? undefined : "var(--gold)" }}>{d.equipo ? `Equipo: ${d.equipo.nombre} (desde ${d.equipo.desde})` : "Sin equipo"}</div>
+              {d.respondePor.length > 0 && <div className="text-xs">Responde por: {d.respondePor.map(u => `${u.nombre}${u.provisional ? " (por confirmar)" : ""}`).join(", ")}</div>}
+              {d.apoya.length > 0 && <div className="text-xs">Apoya a: {d.apoya.map(a => `${a.nombre} hasta el ${a.hasta}`).join(", ")}</div>}
+              <div className="text-xs text-muted">Depende de: {s.dice}</div>
+            </div>
+          ); })}
+        </>}
+
+        {tab === "historial" && (
+          <div className="card" style={{ padding: 12 }}>
+            <div className="card-title">Todo lo que se ha registrado</div>
+            {historialDeOrg(eventos).length === 0 && <div className="text-sm text-muted">Todavía nada.</div>}
+            {historialDeOrg(eventos).map(h => (
+              <div key={h.evento} className="org-hecho" style={{ borderTop: "1px solid var(--border-soft)", padding: "8px 0" }}>
+                <div className="text-sm" style={{ textDecoration: h.cancelado ? "line-through" : undefined }}>{h.dice}</div>
+                <div className="text-xs text-muted">Vale desde el {h.vale} · lo registró {h.quien || "alguien"} el {fechaLocal(new Date(h.registrado))}{h.retroactivo ? " · se capturó después de la fecha en que vale" : ""}{h.motivo ? ` — «${h.motivo}»` : ""}</div>
+                {h.cancelado ? <div className="text-xs" style={{ color: "var(--gold)" }}>Tachado por {h.cancelado.por}: «{h.cancelado.motivo}»</div> : puede && <button className="btn-ghost text-xs" style={{ textDecoration: "underline" }} onClick={() => error(h)}>Fue un error</button>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ArranqueLimpio({ data, add, upd, setInv, session, onClose }) {
   const [tab, setTab] = useState("estado");
   const [op, setOp] = useState(null);            // el renglón de "operacion" en la base

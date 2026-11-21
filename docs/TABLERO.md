@@ -441,3 +441,10 @@ construidos: esperan esa validación.
 **Organización y órdenes delegables (21 nov, 17 h) — `ORGANIZACION.md`: SÓLO DISEÑO.** Diagnóstico de compatibilidad,
 diseño de datos y permisos, recorrido de ocho escenas y plan en seis etapas. Nada construido ni instalado. Espera la
 autorización de Luis y, para los permisos, la confirmación de Dirección.
+
+**Organización, etapa 1 (21 nov, 18 h) — `ORGANIZACION.md` §7: CONSTRUIDA.** Pantalla «Organización» (administrador):
+áreas, equipos, responsables, equipo habitual, apoyo temporal, historial y «cómo estaba el día tal». Estructura
+provisional disponible con un botón (no creada en producción). Sin cambios de permisos. **Probado:** 1,190 pruebas de
+cuenta; `pruebas/organizacion_navegador.py` 18/18. **Sin validar con Miguel, Fito ni Dirección.**
+**Motor de especialidades y recomendaciones — `ESPECIALIDADES.md`: SÓLO DISEÑO.** Hallazgo: la base de producción no
+tiene historial (0 trabajadores, 0 actividades), así que no hay con qué sugerir hasta que haya operación registrada.

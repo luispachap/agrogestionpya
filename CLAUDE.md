@@ -546,10 +546,18 @@ Usuarios reales de la app:
   original (`cambiada`/quitada) con quién, cuándo, por qué, por cuál se reemplazó y lo trabajado ahí; ese rato no es
   «fuera del plan». Lo hecho y lo cambiado no pasan a mañana. Recorrido: `pruebas/reasignacion_navegador.py` (20).
   **Los seis criterios de Luis para la jornada están SIN implementar hasta validarlos con Miguel** (`docs/JORNADA.md`). «Reasignar equipo» (mover a varios en una captura) está sólo EVALUADA ahí: no se construye hasta saber cómo reasigna Miguel; dar la instrucción no mueve horas, y plan sin asignación (o al revés) se advierte. El tope de IA del mes cubre también la importación (hoja 51).
-- **Organización, especialidades, facultades de mando y órdenes delegables: SÓLO DISEÑO** (`docs/ORGANIZACION.md`, 21 nov).
-  No construyas nada de eso ni cambies permisos sin autorización de Luis; los permisos definitivos los confirma Dirección.
-  Lo acordado: todo como eventos con fecha; las facultades son operaciones de la hoja 37 con alcance; un cargo no da
-  facultades; las tareas de una orden son las `indicaciones` de siempre (no hay segundo planeador); una orden nunca crea horas.
+- **`src/organizacion.js`: LA ORGANIZACIÓN, etapa 1 construida** (página `organizacion`, sólo admin; `docs/ORGANIZACION.md`).
+  Es sólo el MAPA: áreas y equipos (`org_unidad`, `_cambio`, `_cierre`), responsables (`org_cargo`, `_fin`), equipo
+  habitual (`org_adscripcion`, `_fin`) y apoyo temporal (`org_apoyo`). Todo con fecha «desde»; `organizacionEn(eventos,
+  fecha)` la CALCULA; `superiorDe` sale de la cadena; `historialDe`; `enCalidadDe` (para copiar el cargo a lo que se
+  haga). Un responsable nace `provisional`. `estructuraProvisional` (ids fijos) crea sólo unidades, sin personas.
+  **No da ni lee permisos y nadie decide con él** (hay prueba: ningún módulo de permisos, dinero, asistencia o jornada
+  lo importa). Ningún nombre de persona en la lógica (hay prueba). La base NO valida aún quién captura (eso es la
+  etapa 3). **Etapas 2 a 6 y el motor de especialidades (`docs/ESPECIALIDADES.md`): SÓLO DISEÑO, sin autorizar.** No
+  cambies permisos ni actives recomendaciones; la estructura real espera a Miguel, Fito y Dirección. Lo acordado: cuatro
+  niveles (experiencia observada · especialidad declarada · capacitación · habilitación); la experiencia se calcula y
+  nunca se vuelve autorización; una habilitación legal no tiene excepción interna; las facultades serán operaciones de
+  la hoja 37 con alcance; un cargo no da facultades; las tareas de una orden son las `indicaciones` de siempre.
 - **`src/whatsapp.js` + `supabase/functions/whatsapp-entrada/` + `supabase/pendientes/whatsapp-entrada.sql`: WhatsApp PREPARADO
   Y APAGADO.** El lector convierte el aviso de Meta en el `mensaje` del camino común (teléfono → persona del
   catálogo; desconocido o repetido no se atribuye; mismo id no entra dos veces). La función sólo comprueba la firma
@@ -738,7 +746,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **220 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **221 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

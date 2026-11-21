@@ -1,6 +1,8 @@
 # Organización, especialidades, facultades de mando y órdenes delegables
 
-**Estado: DISEÑO. Nada de esto está construido ni instalado.** (21 nov 2026)
+**Estado (21 nov 2026, 18 h): la ETAPA 1 está construida y probada con datos inventados** (autorizada por Luis; sección 7).
+**Las etapas 2 a 6 siguen siendo sólo diseño y NO están autorizadas.** No se cambió ningún permiso. La estructura real
+no se activa hasta validarla con Miguel, Fito y Dirección. El motor de especialidades está en `ESPECIALIDADES.md`.
 Pedido por Luis: que Agroselectos pueda reorganizarse sin tocar el código cada vez que cambia un encargado, un
 trabajador o un responsable. Este documento trae el diagnóstico de lo que ya existe, el diseño, el recorrido de prueba
 y el plan por etapas. La construcción empieza cuando Luis la autorice; los permisos definitivos los confirma Dirección.
@@ -87,21 +89,21 @@ vigentes ese día. Ningún nombre de persona, equipo o área va escrito en la l�
 - Una pregunta siempre trae fecha: «¿de qué equipo era el día 12?» contesta con lo vigente el 12.
 - Quien no tiene equipo sale como «sin equipo», a la vista. No se le supone uno.
 
-### 2.2 Especialidades y capacidades — tres cosas distintas
+### 2.2 Especialidades y capacidades — cuatro niveles (decididos por Luis; detalle en `ESPECIALIDADES.md`)
 
-| Nivel | Qué es | Quién lo dice | Qué permite |
-|---|---|---|---|
-| **Especialidad declarada** | «Sabe manejar tractor» | La persona o su responsable | Sirve para buscar y sugerir gente. No autoriza nada |
-| **Capacitación acreditada** | Tomó el curso, con fecha, quién la impartió, evidencia y vigencia | Quien tenga la facultad de registrarla | Deja constancia. Puede vencer |
-| **Habilitación** | Autorización expresa para una tarea que la exige, con vigencia; se puede retirar | Quien tenga la facultad de habilitar | Es lo único que cuenta cuando una actividad pide habilitación |
+| Nivel | Qué es | Autoriza trabajo regulado |
+|---|---|---|
+| 1. Experiencia observada | Lo que ha hecho, calculado de registros verificables | No |
+| 2. Especialidad declarada (sugerida por el sistema · declarada · validada por un responsable) | «Es regador» | No |
+| 3. Capacitación acreditada | Curso con fecha, evidencia y vigencia | No por sí sola |
+| 4. Habilitación específica | Autorización expresa, con vigencia | **Sí: es lo único que autoriza** |
 
-- El catálogo de especialidades es configurable (tractorista, regador, dronero, aplicador, mantenimiento, trabajador
-  general…). En pantalla se dice «trabajador general»; la palabra «jornalero» no se usa en pantallas.
-- Cada actividad puede marcarse como «pide habilitación» (aplicar agroquímicos, volar el dron, operar maquinaria).
-- **Qué pasa si se asigna a alguien sin habilitación: es decisión de Dirección.** Mi propuesta: en lo que es seguridad
-  de personas (agroquímicos), no se asigna sin habilitación, salvo excepción firmada por quien tenga esa facultad, con
-  motivo. En lo demás, se avisa y se deja asignar. Nunca en silencio.
-- Una habilitación vencida no se da por buena: se dice «venció el día tal».
+- La experiencia nunca se convierte sola en especialidad validada ni en habilitación.
+- **Una habilitación legalmente obligatoria no tiene excepción interna que la sustituya.** (Sustituye mi propuesta
+  anterior de «excepción firmada».) Para las habilitaciones que el rancho pide por decisión propia, Dirección dirá si
+  admite excepción y de quién.
+- El diseño ya contempla detectar necesidades de personal y capacidades faltantes, y recomendar gente para actividades
+  compatibles (`ESPECIALIDADES.md`, secciones 4 a 6). Todo eso nace apagado.
 
 ### 2.3 Facultades de mando
 
@@ -253,7 +255,7 @@ reales ni cambia permisos de producción sin que Luis lo diga.
 | Etapa | Qué se construye | Toca permisos de producción | Qué se necesita antes |
 |---|---|---|---|
 | **0. Validación** | Nada. Preguntas a Miguel, Fito y Dirección (sección 5) | No | — |
-| **1. Organización** | Áreas, equipos, responsables, adscripciones y apoyos, con historial. Pantalla «Organización». **No cambia quién puede hacer qué**: es sólo el mapa | No | Que Luis diga las áreas y equipos de arranque |
+| **1. Organización — CONSTRUIDA** | Áreas, equipos, responsables, adscripciones y apoyos, con historial. Pantalla «Organización». **No cambia quién puede hacer qué**: es sólo el mapa | No | Validar la estructura real con Miguel, Fito y Dirección |
 | **2. Especialidades** | Catálogo, declaradas, capacitaciones y habilitaciones. Avisos al asignar. Actividades que piden habilitación | No | Decidir qué actividades la piden y qué pasa sin ella |
 | **3. Facultades** | Las operaciones de mando y su alcance en la base. Plantillas. Fito y Dirección pueden mandar. Las listas fijas por perfil se van reemplazando | **Sí** | Confirmación de Dirección de la tabla de la sección 2.3 |
 | **4. Órdenes** | Órdenes por objetivo, delegar, dividir, confirmar y cerrar. Enlace con Reparto, Checador y Jornada. Pantalla «Órdenes» | Sí (operaciones nuevas) | Etapa 3 |
@@ -294,3 +296,41 @@ Lo que este plan NO incluye: nómina, costos ni pagos (no cambian), y WhatsApp (
 - **Ya demostrado con datos inventados y que este diseño aprovecha:** que el plan conserva sus cambios, que la jornada
   no duplica gente ni horas, y que la base rechaza operaciones sensibles sin permiso.
 - **Requiere un día real:** todo lo que dependa de cómo mandan de verdad Miguel, Fito y los encargados.
+
+---
+
+## 7. Etapa 1: lo construido (21 nov, 18 h)
+
+**Qué hay**
+- Pantalla **Organización** (sólo para el administrador; menú «Control»), con tres pestañas: el mapa, la gente y el
+  historial.
+- Áreas y equipos en árbol; responsable de cada unidad; equipo habitual de cada persona; apoyo temporal a otro equipo.
+- Cada cambio es un hecho con su fecha «desde», quién lo registró y por qué. Nada se sobrescribe.
+- «Ver cómo estaba el día…»: la organización de cualquier fecha.
+- El superior de alguien no se captura: sale de la cadena. Si no hay con qué decirlo, se dice.
+- Un hecho capturado por error se tacha con motivo; no se borra.
+- Botón para crear la **estructura provisional**: Dirección → Operaciones agrícolas generales y Operaciones agronómicas
+  → Riegos (equipo de Operaciones agronómicas). Nace sin personas, sin responsables y marcada «por validar».
+  **No la creé en producción**: la crea un administrador cuando se decida.
+
+**Cómo se cumplieron las condiciones de Luis**
+
+| Condición | Cómo |
+|---|---|
+| Sin nombres de personas en la lógica | Hay prueba que revisa el código buscándolos |
+| Estructura provisional | Cuatro unidades, todas «por validar»; Riegos bajo Operaciones agronómicas |
+| No asignar trabajadores ni superiores solos | La estructura nace vacía; un responsable nace «por confirmar»; quien no tiene equipo sale «sin equipo» |
+| Tres cosas separadas | El mapa no lee ni escribe permisos; nombrar responsable avisa «esto no le da permisos»; ningún módulo de permisos, dinero, asistencia o jornada lee el mapa (hay prueba) |
+| Probarse con datos ficticios | 10 pruebas de cuentas y un recorrido de 18 pasos en la pantalla |
+| Sin modificar la operación | El recorrido comprueba cero tareas, actividades, gastos o repartos creados |
+
+**Lo que NO hace todavía, dicho claro**
+- **La base no valida quién captura la organización.** Hoy es una regla de la pantalla (sólo el administrador la ve).
+  Cualquier cuenta que ya puede guardar hechos en la base podría, sabiendo cómo, guardar uno de organización. Cerrarlo
+  es un cambio de permisos (etapa 3), que no está autorizado. Mientras tanto no hay riesgo operativo, porque **el mapa
+  no le da poder a nadie**: nada decide con él.
+- **Sólo aparece la gente que la app conoce** (catálogo de personal, encargados y agrónomos, y quien está viendo la
+  pantalla). Para poner de responsable a alguien de Dirección que no esté en esos catálogos hay que resolver primero
+  cómo se da de alta; es parte de la validación.
+- No se usa todavía en Reparto, Equipos de trabajo, Checador ni Jornada: se conectan en las etapas siguientes.
+- Sin probar con nadie del rancho.
