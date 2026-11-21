@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { mensajesDeAviso, directorio, quienEscribe, recibir, ventana, respuestaPara, claveDeTelefono, idDeMensaje, ESTADO_WHATSAPP } from "./whatsapp.js";
+import { codigoDeVinculo, mensajesDeAviso, directorio, quienEscribe, recibir, ventana, respuestaPara, claveDeTelefono, idDeMensaje, ESTADO_WHATSAPP } from "./whatsapp.js";
 import { entenderLoDicho } from "./voz.js";
 import { preparar, ejecutar } from "./operaciones.js";
 
@@ -22,7 +22,7 @@ test("el_mismo_celular_llega_como_52_o_521_y_es_la_misma_persona", () => {
   assert.equal(claveDeTelefono("5214495550101"), "4495550101"); assert.equal(claveDeTelefono("524495550101"), "4495550101"); assert.equal(claveDeTelefono("12345"), "");
   const dir = directorio(data);
   assert.deepEqual(dir.map(p => [p.id, p.rol]), [["enc1", "encargado"], ["ag1", "agronomo"], ["t1", "trabajador"]], "quien no tiene teléfono o está de baja no entra al directorio");
-  assert.deepEqual(quienEscribe("5214495550102", dir).persona, { id: "ag1", nombre: "Agrónomo Inventado", rol: "agronomo" });
+  assert.deepEqual(quienEscribe("5214495550102", dir).persona, { id: "ag1", nombre: "Agrónomo Inventado", rol: "agronomo", via: "telefono" });
 });
 
 test("un_telefono_desconocido_o_repetido_no_se_le_atribuye_a_nadie", () => {
@@ -51,7 +51,8 @@ test("whatsapp_no_da_permisos_un_trabajador_que_escribe_un_gasto_no_lo_registra"
   const m = recibir({ cuerpo: aviso(texto("5214495550103", "Compramos un kilo de clavos, 350 pesos.")), personas: dir }).nuevos[0];
   const plan = preparar({ mensaje: m, entendido: entenderLoDicho({ texto: m.texto, personas: [], parcelas, insumos: [], hoy: "2026-11-23" }) });
   const gasto = plan.propuestas.find(p => p.tipo === "gasto"); assert.ok(gasto);
-  assert.equal(gasto.permiso.puede, false); assert.equal(ejecutar(gasto, { mensaje: m, quien: m.de, cuando: m.cuando, fecha: "2026-11-23", parcelas }).sinPermiso, true);
+  assert.equal(gasto.permiso.puede, false); const intento = ejecutar(gasto, { mensaje: m, quien: m.de, cuando: m.cuando, fecha: "2026-11-23", parcelas });
+  assert.deepEqual([intento.ok, intento.requiereSesion], [false, true], "ni por su puesto ni por su teléfono");
   assert.match(respuestaPara(plan).texto, /queda anotado para revisión/);
 });
 
@@ -84,4 +85,24 @@ test("pasadas_24_horas_solo_se_puede_iniciar_con_plantilla", () => {
   const cerrada = ventana("2026-11-23T14:00:00.000Z", "2026-11-24T14:00:01.000Z"); assert.equal(cerrada.abierta, false); assert.match(cerrada.dice, /plantilla/);
   assert.equal(ventana(null, "2026-11-24T14:00:00.000Z").abierta, false);
   assert.equal(respuestaPara({ propuestas: [] }, { ventanaAbierta: false }).requierePlantilla, true);
+});
+
+test("el_administrador_escribe_con_el_telefono_de_su_cuenta_sin_ser_trabajador_ficticio_y_eso_no_basta_para_un_gasto", () => {
+  const cuentas = [{ usuario: "uid-admin", nombre: "Administrador Inventado", rol: "superadmin", telefono: "4495550200" }];
+  const dir = directorio(data, cuentas);
+  const q = quienEscribe("5214495550200", dir);
+  assert.deepEqual(q.persona, { id: "uid-admin", nombre: "Administrador Inventado", rol: "admin", via: "telefono", cuenta: true });
+  const m = recibir({ cuerpo: aviso(texto("5214495550200", "Compramos un kilo de clavos, 350 pesos.")), personas: dir }).nuevos[0];
+  const plan = preparar({ mensaje: m, entendido: entenderLoDicho({ texto: m.texto, personas: [], parcelas, insumos: [], hoy: "2026-11-23" }) });
+  const gasto = plan.propuestas.find(p => p.tipo === "gasto");
+  assert.equal(gasto.permiso.puede, false, "es administrador, pero sólo se sabe por su teléfono"); assert.match(gasto.permiso.dice, /dentro de la app, con tu sesión/);
+  assert.equal(ejecutar(gasto, { mensaje: m, quien: m.de, cuando: m.cuando, fecha: "2026-11-23", parcelas }).requiereSesion, true);
+  // El mismo teléfono en una cuenta y en el catálogo son dos identidades: no se escoge.
+  const doble = directorio({ encargados: [{ id: "enc9", nombre: "Otro Inventado", telefono: "4495550200" }] }, cuentas);
+  assert.equal(quienEscribe("5214495550200", doble).motivo, "repetido");
+});
+
+test("el_codigo_para_ligar_el_telefono_se_reconoce_y_no_se_confunde_con_un_mensaje_de_trabajo", () => {
+  assert.equal(codigoDeVinculo("VINCULAR 482913"), "482913"); assert.equal(codigoDeVinculo(" 482913 "), "482913");
+  assert.equal(codigoDeVinculo("Compramos 482913 clavos"), null); assert.equal(codigoDeVinculo("48291"), null);
 });

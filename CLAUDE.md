@@ -468,17 +468,36 @@ Usuarios reales de la app:
   pueda decir se agrega a `OPERACIONES` y usa la función que su módulo ya tiene.
 - **Lo dicho se guarda con la forma que lee su pantalla**: incidencia = `desc`, `tipo`, `prioridad`, `trabajadorId`;
   solicitud de compra = `notas`, `items: []`, `creadaPor`. (Se guardaba `descripcion` y el inicio tronaba.)
+- **`src/mensajeria.js`: MENSAJERÍA INSTITUCIONAL (Luis, 21 nov; `docs/MENSAJERIA.md`).** No es otro chat: es la
+  colección `chat` de siempre con `conversacion` (sin ese campo = la general). Conversaciones = eventos
+  (`conversacion`, `conversacion_cambio`; la directa tiene id fijo por par de personas). Miembros por persona o por
+  puesto. `puedeVer`/`puedeEscribir` (dirección lee; la administración ve todo y se dice en `REGLAS`).
+  **Lo que se dicen entre personas se lee con el mismo camino y sólo PROPONE**: `relacionar` decide si un mensaje va
+  con algo que ya se venía hablando — `aclaracion` (misma operación), `seguimiento` (pendiente sobre una
+  observación, sin diagnóstico), `ejecucion` (lo ejecutado de algo programado: dos momentos) — y
+  `propuestasDeLaPlatica` deja fuera la plática (`platica: true`). El asistente sólo contesta a «Agro,»
+  (`paraElAsistente`). **El candado por conversación todavía NO está en la base** (sólo en la app): no lo presentes
+  como privado. Página `chat` («Mensajes») para admin, encargado, agrónomo, finanzas y dirección (hoja 45).
+- **La conversación continúa** (`aclarar`, `pendienteDe`, `esRespuesta` en `operaciones.js`): lo que falta se
+  contesta en corto y se entiende DENTRO de la propuesta pendiente («20 pesos el kilo» × lo que se dijo que se
+  compró; sin cantidad se pregunta; «tres kilos» no son tres pesos). La frase original no cambia; cada aclaración
+  queda en `aclaraciones` (quién, cuándo, qué se entendió, también la que no se entendió) y viaja en `origen`.
+  `pagadoCon` se anota y NO mueve ninguna caja. Un préstamo dicho es `prestamo_solicitud` (no deuda).
+  **`requiereSesion`**: lo que mueve dinero o toca a una persona no lo confirma quien sólo se identificó por
+  teléfono (`via: "telefono"`), ni siendo administrador.
+- **Teléfono de una cuenta** (`supabase/pendientes/telefono-de-la-cuenta.sql`, probado en `pruebas/base/telefono.test.mjs`,
+  NO instalado): código pedido con sesión + enviado desde el teléfono; una cuenta ↔ un teléfono. `directorio(data, cuentas)`.
 - **`src/asignaciones.js`: a qué va cada quien** (el plan visto al checar). El plan son las `indicaciones` de tipo
   `tarea` con su `fecha` (hoy o mañana). `loQueLeToca` es lo que dice el checador al marcar ENTRADA; `planDelDia`
   es la tarjeta «Plan mandado» de «El día» → Reparto. Cambiar (`cambiarAsignacion`) deja el renglón anterior como
   `cambiada` y crea otro que apunta a él; quitar (`quitarAsignacion`) pide motivo. **Planear ≠ asistir ≠ trabajar**:
   el módulo no importa nada y ningún módulo de dinero o asistencia lee `indicaciones` (hay prueba). Checar NO
   inicia la asignación real (`cuadrillas.js`): es decisión pendiente de Miguel.
-- **`src/whatsapp.js` + `supabase/functions/whatsapp-entrada/` + `supabase/pendientes/45-…sql`: WhatsApp PREPARADO
+- **`src/whatsapp.js` + `supabase/functions/whatsapp-entrada/` + `supabase/pendientes/whatsapp-entrada.sql`: WhatsApp PREPARADO
   Y APAGADO.** El lector convierte el aviso de Meta en el `mensaje` del camino común (teléfono → persona del
   catálogo; desconocido o repetido no se atribuye; mismo id no entra dos veces). La función sólo comprueba la firma
-  y guarda tal cual; no entiende, no registra y **no tiene con qué enviar**. **No la despliegues ni instales la
-  hoja 45 sin que Luis autorice cuenta, número y costos.** `pruebas/funcion_whatsapp.test.mjs` la prueba sin red.
+  y guarda tal cual; no entiende, no registra y **no tiene con qué enviar**. **No la despliegues ni instales su
+  hoja sin que Luis autorice cuenta, número y costos.** `pruebas/funcion_whatsapp.test.mjs` la prueba sin red.
 - **`src/avances.js`: avance de trabajo** (`avance_trabajo`): se registra en la unidad
   que se dice (regulador, surco, caja…). **Avance ≠ pago** (no crea actividades ni costo;
   «siete personas» es un número) y **avance ≠ porcentaje** (los reguladores no son
@@ -662,7 +681,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **216 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **217 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

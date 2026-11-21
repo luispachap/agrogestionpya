@@ -71,8 +71,8 @@ test("el_mismo_mensaje_no_se_registra_dos_veces_ni_el_mismo_dinero_dos_veces", (
   assert.equal(a.escrituras[0].registro.id, b.escrituras[0].registro.id, "confirmar dos veces el mismo avance es el mismo registro");
 });
 
-test("un_prestamo_un_pago_o_una_aplicacion_no_se_guardan_parecido_por_otro_lado", () => {
-  for (const [texto, pantalla, frase] of [["Le presté quinientos pesos a Juan.", "deudas", /Un préstamo no es un gasto y no descuenta nada solo/], ["Le pagué a Pedro mil pesos.", "nomina", /Pagos al personal/], ["Aplicamos herbicida en La 53.", "aplicaciones", /producto, dosis, quién la indicó y por qué/]]) {
+test("un_pago_o_una_aplicacion_no_se_guardan_parecido_por_otro_lado", () => {
+  for (const [texto, pantalla, frase] of [["Le pagué a Pedro mil pesos.", "nomina", /Pagos al personal/], ["Aplicamos herbicida en La 53.", "aplicaciones", /producto, dosis, quién la indicó y por qué/]]) {
     const { mensaje, plan } = dicho(texto, admin), p = plan.propuestas[0];
     assert.deepEqual([p.tipo, p.pantalla], ["nota", pantalla], texto); assert.match(p.aviso, frase);
     const r = ejecutar(p, { mensaje, quien: admin, parcelas, ...sello() });
@@ -160,4 +160,98 @@ test("una_incidencia_o_una_necesidad_dichas_se_guardan_con_la_forma_que_leen_sus
   const nec = b.plan.propuestas.find(x => x.tipo === "necesidad"); assert.ok(nec, "se entendió que hace falta algo");
   const sol = ejecutar(nec, { mensaje: b.mensaje, quien: capataz, parcelas, ...sello() }).escrituras[0];
   assert.equal(sol.coleccion, "solicitudes_compra"); assert.deepEqual([sol.registro.items, sol.registro.creadaPor.id, sol.registro.estado], [[], "enc1", "pendiente"]); assert.match(sol.registro.notas, /urea/);
+});
+
+/* ── La conversación continúa: lo que falta se contesta, no se repite ── */
+import { aclarar, pendienteDe, esRespuesta } from "./operaciones.js";
+import { T_SOLICITUD, prestamosDe } from "./prestamos.js";
+const entendida = (texto) => entenderLoDicho({ texto, personas, parcelas, insumos: [], hoy: "2026-11-21" }).propuestas[0];
+const resp = (texto, de = capataz, id = `r${n++}`) => ({ id, texto, de, cuando: "2026-11-21T18:05:00.000Z" });
+
+test("veinte_pesos_el_kilo_se_entiende_dentro_de_la_compra_pendiente_y_no_como_otro_gasto", () => {
+  const p0 = entendida("Compramos tres kilos de clavos.");
+  assert.deepEqual(p0.falta, ["cuánto costó"]);
+  const r = aclarar({ propuesta: p0, respuesta: resp("20 pesos el kilo"), personas, parcelas });
+  assert.equal(r.ok, true); assert.deepEqual([r.propuesta.monto, r.propuesta.precioUnitario, r.propuesta.falta], [60, 20, []], "20 por kilo × 3 kilos; no un gasto de 20");
+  assert.equal(r.propuesta.frase, p0.frase, "lo que se dijo primero no se toca");
+  assert.deepEqual([r.propuesta.aclaraciones.length, r.propuesta.aclaraciones[0].texto, r.propuesta.aclaraciones[0].pregunta, r.propuesta.aclaraciones[0].de.nombre], [1, "20 pesos el kilo", "¿Cuánto costó?", "Capataz de prueba"]);
+  assert.equal(r.propuesta.comoLlego.monto, null, "queda cómo venía antes de aclararse");
+  // Y de punta a punta: el registro lleva el mensaje original, la aclaración y quién confirmó.
+  const mensaje = { id: "m-clavos", canal: "chat", de: capataz, cuando: "2026-11-21T18:00:00.000Z" };
+  const plan = preparar({ mensaje, entendido: { propuestas: [r.propuesta] } });
+  const e = ejecutar(plan.propuestas[0], { mensaje, quien: admin, parcelas, ...sello() });
+  assert.equal(e.ok, true); const o = e.escrituras[0].registro.origen;
+  assert.deepEqual([e.escrituras[0].registro.monto, o.frase, o.aclaraciones[0].texto, o.aclaraciones[0].dijo, o.dijo, o.confirmo], [60, "Compramos tres kilos de clavos.", "20 pesos el kilo", "Capataz de prueba", "Capataz de prueba", "Admin de prueba"]);
+});
+
+test("si_no_se_sabe_cuantos_fueron_el_precio_por_kilo_no_se_vuelve_total_se_pregunta", () => {
+  const r1 = aclarar({ propuesta: entendida("Compramos clavos."), respuesta: resp("20 pesos el kilo"), personas, parcelas });
+  assert.equal(r1.ok, true); assert.deepEqual([r1.propuesta.monto ?? null, r1.propuesta.falta], [null, ["cuántos fueron"]]); assert.match(r1.dice, /¿Cuántos fueron en total\?/);
+  const mensaje = { id: "m-x", canal: "chat", de: capataz, cuando: "2026-11-21T18:00:00.000Z" };
+  assert.equal(preparar({ mensaje, entendido: { propuestas: [r1.propuesta] } }).propuestas[0].lista, false, "sin total no se puede confirmar");
+  const r2 = aclarar({ propuesta: r1.propuesta, respuesta: resp("fueron cinco"), personas, parcelas });
+  assert.deepEqual([r2.propuesta.monto, r2.propuesta.falta, r2.propuesta.aclaraciones.length], [100, [], 2]);
+});
+
+test("una_respuesta_que_no_contesta_no_se_adivina_pero_si_se_conserva", () => {
+  const r = aclarar({ propuesta: entendida("Compramos clavos."), respuesta: resp("en la ferretería de siempre"), personas, parcelas });
+  assert.equal(r.ok, false); assert.match(r.dice, /No entendí esa respuesta\. ¿Cuánto costó\?/);
+  assert.deepEqual([r.propuesta.monto ?? null, r.propuesta.aclaraciones[0].texto, r.propuesta.aclaraciones[0].entendido], [null, "en la ferretería de siempre", null]);
+  const kilos = aclarar({ propuesta: entendida("Compramos clavos."), respuesta: resp("tres kilos"), personas, parcelas });
+  assert.deepEqual([kilos.propuesta.monto ?? null, kilos.propuesta.cantidad.valor, kilos.propuesta.falta], [null, 3, ["cuánto costó"]], "tres kilos no son tres pesos");
+});
+
+test("la_parcela_la_gente_y_la_actividad_tambien_se_contestan_en_corto", () => {
+  const a = aclarar({ propuesta: entendida("Terminamos tres reguladores."), respuesta: resp("de deshierbe en San Felipe 4"), personas, parcelas });
+  assert.equal(a.ok, true); assert.deepEqual([a.propuesta.actividad, a.propuesta.parcelas[0].id], ["deshierbe", "sf4"]);
+  const mensaje = { id: "m-av", canal: "chat", de: capataz, cuando: "2026-11-21T18:00:00.000Z" };
+  assert.equal(preparar({ mensaje, entendido: { propuestas: [a.propuesta] } }).propuestas[0].lista, true);
+});
+
+test("otra_persona_aclara_como_se_pago_y_sigue_siendo_una_sola_operacion", () => {
+  const p0 = entendida("Compramos un kilo de clavos, 350 pesos.");
+  const r = aclarar({ propuesta: p0, respuesta: resp("Se pagó de caja chica", admin), personas, parcelas });
+  assert.equal(r.ok, true); assert.deepEqual([r.propuesta.pagadoCon, r.propuesta.monto, r.propuesta.aclaraciones[0].de.nombre], ["caja_chica", 350, "Admin de prueba"]);
+  const mensaje = { id: "m-caja", canal: "chat", de: capataz, cuando: "2026-11-21T18:00:00.000Z" };
+  const plan = preparar({ mensaje, entendido: { propuestas: [r.propuesta] } });
+  assert.equal(plan.propuestas.length, 1); assert.equal(decirPropuesta(plan.propuestas[0]), "Gasto de $350 · caja chica");
+  const e = ejecutar(plan.propuestas[0], { mensaje, quien: admin, parcelas, ...sello() });
+  assert.deepEqual([e.escrituras.length, e.escrituras[0].registro.pagadoCon, e.escrituras[0].registro.origen.aclaraciones[0].dijo], [1, "caja_chica", "Admin de prueba"]);
+});
+
+test("un_prestamo_dicho_nace_como_solicitud_no_como_gasto_ni_como_deuda", () => {
+  const { mensaje, plan } = dicho("Le presté quinientos pesos a Juan.", admin), p = plan.propuestas[0];
+  assert.deepEqual([p.tipo, p.lista, p.datos.monto, p.datos.personas[0].id], ["prestamo", true, 500, "t1"]); assert.match(p.aviso, /todavía no es deuda y no descuenta nada/);
+  const r = ejecutar(p, { mensaje, quien: admin, parcelas, ...sello() });
+  assert.deepEqual(r.escrituras.map(e => [e.coleccion, e.registro.tipo]), [["eventos", T_SOLICITUD]]);
+  const pr = prestamosDe([r.escrituras[0].registro]);
+  assert.equal(pr.filter(x => x.estado === "activo").length, 0, "nadie debe nada todavía");
+  assert.equal(r.escrituras[0].registro.datos.dichoComoYaEntregado, true);
+  const sinNombre = dicho("Le presté quinientos pesos.", admin).plan.propuestas[0];
+  assert.deepEqual([sinNombre.tipo, sinNombre.falta], ["prestamo", ["a quién se le prestó"]]);
+  const cruda = entendida("Le presté quinientos pesos.");
+  assert.deepEqual(aclarar({ propuesta: cruda, respuesta: resp("a Pedro"), personas, parcelas }).propuesta.personas.map(x => x.id), ["t2"]);
+});
+
+test("un_telefono_conocido_no_basta_para_confirmar_lo_que_mueve_dinero", () => {
+  const porTelefono = { ...admin, via: "telefono" };
+  const g = dicho("Compramos un kilo de clavos, 350 pesos.", porTelefono);
+  assert.deepEqual([g.plan.propuestas[0].permiso.puede, g.plan.propuestas[0].soloTelefono], [false, true]); assert.match(g.plan.propuestas[0].permiso.dice, /dentro de la app, con tu sesión/);
+  assert.equal(ejecutar(g.plan.propuestas[0], { mensaje: g.mensaje, quien: porTelefono, parcelas, ...sello() }).requiereSesion, true, "ni siendo administrador");
+  assert.equal(ejecutar(g.plan.propuestas[0], { mensaje: g.mensaje, quien: admin, parcelas, ...sello() }).ok, true, "con su sesión en la app, sí");
+  const i = dicho("Se descompuso la bomba del pozo.", porTelefono);
+  assert.equal(ejecutar(i.plan.propuestas[0], { mensaje: i.mensaje, quien: porTelefono, parcelas, ...sello() }).ok, true, "avisar de una falla no mueve dinero");
+  assert.deepEqual(Object.entries(OPERACIONES).filter(([, o]) => o.dinero && !o.requiereSesion).map(([k]) => k), [], "todo lo que mueve dinero pide sesión");
+});
+
+test("la_pregunta_abierta_es_lo_ultimo_que_dijo_esa_persona_y_caduca", () => {
+  const cruda = entendida("Compramos clavos.");
+  const m = { id: "c1", de: capataz, cuando: "2026-11-21T18:00:00.000Z", propuestas: [{ ...cruda, id: "c1:0", confirmacion: null }] };
+  const pend = pendienteDe([m], "enc1", "2026-11-21T18:10:00.000Z");
+  assert.deepEqual([pend.propuesta.id, pend.pregunta], ["c1:0", "¿Cuánto costó?"]);
+  assert.equal(esRespuesta({ pendiente: pend, texto: "20 pesos el kilo", personas, parcelas }).es, true);
+  assert.equal(esRespuesta({ pendiente: pend, texto: "Oye, mañana hay que regar la 53 temprano porque va a hacer mucho calor.", personas, parcelas }).es, false, "un mensaje largo es otra cosa");
+  assert.equal(esRespuesta({ pendiente: pend, texto: "ya llegó el camión", personas, parcelas }).es, false, "no contesta lo que se preguntó");
+  assert.equal(pendienteDe([m], "enc1", "2026-11-23T18:10:00.000Z"), null, "dos días después ya no es una respuesta");
+  assert.equal(pendienteDe([m, { id: "c2", de: capataz, cuando: "2026-11-21T18:05:00.000Z", propuestas: [] }], "enc1", "2026-11-21T18:10:00.000Z"), null, "si ya dijo otra cosa después, tampoco");
 });

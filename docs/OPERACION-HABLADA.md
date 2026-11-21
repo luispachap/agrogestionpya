@@ -112,7 +112,7 @@ se pueden seguir mandando «a mano» con el mensaje armado. WhatsApp se conecta 
 - `supabase/functions/whatsapp-entrada/`: la entrada del servidor. Comprueba la firma de Meta sobre el cuerpo
   exacto y guarda el mensaje tal cual. **No está desplegada**, y aunque lo estuviera contesta «no está activada»
   sin su interruptor y sus secretos. No tiene con qué enviar mensajes.
-- `supabase/pendientes/45-whatsapp-entrada.sql`: el buzón en la base (sólo inserción). **No está instalada** ni en
+- `supabase/pendientes/whatsapp-entrada.sql`: el buzón en la base (sólo inserción). **No está instalada** ni en
   `orden.json`.
 - WhatsApp no da permisos: un trabajador que escribe un gasto no lo registra; queda para revisión.
 
@@ -120,7 +120,7 @@ se pueden seguir mandando «a mano» con el mensaje armado. WhatsApp se conecta 
 
 1. Cuenta de WhatsApp Business (Meta) verificada y un número dedicado. *Costo: el número y los mensajes fuera de
    la ventana gratuita.*
-2. Instalar la hoja 45 y desplegar la entrada; poner sus secretos en Supabase (nunca en el código ni en el chat).
+2. Instalar su hoja y desplegar la entrada; poner sus secretos en Supabase (nunca en el código ni en el chat).
 3. Capturar los teléfonos en el catálogo (encargados, agrónomos, trabajadores). **Falta decidir dónde vive el
    teléfono de los administradores** (Luis y Miguel entran con cuenta, no están en esos catálogos).
 4. Pantalla del buzón: hoy no existe; lo natural es que lo recibido caiga en «Por confirmar» del chat.

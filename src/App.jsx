@@ -103,6 +103,7 @@ import {
 } from "./fertiriego.js";
 // El día: el clima de copiloto, el reparto de tareas y lo que se va a acabar.
 import { traerPronostico, planDelDia, alertasDelClima, riegoNecesario, describirEdad } from "./clima.js";
+import { misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro } from "./mensajeria.js";
 import { planDelDia as planMandadoDe, loQueLeToca, quitarAsignacion, cambiarAsignacion } from "./asignaciones.js";
 import { repartirElDia, aQueSeVaCadaQuien, quienNoTieneNada, chocanLasTareas, indicacionParaElTrabajador, comoVaElDia } from "./plan.js";
 import { loQueVaAFaltar } from "./prediccion.js";
@@ -120,7 +121,7 @@ import {
 } from "./chat.js";
 // Hablarle a la app: entender lo dicho, y oírlo.
 import { entenderLoDicho } from "./voz.js";
-import { preparar as prepararOperaciones, ejecutar as ejecutarOperacion, confirmarDelChat, decirPropuesta, NATURALEZAS, OPERACIONES as OPERACIONES_DICHAS } from "./operaciones.js";
+import { preparar as prepararOperaciones, ejecutar as ejecutarOperacion, confirmarDelChat, aclarar as aclararPropuesta, preguntaDe, decirPropuesta, NATURALEZAS, OPERACIONES as OPERACIONES_DICHAS } from "./operaciones.js";
 import { sugerenciasDeContinuidad } from "./avances.js";
 import { comoPuedeOir, dictar, grabar } from "./dictado.js";
 import { Ic, ThemeBtn, aplicarTemaGuardado, saludoHora, fechaLarga } from "./icons.jsx";
@@ -295,6 +296,10 @@ textarea.inp{min-height:90px;resize:none;}
 .chk-aviso.salida .chk-aviso-l{color:var(--blue);}
 .chk-aviso.aviso{border-color:var(--gold);background:rgba(228,178,63,.12);}
 .chk-aviso.mal{border-color:var(--red);background:rgba(227,100,100,.12);}
+.msj-burbuja.mio{border-left:3px solid var(--accent);}
+.msj-burbuja.asistente{border-left:3px solid var(--blue);background:var(--card2);}
+.msj-conv{border:1px solid var(--border);margin-bottom:8px;color:var(--text);background:var(--card);cursor:pointer;}
+.chat-pregunta{padding:8px;border-radius:10px;background:var(--card2);}
 .chk-toca{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);text-align:left;}
 .chk-toca-t{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
 .chk-toca-l{font-size:16px;font-weight:600;line-height:1.3;margin-top:4px;color:var(--text);}
@@ -3422,6 +3427,12 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
   const [mandando, setMandando] = useState(false);
   const [tab, setTab] = useState("hilo");
   const [noSePudo, setNoSePudo] = useState(null);
+  const [convId, setConvId] = useState(null);          // null = la lista de conversaciones
+  const [nueva, setNueva] = useState(null);            // { clase, nombre, miembros: {llave: miembro} }
+  const [verReglas, setVerReglas] = useState(false);
+  const [doc, setDoc] = useState(null);
+  const [resp, setResp] = useState({});                // lo que se está contestando a cada propuesta
+  const docRef = useRef(null);
   const grabadora = useRef(null);
   const dictador = useRef(null);
   const capacidad = comoPuedeOir();
@@ -3437,10 +3448,55 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
     ...(data.externos || []).map(x => ({ ...x, rol: "externo" })),
   ];
 
-  const mensajes = data.chat || [];
+  // La mensajería institucional: los mismos mensajes de siempre, ahora por conversación.
+  const yo = { id: session.id, nombre: session.nombre, rol: session.role };
+  const todos = data.chat || [];
+  const convs = misConversaciones({ eventos: data.eventos || [], mensajes: todos, persona: yo });
+  const conv = convs.find(c => c.id === convId) || null;
+  const visibles = new Set(convs.map(c => c.id));
+  const mensajes = conv ? mensajesDe(todos, conv.id) : todos.filter(m => visibles.has(m?.conversacion || CONV_GENERAL));
+  const operativos = mensajes.filter(m => !esPlatica(m));
   const hilo = hiloDeMensajes(mensajes);
-  const pendientes = pendientesDeConfirmar(mensajes);
-  const resumen = resumenDelDia({ mensajes, fecha: today() });
+  const pendientes = pendientesDeConfirmar(operativos);
+  const resumen = resumenDelDia({ mensajes: operativos, fecha: today() });
+  const puedoEscribir = !!conv && puedeEscribirEn(conv, yo);
+  // Con quién se puede abrir una conversación: la gente con mensajería que la app conoce, y los grupos por puesto.
+  const contactos = [
+    ...(data.encargados || []).map(x => ({ tipo: "persona", id: x.id, nombre: x.nombre, rol: "encargado" })),
+    ...(data.agronomos || []).map(x => ({ tipo: "persona", id: x.id, nombre: x.nombre, rol: "agronomo" })),
+    ...todos.filter(m => m?.de?.id && ROLES_CON_MENSAJES.includes(m.de.rol)).map(m => ({ tipo: "persona", id: m.de.id, nombre: m.de.nombre, rol: m.de.rol })),
+    ...convs.flatMap(c => c.miembros.filter(m => m.tipo === "persona")),
+  ].filter((x, i, a) => x.id !== yo.id && x.nombre && a.findIndex(y => y.id === x.id) === i);
+  const abrirNueva = () => {
+    const r = crearConversacion({ clase: nueva.clase, nombre: nueva.nombre, miembros: Object.values(nueva.miembros), quien: yo, cuando: new Date().toISOString(), fecha: today() });
+    if (!r.ok) { setNueva(x => ({ ...x, dice: r.dice })); return; }
+    if (!(data.eventos || []).some(e => e.id === r.evento.id)) add("eventos", r.evento);
+    setNueva(null); setConvId(r.evento.id); setTab("hilo");
+  };
+  const tomarDoc = (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const fr = new FileReader(); fr.onload = () => setDoc({ dataUrl: fr.result, nombre: f.name, tipo: f.type || "" }); fr.readAsDataURL(f);
+    if (docRef.current) docRef.current.value = "";
+  };
+  const abrirDoc = async (d) => {
+    const contenido = await contenidoDeArchivo(d.dataUrl);
+    if (!contenido) { alert("Este documento todavía no se ha bajado a este aparato."); return; }
+    const a = document.createElement("a"); a.href = contenido; a.download = d.nombre || "documento"; a.click();
+  };
+  // Contestar lo que le falta a una propuesta, sin repetir el mensaje. Queda como un mensaje más de la conversación.
+  const contestar = (mensaje, propuesta) => {
+    const t = String(resp[propuesta.id] || "").trim(); if (!t) return;
+    const aclaracion = { id: `msj${Date.now()}${Math.floor(Math.random() * 1000)}`, de: yo, cuando: new Date().toISOString(), texto: t };
+    const r = aclararPropuesta({ propuesta, respuesta: aclaracion, personas: gente, parcelas: data.parcelas || [], hoy: today() });
+    guardarAclaracion(mensaje, propuesta, r.propuesta, aclaracion, r.dice);
+    setResp(x => ({ ...x, [propuesta.id]: "" })); setNoSePudo({ id: propuesta.id, dice: r.dice });
+  };
+  const guardarAclaracion = (mensaje, propuesta, nuevaPropuesta, aclaracion, dice) => {
+    const actualizado = { ...mensaje, propuestas: (mensaje.propuestas || []).map(x => (x.id === propuesta.id ? { ...nuevaPropuesta, destino: x.destino } : x)) };
+    upd("chat", { ...actualizado, estado: estadoParaLaTabla(actualizado) });
+    add("chat", { ...aclaracion, conversacion: mensaje.conversacion || CONV_GENERAL, canal: "chat", propuestas: [], tipo: "texto", estado: "platica", fecha: today(), deQuien: aclaracion.de.nombre,
+      aclaraA: { mensaje: mensaje.id, propuesta: propuesta.id, frase: propuesta.frase, dijo: mensaje.de?.nombre || mensaje.deQuien || "" }, seEntendio: dice });
+  };
 
   /* ── Mandar un mensaje ── */
 
@@ -3474,7 +3530,8 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
   };
 
   const mandar = async () => {
-    if (!texto.trim() && !foto && !audio) { alert("Escribe algo, o manda una foto o un audio."); return; }
+    if (!texto.trim() && !foto && !audio && !doc) { alert("Escribe algo, o manda una foto, un audio o un documento."); return; }
+    if (!puedoEscribir) { alert("No participas en esta conversación."); return; }
     setMandando(true);
     try {
       let adjunto = null;
@@ -3499,10 +3556,25 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
         audio: audio ? { dataUrl: audio.dataUrl, segundos: null } : null,
         foto: adjunto,
       };
+      const alAsistente = paraElAsistente(crudo.texto);
+      const enLaConversacion = mensajesDe(todos, conv.id);
+      // ¿Va con algo que ya se venía hablando aquí? Una aclaración completa la MISMA operación: no nace otra.
+      const relacion = crudo.texto && !foto ? relacionarMensaje({ mensajes: enLaConversacion, nuevo: { ...crudo, texto: alAsistente.texto }, personas: gente, parcelas: data.parcelas || [], ahora: crudo.cuando, hoy: today() }) : null;
+      if (relacion?.clase === "aclaracion") {
+        const original = enLaConversacion.find(m => m.id === relacion.con.mensaje), antes = original.propuestas.find(x => x.id === relacion.con.propuesta);
+        guardarAclaracion(original, antes, relacion.propuesta, { id: crudo.id, de: crudo.de, cuando: crudo.cuando, texto: crudo.texto }, relacion.dice);
+        if (alAsistente.es) add("chat", { id: `${crudo.id}r`, de: ASISTENTE, delAsistente: true, cuando: new Date(Date.now() + 1).toISOString(), texto: relacion.dice, conversacion: conv.id, canal: "chat", propuestas: [], tipo: "texto", estado: "platica", fecha: today(), deQuien: ASISTENTE.nombre, respondeA: crudo.id });
+        setTexto(""); setFoto(null); setAudio(null); setDoc(null);
+        return;
+      }
 
       const entendido = clasificarMensaje({
-        mensaje: crudo, personas: gente, parcelas: data.parcelas, insumos: data.inventario, hoy: today(),
+        mensaje: { ...crudo, texto: alAsistente.texto }, personas: gente, parcelas: data.parcelas, insumos: data.inventario, hoy: today(),
       });
+      entendido.texto = crudo.texto;
+      // Entre personas casi todo es plática: sólo queda como propuesta lo que de verdad dice algo del trabajo.
+      entendido.propuestas = conRelacion(propuestasDeLaPlatica(entendido.propuestas, { alAsistente: alAsistente.es }), relacion);
+      const platica = entendido.propuestas.length === 0 && !foto && !audio;
 
       // A quién le toca cada propuesta. Si no se sabe, se dice — no se le manda
       // a todos, porque lo que le llega a todos no lo hace nadie.
@@ -3511,13 +3583,21 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
       add("chat", {
         ...entendido,
         propuestas: conDestino,
-        tipo: tipoDeMensaje(entendido) || "texto",
-        estado: estadoParaLaTabla(entendido),
+        tipo: tipoDeMensaje(entendido) || (doc ? "documento" : "texto"),
+        estado: platica ? "platica" : estadoParaLaTabla(entendido),
+        ...(platica ? { platica: true, porIdentificar: false } : {}),
+        conversacion: conv.id, canal: "chat", ...(alAsistente.es ? { alAsistente: true } : {}), ...(relacion ? { relacion: { clase: relacion.clase, con: relacion.con, dice: relacion.dice } } : {}),
+        ...(doc ? { documento: { dataUrl: doc.dataUrl, nombre: doc.nombre, tipo: doc.tipo } } : {}),
         fecha: today(),
         deQuien: session.nombre || session.id,
       });
+      // El asistente sólo contesta cuando se le habla.
+      if (alAsistente.es) {
+        const plan = prepararOperaciones({ mensaje: { id: crudo.id, canal: "chat", de: crudo.de, cuando: crudo.cuando }, entendido: { propuestas: conDestino.filter(x => typeof x.i === "number") } });
+        add("chat", { id: `${crudo.id}r`, de: ASISTENTE, delAsistente: true, cuando: new Date(Date.now() + 1).toISOString(), texto: respuestaDelAsistente({ plan, relacion }), conversacion: conv.id, canal: "chat", propuestas: [], tipo: "texto", estado: "platica", fecha: today(), deQuien: ASISTENTE.nombre, respondeA: crudo.id });
+      }
 
-      setTexto(""); setFoto(null); setAudio(null);
+      setTexto(""); setFoto(null); setAudio(null); setDoc(null);
     } finally { setMandando(false); }
   };
 
@@ -3565,6 +3645,7 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
           {firma && <span className={`badge${firma.estado === "rechazado" ? "" : " badge-green"}`}>{firma.estado}</span>}
         </div>
         <div className="text-xs text-muted" style={{ margin: "4px 0" }}>{pr.resumen || pr.frase}</div>
+        {pr.comoLlego && pr.monto != null && pr.comoLlego.monto == null && <div className="text-xs">Importe aclarado después: {fmt(pr.monto)}</div>}
 
         {/* La hoja de Fito: si no cuadra la multiplicación, se dice y no se firma. */}
         {pr.tipo === "fertirriego" && pr.confiable === false && (
@@ -3599,6 +3680,18 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
             <button className="btn btn-outline btn-sm" style={{ flex: 1, color: "var(--red)", borderColor: "var(--red)" }} onClick={() => firmar(mensaje, pr, "rechazado")}>No</button>
           </div>
         )}
+        {pr.sobre && <div className="text-xs text-muted chat-sobre" style={{ marginTop: 4 }}>{pr.momento === "ejecutado" ? "Lo ejecutado de" : "Va con"}: «{pr.sobre.frase}»{pr.sobre.dijo ? ` (${pr.sobre.dijo})` : ""}.{(pr.heredado || []).includes("parcela") ? " La parcela se tomó de ese mensaje." : ""}</div>}
+        {pr.pagadoCon && <div className="text-xs">Se pagó: {String(pr.pagadoCon).replace(/_/g, " ")}</div>}
+        {(pr.aclaraciones || []).map((a, k) => <div key={k} className="text-xs text-muted chat-aclaracion" style={{ marginTop: 3 }}>↳ {a.de?.nombre || "Alguien"}: «{a.texto}»{a.entendido ? ` — ${a.entendido}` : " — no se entendió"}</div>)}
+        {!firma && typeof pr.i === "number" && (pr.falta || []).length > 0 && puedoEscribir && (
+          <div className="chat-pregunta" style={{ marginTop: 6 }}>
+            <div className="text-xs" style={{ fontWeight: 700 }}>AgroGestión pregunta: {preguntaDe(pr.falta[0])}</div>
+            <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+              <input className="inp" aria-label="Respuesta" placeholder="Contesta en corto…" value={resp[pr.id] || ""} onChange={e => setResp(x => ({ ...x, [pr.id]: e.target.value }))} onKeyDown={e => { if (e.key === "Enter") contestar(mensaje, pr); }} />
+              <button className="btn btn-outline btn-sm" onClick={() => contestar(mensaje, pr)}>Contestar</button>
+            </div>
+          </div>
+        )}
         {noSePudo?.id === pr.id && <div className="text-xs chat-nose" style={{ marginTop: 6, color: "var(--gold)" }}>{noSePudo.dice}</div>}
         {firma && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Firmó {firma.quien}{firma.motivo ? ` — ${firma.motivo}` : ""}{pr.quedoEn ? ` · ${pr.quedoEn}` : ""}</div>}
         {firma && pr.avisoAlGuardar && <div className="text-xs text-muted">{pr.avisoAlGuardar}</div>}
@@ -3609,22 +3702,87 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
   return (
     <div>
       <div className="top-bar">
-        <button className="btn-ghost" onClick={onClose}>‹</button>
-        <h2 style={{ flex: 1 }}>Chat del rancho</h2>
+        <button className="btn-ghost" onClick={conv ? () => { setConvId(null); setTab("hilo"); } : onClose}>‹</button>
+        <h2 style={{ flex: 1 }}>{conv ? conv.titulo : "Mensajes"}</h2>
+        <button className="btn btn-outline btn-sm" onClick={() => setVerReglas(true)}>Reglas</button>
       </div>
 
-      <div className="tabs-row">
-        {[["hilo", "Hilo"], ["pendientes", `Por confirmar (${pendientes.cuantos})`], ["hoy", "Hoy"]].map(([v, lb]) => (
+      {verReglas && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setVerReglas(false); }}>
+          <div className="modal-sheet msj-reglas">
+            <div className="card-title">Cómo funcionan estos mensajes</div>
+            {REGLAS_DE_MENSAJES.map((r, i) => <div key={i} className="text-sm" style={{ padding: "5px 0", borderBottom: "1px solid var(--border)" }}>{r}</div>)}
+            <div className="text-xs text-muted" style={{ marginTop: 8 }}>El personal de campo todavía no tiene mensajería propia. WhatsApp no está conectado.</div>
+            <button className="btn btn-accent" style={{ marginTop: 12 }} onClick={() => setVerReglas(false)}>Entendido</button>
+          </div>
+        </div>
+      )}
+
+      {!conv && !nueva && (
+        <div className="section-pad msj-lista">
+          <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Mensajes de trabajo del rancho. AgroGestión los lee para proponer registros; nada se registra solo.</div>
+          {convs.map(c => (
+            <button key={c.id} className="card msj-conv" style={{ padding: 12, width: "100%", textAlign: "left", display: "block" }} onClick={() => { setConvId(c.id); setTab("hilo"); }}>
+              <div className="flex-b">
+                <div className="text-sm font-bold">{c.titulo}</div>
+                {c.porConfirmar > 0 && <span className="badge badge-gold">{c.porConfirmar} por confirmar</span>}
+              </div>
+              <div className="text-xs text-muted">{c.clase === "directa" ? "Directa" : c.clase === "general" ? "Todos los que tienen mensajería" : c.miembros.map(nombreDeMiembro).join(", ")}{c.comoAdministracion ? " · la ves como administración" : ""}</div>
+              {c.ultimo && <div className="text-xs" style={{ marginTop: 4 }}>{c.ultimo.de ? `${c.ultimo.de}: ` : ""}{c.ultimo.texto}</div>}
+            </button>
+          ))}
+          {ROLES_QUE_ABREN.includes(yo.rol) ? <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={() => setNueva({ clase: "directa", nombre: "", miembros: {} })}>Hablar con alguien</button>
+            <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => setNueva({ clase: "grupo", nombre: "", miembros: {} })}>Nuevo grupo</button>
+          </div> : <div className="text-xs text-muted" style={{ marginTop: 8 }}>Tu perfil participa en las conversaciones donde lo incluyan; abrir una nueva lo hace un administrador, un encargado o el agrónomo.</div>}
+        </div>
+      )}
+
+      {!conv && nueva && (
+        <div className="section-pad msj-nueva">
+          <div className="card" style={{ padding: 12 }}>
+            <div className="card-title">{nueva.clase === "directa" ? "Hablar con alguien" : "Nuevo grupo de trabajo"}</div>
+            {nueva.clase === "grupo" && <input className="inp" aria-label="Nombre del grupo" placeholder="Nombre del grupo (Riego, Almacén, Compras…)" value={nueva.nombre} onChange={e => setNueva(x => ({ ...x, nombre: e.target.value }))} style={{ marginBottom: 8 }} />}
+            {[...(nueva.clase === "grupo" ? ROLES_CON_MENSAJES.map(rol => ({ tipo: "rol", rol, nombre: `Todos los de ${NOMBRE_DE_GRUPO[rol]}` })) : []), ...contactos].map(m => {
+              const k = m.tipo === "rol" ? `rol:${m.rol}` : `p:${m.id}`, puesto = !!nueva.miembros[k];
+              return (
+                <label key={k} className="text-sm" style={{ display: "flex", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+                  <input type={nueva.clase === "directa" ? "radio" : "checkbox"} name="msj-miembro" checked={puesto} onChange={() => setNueva(x => { const mm = nueva.clase === "directa" ? {} : { ...x.miembros }; if (puesto) delete mm[k]; else mm[k] = m; return { ...x, miembros: mm, dice: "" }; })} />
+                  <span>{m.nombre}{m.tipo === "persona" ? ` · ${NOMBRE_DE_GRUPO[m.rol] || m.rol}` : ""}</span>
+                </label>
+              );
+            })}
+            {contactos.length === 0 && <div className="text-xs text-muted" style={{ padding: "6px 0" }}>Todavía no hay a quién escogerle por nombre: aparecen los encargados y agrónomos del catálogo y quien ya haya escrito. Mientras, se puede hacer un grupo por puesto.</div>}
+            {nueva.dice && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 6 }}>{nueva.dice}</div>}
+            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+              <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => setNueva(null)}>Cancelar</button>
+              <button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={abrirNueva}>Abrir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {conv && <div className="tabs-row">
+        {[["hilo", "Conversación"], ["pendientes", `Por confirmar (${pendientes.cuantos})`], ["hoy", "Hoy"]].map(([v, lb]) => (
           <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => setTab(v)}>{lb}</button>
         ))}
-      </div>
+      </div>}
 
-      {tab === "hilo" && (
+      {conv && tab === "hilo" && (
         <div className="section-pad">
+          <div className="text-xs text-muted msj-aviso" style={{ marginBottom: 8 }}>
+            Conversación de trabajo{conv.clase !== "general" ? ` · ${conv.miembros.map(nombreDeMiembro).join(", ")}` : ""}. AgroGestión la lee para proponer registros.{conv.comoAdministracion ? " La ves como administración: no participas en ella." : ""}
+          </div>
           {/* ── Escribir ── */}
-          <div className="card ab">
+          {puedoEscribir && <div className="card ab">
             <textarea className="inp" rows={3} value={texto} onChange={e => setTexto(e.target.value)}
-                      placeholder="Escribe, o habla, o manda la foto de la hoja…" />
+                      placeholder="Escribe, habla o manda una foto o un documento. Para pedirle algo a AgroGestión empieza con «Agro,»" />
+            {doc && (
+              <div className="flex-b" style={{ marginTop: 6 }}>
+                <div className="text-xs">📎 {doc.nombre}</div>
+                <button className="btn-ghost" onClick={() => setDoc(null)}>quitar</button>
+              </div>
+            )}
             {foto && (
               <div className="flex-b" style={{ marginTop: 6 }}>
                 <Foto src={foto.dataUrl} alt="" style={{ height: 54, borderRadius: 6 }} />
@@ -3638,8 +3796,10 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
               </div>
             )}
             <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={tomarFoto} />
+            <input ref={docRef} type="file" aria-label="Adjuntar documento" accept=".pdf,.xlsx,.xls,.csv,.xml,.docx,.txt" style={{ display: "none" }} onChange={tomarDoc} />
             <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
               <button className="btn btn-outline btn-sm" onClick={() => fileRef.current?.click()}><Ic e="📷" /></button>
+              <button className="btn btn-outline btn-sm" aria-label="Documento" onClick={() => docRef.current?.click()}><Ic e="📄" /></button>
               <button className={`btn btn-sm ${oyendo ? "btn-danger" : "btn-outline"}`} onClick={hablar}>
                 <Ic e={oyendo ? "⏳" : "🎤"} />
               </button>
@@ -3650,25 +3810,29 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
             {oyendo && <div className="text-xs text-accent mt-2">Oyendo… habla normal.</div>}
             <div className="text-xs text-muted mt-2">
               Lo que mandes se entiende y se archiva donde va, pero <b>nada cuenta hasta que
-              alguien lo confirme</b>. La foto y el audio se quedan pegados para siempre.
+              alguien lo confirme</b>. La foto, el audio y el documento se quedan pegados al mensaje.
             </div>
-          </div>
+          </div>}
 
           {/* ── El hilo ── */}
-          {hilo.dias.length === 0 && <div className="text-xs text-muted">Todavía no hay nada en el chat.</div>}
+          {hilo.dias.length === 0 && <div className="text-xs text-muted">Todavía no hay mensajes en esta conversación.</div>}
           {[...hilo.dias].reverse().map(dia => (
             <div key={dia.fecha}>
               <div className="text-xs text-muted" style={{ margin: "14px 0 6px", fontWeight: 700 }}>{dia.fecha} · {dia.dice}</div>
               {[...dia.mensajes].reverse().map(m => (
-                <div key={m.id} className="card" style={{ padding: 12 }}>
+                <div key={m.id} className={`card msj-burbuja${m.de?.id === yo.id ? " mio" : ""}${m.delAsistente ? " asistente" : ""}`} style={{ padding: 12 }}>
                   <div className="flex-b">
                     <div className="text-sm font-bold">{m.deQuien || m.de?.nombre || "alguien"}</div>
-                    <span className="badge">{m.tipo}</span>
+                    <span className="text-xs text-muted">{m.cuando ? horaCorta(m.cuando) : ""}</span>
                   </div>
-                  {m.texto && <div className="text-sm" style={{ margin: "6px 0" }}>{m.texto}</div>}
+                  {m.aclaraA && <div className="text-xs text-muted">Contestó sobre: «{m.aclaraA.frase}»{m.aclaraA.dijo ? ` (${m.aclaraA.dijo})` : ""}</div>}
+                  {m.texto && <div className="text-sm" style={{ margin: "6px 0", whiteSpace: "pre-line" }}>{m.texto}</div>}
+                  {m.aclaraA && m.seEntendio && <div className="text-xs text-muted">{m.seEntendio}</div>}
+                  {m.relacion && m.relacion.clase !== "aclaracion" && <div className="text-xs text-muted chat-relacion">{m.relacion.dice}</div>}
+                  {m.documento && <button className="btn btn-outline btn-sm" onClick={() => abrirDoc(m.documento)}>📎 {m.documento.nombre || "Documento"}</button>}
                   {m.foto?.dataUrl && <Foto src={m.foto.dataUrl} alt="" style={{ width: "100%", borderRadius: 8, margin: "6px 0" }} />}
                   {m.audio?.dataUrl && <audio controls src={m.audio.dataUrl} style={{ width: "100%", margin: "6px 0" }} />}
-                  {m.porIdentificar && (
+                  {m.porIdentificar && !esPlatica(m) && (
                     <div className="text-xs" style={{ color: "var(--gold)" }}>
                       Esto no se entendió. Queda guardado tal cual, con su foto y su audio, para
                       que alguien diga qué es. <b>No se pierde.</b>
@@ -3687,7 +3851,7 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
         </div>
       )}
 
-      {tab === "pendientes" && (
+      {conv && tab === "pendientes" && (
         <div className="section-pad">
           <div className="card" style={{ padding: 12 }}>
             <div className="text-sm">{pendientes.dice}</div>
@@ -3705,7 +3869,7 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
         </div>
       )}
 
-      {tab === "hoy" && (
+      {conv && tab === "hoy" && (
         <div className="section-pad">
           <div className="card" style={{ padding: 12 }}>
             <div className="card-title">Lo de hoy</div>
@@ -4149,6 +4313,16 @@ function Dictado({ data, add, session, onClose }) {
   // así se puede aceptar el gasto y corregir la actividad. La misma regla que en el chat y que en
   // WhatsApp cuando exista (`operaciones.js`): revisa permiso y faltantes, y usa la operación de siempre.
   const [dice, setDice] = useState({});
+  // Contestar lo que falta sin repetir lo dicho: la respuesta se entiende dentro de ESA propuesta.
+  const [respD, setRespD] = useState({});
+  const contestarDicho = (pr) => {
+    const t = String(respD[pr.i] || "").trim(); if (!t) return;
+    const cruda = entendido.propuestas.find(x => x.i === pr.i);
+    const r = aclararPropuesta({ propuesta: cruda, respuesta: { id: `acl-${Date.now()}`, texto: t, de: { id: session.id, nombre: session.nombre }, cuando: new Date().toISOString() }, personas, parcelas: data.parcelas || [], hoy: today() });
+    const e = { ...entendido, propuestas: entendido.propuestas.map(x => (x.i === pr.i ? r.propuesta : x)) };
+    setEntendido({ ...e, plan: prepararOperaciones({ mensaje: entendido.plan.mensaje, entendido: e, yaHechas: Object.keys(guardadas).filter(k => guardadas[k]).map(k => `${entendido.plan.mensaje.id}#${k}`) }) });
+    setRespD(x => ({ ...x, [pr.i]: "" })); setDice(d => ({ ...d, [pr.i]: r.dice }));
+  };
   const guardar = (pr) => {
     const r = ejecutarOperacion(pr, { mensaje: entendido.plan.mensaje, quien: { id: session.id, nombre: session.nombre, rol: session.role }, cuando: new Date().toISOString(), fecha: today(), parcelas: data.parcelas || [], evidencia: { audio: audio?.dataUrl || null } });
     if (!r.ok) { setDice(d => ({ ...d, [pr.i]: r.dice })); return; }
@@ -4232,9 +4406,14 @@ function Dictado({ data, add, session, onClose }) {
                 {/* Lo que la app no pudo llenar se pregunta, por su nombre. */}
                 {pr.preguntas.length > 0 && (
                   <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>
-                    {pr.preguntas.join(" ")} Dilo o escríbelo arriba y vuelve a darle "ver qué entendió".
+                    {pr.preguntas[0]}
+                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                      <input className="inp" aria-label={`Respuesta ${pr.i + 1}`} placeholder="Contesta en corto, sin repetir todo…" value={respD[pr.i] || ""} onChange={e => setRespD(x => ({ ...x, [pr.i]: e.target.value }))} onKeyDown={e => { if (e.key === "Enter") contestarDicho(pr); }} />
+                      <button className="btn btn-outline btn-sm" onClick={() => contestarDicho(pr)}>Contestar</button>
+                    </div>
                   </div>
                 )}
+                {(pr.aclaraciones || []).map((a, k) => <div key={k} className="text-xs text-muted" style={{ marginTop: 3 }}>↳ «{a.texto}»{a.entendido ? ` — ${a.entendido}` : " — no se entendió"}</div>)}
                 {pr.mismoDineroQue && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>Es el mismo dinero que otra parte de lo que dijiste: se registra una sola vez.</div>}
                 {!pr.permiso.puede && pr.falta.length === 0 && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>{pr.permiso.dice} Mándalo por el Chat para que le llegue.</div>}
                 {!pr.seguro && pr.falta.length === 0 && !pr.aviso && (
@@ -7473,6 +7652,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "reporte" && <TrabReporte data={data} add={add} session={session} onLogout={cerrarSesion} />}
             </>}
             {isAgronomo && <>
+              {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "home" && <AgronomoHome data={data} session={session} onNav={setPage} onLogout={cerrarSesion} online={online} />}
               {page === "aplicaciones" && <GestionAplicaciones data={data} add={add} upd={upd} del={del} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "panel-parcelas" && <PanelParcelas data={data} add={add} del={del} session={session} onClose={() => setPage("home")} />}
@@ -7487,6 +7667,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "rendimiento-parcelas" && <RendimientoParcelas data={data} onClose={() => setPage("home")} />}
             </>}
             {isDueno && <>
+              {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "mano-obra" && <ManoDeObra data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "home" && <DuenoHome data={data} session={session} onNav={setPage} onLogout={cerrarSesion} />}
               {page === "panel-financiero" && <PanelFinanciero data={data} onClose={() => setPage("home")} />}
@@ -7497,6 +7678,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "operacion" && <PanelOperacion data={data} onClose={() => setPage("home")} />}
             </>}
             {isFinanzas && <>
+              {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "mano-obra" && <ManoDeObra data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "jornadas" && <Jornadas data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "home" && <FinanzasHome data={data} session={session} onNav={setPage} onLogout={cerrarSesion} />}

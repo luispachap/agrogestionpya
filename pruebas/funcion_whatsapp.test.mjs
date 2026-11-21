@@ -80,7 +80,7 @@ test("la_entrada_nunca_le_manda_un_mensaje_a_nadie_ni_sale_a_otro_lado", async (
 test("la_hoja_de_la_base_esta_pendiente_no_instalada_y_es_de_solo_insercion", () => {
   const { hojas } = JSON.parse(readFileSync(ruta("../supabase/orden.json"), "utf8"));
   assert.equal(hojas.some(h => /whatsapp/.test(h)), false, "no se instala hasta que Luis lo autorice");
-  assert.equal(existsSync(ruta("../supabase/45-whatsapp-entrada.sql")), false);
-  const sql = readFileSync(ruta("../supabase/pendientes/45-whatsapp-entrada.sql"), "utf8").replace(/--.*$/gm, "");
+  assert.equal(existsSync(ruta("../supabase/whatsapp-entrada.sql")), false);
+  const sql = readFileSync(ruta("../supabase/pendientes/whatsapp-entrada.sql"), "utf8").replace(/--.*$/gm, "");
   assert.match(sql, /enable row level security/); assert.equal(/for (update|delete|insert|all)/i.test(sql), false, "nadie con sesión escribe, cambia ni borra");
 });

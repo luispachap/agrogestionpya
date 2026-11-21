@@ -46,7 +46,13 @@ export function mensajesDeAviso(cuerpo) {
 }
 
 // A quién se le puede reconocer por teléfono. El rol sale del catálogo donde está la persona, nunca del mensaje.
-export function directorio(data = {}) {
+// `cuentas` = teléfonos ligados y verificados de cuentas con sesión (Luis, Miguel…): entran con su cuenta y su perfil,
+// sin darse de alta como trabajadores (hoja pendiente «telefono-de-la-cuenta»).
+export function directorio(data = {}, cuentas = []) {
+  const deCuenta = (cuentas || []).filter(c => c && c.usuario && claveDeTelefono(c.telefono)).map(c => ({ id: c.usuario, nombre: c.nombre || "", rol: c.rol === "superadmin" ? "admin" : c.rol, telefono: claveDeTelefono(c.telefono), cuenta: true }));
+  return [...deCuenta, ...directorioDelCatalogo(data)];
+}
+function directorioDelCatalogo(data = {}) {
   const de = (lista, rol) => (lista || []).filter(p => p && p.activo !== false && claveDeTelefono(p.telefono)).map(p => ({ id: p.id, nombre: p.nombre || "", rol, telefono: claveDeTelefono(p.telefono) }));
   return [...de(data.encargados, "encargado"), ...de(data.agronomos, "agronomo"), ...de(data.trabajadores, "trabajador")];
 }
@@ -57,14 +63,15 @@ export function quienEscribe(telefono, personas = []) {
   const son = personas.filter(p => claveDeTelefono(p.telefono) === clave);
   if (son.length === 0) return { ok: false, motivo: "desconocido", dice: "Ese teléfono no está en el catálogo: el mensaje se guarda, pero no se le atribuye a nadie." };
   if (son.length > 1) return { ok: false, motivo: "repetido", dice: `Ese teléfono está en ${son.length} personas (${son.map(p => p.nombre).join(", ")}): no se escoge a una. Hay que corregir el catálogo.` };
-  return { ok: true, persona: { id: son[0].id, nombre: son[0].nombre, rol: son[0].rol } };
+  // `via: "telefono"`: se sabe quién es por su número y nada más. Con eso NO se confirma lo que mueve dinero (operaciones.js).
+  return { ok: true, persona: { id: son[0].id, nombre: son[0].nombre, rol: son[0].rol, via: "telefono", ...(son[0].cuenta ? { cuenta: true } : {}) } };
 }
 
 // El mismo «mensaje» que entiende el camino común. El id sale del de WhatsApp: recibirlo dos veces es el mismo mensaje.
 export const idDeMensaje = (idDeWhatsApp) => `wa-${String(idDeWhatsApp).replace(/[^A-Za-z0-9_-]/g, "").slice(-80)}`;
 export function aMensajeComun(m, persona) {
   const falta = m.clase === "audio" ? "transcribir" : (m.clase === "foto" || m.clase === "documento") ? "leer" : null;
-  return { id: idDeMensaje(m.id), canal: "whatsapp", de: { id: persona.id, nombre: persona.nombre, rol: persona.rol }, cuando: m.cuando, texto: m.texto,
+  return { id: idDeMensaje(m.id), canal: "whatsapp", de: { id: persona.id, nombre: persona.nombre, rol: persona.rol, via: "telefono", ...(persona.cuenta ? { cuenta: true } : {}) }, cuando: m.cuando, texto: m.texto,
     whatsapp: { id: m.id, clase: m.clase, medio: m.medio, boton: m.boton, respondeA: m.respondeA },
     pendienteDe: falta, porque: falta === "transcribir" ? "Es una nota de voz: falta pasarla a texto para poder entenderla." : falta === "leer" ? "Trae una foto o un documento: falta leerlo." : "" };
 }
@@ -83,6 +90,9 @@ export function recibir({ cuerpo, personas = [], yaRecibidos = [] }) {
   }
   return { valido, nuevos, repetidos, sinDueno, estados, ignorados };
 }
+
+// «VINCULAR 482913» (o sólo el código): el mensaje con que alguien liga su teléfono a su cuenta. No es un mensaje de trabajo.
+export function codigoDeVinculo(texto) { const m = String(texto || "").trim().match(/^(?:vincular|ligar|c[oó]digo)?\s*[:\-]?\s*(\d{6})$/i); return m ? m[1] : null; }
 
 // La regla de las 24 horas: sólo se puede contestar con texto libre si la persona escribió en las últimas 24 h.
 export function ventana(ultimoDeLaPersona, ahora) {

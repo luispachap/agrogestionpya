@@ -11,7 +11,7 @@
 //
 //  QUÉ HACE
 //  · Comprueba que el aviso viene de Meta (firma sobre el cuerpo exacto).
-//  · Guarda cada mensaje TAL CUAL en `whatsapp_entrada` (hoja 45, pendiente).
+//  · Guarda cada mensaje TAL CUAL en `whatsapp_entrada` (hoja pendiente).
 //
 //  QUÉ NO HACE
 //  · No entiende el mensaje ni registra nada del rancho: eso lo hace la app,

@@ -1,5 +1,5 @@
 -- ============================================================
---  HOJA 45 — Entrada de WhatsApp.   *** PENDIENTE: NO INSTALADA ***
+--  HOJA PENDIENTE — Entrada de WhatsApp (sin número hasta que se instale).   *** PENDIENTE: NO INSTALADA ***
 --
 --  No está en `orden.json` ni en la base. Se instala el día que Luis autorice
 --  la cuenta de WhatsApp Business, el número y los costos; ese día se mueve a

@@ -398,3 +398,20 @@ REALES del rancho (fotos de teléfono, letra a mano).
   inventadas; `pruebas/funcion_whatsapp.test.mjs` 7/7 con Meta y base de mentira; recorrido 25/25, checador 22/22,
   lo dicho 15/15. **Sin validar:** nada de esto lo ha usado todavía Miguel, un encargado ni un trabajador.
 - **Por confirmar con Miguel y Fito:** lista en `OPERACION-HABLADA.md` §7.
+
+**Mensajería institucional y conversación que continúa (21 nov, 8–9 h) — detalle en `MENSAJERIA.md`:**
+
+- El chat pasó a ser mensajería de trabajo: conversación general, directas y grupos (por persona o por puesto),
+  con texto, audio, fotos y documentos, y las reglas a la vista.
+- AgroGestión lee lo que se dicen ENTRE personas y propone; relaciona mensajes de distintas personas en una sola
+  operación (compra + «se pagó de caja chica»), liga observación con pendiente y lo programado con lo ejecutado.
+- Lo que falta se pregunta y se contesta en corto («20 pesos el kilo»), en la mensajería y en «Dile a la app».
+- Un préstamo dicho nace como solicitud. Un teléfono conocido no basta para confirmar lo que mueve dinero.
+- Base: hoja 45 instalada (agrónomo y finanzas ya escriben mensajes; dirección lee).
+- Teléfono ligado a la cuenta: diseñado y probado en la base aislada; NO instalado.
+- **Probado:** 1,152 pruebas de cuenta; 93 contra la base aislada; `pruebas/mensajes_navegador.py` 17/17; plan
+  14/14, lo dicho 16/16, recorrido 25/25, checador 22/22. **Sin validar con nadie del rancho.**
+- **Falta (lo más importante primero):** candado por conversación en la base; personal de campo; compra →
+  caja chica → almacén en una confirmación; aplicaciones (Fito); IA para entender (gasto por autorizar).
+- **Siguen abiertos:** checador en la nave, día real con Migue, piloto, bitácora agronómica (Fito), bitácora por
+  turnos, expediente legal, reunión de la mañana y autorizaciones (Miguel). WhatsApp y pagos: sin activar.

@@ -89,7 +89,7 @@ with sync_playwright() as p:
     pg.clock.run_for(13000); pg.wait_for_timeout(200)
 
     # ── 4. El chat por el camino común ──
-    ir(pg, "chat")
+    ir(pg, "chat"); pg.locator(".msj-conv", has_text="General del rancho").click(); pg.wait_for_timeout(300)
     pg.locator("textarea").first.fill("Compramos un kilo de clavos, 350 pesos."); pg.get_by_role("button", name="Mandar").click(); pg.wait_for_timeout(600)
     tarjeta = pg.locator(".card", has_text="Monto").last
     tarjeta.get_by_role("button", name="Sí").click(); pg.wait_for_timeout(400)

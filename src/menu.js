@@ -32,7 +32,7 @@ export const FUNCIONES = {
   aldia: f("dinero", "🎯", "¿Alcanza?", "Y qué dejó de aparecer"),
   resumen: f("dinero", "📰", "Resumen", "Cómo va la semana"),
   "panel-financiero": f("dinero", "💰", "¿Cómo vamos?", "Resumen del dinero"),
-  chat: f("gente", "💬", "Chat", "Lo del grupo, ya clasificado"),
+  chat: f("gente", "💬", "Mensajes", "Conversaciones de trabajo, entre personas y grupos"),
   dictado: f("campo", "💬", "Dile a la app", "Habla y ella lo registra"),
   // Campo
   "registrar-actividad": f("campo", "✏️", "Registrar actividad", "Lo que se hizo en campo"),
@@ -110,9 +110,9 @@ export const PANTALLAS_DE = {
   trabajador: ["compras", "mis", "pase-lista", "reporte", "solicitudes"],
   cuadrilla: ["compras", "mis", "reporte"],
   externo: ["mis", "reporte"],
-  agronomo: ["mapa", "aplicaciones", "compras-insumos", "indicaciones", "operacion", "panel-parcelas", "rendimiento-parcelas", "reporte", "reporte-variedades", "solicitudes", "variedades"],
-  dueno: ["mapa", "mano-obra", "operacion", "panel-financiero", "panel-parcelas", "reportes", "resumen"],
-  finanzas: ["jornadas", "mano-obra", "comercializacion", "consignaciones", "contabilidad", "contpaqi", "corrida", "deudas", "embarque", "estibas", "nomina", "operacion", "pase-lista", "proyeccion", "rendimiento-parcelas", "solicitudes", "terminados"],
+  agronomo: ["chat", "mapa", "aplicaciones", "compras-insumos", "indicaciones", "operacion", "panel-parcelas", "rendimiento-parcelas", "reporte", "reporte-variedades", "solicitudes", "variedades"],
+  dueno: ["chat", "mapa", "mano-obra", "operacion", "panel-financiero", "panel-parcelas", "reportes", "resumen"],
+  finanzas: ["chat", "jornadas", "mano-obra", "comercializacion", "consignaciones", "contabilidad", "contpaqi", "corrida", "deudas", "embarque", "estibas", "nomina", "operacion", "pase-lista", "proyeccion", "rendimiento-parcelas", "solicitudes", "terminados"],
 };
 
 // Con qué abre cada perfil antes de que la persona acomode nada.
