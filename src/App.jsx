@@ -103,6 +103,8 @@ import {
 } from "./fertiriego.js";
 // El día: el clima de copiloto, el reparto de tareas y lo que se va a acabar.
 import { traerPronostico, planDelDia, alertasDelClima, riegoNecesario, describirEdad } from "./clima.js";
+import { destinoDe as destinoDeAviso, estadoDelAparato, CLASES_DE_AVISO } from "./avisos.js";
+import { activarAvisos, desactivarAvisos, avisoDePrueba, misPreferenciasDeAvisos, guardarPreferenciasDeAvisos, quitarAvisosDe, suscripcionDeEsteAparato } from "./avisosRed.js";
 import { misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro, hallazgosDe, antecedentes, temasDe, deDondeSalio, comoEvidencia, admiteArchivos, pedirConsulta, conversacionesDe as todasLasConversaciones, PERMISO_EVIDENCIA, PERMISO_SUPERVISION } from "./mensajeria.js";
 import { planDelDia as planMandadoDe, loQueLeToca, quitarAsignacion, cambiarAsignacion } from "./asignaciones.js";
 import { repartirElDia, aQueSeVaCadaQuien, quienNoTieneNada, chocanLasTareas, indicacionParaElTrabajador, comoVaElDia } from "./plan.js";
@@ -3418,7 +3420,7 @@ const ICONO_CHAT = {
   fertirriego: "💧", horometro: "⏱️", etiqueta: "🏷️", estado_cuenta: "🏦", nota: "📝",
 };
 
-function ChatDelRancho({ data, add, upd, session, onClose }) {
+function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
   const fileRef = useRef(null);
   const [texto, setTexto] = useState("");
   const [foto, setFoto] = useState(null);
@@ -3439,6 +3441,11 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
   const [consultas, setConsultas] = useState([]);      // consultas excepcionales (las concede y las vence la base)
   const [cuentas, setCuentas] = useState([]);
   const [pide, setPide] = useState({ conversacion: "", motivo: "", dice: "" });
+  // Los avisos de este teléfono.
+  const [avisos, setAvisos] = useState({ activo: false, prefs: {}, dice: "", ver: false });
+  useEffect(() => { let vivo = true; (async () => { const sus = await suscripcionDeEsteAparato(); const prefs = await misPreferenciasDeAvisos(); if (vivo) setAvisos(a => ({ ...a, activo: !!sus, prefs })); })(); return () => { vivo = false; }; }, []);
+  // Si se llegó tocando un aviso, se abre esa conversación (si todavía participo en ella).
+  useEffect(() => { if (abrir?.conversacion) { setConvId(abrir.conversacion); setTab("hilo"); } }, [abrir?.n]);
   const llaveLeido = `${LLAVES.menu}:mensajes-leidos:${session.id}`;
   const [leido, setLeido] = useState(() => { try { return JSON.parse(localStorage.getItem(llaveLeido) || "{}"); } catch { return {}; } });
   const otorgados = (PERMISOS && PERMISOS.operaciones) || [];
@@ -3466,6 +3473,7 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
   // Al abrir una conversación se da por leída hasta su último mensaje (se recuerda en este aparato, por persona).
   useEffect(() => {
     if (!convId) return;
+    quitarAvisosDe(`conv-${convId}`);     // lo leído ya no sigue como aviso pendiente en el teléfono
     const ultimo = mensajesDe(todos, convId).reduce((m, x) => (String(x.cuando || "") > m ? String(x.cuando) : m), "");
     if (ultimo && ultimo !== leido[convId]) { const n = { ...leido, [convId]: ultimo }; setLeido(n); try { localStorage.setItem(llaveLeido, JSON.stringify(n)); } catch { /* sin espacio: sólo no se recuerda */ } }
   }, [convId, todos.length]);
@@ -3837,6 +3845,35 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
       {!conv && !nueva && vista === "conversaciones" && (
         <div className="section-pad msj-lista">
           <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Mensajes de trabajo del rancho. AgroGestión los lee para proponer registros; nada se registra solo.</div>
+          <div className="card msj-avisos" style={{ padding: 10, marginBottom: 8 }}>
+            <div className="flex-b">
+              <div className="text-sm font-bold">Avisos en este teléfono: {avisos.activo ? "activados" : "apagados"}</div>
+              <button className="btn btn-outline btn-sm" onClick={() => setAvisos(a => ({ ...a, ver: !a.ver }))}>{avisos.ver ? "Cerrar" : "Ajustar"}</button>
+            </div>
+            {!avisos.activo && !avisos.ver && <div className="text-xs text-muted">Sin esto sólo te enteras de un mensaje al abrir AgroGestión.</div>}
+            {avisos.ver && (() => { const ap = estadoDelAparato(); return (
+              <div style={{ marginTop: 8 }}>
+                {ap.dice && <div className="text-xs" style={{ color: ap.puede ? "var(--text-muted)" : "var(--gold)", marginBottom: 6 }}>{ap.dice}</div>}
+                {!session.cuenta && <div className="text-xs" style={{ color: "var(--gold)", marginBottom: 6 }}>Los avisos son por cuenta: entra con tu correo y contraseña para activarlos. Con PIN no se pueden dirigir a una persona.</div>}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {!avisos.activo
+                    ? <button className="btn btn-accent btn-sm" disabled={!ap.puede || !session.cuenta} onClick={async () => { const r = await activarAvisos(); setAvisos(a => ({ ...a, activo: r.ok || a.activo, dice: r.dice })); }}>Activar avisos</button>
+                    : <>
+                      <button className="btn btn-outline btn-sm" onClick={async () => { const r = await avisoDePrueba(); setAvisos(a => ({ ...a, dice: r.dice })); }}>Mandarme un aviso de prueba</button>
+                      <button className="btn btn-outline btn-sm" onClick={async () => { const r = await desactivarAvisos(); setAvisos(a => ({ ...a, activo: !r.ok, dice: r.dice || "" })); }}>Apagarlos aquí</button>
+                    </>}
+                </div>
+                {avisos.dice && <div className="text-xs" style={{ marginTop: 6 }}>{avisos.dice}</div>}
+                <div className="text-xs text-muted" style={{ margin: "8px 0 4px" }}>Qué quiero que me avise (vale para todos mis aparatos). El aviso no enseña el texto del mensaje ni importes.</div>
+                {CLASES_DE_AVISO.map(c => (
+                  <label key={c.clave} className="text-xs" style={{ display: "flex", gap: 8, padding: "3px 0" }}>
+                    <input type="checkbox" disabled={c.obligatorio} checked={c.obligatorio || avisos.prefs[c.clave] !== false} onChange={async e => { const prefs = { ...avisos.prefs, [c.clave]: e.target.checked }; setAvisos(a => ({ ...a, prefs })); await guardarPreferenciasDeAvisos(prefs); }} />
+                    <span>{c.nombre}{c.obligatorio ? " (siempre llega)" : ""}</span>
+                  </label>
+                ))}
+              </div>
+            ); })()}
+          </div>
           {convs.map(c => (
             <button key={c.id} className="card msj-conv" style={{ padding: 12, width: "100%", textAlign: "left", display: "block" }} onClick={() => { setConvId(c.id); setTab("hilo"); }}>
               <div className="flex-b">
@@ -6981,6 +7018,8 @@ function AppInner() {
 
   // Cerrar sesión: limpia la sesión local y, si era cuenta real, también en Supabase.
   const cerrarSesion = useCallback(async () => {
+    // Este aparato deja de recibir los avisos de la cuenta que se va: un teléfono que cambia de manos no hereda avisos.
+    if (session && session.cuenta) { try { await desactivarAvisos(); } catch { /* sin avisos que quitar */ } }
     if (session && session.cuenta && supabaseListo) {
       // Un encargado puede dejar su cuenta ligada para que su gente capture
       // con PIN y lo capturado suba. Sólo encargados: nunca la cuenta de un
@@ -7128,6 +7167,16 @@ function AppInner() {
   // Sólo al desarrollar: deja que la prueba de recorrido abra cada pantalla.
   // Vite quita este bloque entero de la versión que se publica.
   useEffect(() => { if (import.meta.env.DEV) window.__agroIr = setPage; }, [setPage]);
+  // Abrir lo que dice un aviso del teléfono: sólo la pantalla y, si es un mensaje, la conversación. El contenido lo
+  // enseña la pantalla con la sesión de la persona; si ya no tiene acceso, no ve nada.
+  const [desdeAviso, setDesdeAviso] = useState(null);
+  useEffect(() => {
+    const abrir = (url) => { const d = destinoDeAviso(url); if (!d) return; setDesdeAviso({ ...d, n: Date.now() }); setPage(d.pagina); };
+    if (window.location.search.includes("ir=")) { abrir(window.location.href); try { window.history.replaceState(null, "", window.location.pathname); } catch { /* da igual */ } }
+    const oir = (e) => { if (e.data?.tipo === "abrir") abrir(e.data.url); };
+    navigator.serviceWorker?.addEventListener?.("message", oir);
+    return () => navigator.serviceWorker?.removeEventListener?.("message", oir);
+  }, [setPage]);
   // Sólo en desarrollo: las pruebas leen aquí lo calculado para cruzar una pantalla contra otra.
   useEffect(() => { if (import.meta.env.DEV) window.__agroDatos = data; }, [data]);
 
@@ -7656,7 +7705,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "entregas" && <EntregasAlmacen data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "dictado" && <Dictado data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "fito" && <HojaDeFito data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
-              {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
+              {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} abrir={desdeAviso} onClose={() => setPage("home")} />}
               {page === "dron" && <RecorridoDron data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "eldia" && <ElDia data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "proveedores" && <AdminProveedores data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} onBack={() => setPage("contabilidad")} />}
@@ -7733,7 +7782,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "entregas" && <EntregasAlmacen data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "dictado" && <Dictado data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "fito" && <HojaDeFito data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
-              {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
+              {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} abrir={desdeAviso} onClose={() => setPage("home")} />}
               {page === "dron" && <RecorridoDron data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "mapa" && <MapaAgricola data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} onNav={setPage} />}
               {page === "eldia" && <ElDia data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
@@ -7768,7 +7817,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "reporte" && <TrabReporte data={data} add={add} session={session} onLogout={cerrarSesion} />}
             </>}
             {isAgronomo && <>
-              {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
+              {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} abrir={desdeAviso} onClose={() => setPage("home")} />}
               {page === "home" && <AgronomoHome data={data} session={session} onNav={setPage} onLogout={cerrarSesion} online={online} />}
               {page === "aplicaciones" && <GestionAplicaciones data={data} add={add} upd={upd} del={del} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "panel-parcelas" && <PanelParcelas data={data} add={add} del={del} session={session} onClose={() => setPage("home")} />}
@@ -7783,7 +7832,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "rendimiento-parcelas" && <RendimientoParcelas data={data} onClose={() => setPage("home")} />}
             </>}
             {isDueno && <>
-              {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
+              {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} abrir={desdeAviso} onClose={() => setPage("home")} />}
               {page === "mano-obra" && <ManoDeObra data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "home" && <DuenoHome data={data} session={session} onNav={setPage} onLogout={cerrarSesion} />}
               {page === "panel-financiero" && <PanelFinanciero data={data} onClose={() => setPage("home")} />}
@@ -7794,7 +7843,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "operacion" && <PanelOperacion data={data} onClose={() => setPage("home")} />}
             </>}
             {isFinanzas && <>
-              {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
+              {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} abrir={desdeAviso} onClose={() => setPage("home")} />}
               {page === "mano-obra" && <ManoDeObra data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "jornadas" && <Jornadas data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
               {page === "home" && <FinanzasHome data={data} session={session} onNav={setPage} onLogout={cerrarSesion} />}

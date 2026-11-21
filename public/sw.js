@@ -82,3 +82,35 @@ self.addEventListener("fetch", (e) => {
       .catch(() => caches.match(request))
   );
 });
+
+// ── Avisos al teléfono (con la app cerrada) ──────────────────────────────
+// El aviso llega del servidor ya decidido (a quién y con qué palabras). Aquí sólo se enseña y, al tocarlo, se abre
+// AgroGestión en el lugar correcto. El aviso NO trae el contenido: la app lo pide con la sesión de la persona, así
+// que quien ya no tiene acceso no ve nada aunque conserve un aviso viejo.
+self.addEventListener("push", (e) => {
+  let a = {};
+  try { a = e.data ? e.data.json() : {}; } catch { a = {}; }
+  const titulo = a.titulo || "AgroGestión", tag = a.tag || "agrogestion";
+  e.waitUntil((async () => {
+    // Varios avisos de lo mismo (una conversación) se juntan en uno solo y se dice cuántos van.
+    const previos = await self.registration.getNotifications({ tag });
+    const cuantos = (previos[0] && previos[0].data && previos[0].data.cuantos ? previos[0].data.cuantos : 0) + 1;
+    await self.registration.showNotification(titulo, {
+      body: cuantos > 1 ? `${a.cuerpo || ""} · ${cuantos} avisos` : (a.cuerpo || ""),
+      tag, renotify: true, icon: "/icon-192.png", badge: "/icon-192.png",
+      data: { url: a.url || "/", clase: a.clase || "", cuantos },
+    });
+  })());
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || "/";
+  e.waitUntil((async () => {
+    const abiertas = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const c of abiertas) {
+      if (new URL(c.url).origin === self.location.origin) { c.postMessage({ tipo: "abrir", url }); return c.focus(); }
+    }
+    return self.clients.openWindow(url);
+  })());
+});
