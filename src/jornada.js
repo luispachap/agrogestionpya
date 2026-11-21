@@ -20,7 +20,7 @@ import { nuevoEvento, vigentes } from "./eventos.js";
 import { jornadasDe } from "./checador.js";
 import { tramosDeTrabajo } from "./cuadrillas.js";
 import { avancesDe } from "./avances.js";
-import { vigentesDelPlan, sinDiaRelativo } from "./asignaciones.js";
+import { vigentesDelPlan, sinDiaRelativo, YA_NO_VALE } from "./asignaciones.js";
 
 export const T_CIERRE = "cierre_jornada", T_REAPERTURA = "reapertura_jornada";
 export const ROLES_QUE_CIERRAN = ["admin", "encargado"];
@@ -64,9 +64,22 @@ export function jornadaDe({ fecha, indicaciones = [], eventos = [], incidencias 
     return { id: i.id, personaId: id, nombre: nombreDe(personas, id) || (id ? "Alguien que ya no está en el catálogo" : "Sin persona"), dice: sinDiaRelativo(i.resumen), parcelaId: i.parcelaId || "", donde: nombreDe(parcelas, i.parcelaId), hora: i.hora || "",
       vino: j ? true : id && checan.has(id) ? false : null, respuesta: i.respuesta || "", trabajo, avances: deAhi.map(a => a.evento), estado, porque, pideMotivo: ESTADOS[estado].pide };
   });
-  // Lo que se trabajó sin estar en el plan: gente sin tarea, o en una parcela que el plan no decía.
+  // Los cambios de plan del día: lo que se había dicho ANTES sigue a la vista, con quién lo cambió, cuándo y por qué,
+  // por cuál renglón se reemplazó y lo que la persona alcanzó a trabajar donde decía el plan original.
+  const cambios = (indicaciones || []).filter(i => i && i.tipo === "tarea" && !i.cancelado && i.fecha === fecha && YA_NO_VALE.includes(i.estado)).map(i => {
+    const id = i.asignadoA || "", nueva = i.cambiadaPor ? (indicaciones || []).find(x => x && x.id === i.cambiadaPor) || null : null;
+    const ahi = id && i.parcelaId ? trabajoDe(id).filter(t => t.parcelaId === i.parcelaId) : [];
+    const min = ahi.some(t => t.sinSaber) ? null : ahi.reduce((n, t) => n + t.minutos, 0);
+    const queCambio = !nueva ? [] : ["asignadoA", "parcelaId", "hora", "fecha", "resumen"].filter(k => (nueva[k] ?? "") !== (i[k] ?? ""));
+    return { id: i.id, clase: i.estado === "cambiada" ? "cambiada" : "quitada", personaId: id, nombre: nombreDe(personas, id) || (id ? "Alguien que ya no está en el catálogo" : "Sin persona"), dice: sinDiaRelativo(i.resumen), parcelaId: i.parcelaId || "", donde: nombreDe(parcelas, i.parcelaId),
+      por: i.cambio?.por || "", porId: i.cambio?.porId || null, cuando: i.cambio?.cuando || "", motivo: i.cambio?.motivo || "",
+      nuevaId: nueva?.id || null, queCambio, ahora: !nueva ? "" : nueva.fecha !== fecha ? `Se pasó al ${nueva.fecha}.` : queCambio.includes("asignadoA") ? `Ahora la tiene ${nombreDe(personas, nueva.asignadoA) || "otra persona"}${queCambio.includes("parcelaId") ? ` en ${nombreDe(parcelas, nueva.parcelaId) || "otro lugar"}` : ""}.` : queCambio.includes("parcelaId") ? `Ahora va a ${nombreDe(parcelas, nueva.parcelaId) || "otro lugar"}.` : queCambio.includes("hora") ? `Ahora es a las ${nueva.hora || "otra hora"}.` : "Se cambió la indicación.",
+      trabajoAhi: ahi.length ? { minutos: min, dice: `Alcanzó a trabajar ${horas(min)} ${nombreDe(parcelas, i.parcelaId) ? `en ${nombreDe(parcelas, i.parcelaId)}` : "ahí"}.` } : null };
+  }).sort((x, y) => String(x.cuando).localeCompare(String(y.cuando)) || x.nombre.localeCompare(y.nombre, "es"));
+  // Lo que se trabajó sin estar en el plan: gente sin tarea, o en una parcela que el plan no decía. Donde el plan
+  // decía ANTES de cambiarlo también era el plan: ese rato sale con su cambio, no como «fuera del plan».
   const planDe = new Map();
-  for (const t of tareas) { if (!planDe.has(t.personaId)) planDe.set(t.personaId, new Set()); planDe.get(t.personaId).add(t.parcelaId); }
+  for (const t of [...tareas, ...cambios]) { if (!planDe.has(t.personaId)) planDe.set(t.personaId, new Set()); planDe.get(t.personaId).add(t.parcelaId); }
   const fueraDelPlan = [];
   for (const id of new Set(tramos.map(t => t.trabajadorId))) for (const w of trabajoDe(id)) {
     const suyas = planDe.get(id);
@@ -78,11 +91,11 @@ export function jornadaDe({ fecha, indicaciones = [], eventos = [], incidencias 
   const delDia = (incidencias || []).filter(x => x && !x.cancelado && x.fecha === fecha);
   const n = (e) => tareas.filter(t => t.estado === e).length;
   return {
-    fecha, tareas, fueraDelPlan,
-    porAclarar: [...porAclarar.entries()].map(([id, min]) => ({ personaId: id, nombre: nombreDe(personas, id) || "Alguien", minutos: min, dice: `${horas(min)} en el rancho sin asignar` })),
+    fecha, tareas, cambios, fueraDelPlan,
+    porAclarar: [...porAclarar.entries()].filter(([, min]) => min > 0).map(([id, min]) => ({ personaId: id, nombre: nombreDe(personas, id) || "Alguien", minutos: min, dice: `${horas(min)} en el rancho sin asignar` })),
     avances: avances.map(a => ({ evento: a.evento, parcelaId: a.parcelaId, donde: nombreDe(parcelas, a.parcelaId), actividad: a.actividad, cantidad: a.cantidad, unidad: a.unidad, unidadDicha: a.unidadDicha || "", personas: a.personas ?? null, pendiente: a.pendiente || null, quien: a.quien })),
     incidencias: delDia.map(x => ({ id: x.id, dice: x.desc || x.descripcion || "(sin descripción)", tipo: x.tipo || "", prioridad: x.prioridad || "", resuelta: !!(x.resuelta || x.estado === "resuelta") })),
-    cuenta: { planeadas: tareas.length, hechas: n("hecha"), enCurso: n("en_curso"), seTrabajo: n("se_trabajo"), sinHacer: tareas.filter(t => t.pideMotivo).length, noVinieron: n("no_vino"), fueraDelPlan: fueraDelPlan.length, porAclarar: porAclarar.size, avances: avances.length, incidencias: delDia.length, incidenciasAbiertas: delDia.filter(x => !(x.resuelta || x.estado === "resuelta")).length },
+    cuenta: { planeadas: tareas.length, hechas: n("hecha"), enCurso: n("en_curso"), seTrabajo: n("se_trabajo"), sinHacer: tareas.filter(t => t.pideMotivo).length, noVinieron: n("no_vino"), cambios: cambios.length, fueraDelPlan: fueraDelPlan.length, porAclarar: [...porAclarar.values()].filter(min => min > 0).length, avances: avances.length, incidencias: delDia.length, incidenciasAbiertas: delDia.filter(x => !(x.resuelta || x.estado === "resuelta")).length },
   };
 }
 
@@ -106,8 +119,9 @@ export function cerrarJornada({ jornada, eventos = [], motivos = {}, pasan = [],
   const faltan = jornada.tareas.filter(t => t.pideMotivo && !(MOTIVOS[motivos[t.id]?.motivo] && (motivos[t.id].motivo !== "otro" || String(motivos[t.id].nota || "").trim())));
   if (faltan.length) return { ok: false, faltan: faltan.map(t => t.id), dice: `Falta decir por qué no se hizo: ${faltan.map(t => `${t.nombre} — ${t.dice || "tarea"}`).join("; ")}.` };
   const ids = new Set(jornada.tareas.map(t => t.id));
+  const hechas = new Set(jornada.tareas.filter(t => t.estado === "hecha").map(t => t.id));   // lo hecho no pasa a mañana; lo cambiado ya no es tarea vigente
   const tareas = jornada.tareas.map(t => ({ id: t.id, personaId: t.personaId, nombre: t.nombre, parcelaId: t.parcelaId, dice: t.dice, estado: t.estado, porque: t.porque, ...(t.pideMotivo ? { motivo: motivos[t.id].motivo, nota: String(motivos[t.id].nota || "").trim() } : {}) }));
-  return { ok: true, evento: nuevoEvento({ tipo: T_CIERRE, cuando, fecha: jornada.fecha, quien, datos: { version: previo.versiones + 1, cuenta: jornada.cuenta, tareas, fueraDelPlan: jornada.fueraDelPlan.map(f => ({ personaId: f.personaId, nombre: f.nombre, dice: f.dice })), incidencias: jornada.incidencias, avances: jornada.avances.map(a => a.evento), pasan: [...new Set(pasan)].filter(id => ids.has(id)), nota: String(nota || "").trim() } }), dice: "La jornada quedó cerrada. Es una foto: lo que llegue después se verá aparte." };
+  return { ok: true, evento: nuevoEvento({ tipo: T_CIERRE, cuando, fecha: jornada.fecha, quien, datos: { version: previo.versiones + 1, cuenta: jornada.cuenta, tareas, fueraDelPlan: jornada.fueraDelPlan.map(f => ({ personaId: f.personaId, nombre: f.nombre, dice: f.dice })), incidencias: jornada.incidencias, avances: jornada.avances.map(a => a.evento), cambios: (jornada.cambios || []).map(c => ({ id: c.id, clase: c.clase, personaId: c.personaId, nombre: c.nombre, dice: c.dice, parcelaId: c.parcelaId, por: c.por, cuando: c.cuando, motivo: c.motivo, nuevaId: c.nuevaId, ahora: c.ahora, trabajoAhi: c.trabajoAhi?.dice || "" })), pasan: [...new Set(pasan)].filter(id => ids.has(id) && !hechas.has(id)), nota: String(nota || "").trim() } }), dice: "La jornada quedó cerrada. Es una foto: lo que llegue después se verá aparte." };
 }
 
 export function reabrirJornada({ fecha, eventos = [], motivo, quien, cuando } = {}) {
@@ -126,6 +140,7 @@ export function diferenciasDelCierre(cierre, jornada) {
   const c = cierre.cuenta || {}, j = jornada.cuenta;
   if ((c.avances || 0) !== j.avances) dif.push(`Avances: ${c.avances || 0} al cerrar, ${j.avances} ahora.`);
   if ((c.incidencias || 0) !== j.incidencias) dif.push(`Incidencias: ${c.incidencias || 0} al cerrar, ${j.incidencias} ahora.`);
+  if ((c.cambios || 0) !== (j.cambios || 0)) dif.push(`Cambios de plan: ${c.cambios || 0} al cerrar, ${j.cambios || 0} ahora.`);
   if ((c.fueraDelPlan || 0) !== j.fueraDelPlan) dif.push(`Trabajo fuera del plan: ${c.fueraDelPlan || 0} al cerrar, ${j.fueraDelPlan} ahora.`);
   return dif;
 }

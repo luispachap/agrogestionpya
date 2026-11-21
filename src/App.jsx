@@ -2793,7 +2793,7 @@ function ElDia({ data, add, upd, session, onClose }) {
     const cuando = new Date().toISOString();
     const r = tocando.modo === "quitar"
       ? quitarAsignacion(ind, { quien: quienCambia, motivo: tocando.motivo, cuando })
-      : cambiarAsignacion(ind, { parcelaId: tocando.parcelaId || null, hora: tocando.hora || null, ...(tocando.asignadoA ? { asignadoA: tocando.asignadoA } : {}) }, { quien: quienCambia, motivo: tocando.motivo, cuando, id: `ind${Date.now()}${Math.floor(Math.random() * 1000)}`, parcelas });
+      : cambiarAsignacion(ind, { parcelaId: tocando.parcelaId || null, hora: tocando.hora || null, ...(tocando.asignadoA ? { asignadoA: tocando.asignadoA } : {}), ...(String(tocando.resumen || "").trim() ? { resumen: String(tocando.resumen).trim() } : {}) }, { quien: quienCambia, motivo: tocando.motivo, cuando, id: `ind${Date.now()}${Math.floor(Math.random() * 1000)}`, parcelas });
     if (!r.ok) { setDicePlan(r.dice); return; }
     upd("indicaciones", r.anterior);
     if (r.nueva) add("indicaciones", r.nueva);
@@ -3027,6 +3027,7 @@ function ElDia({ data, add, upd, session, onClose }) {
                             {gente.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
                           </select>
                           <input className="inp" type="time" aria-label="Hora" value={tocando.hora} onChange={e => setTocando(x => ({ ...x, hora: e.target.value }))} style={{ marginBottom: 6 }} />
+                          <input className="inp" aria-label="Qué va a hacer ahora" placeholder="¿Qué va a hacer ahora? (si cambia la tarea)" value={tocando.resumen || ""} onChange={e => setTocando(x => ({ ...x, resumen: e.target.value }))} style={{ marginBottom: 6 }} />
                         </>}
                         <input className="inp" aria-label="Motivo del cambio" placeholder={tocando.modo === "quitar" ? "¿Por qué se quita? (obligatorio)" : "¿Por qué cambia? (opcional)"} value={tocando.motivo} onChange={e => setTocando(x => ({ ...x, motivo: e.target.value }))} style={{ marginBottom: 6 }} />
                         <div style={{ display: "flex", gap: 6 }}>
@@ -3070,7 +3071,7 @@ function ElDia({ data, add, upd, session, onClose }) {
             <div className="card-title">La jornada del {fechaLarga(new Date(`${fechaJ}T12:00:00`))}{cierreJ.cerrada ? ` · cerrada (versión ${cierreJ.vigente.version})` : ""}</div>
             {jornada.cuenta.planeadas === 0
               ? <div className="text-sm text-muted">No hay tareas mandadas para este día. Se mandan en la pestaña Reparto.</div>
-              : <div className="text-sm">De {jornada.cuenta.planeadas} tarea(s) mandadas: <b>{jornada.cuenta.hechas}</b> marcadas como hechas, <b>{jornada.cuenta.enCurso + jornada.cuenta.seTrabajo}</b> con trabajo registrado sin marcar terminada y <b>{jornada.cuenta.sinHacer}</b> sin evidencia de que se hicieran.</div>}
+              : <div className="text-sm">De {jornada.cuenta.planeadas} tarea(s) mandadas: <b>{jornada.cuenta.hechas}</b> marcadas como hechas, <b>{jornada.cuenta.enCurso + jornada.cuenta.seTrabajo}</b> con trabajo registrado sin marcar terminada y <b>{jornada.cuenta.sinHacer}</b> sin evidencia de que se hicieran.{jornada.cuenta.cambios > 0 ? ` El plan tuvo ${jornada.cuenta.cambios} cambio(s) en el día.` : ""}</div>}
             <div className="text-xs text-muted" style={{ marginTop: 6 }}>Esto compara lo planeado con lo registrado en el checador, en Equipos de trabajo y en los avances. No registra horas, pagos ni costos.</div>
           </div>
 
@@ -3096,8 +3097,31 @@ function ElDia({ data, add, upd, session, onClose }) {
                       <label className="text-xs" style={{ display: "flex", gap: 6, marginTop: 6 }}><input type="checkbox" checked={!!pasanJ[t.id]} onChange={e => setPasanJ(x => ({ ...x, [t.id]: e.target.checked }))} />Pasa a mañana</label>
                     </div>
                   )}
+                  {!cierreJ.cerrada && !t.pideMotivo && t.estado !== "hecha" && puedeCerrarJ && (
+                    <label className="text-xs" style={{ display: "flex", gap: 6, marginTop: 6 }}><input type="checkbox" aria-label={`Pasa a mañana: ${t.nombre}`} checked={!!pasanJ[t.id]} onChange={e => setPasanJ(x => ({ ...x, [t.id]: e.target.checked }))} />No se terminó: pasa a mañana</label>
+                  )}
+                  {cierreJ.cerrada && !guardado?.motivo && cierreJ.vigente.pasan.includes(t.id) && <div className="text-xs" style={{ marginTop: 3 }}>Al cerrar se dijo: no se terminó · pasa a mañana</div>}
                 </div>
               ); })}
+            </div>
+          )}
+
+          {jornada.cambios.length > 0 && (
+            <div className="card jornada-cambios" style={{ padding: 12 }}>
+              <div className="card-title">Cambios de plan en el día ({jornada.cambios.length})</div>
+              <div className="text-xs text-muted" style={{ marginBottom: 4 }}>Lo que se había mandado antes sigue guardado tal cual. Aquí se ve qué se cambió, quién, a qué hora y por qué.</div>
+              {jornada.cambios.map(c => (
+                <div key={c.id} className="jornada-cambio" style={{ borderTop: "1px solid var(--border-soft)", padding: "8px 0" }}>
+                  <div className="flex-b" style={{ gap: 8 }}>
+                    <div className="text-sm"><b>{c.nombre}</b>{c.donde ? ` · ${c.donde}` : ""}</div>
+                    <span className="badge">{c.clase === "cambiada" ? "Se cambió" : "Se quitó"}</span>
+                  </div>
+                  <div className="text-sm" style={{ marginTop: 2, textDecoration: "line-through", opacity: .75 }}>{c.dice || "(sin texto)"}</div>
+                  {c.ahora && <div className="text-sm" style={{ marginTop: 2 }}>{c.ahora}</div>}
+                  <div className="text-xs text-muted" style={{ marginTop: 2 }}>{c.por ? `Lo cambió ${c.por}` : "No quedó anotado quién lo cambió"}{c.cuando ? ` · ${horaCorta(c.cuando)}` : ""} — {c.motivo ? `«${c.motivo}»` : "sin motivo anotado"}</div>
+                  {c.trabajoAhi && <div className="text-xs" style={{ marginTop: 2 }}>{c.trabajoAhi.dice}</div>}
+                </div>
+              ))}
             </div>
           )}
 

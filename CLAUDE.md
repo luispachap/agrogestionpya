@@ -542,7 +542,10 @@ Usuarios reales de la app:
   (`cierre_jornada`, foto con versión; `reapertura_jornada` con motivo) pide el porqué de cada tarea sin evidencia
   (`MOTIVOS`, lo dice una persona) y qué pasa a mañana (`tareasParaManana`: se proponen con `vieneDe`, una sola vez, y
   se mandan cuando alguien lo pide). `diferenciasDelCierre` enseña lo que llegó después. **Ningún módulo de dinero lee
-  la jornada ni su cierre** (hay prueba). El tope de IA del mes cubre también la importación (hoja 51).
+  la jornada ni su cierre** (hay prueba). Un cambio de plan NO se pierde: `jornadaDe().cambios` enseña el renglón
+  original (`cambiada`/quitada) con quién, cuándo, por qué, por cuál se reemplazó y lo trabajado ahí; ese rato no es
+  «fuera del plan». Lo hecho y lo cambiado no pasan a mañana. Recorrido: `pruebas/reasignacion_navegador.py` (20).
+  **Los seis criterios de Luis para la jornada están SIN implementar hasta validarlos con Miguel** (`docs/JORNADA.md`). El tope de IA del mes cubre también la importación (hoja 51).
 - **`src/whatsapp.js` + `supabase/functions/whatsapp-entrada/` + `supabase/pendientes/whatsapp-entrada.sql`: WhatsApp PREPARADO
   Y APAGADO.** El lector convierte el aviso de Meta en el `mensaje` del camino común (teléfono → persona del
   catálogo; desconocido o repetido no se atribuye; mismo id no entra dos veces). La función sólo comprueba la firma
@@ -731,7 +734,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **219 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **220 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

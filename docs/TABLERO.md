@@ -429,3 +429,11 @@ avisos con la app cerrada, archivos con candado por conversación y dar de alta 
   en producción y contesta bien). 8 pruebas de la función, 5 de la base, 4 del aparato. **Falta la prueba en un
   Android real** (`AVISOS.md` §6): sin ella NO está validado.
 - Pendientes de avisos: resumen de la víspera, vencidos, observaciones agronómicas, quien entra con PIN.
+
+**Jornada: cambio de plan a media mañana (21 nov, 16 h) — `JORNADA.md`:** recorrido de siete trabajadores, máquina
+descompuesta y cuatro reasignados, en pantallas reales (`pruebas/reasignacion_navegador.py` 20/20) y en cuentas
+(`recorrido_*`). La jornada ya enseña los cambios de plan con quién, hora y motivo; lo trabajado en el lugar original
+no sale como «fuera del plan»; al cambiar se puede decir la tarea nueva; lo no terminado puede pasar a mañana, lo
+hecho y lo cambiado no. **Probado:** 1,179 pruebas de cuenta. **Sin validar con Miguel.** Los seis criterios de Luis
+(quién confirma la tarea, asistencia de encargados y cuadrillas, revisión de Dirección, hora de cierre) NO están
+construidos: esperan esa validación.
