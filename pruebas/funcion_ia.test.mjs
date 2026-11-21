@@ -4,11 +4,9 @@
 // Uso: node --test pruebas/funcion_ia.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { transformSync } from "esbuild";
+import { buildSync } from "esbuild";
 
-const fuente = readFileSync(new URL("../supabase/functions/interpretar-documento/index.ts", import.meta.url), "utf8");
-const js = transformSync(fuente, { loader: "ts", format: "esm" }).code;
+const js = buildSync({ entryPoints: [new URL("../supabase/functions/interpretar-documento/index.ts", import.meta.url).pathname], bundle: true, format: "esm", write: false }).outputFiles[0].text;
 const LLAVE = "sk-ant-LLAVE-DE-MENTIRA";
 
 async function montar({ conLlave = true, puede = true, reserva = "res-1", memoria = null, api = null } = {}) {
