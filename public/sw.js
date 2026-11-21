@@ -97,7 +97,8 @@ self.addEventListener("push", (e) => {
     const cuantos = (previos[0] && previos[0].data && previos[0].data.cuantos ? previos[0].data.cuantos : 0) + 1;
     await self.registration.showNotification(titulo, {
       body: cuantos > 1 ? `${a.cuerpo || ""} · ${cuantos} avisos` : (a.cuerpo || ""),
-      tag, renotify: true, icon: "/icon-192.png", badge: "/icon-192.png",
+      // Que suene y vibre cada vez (renotify), también cuando se junta con el anterior: en el teléfono real llegó mudo (21 nov).
+      tag, renotify: true, silent: false, vibrate: [250, 120, 250], timestamp: Date.now(), icon: "/icon-192.png", badge: "/icon-192.png",
       data: { url: a.url || "/", clase: a.clase || "", cuantos },
     });
   })());
@@ -107,9 +108,18 @@ self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const url = (e.notification.data && e.notification.data.url) || "/";
   e.waitUntil((async () => {
+    // Una ventana que quedó dormida en el fondo no siempre se deja traer al frente ni recibe el recado (teléfono real,
+    // 21 nov: el aviso desapareció y no abrió nada). Por eso se la LLEVA a la dirección del aviso, y si no se puede
+    // traer al frente, se abre una nueva.
     const abiertas = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     for (const c of abiertas) {
-      if (new URL(c.url).origin === self.location.origin) { c.postMessage({ tipo: "abrir", url }); return c.focus(); }
+      if (new URL(c.url).origin !== self.location.origin) continue;
+      try {
+        if (c.visibilityState === "visible") { c.postMessage({ tipo: "abrir", url }); return await c.focus(); }
+        const llevada = c.navigate ? await c.navigate(url).catch(() => null) : null;
+        if (llevada) return await llevada.focus();
+      } catch { /* no se dejó: se abre una nueva */ }
+      break;
     }
     return self.clients.openWindow(url);
   })());
