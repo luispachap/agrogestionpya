@@ -454,6 +454,19 @@ Usuarios reales de la app:
   alguien lo dice. **Ningún módulo de dinero lee el histórico** (hay prueba en
   `cotejo.test.js`): antes hace falta un tabulador histórico confiable. Nómina/efectivo
   como componentes: NO construido, es decisión de Luis (`docs/EXCEL-RAYAS-2024.md` §8).
+- **`src/mapa.js` + `src/Mapa.jsx`: el mapa del rancho** (página `mapa`; plan y costos en
+  `docs/MAPA.md`). NO es un sistema aparte: pinta las mismas parcelas, ranchos y ciclos.
+  Lo único que agrega son los límites, como evento `limite_geo` (`guardarLimite`,
+  `quitarLimite` con motivo, `limitesDe`): dibujado, caminado con el teléfono o importado
+  (KML/GeoJSON, `leerArchivoGeografico`; nada entra sin decir de qué parcela es).
+  **Un límite nunca se supone**: parcela sin límite = «sin límite». La superficie se MIDE
+  (`superficieDe`) y `parcela.hectareas` NO cambia sola (`compararSuperficie`; «usar la
+  medida» es un `upd` que decide una persona). `fichaDeParcela` enseña lo que ya se sabe
+  del ciclo vigente; no calcula nada nuevo. `conPoligonos` le da los límites al dron sin
+  guardarlos en la parcela. Leaflet viene de `window.L` (ya se cargaba); el fondo sale de
+  `CAPAS_BASE`. Una imagen de satélite o de dron entra como CAPA y como evento con su
+  procedencia; **un índice (NDVI) es un indicio, nunca un diagnóstico**.
+  `pruebas/mapa_navegador.py` pide `LEAFLET=/ruta/a/leaflet/dist` (no usa red).
 - **`src/ciclos.js`: el cultivo de una parcela DEPENDE DE LA FECHA.** Sale del
   ciclo (`siembras`) que la parcela tenía ese día (`cultivoEn`, `partesDe`),
   no de `parcela.cultivo`. Un ciclo terminado sigue contando en sus fechas;
@@ -605,7 +618,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **140 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **142 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

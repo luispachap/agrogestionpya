@@ -52,6 +52,8 @@ import { entenderHoja, fecharRaya } from "./importacion.js";
 import { parteDe, resultadoPorCultivo, historialDeParcela } from "./ciclos.js";
 import { CLASES_DE_CLAVE, catalogoDeClaves, listaDeClaves, aprenderClave, relacionDeRenglon, decirRelacion, clavesPorPreguntar, usoDeClaves, referenciasDeClaves, sugerenciasDe, parecidasDe, decirFuente, CLASE_REFERENCIA, ligarParcela, ligasDeParcelas, TIPOS_DE_LIGA } from "./claves.js";
 import { fuentesPorDia, cotejar } from "./cotejo.js";
+import MapaAgricola from "./Mapa.jsx";
+import { limitesDe, conPoligonos } from "./mapa.js";
 import { resultadoDelRancho, flujoDeEfectivo, NOMBRE_DE_FLUJO, DESTINOS_DE_INSUMO, insumosPorClasificar } from "./resultado.js";
 // El resultado y el flujo del rancho: TODAS las pantallas los sacan de aquí, para que digan lo mismo.
 // Cada ajuste de valuación sigue a su consumo: a la parcela, al uso general, o al vehículo (que lo lleva en su propia cuenta).
@@ -371,6 +373,57 @@ textarea.inp{min-height:90px;resize:none;}
 .bn-item .bn-label{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .tabs-pill{display:flex;gap:6px;overflow-x:auto;padding:0 20px 12px;scrollbar-width:none;}
 .tabs-pill::-webkit-scrollbar{display:none;}
+.mp-pagina{position:fixed;inset:0;z-index:800;background:#0b0f08;display:flex;flex-direction:column;}
+.mp-mapa{position:absolute;inset:0;background:#0b0f08;}
+.mp-arriba{position:absolute;top:0;left:0;right:0;z-index:1000;padding:calc(10px + env(safe-area-inset-top)) 10px 0;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+.mp-arriba>*{pointer-events:auto;}
+.mp-barra{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:18px;background:color-mix(in srgb,var(--surface) 86%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--border);box-shadow:0 8px 28px rgba(0,0,0,.35);color:var(--text);}
+.mp-titulo{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;line-height:1.1;}
+.mp-sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mp-boton{width:42px;height:42px;flex-shrink:0;border-radius:14px;border:1px solid var(--border);background:color-mix(in srgb,var(--surface) 90%,transparent);color:var(--text);font-size:19px;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}
+.mp-boton:disabled{opacity:.5;}
+.mp-boton.mp-plano{border:none;background:transparent;backdrop-filter:none;}
+.mp-pildoras,.mp-fila{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.mp-pildoras{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+.mp-pildora{padding:8px 14px;border-radius:50px;border:1px solid var(--border);background:color-mix(in srgb,var(--surface) 88%,transparent);color:var(--text);font-size:13px;font-weight:700;font-family:'Nunito',sans-serif;white-space:nowrap;cursor:pointer;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);}
+.mp-pildora.activa{background:var(--accent);border-color:var(--accent);color:#0a1405;}
+.mp-pildora:disabled{opacity:.45;}
+.mp-aviso,.mp-dice{padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.35;background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--accent);color:var(--text);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);}
+.mp-dice{border-color:var(--border);cursor:pointer;}
+.mp-flotan{position:absolute;right:10px;bottom:calc(150px + env(safe-area-inset-bottom));z-index:1000;display:flex;flex-direction:column;gap:8px;}
+.mp-hoja{position:absolute;left:0;right:0;bottom:0;z-index:1001;max-height:54vh;overflow-y:auto;padding:14px 16px calc(16px + env(safe-area-inset-bottom));background:var(--surface);color:var(--text);border-top:1px solid var(--border);border-radius:22px 22px 0 0;box-shadow:0 -12px 36px rgba(0,0,0,.4);}
+.mp-hoja.mp-cerrada{padding-top:6px;padding-bottom:calc(8px + env(safe-area-inset-bottom));}
+.mp-hoja.mp-chica{max-height:70vh;}
+.mp-asa{width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 2px;background:transparent;border:none;color:var(--text);font-size:14px;font-weight:700;font-family:'Nunito',sans-serif;cursor:pointer;text-align:left;}
+.mp-hoja-titulo{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.mp-nota{font-size:12px;color:var(--muted);line-height:1.4;margin:6px 0;}
+.mp-ojo{font-size:13px;line-height:1.4;padding:8px 10px;border-radius:12px;border:1px solid var(--gold);color:var(--text);margin:6px 0;display:flex;flex-direction:column;align-items:flex-start;}
+.mp-cabeza{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;}
+.mp-nombre{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;line-height:1.15;word-break:break-word;}
+.mp-chip{padding:5px 11px;border-radius:50px;border:1.5px solid var(--border);font-size:13px;font-weight:700;}
+.mp-datos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px;}
+.mp-dato{padding:10px 12px;border-radius:14px;background:var(--card2);border:1px solid var(--border-soft);display:flex;flex-direction:column;gap:1px;min-width:0;}
+.mp-dato small{font-size:11px;color:var(--muted);font-weight:700;}
+.mp-dato b{font-size:16px;}
+.mp-dato i{font-size:11px;color:var(--muted);font-style:normal;}
+.mp-renglon{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border-soft);}
+.mp-renglon span{display:flex;flex-direction:column;min-width:0;font-size:14px;}
+.mp-renglon small{font-size:12px;color:var(--muted);}
+.mp-renglon.mp-alto{flex-direction:column;align-items:stretch;}
+.mp-leyenda{display:inline-flex;align-items:center;gap:6px;font-size:13px;}
+.mp-leyenda i{width:14px;height:14px;border-radius:4px;border:1px solid rgba(0,0,0,.4);display:inline-block;}
+.mp-esq{width:18px;height:18px;margin:6px;border-radius:50%;background:#fff;border:3px solid #E4B23F;box-shadow:0 1px 6px rgba(0,0,0,.6);}
+.mp-esq.mp-esq-sel{background:#E4B23F;border-color:#fff;transform:scale(1.25);}
+.mp-esq.mp-medio{width:12px;height:12px;margin:9px;border-width:2px;border-color:#fff;background:rgba(255,255,255,.35);}
+.leaflet-tooltip.mp-rotulo{background:rgba(8,12,5,.72);border:none;color:#fff;font:700 12px/1.25 'Nunito',sans-serif;text-align:center;padding:4px 8px;border-radius:9px;box-shadow:none;}
+.leaflet-tooltip.mp-rotulo::before{display:none;}
+.leaflet-tooltip.mp-rancho{background:transparent;font-size:13px;text-shadow:0 1px 4px #000,0 0 2px #000;letter-spacing:.04em;text-transform:uppercase;}
+.leaflet-tooltip.mp-falta{background:rgba(8,12,5,.5);font-weight:600;}
+.mp-lejos .leaflet-tooltip.mp-rotulo:not(.mp-rancho){display:none;}
+.mp-pagina .leaflet-control-attribution{font-size:9px;background:rgba(0,0,0,.45);color:#ddd;}
+.mp-pagina .leaflet-control-attribution a{color:#ddd;}
+.mp-pagina .leaflet-bottom{bottom:calc(52px + env(safe-area-inset-bottom));}
+@media(min-width:900px){.mp-hoja{left:auto;right:16px;bottom:16px;width:400px;max-height:76vh;border-radius:22px;border:1px solid var(--border);}.mp-arriba{max-width:520px;}.mp-flotan{right:auto;left:12px;bottom:96px;}}
 .tab-pill{padding:8px 18px;border-radius:50px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:'Nunito',sans-serif;transition:all .15s;}
 .tab-pill.active{background:var(--accent);border-color:var(--accent);color:#0a1405;}
 .acc-row{display:flex;gap:8px;flex-wrap:wrap;}
@@ -2866,7 +2919,8 @@ function RecorridoDron({ data, add, upd, session, onClose }) {
   const [tipoNota, setTipoNota] = useState("");
   const [revisando, setRevisando] = useState(false);
 
-  const parcelas = data.parcelas || [];
+  // Si la parcela ya tiene su límite en el mapa, una foto cae dentro o no cae: ya no se adivina por cercanía.
+  const parcelas = useMemo(() => conPoligonos(data.parcelas || [], limitesDe(data.eventos || [])), [data.parcelas, data.eventos]);
   // Cada renglón de `vuelos` guarda las fotos de un vuelo. Se aplanan porque
   // dron.js razona sobre fotos, no sobre renglones.
   const fotos = (data.vuelos || []).flatMap(v => (v.fotos || []).map(f => ({ ...f, vueloId: v.id })));
@@ -2937,7 +2991,7 @@ function RecorridoDron({ data, add, upd, session, onClose }) {
     setNuevas(ns => ns.map(x => (x.id === f.id ? { ...x, parcelaIdForzada: parcelaId } : x)));
     if (par && (par.lat == null || par.lng == null) && f.lat != null && f.lng != null) {
       if (confirm(`${par.nombre} no tiene coordenadas guardadas.\n\n¿Le pongo las de esta foto (${f.lat.toFixed(5)}, ${f.lng.toFixed(5)})?\n\nAsí las próximas fotos de esa parcela se ubican solas.`)) {
-        upd("parcelas", { ...par, lat: f.lat, lng: f.lng, coordenadasDe: "foto de dron", coordenadasEl: today() });
+        { const { poligono: _calculado, ...sinPoligono } = par; upd("parcelas", { ...sinPoligono, lat: f.lat, lng: f.lng, coordenadasDe: "foto de dron", coordenadasEl: today() }); }
       }
     }
   };
@@ -7261,6 +7315,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "ciclos" && <GestionCiclos data={data} add={add} upd={upd} del={del} onClose={() => setPage("home")} />}
               {page === "calendario" && <CalendarioCultivos data={data} add={add} upd={upd} del={del} session={session} onClose={() => setPage("home")} />}
               {page === "panel-parcelas" && <PanelParcelas data={data} add={add} del={del} session={session} onClose={() => setPage("home")} onNav={setPage} />}
+              {page === "mapa" && <MapaAgricola data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} onNav={setPage} />}
               {page === "asistencia" && <PaseLista data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "resumen" && <ResumenSemanal data={data} onClose={() => setPage("home")} />}
               {page === "respaldo" && <RespaldoDatos data={data} setData={setData} onClose={() => setPage("home")} />}
@@ -7325,6 +7380,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "fito" && <HojaDeFito data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "dron" && <RecorridoDron data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
+              {page === "mapa" && <MapaAgricola data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} onNav={setPage} />}
               {page === "eldia" && <ElDia data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "registrar-actividad" && <RegistroActividadAdmin data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "registro-masivo" && <RegistroMasivo data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
@@ -7360,6 +7416,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "home" && <AgronomoHome data={data} session={session} onNav={setPage} onLogout={cerrarSesion} online={online} />}
               {page === "aplicaciones" && <GestionAplicaciones data={data} add={add} upd={upd} del={del} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "panel-parcelas" && <PanelParcelas data={data} add={add} del={del} session={session} onClose={() => setPage("home")} />}
+              {page === "mapa" && <MapaAgricola data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} onNav={setPage} />}
               {page === "indicaciones" && <AgronomoIndicaciones data={data} add={add} upd={upd} del={del} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "compras-insumos" && <AgronomoCompras data={data} add={add} upd={upd} del={del} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "reporte" && <TrabReporte data={data} add={add} session={session} onLogout={cerrarSesion} />}
@@ -7375,6 +7432,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "panel-financiero" && <PanelFinanciero data={data} onClose={() => setPage("home")} />}
               {page === "reportes" && <AdminReportes data={data} soloLectura={true} session={session} />}
               {page === "panel-parcelas" && <PanelParcelas data={data} add={add} del={del} session={session} onClose={() => setPage("home")} />}
+              {page === "mapa" && <MapaAgricola data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} onNav={setPage} />}
               {page === "resumen" && <ResumenSemanal data={data} onClose={() => setPage("home")} />}
               {page === "operacion" && <PanelOperacion data={data} onClose={() => setPage("home")} />}
             </>}

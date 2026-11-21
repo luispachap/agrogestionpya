@@ -301,6 +301,14 @@ Todo junto: `sh pruebas/todo.sh`.
 1. Vercel: quitar `app.agroselectos.com` del proyecto viejo `vitejs-vite-3ymxjehp` (Settings → Domains → Remove) para poder darlo de alta como dominio propio de `agrogestion-operacion`. Mientras tanto el dominio se apunta a mano a cada publicación.
 2. Supabase → Authentication → URL Configuration: poner `https://app.agroselectos.com` como Site URL y dejar `https://agrogestion-operacion.vercel.app` en Redirect URLs, para que el correo de confirmación regrese al dominio definitivo.
 
+**Mapa del rancho, etapa 1 (21 nov, mañana):** pantalla «Mapa del rancho» con imagen de satélite, límites reales
+de parcelas y ranchos (trazados, caminados con el teléfono o importados de KML/GeoJSON), superficie medida, color
+por cultivo del ciclo vigente y ficha de la parcela con lo que el sistema ya sabe. El dron ya usa esos límites.
+Probado con pruebas de cálculo y en navegador con un rancho INVENTADO. Investigado y escrito en `docs/MAPA.md`:
+proveedores y costos del fondo, Sentinel-2 gratis y directo desde el navegador (comprobado que el catálogo
+público contesta y deja leer por pedazos), y qué se puede y qué no con drones. **Sin validar:** trazar una
+parcela real en campo. **Sin hacer:** satélite por fecha (etapa 2), ortomosaicos (etapa 3), KMZ y shapefile.
+
 **Rumbo (Luis, 21 nov, 5 am):** el análisis del Excel de 2024 queda CERRADO. No es el modelo de AgroGestión: es
 un documento histórico más. Lo que sigue es el rancho de hoy; la importación histórica es una capacidad adicional.
 
