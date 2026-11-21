@@ -513,6 +513,13 @@ Usuarios reales de la app:
   cambios de gente y NO se abre por consulta excepcional. No contesta preguntas sobre los datos: sólo prepara registros.
   `traeOtroAsunto` (en `relacionar`): una frase con su propio asunto no se pega como respuesta a la pregunta de otra cosa.
   Prueba: `pruebas/dicho_navegador.py` (30) recorre todo lo que hacía «Dile a la app» en su lugar nuevo.
+- **IA: HÍBRIDO Y CON TOPE (Luis, 21 nov; `docs/IA-COSTOS.md`).** Ningún mensaje llama a un modelo: entender, proponer,
+  contestar y la memoria son reglas propias. **Una foto en un mensaje NO se lee sola** (`leerPapel({ sinIA: true })` al
+  mandar; la lectura pagada es el botón `leerFotoDe`). `leer-papel` usa Haiku (`MODELOS`; `superior` sólo si lo pide un
+  administrador) y pasa por el tope del MES (hoja 50: `reservar_ia_mes` aparta, `cerrar_ia` cierra, aviso al 70 %,
+  bloqueo al llegar; `limites.ia_mes_tope_microusd`). Cada llamada queda en `uso_ia` con cuenta, modelo, tokens, costo,
+  `operacion` y `origen`. `estado_de_ia()` + `<AvisoGastoIA>`. **Toda función nueva que llame a un modelo pasa por
+  `reservar_ia_mes` y dice su operación; nunca se llama a un modelo al guardar o al mandar algo.**
 - **La conversación continúa** (`aclarar`, `pendienteDe`, `esRespuesta` en `operaciones.js`): lo que falta se
   contesta en corto y se entiende DENTRO de la propuesta pendiente («20 pesos el kilo» × lo que se dijo que se
   compró; sin cantidad se pregunta; «tres kilos» no son tres pesos). La frase original no cambia; cada aclaración

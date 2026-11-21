@@ -30,7 +30,8 @@ def manda(pg, texto):
 with sync_playwright() as p:
     b = p.chromium.launch(args=["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"])
     ctx = b.new_context(**p.devices["Pixel 7"], timezone_id="America/Mexico_City", permissions=["microphone"])
-    ctx.route("**/*", lambda r: r.continue_() if "localhost" in r.request.url else r.abort())
+    pedidos = []
+    ctx.route("**/*", lambda r: (pedidos.append(r.request.url), r.continue_() if "localhost" in r.request.url else r.abort())[1])
     pg = ctx.new_page(); errs = []; pg.on("pageerror", lambda e: errs.append(str(e) + " @ " + (e.stack or "")[:300])); pg.on("dialog", lambda x: x.accept("no aplica"))
     g["sembrar"](pg); g["entrar"](pg, "Encargado", "5501"); pg.wait_for_timeout(400)
     pg.evaluate("p => window.__agroIr(p)", "chat"); pg.wait_for_timeout(500)
@@ -86,6 +87,7 @@ with sync_playwright() as p:
     caso("la foto escogida se ve antes de mandarla", pg.locator(".msj-prev img").count() == 1)
     pg.get_by_role("button", name="Mandar").click(); pg.wait_for_timeout(2500)
     caso("la foto queda dentro de la conversación", pg.locator(".msj-burbuja").last.locator("img.msj-img").count() == 1)
+    caso("mandar una foto NO llama a ninguna lectura con IA: sólo ofrece leerla", not any("leer-papel" in u or "anthropic" in u for u in pedidos) and pg.locator(".msj-burbuja").last.get_by_role("button", name="Leer este papel con IA (lectura pagada)").count() == 1, [u for u in pedidos if "functions" in u])
     pg.locator("img.msj-img").last.click(); pg.wait_for_timeout(300); foto(pg, "7-foto")
     caso("al tocarla se abre en grande, y se cierra", pg.locator(".msj-visor img").count() == 1)
     pg.get_by_role("button", name="Cerrar la foto").click(); pg.wait_for_timeout(200)

@@ -30,7 +30,7 @@ import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarra
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
 import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo, caminoDeEntrada, quienEntraConPin, entrarConCredencial, puertaDeAsistencia } from "./acceso.js";
-import { consultasDeConversacion, consultarConversacion, verEvidencia, directorioDeCuentas, migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde, horaDelServidor, cuandoSelle, misPermisos, permisosDeTodos, cambiarPermiso } from "./dataApi";
+import { estadoDeIA, consultasDeConversacion, consultarConversacion, verEvidencia, directorioDeCuentas, migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde, horaDelServidor, cuandoSelle, misPermisos, permisosDeTodos, cambiarPermiso } from "./dataApi";
 import { desfaseDe, selloDeReloj, estadoDelReloj } from "./reloj.js";
 // Pagos al personal: ausencias, lo que corresponde, lo entregado, lo pendiente y los recibos.
 import { registrarAusencia, justificarFalta, ausenciasDe, semanaDe, leToca, DIAS_DE_SIEMPRE, cuentasDeCuadrillas, registrarPago, pagosA, saldoDe, emitirRecibo, recibosDe, reciboAlDia,
@@ -3722,10 +3722,11 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
       let adjunto = null;
       if (foto) {
         adjunto = { dataUrl: foto.dataUrl, nombre: foto.nombre };
-        // De gratis a caro, como siempre: se lee el papel una sola vez, aquí.
+        // Una foto en un mensaje NO llama a la IA por su cuenta (Luis, 21 nov): aquí sólo corre lo gratis (el QR de
+        // una factura). La lectura pagada se pide con el botón del mensaje (`leerFotoDe`).
         try {
-          const lect = await leerPapel({ imagenDataUrl: foto.dataUrl, patrones: data.patrones_lectura || [] });
-          adjunto.lectura = lect;
+          const lect = await leerPapel({ imagenDataUrl: foto.dataUrl, patrones: data.patrones_lectura || [], sinIA: true });
+          if (lect?.ok) adjunto.lectura = lect;
           // Si la foto es la hoja de Fito, se le pasan los renglones para que
           // chat.js la valide con la multiplicación. Si no lo es, no se fuerza.
           const t = String(lect?.transcripcion || "");
@@ -3786,6 +3787,27 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
 
       setTexto(""); setFoto(null); setAudio(null); setDoc(null);
     } finally { setMandando(false); }
+  };
+
+  /* ── Leer la foto de un mensaje, cuando alguien lo pide ── */
+  // Es la única lectura pagada de Mensajes. Pasa por el tope del mes (hoja 50) y queda anotada con quién la pidió,
+  // de qué mensaje salió, con qué modelo y cuánto costó. Lo leído sólo PROPONE: sigue faltando la confirmación.
+  const [leyendo, setLeyendo] = useState(null);
+  const [lectDice, setLectDice] = useState(null);
+  const leerFotoDe = async (m, nivel = "economico") => {
+    setLeyendo(m.id); setLectDice(null);
+    try {
+      const contenido = await contenidoDeArchivo(m.foto.dataUrl);
+      if (!contenido) { setLectDice({ id: m.id, dice: "Esta foto todavía no se ha bajado a este aparato." }); return; }
+      const lect = await leerPapel({ imagenDataUrl: contenido, patrones: data.patrones_lectura || [], nivel, operacion: "foto_en_mensaje", origen: m.id });
+      if (!lect.ok) { setLectDice({ id: m.id, dice: lect.dice }); return; }
+      const t = String(lect.transcripcion || ""), fotoLeida = { ...m.foto, lectura: lect, ...(/ferti\s?l?r?riego/i.test(t) ? { renglones: t.split(/\r?\n/) } : {}) };
+      const e = clasificarMensaje({ mensaje: { id: m.id, de: m.de, cuando: m.cuando, texto: "", foto: fotoLeida }, personas: gente, parcelas: data.parcelas, insumos: data.inventario, hoy: today() });
+      const nuevas = (e.propuestas || []).filter(pr => !(m.propuestas || []).some(x => x.id === pr.id)).map(pr => ({ ...pr, destino: aQuienLeToca({ propuesta: pr, personas: gente }) }));
+      const actualizado = { ...m, foto: fotoLeida, propuestas: [...(m.propuestas || []), ...nuevas], porIdentificar: nuevas.length === 0 && !(m.propuestas || []).length, platica: false };
+      upd("chat", { ...actualizado, estado: estadoParaLaTabla(actualizado) });
+      setLectDice({ id: m.id, dice: `${nuevas.length ? "Leído: quedó una propuesta para revisar." : "Se leyó, pero no se reconoció qué registrar."}${lect.presupuesto?.aviso ? ` El gasto en IA de este mes ya va en ${lect.presupuesto.pct} % de su límite.` : ""}` });
+    } finally { setLeyendo(null); }
   };
 
   /* ── Firmar una propuesta ── */
@@ -4032,6 +4054,11 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
                           {!mio && !junto && (esGrupo || m.delAsistente) && <div className="msj-quien">{quien}</div>}
                           {m.aclaraA && <div className="msj-cita">{m.aclaraA.dijo ? `${m.aclaraA.dijo}: ` : ""}«{m.aclaraA.frase}»</div>}
                           {m.foto?.dataUrl && <Foto src={m.foto.dataUrl} alt="Foto del mensaje" className="msj-img" onClick={() => setVerFoto(m.foto.dataUrl)} />}
+                          {m.foto?.dataUrl && !m.foto.lectura && !m.foto.renglones && puedoEscribir && (
+                            <button className="msj-prop-chip" disabled={leyendo === m.id} title="Usa una lectura pagada del mes. Sólo propone: nada se guarda sin confirmar." onClick={() => leerFotoDe(m)}>
+                              <Ic e="✨" /><span>{leyendo === m.id ? "Leyendo…" : "Leer este papel con IA (lectura pagada)"}</span>
+                            </button>)}
+                          {lectDice?.id === m.id && <div className="msj-nota chat-lectura">{lectDice.dice}</div>}
                           {m.documento && <button className="msj-doc" onClick={() => abrirDoc(m.documento)}><Ic e="📄" style={{ fontSize: 22 }} /><b>{m.documento.nombre || "Documento"}</b><span className="text-xs text-muted">Abrir</span></button>}
                           {m.audio?.dataUrl && <audio className="msj-audio" controls preload="metadata" src={m.audio.dataUrl} />}
                           {m.texto && <div className="msj-texto">{m.texto}</div>}
@@ -7779,6 +7806,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
           {session && page === "home" && <AvisoEntregas data={data} session={session} onNav={setPage} />}
           {session && page === "home" && <AvisoCompras data={data} session={session} onNav={setPage} />}
           {session && page === "home" && <AvisoSalarioMinimo data={data} session={session} onNav={setPage} />}
+          {session && page === "home" && <AvisoGastoIA session={session} />}
           <MenuCtx.Provider value={ctxMenu}>
           <ErrorBoundary key={`${session.role}-${page}`} onReset={() => { setSession(null); setPage("home"); setNavParam(null); }}>
             {isAdmin && <>
@@ -21838,6 +21866,23 @@ function CierreSemana({ data, add, session, ini, fin, renglones }) {
 // Prestaciones: saldo inicial, lo generado después del corte, ajustes, pagos y lo pendiente, por persona.
 // Al abrir la app: falta el salario mínimo del año en curso, o ya es diciembre y falta el del que viene.
 // Sólo le sale a quien puede capturarlo. No propone importe.
+// El gasto en IA del mes: avisa a quien administra desde el 70 % del límite, y dice cuando ya quedó bloqueado.
+// Si no se pudo saber, no dice nada (no se inventa un «todo bien»).
+function AvisoGastoIA({ session }) {
+  const [e, setE] = useState(null);
+  const administra = ["admin", "finanzas"].includes(session?.role) && !!session?.cuenta;
+  useEffect(() => { if (!administra) return; let vivo = true; estadoDeIA().then(x => { if (vivo) setE(x); }); return () => { vivo = false; }; }, [administra]);
+  if (!administra || !e || e.estado === "bien") return null;
+  const usd = (m) => `$${(Number(m || 0) / 1e6).toFixed(2)} USD`;
+  return (
+    <div className="section-pad" style={{ paddingBottom: 0 }}>
+      <div className="card aviso-ia" style={{ borderColor: e.estado === "bloqueado" ? "var(--red)" : "var(--gold)" }}>
+        <div className="text-sm"><b>{e.estado === "bloqueado" ? "Se llegó al límite de gasto en IA de este mes" : `El gasto en IA de este mes va en ${e.pct} % de su límite`}</b></div>
+        <div className="text-xs text-muted" style={{ marginTop: 4 }}>Van {usd(e.gastado_microusd)} de {usd(e.tope_microusd)} en {e.llamadas} lectura(s). {e.estado === "bloqueado" ? "Ya no se hacen lecturas pagadas hasta el mes que entra, o hasta que un superadministrador suba el límite." : "Al llegar al límite las lecturas pagadas se detienen solas."} Los mensajes normales y el asistente no gastan.</div>
+      </div>
+    </div>);
+}
+
 function AvisoSalarioMinimo({ data, session, onNav }) {
   if (!seOfrece(session, "cambiar_reglas")) return null;
   const a = alertaDeSalarioMinimo(today(), ajusteVigente(data.eventos, "zona_salario_minimo").valor, data.eventos);
