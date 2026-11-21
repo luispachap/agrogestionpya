@@ -108,8 +108,8 @@ test("se_sabe_cuanto_costo_cada_documento_y_cuantos_leyo_bien_la_ia", () => {
 });
 
 test("el_costo_maximo_se_dice_antes_de_gastar_y_el_presupuesto_se_dice_en_palabras", () => {
-  assert.equal(costoMaximo("economico", { imagenes: 1 }), 3450); assert.equal(costoMaximo("superior", { imagenes: 1 }), 69000, "el superior aparta veinte veces más");
-  assert.equal(enDolares(3450), "$0.0035"); assert.equal(enDolares(4000000), "$4.00"); assert.equal(enDolares(0), "$0");
+  assert.equal(costoMaximo("economico", { imagenes: 1 }), 5450); assert.equal(costoMaximo("superior", { imagenes: 1 }), 109000, "el superior aparta veinte veces más");
+  assert.equal(enDolares(5450), "$0.0055"); assert.equal(enDolares(4000000), "$4.00"); assert.equal(enDolares(0), "$0");
   const p = estadoDelPresupuesto({ tope: 4000000, gastado: 1250000, apartado: 50000, lecturas: 310 });
   assert.equal(p.queda, 2700000); assert.equal(p.agotado, false); assert.match(p.dice, /Autorizado \$4\.00 · gastado \$1\.25 en 310 lectura\(s\) · queda \$2\.70/);
   assert.equal(estadoDelPresupuesto({ tope: 4000000, gastado: 4000000 }).agotado, true);

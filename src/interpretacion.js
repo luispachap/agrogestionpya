@@ -28,7 +28,7 @@ import { vigentes } from "./eventos.js";
 export const NIVELES = { economico: "Económico", superior: "Superior (más caro, para lo difícil)" };
 // Lo MÁS que puede costar una lectura, en millonésimas de dólar: lo mismo que aparta el servidor. Sirve para decirlo
 // ANTES de gastar. (Precios por millón de unidades de texto, de la lista oficial del 20 nov 2026.)
-export const PRECIOS = { economico: { modelo: "claude-haiku-5-5", entrada: 0.10, salida: 0.50, maxSalida: 4000 }, superior: { modelo: "claude-sonnet-5-5", entrada: 2, salida: 10, maxSalida: 4000 } };
+export const PRECIOS = { economico: { modelo: "claude-haiku-5-5", entrada: 0.10, salida: 0.50, maxSalida: 8000 }, superior: { modelo: "claude-sonnet-5-5", entrada: 2, salida: 10, maxSalida: 8000 } };
 export const costoMaximo = (nivel, { imagenes = 0, caracteres = 0 } = {}) => { const p = PRECIOS[nivel] || PRECIOS.economico; return Math.ceil((2500 + imagenes * 12000 + Math.ceil(caracteres / 2)) * p.entrada + p.maxSalida * p.salida); };
 export const enDolares = (microusd) => { const d = (Number(microusd) || 0) / 1e6; return d === 0 ? "$0" : d < 0.01 ? `$${(Math.ceil(d * 1e4 - 1e-9) / 1e4).toFixed(4)}` : `$${d.toFixed(2)}`; };
 

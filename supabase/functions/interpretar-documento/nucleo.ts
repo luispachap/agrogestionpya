@@ -11,8 +11,8 @@ const FUNCION = "interpretar-documento";
 // Precios en dólares por millón de unidades de texto (= millonésimas de dólar por unidad).
 // Leídos de la lista oficial de precios el 20 nov 2026. Si cambian, se cambian aquí.
 const MODELOS: Record<string, { modelo: string; entrada: number; salida: number; maxSalida: number }> = {
-  economico: { modelo: "claude-haiku-5-5", entrada: 0.10, salida: 0.50, maxSalida: 4000 },
-  superior: { modelo: "claude-sonnet-5-5", entrada: 2, salida: 10, maxSalida: 4000 },
+  economico: { modelo: "claude-haiku-5-5", entrada: 0.10, salida: 0.50, maxSalida: 8000 },
+  superior: { modelo: "claude-sonnet-5-5", entrada: 2, salida: 10, maxSalida: 8000 },
 };
 // Para apartar: lo MÁS que puede pesar la petición. Generoso a propósito: apartar de más no cuesta, quedarse corto sí.
 const UNIDADES_POR_IMAGEN = 12000, UNIDADES_FIJAS = 2500, MAX_IMAGENES = 4, MAX_TEXTO = 24000, MAX_BASE64_POR_IMAGEN = 1_600_000;
@@ -173,6 +173,11 @@ export async function interpretar(c: Pedido, cuenta: string | null): Promise<Sal
     const bloque = (d.content || []).find((b: { type: string }) => b.type === "text");
     let lectura: unknown = null;
     try { lectura = sacarJson(bloque?.text ?? ""); } catch { /* se cobra igual: la API sí contestó */ }
+    if (!lectura && d.stop_reason === "max_tokens") {
+      // Pasó de verdad con una libreta de 27 renglones (20 nov 2026): la respuesta no cupo y quedó a medias.
+      await rpc("cerrar_ia", { p_id: reserva, p_entrada: entrada, p_salida: salida, p_microusd: micro, p_resultado: null, p_fallo: false }).catch(() => {});
+      return responder({ error: "muy_largo", dice: "El documento trae más renglones de los que caben en una lectura, y quedó a medias. Tómale foto por partes (media hoja cada una) y súbelas como documentos aparte. El nivel superior no lo arregla.", uso: { modelo: m.modelo, nivel, entrada, salida, microusd: micro } }, 502);
+    }
     if (!lectura || d.stop_reason === "refusal") {
       // La API contestó (y cobró), pero no sirvió: se anota el costo real y se dice.
       await rpc("cerrar_ia", { p_id: reserva, p_entrada: entrada, p_salida: salida, p_microusd: micro, p_resultado: null, p_fallo: false }).catch(() => {});

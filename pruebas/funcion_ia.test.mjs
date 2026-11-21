@@ -50,8 +50,8 @@ test("se_aparta_lo_maximo_antes_se_usa_el_modelo_barato_y_se_anota_lo_que_costo_
   const m = await montar(), r = await m.pedir(PEDIDO);
   assert.equal(r.estado, 200); assert.equal(r.datos.ok, true); assert.equal(r.datos.lectura.total, "348.00");
   const [reservar, cerrar] = m.log.rpc;
-  assert.equal(reservar[0], "reservar"); assert.equal(reservar[1].p_modelo, "claude-haiku-5-5"); assert.equal(reservar[1].p_microusd_max, 3450, "(2,500 + 12,000) × 0.10 + 4,000 × 0.50"); assert.equal(reservar[1].p_cuenta, "cuenta-1");
-  assert.equal(m.log.anthropic[0].cuerpo.model, "claude-haiku-5-5"); assert.equal(m.log.anthropic[0].cuerpo.max_tokens, 4000);
+  assert.equal(reservar[0], "reservar"); assert.equal(reservar[1].p_modelo, "claude-haiku-5-5"); assert.equal(reservar[1].p_microusd_max, 5450, "(2,500 + 12,000) × 0.10 + 8,000 × 0.50"); assert.equal(reservar[1].p_cuenta, "cuenta-1");
+  assert.equal(m.log.anthropic[0].cuerpo.model, "claude-haiku-5-5"); assert.equal(m.log.anthropic[0].cuerpo.max_tokens, 8000);
   assert.equal(cerrar[0], "cerrar"); assert.equal(cerrar[1].p_microusd, 470, "2,600 × 0.10 + 420 × 0.50"); assert.equal(cerrar[1].p_fallo, false);
   assert.deepEqual(r.datos.uso, { modelo: "claude-haiku-5-5", modeloQueContesto: null, formato: "estructurado", nivel: "economico", entrada: 2600, salida: 420, microusd: 470 });
   assert.ok(!JSON.stringify(r.datos).includes(LLAVE), "la llave nunca viaja de regreso");
@@ -60,7 +60,7 @@ test("se_aparta_lo_maximo_antes_se_usa_el_modelo_barato_y_se_anota_lo_que_costo_
 
 test("el_nivel_superior_solo_si_se_pide_y_aparta_veinte_veces_mas", async () => {
   const m = await montar(), r = await m.pedir({ ...PEDIDO, nivel: "superior" });
-  assert.equal(m.log.anthropic[0].cuerpo.model, "claude-sonnet-5-5"); assert.equal(m.log.rpc[0][1].p_microusd_max, 69000); assert.equal(r.datos.uso.microusd, 2600 * 2 + 420 * 10);
+  assert.equal(m.log.anthropic[0].cuerpo.model, "claude-sonnet-5-5"); assert.equal(m.log.rpc[0][1].p_microusd_max, 109000); assert.equal(r.datos.uso.microusd, 2600 * 2 + 420 * 10);
   const otro = await montar(); await otro.pedir({ ...PEDIDO, nivel: "cualquier-cosa" });
   assert.equal(otro.log.anthropic[0].cuerpo.model, "claude-haiku-5-5", "un nivel desconocido no se vuelve el caro");
 });
@@ -94,6 +94,14 @@ test("una_llave_sin_espacio_de_trabajo_se_dice_claro_no_cuesta_y_con_el_dato_pue
   m = await montar({ espacio: "wrkspc_DE_MENTIRA" }); r = await m.pedir(PEDIDO);
   assert.equal(r.estado, 200); assert.equal(m.log.anthropic[0].cab["anthropic-workspace-id"], "wrkspc_DE_MENTIRA");
   assert.ok(!JSON.stringify(r.datos).includes("wrkspc_"), "el identificador no sale del servidor");
+});
+
+// Pasó de verdad con la primera libreta real (27 renglones): la respuesta llegó al máximo y el JSON quedó a medias.
+test("una_lectura_que_no_cupo_se_cobra_se_dice_claro_y_no_se_ofrece_el_nivel_superior", async () => {
+  const m = await montar({ api: () => new Response(JSON.stringify({ content: [{ type: "text", text: '{"clase":"raya","renglones":[{"nombre":"Uno"' }], usage: { input_tokens: 6483, output_tokens: 8000 }, stop_reason: "max_tokens" }), { status: 200 }) });
+  const r = await m.pedir(PEDIDO);
+  assert.equal(r.estado, 502); assert.equal(r.datos.error, "muy_largo"); assert.match(r.datos.dice, /por partes/); assert.equal(r.datos.uso.microusd, Math.ceil(6483 * 0.10 + 8000 * 0.50));
+  const cerrar = m.log.rpc.find(x => x[0] === "cerrar"); assert.equal(cerrar[1].p_fallo, false, "la API sí cobró: se anota"); assert.equal(cerrar[1].p_resultado, null, "y lo que quedó a medias no se guarda como lectura");
 });
 
 test("si_el_servidor_no_acepta_el_formato_estructurado_se_pide_con_palabras_una_sola_vez", async () => {

@@ -65,7 +65,7 @@ with sync_playwright() as p:
     # ── Un ticket, uno por uno ──
     tab(pg, "Bandeja"); pg.get_by_label("Abrir ticket.jpg").click(); pg.wait_for_timeout(400)
     m = pg.locator(".modal-sheet").inner_text()
-    caso("antes de gastar se dice por qué hace falta y cuánto puede costar", "Es una foto" in m and "Leer con IA (hasta $0.0035)" in m and "queda $4.00" in m, plano(m)[:300])
+    caso("antes de gastar se dice por qué hace falta y cuánto puede costar", "Es una foto" in m and "Leer con IA (hasta $0.0055)" in m and "queda $4.00" in m, plano(m)[:300])
     pg.get_by_role("button", name="Leer con IA (hasta").click(); pg.wait_for_timeout(1500)
     m = pg.locator(".modal-sheet").inner_text(); q = ped()
     caso("la foto se achica antes de mandarse (más grande sólo cuesta más)", len(q) == 1 and q[0]["imagenes"] == 1 and q[0]["nivel"] == "economico" and q[0]["bytes"] < 400000, q[0] if q else "")
@@ -85,7 +85,7 @@ with sync_playwright() as p:
     tab(pg, "Todos"); pg.get_by_label("Abrir borroso.jpg").click(); pg.wait_for_timeout(400)
     pg.get_by_role("button", name="Leer con IA (hasta").click(); pg.wait_for_timeout(1500)
     m = pg.locator(".modal-sheet").inner_text()
-    caso("si la IA no leyó el total no se propone ningún gasto, y se ofrece el nivel superior diciendo cuánto más cuesta", "No se leyó el total" in m and "Incorporar lo marcado" not in m and "Intentar con el nivel superior (hasta $0.07" in m and len(egresos(pg)) == 61, plano(m)[:500])
+    caso("si la IA no leyó el total no se propone ningún gasto, y se ofrece el nivel superior diciendo cuánto más cuesta", "No se leyó el total" in m and "Incorporar lo marcado" not in m and "Intentar con el nivel superior (hasta $0.11" in m and len(egresos(pg)) == 61, plano(m)[:500])
     pg.get_by_role("button", name="Intentar con el nivel superior").click(); pg.wait_for_timeout(1500)
     m = pg.locator(".modal-sheet").inner_text()
     caso("el nivel superior sólo se usa cuando una persona lo pide, y su costo se suma al del documento", ped()[-1]["nivel"] == "superior" and "$99" in m and "este documento lleva $0.0095" in m, plano(m)[:300])
