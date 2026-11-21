@@ -134,9 +134,67 @@ export function ejecutar(propuesta, { mensaje, quien, cuando, fecha, parcelas = 
   }
   if (p.tipo === "gasto") return una("egresos", { ...comun, concepto: p.frase.slice(0, 90), monto: d.monto, categoria: "insumos", proveedor: d.proveedor || "" });
   if (p.tipo === "actividad") return { ok: true, dice: `Trabajo de ${d.personas.length} persona(s): quedó en Actividades.`, escrituras: d.personas.map(per => ({ coleccion: "actividades", registro: { ...comun, parcelaId: d.parcelaId, tipo: "Trabajo de campo", horas: d.horas, trabajadorId: per.id, nota: p.frase } })) };
-  if (p.tipo === "necesidad") return una("solicitudes_compra", { ...comun, concepto: p.frase, estado: "pendiente", paraQuien: d.paraQuien });
-  if (p.tipo === "incidencia") return una("incidencias", { ...comun, descripcion: p.frase, estado: "pendiente" });
+  // Con la MISMA forma que usan sus pantallas (si no, la pantalla no lo enseña o truena al leerlo).
+  // De lo que hace falta se guarda lo dicho en las notas; los productos no se inventan.
+  if (p.tipo === "necesidad") return una("solicitudes_compra", { ...comun, notas: p.frase, items: [], estado: "pendiente", paraQuien: d.paraQuien, creadaPor: { id: mensaje.de?.id || quien.id, nombre: mensaje.de?.nombre || quien.nombre || "", rol: mensaje.de?.rol || quien.rol } });
+  if (p.tipo === "incidencia") return una("incidencias", { ...comun, desc: p.frase, tipo: "otro", prioridad: "media", trabajadorId: mensaje.de?.id || quien.id, estado: "pendiente" });
   if (p.tipo === "cosecha") return una("cosechas", { ...comun, parcelaId: d.parcelaId, registros: [{ cantidad: d.cantidad.valor, unidad: d.cantidad.unidad }] });
   if (p.tipo === "nota") return una("bitacora", { ...comun, nota: p.frase, naturaleza: p.naturaleza, ...(p.tipoEntendido !== "nota" ? { sonabaA: p.tipoEntendido } : {}), ...(d.parcelaId ? { parcelaId: d.parcelaId } : {}) });
   return { ok: false, dice: "Eso todavía no se registra por aquí." };
+}
+
+/* ── El chat de adentro entra por el mismo camino ──
+   Antes el chat guardaba por su cuenta: sin revisar quién confirmaba y sin dejar dicho de qué
+   mensaje salió cada registro. Aquí se decide QUÉ se escribe al firmar una propuesta del chat.
+   · Lo dicho o escrito pasa por `preparar` y `ejecutar`, igual que «Dile a la app».
+   · La hoja de fertirriego y el papel fotografiado conservan lo que ya se leyó de ellos, pero
+     con el mismo permiso y el mismo rastro.
+   No escribe nada: devuelve las escrituras. Si no se puede, dice por qué y NO se debe firmar. */
+export function confirmarDelChat({ mensaje, propuesta, quien, hoy, cuando, parcelas = [] }) {
+  const pr = propuesta || {};
+  if (!mensaje?.id) return { ok: false, dice: "Falta el mensaje de donde salió esto." };
+  if (!quien?.id || !quien?.rol) return { ok: false, dice: "Falta quién lo está confirmando." };
+  if (pr.confirmacion) return { ok: false, dice: "Esto ya se firmó: no se registra dos veces." };
+  const de = mensaje.de?.id ? mensaje.de : { id: mensaje.deQuien || "sin-nombre", nombre: mensaje.deQuien || "", rol: null };
+  const msj = { id: mensaje.id, canal: "chat", de, cuando: mensaje.cuando };
+  const evidencia = { foto: mensaje.foto?.dataUrl || null, audio: mensaje.audio?.dataUrl || null };
+  if (pr.parteDe != null) return { ok: true, escrituras: [], camino: "comun", dice: "Va junto con el avance del que es parte: no se registra aparte." };
+
+  if (typeof pr.i === "number") {
+    const dichas = (mensaje.propuestas || []).filter(x => typeof x.i === "number").map(x => (x.id === pr.id ? pr : x));
+    const plan = preparar({ mensaje: msj, entendido: { propuestas: dichas } });
+    const p = plan.propuestas.find(x => x.i === pr.i);
+    if (!p) return { ok: false, dice: "No se encontró esa parte del mensaje." };
+    // Lo que la persona corrigió en el chat manda sobre lo que se entendió.
+    if (pr.parcelaId && pr.parcelaId !== p.datos.parcelaId) {
+      p.datos.parcelaId = pr.parcelaId;
+      p.datos.parcelaNombre = parcelas.find(x => x.id === pr.parcelaId)?.nombre || "";
+    }
+    // Pasó cuando se dijo, no cuando alguien lo firmó.
+    const r = ejecutar(p, { mensaje: msj, quien, cuando: mensaje.cuando || cuando, fecha: hoy, parcelas, evidencia });
+    return { ...r, camino: "comun", tipo: p.tipo, aviso: p.aviso || "" };
+  }
+
+  // La hoja de fertirriego y el papel leído.
+  const tipo = OPERACIONES[pr.tipo] ? pr.tipo : "nota", op = OPERACIONES[tipo];
+  if (!op.confirma.includes(quien.rol)) return { ok: false, sinPermiso: true, dice: `Esto lo confirma ${op.confirma.map(r => NOMBRE_DE_ROL[r] || r).join(" o ")}: ${op.porque}.` };
+  if (pr.confiable === false) return { ok: false, dice: "La hoja no cuadra: no entra hasta aclararla." };
+  if ((pr.falta || []).length) return { ok: false, falta: pr.falta, dice: `Falta: ${pr.falta.join(", ")}.` };
+  const frase = pr.frase || pr.resumen || "";
+  const origen = { mensaje: msj.id, propuesta: pr.id, canal: "chat", frase, dijo: de.nombre || "", confirmo: quien.nombre || "", de: pr.deQue || "foto" };
+  const comun = { fecha: pr.fecha || hoy, origen, origenChat: { mensajeId: msj.id, de: de.nombre || "", cuando: msj.cuando },
+    ...(evidencia.foto ? { foto: evidencia.foto } : {}), ...(evidencia.audio ? { audio: evidencia.audio } : {}),
+    registradoPor: { rol: quien.rol, id: quien.id, nombre: quien.nombre } };
+  const una = (coleccion, registro) => ({ ok: true, camino: "papel", tipo, escrituras: [{ coleccion, registro }], dice: `${op.nombre}: quedó en ${op.a}.` });
+  if (tipo === "fertirriego") {
+    if (!pr.indicacion) return { ok: false, dice: "La hoja no trae la indicación completa." };
+    const a = pr.destino?.paraQuien || null, ind = pr.indicacion;
+    return una("indicaciones", { ...comun, tipo: "fertirriego", estado: a ? "mandada" : "propuesta", parcelaId: ind.parcelaId, asignadoA: a?.id || null,
+      cultivo: ind.cultivo, parcelaNombre: ind.parcelaNombre, superficie: ind.superficie, productos: ind.productos, resumen: ind.resumen, deQuien: ind.deQuien });
+  }
+  if (tipo === "gasto") {
+    if (pr.monto == null) return { ok: false, falta: ["cuánto costó"], dice: "Falta cuánto costó: el total sale del papel o se pregunta, no se supone." };
+    return una("egresos", { ...comun, concepto: (frase || "Gasto del chat").slice(0, 90), monto: pr.monto, categoria: "insumos", proveedor: pr.proveedor || "" });
+  }
+  return una("bitacora", { ...comun, nota: frase || "(del chat)", ...(pr.tipo && pr.tipo !== "nota" ? { sonabaA: pr.tipo } : {}) });
 }

@@ -103,6 +103,7 @@ import {
 } from "./fertiriego.js";
 // El día: el clima de copiloto, el reparto de tareas y lo que se va a acabar.
 import { traerPronostico, planDelDia, alertasDelClima, riegoNecesario, describirEdad } from "./clima.js";
+import { planDelDia as planMandadoDe, loQueLeToca, quitarAsignacion, cambiarAsignacion } from "./asignaciones.js";
 import { repartirElDia, aQueSeVaCadaQuien, quienNoTieneNada, chocanLasTareas, indicacionParaElTrabajador, comoVaElDia } from "./plan.js";
 import { loQueVaAFaltar } from "./prediccion.js";
 // El recorrido del dron: fotos fechadas y ubicadas. NO es fotogrametría.
@@ -119,7 +120,7 @@ import {
 } from "./chat.js";
 // Hablarle a la app: entender lo dicho, y oírlo.
 import { entenderLoDicho } from "./voz.js";
-import { preparar as prepararOperaciones, ejecutar as ejecutarOperacion, decirPropuesta, NATURALEZAS, OPERACIONES as OPERACIONES_DICHAS } from "./operaciones.js";
+import { preparar as prepararOperaciones, ejecutar as ejecutarOperacion, confirmarDelChat, decirPropuesta, NATURALEZAS, OPERACIONES as OPERACIONES_DICHAS } from "./operaciones.js";
 import { sugerenciasDeContinuidad } from "./avances.js";
 import { comoPuedeOir, dictar, grabar } from "./dictado.js";
 import { Ic, ThemeBtn, aplicarTemaGuardado, saludoHora, fechaLarga } from "./icons.jsx";
@@ -294,6 +295,9 @@ textarea.inp{min-height:90px;resize:none;}
 .chk-aviso.salida .chk-aviso-l{color:var(--blue);}
 .chk-aviso.aviso{border-color:var(--gold);background:rgba(228,178,63,.12);}
 .chk-aviso.mal{border-color:var(--red);background:rgba(227,100,100,.12);}
+.chk-toca{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);text-align:left;}
+.chk-toca-t{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+.chk-toca-l{font-size:16px;font-weight:600;line-height:1.3;margin-top:4px;color:var(--text);}
 .chk-pin-caja{height:48px;border:1.5px solid var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px;letter-spacing:8px;margin-bottom:8px;background:var(--card2);}
 .chk-teclas{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
 .chk-teclas button{height:58px;border-radius:14px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:24px;font-weight:700;cursor:pointer;}
@@ -1042,9 +1046,9 @@ function genAlertas(data) {
     else if (i.existencia <= i.minimo * 1.5) al.push({ tipo: "gold", titulo: `Stock bajo: ${i.nombre}`, desc: `${fmtN(i.existencia)} ${i.unidad}`, sec: "inventario" });
   });
   const pend = data.incidencias.filter(i => i.estado === "pendiente");
-  if (pend.length) al.push({ tipo: "gold", titulo: `${pend.length} incidencia(s) pendiente(s)`, desc: pend[0].desc.slice(0, 60), sec: "equipo" });
+  if (pend.length) al.push({ tipo: "gold", titulo: `${pend.length} incidencia(s) pendiente(s)`, desc: String(pend[0].desc || pend[0].descripcion || "").slice(0, 60), sec: "equipo" });
   const comprasPend = (data.compras || []).filter(c => c.estado === "pendiente");
-  if (comprasPend.length) al.push({ tipo: "gold", titulo: `${comprasPend.length} compra(s) por aprobar`, desc: comprasPend[0].descripcion.slice(0, 60), sec: "contabilidad" });
+  if (comprasPend.length) al.push({ tipo: "gold", titulo: `${comprasPend.length} compra(s) por aprobar`, desc: String(comprasPend[0].descripcion || "").slice(0, 60), sec: "contabilidad" });
   const externosPend = (data.actividades || []).filter(a => a.estado === "pendiente_aprobacion");
   if (externosPend.length) al.push({ tipo: "gold", titulo: `${externosPend.length} registro(s) de externos por aprobar`, desc: "Revisa y aprueba antes de que cuenten en contabilidad", sec: "aprobacion-externos" });
   const cp = {};
@@ -2670,6 +2674,25 @@ function ElDia({ data, add, upd, session, onClose }) {
     alert(`Le llegó a ${ind.mensajes.map(m => m.para).join(", ")}.`);
   };
 
+  /* ── El plan mandado: se puede ver el de hoy o el de mañana, y cambiarlo ── */
+  const [diaPlan, setDiaPlan] = useState("hoy");
+  const [tocando, setTocando] = useState(null);      // { id, modo: "cambiar" | "quitar", parcelaId, hora, motivo }
+  const [dicePlan, setDicePlan] = useState("");
+  const fechaPlan = diaPlan === "hoy" ? today() : sumarDias(today(), 1);
+  const planMandado = planMandadoDe(data.indicaciones || [], fechaPlan, { personas: gente, parcelas });
+  const quienCambia = { id: session.id, nombre: session.nombre, rol: session.role };
+  const aplicarCambio = () => {
+    const ind = (data.indicaciones || []).find(i => i.id === tocando.id);
+    const cuando = new Date().toISOString();
+    const r = tocando.modo === "quitar"
+      ? quitarAsignacion(ind, { quien: quienCambia, motivo: tocando.motivo, cuando })
+      : cambiarAsignacion(ind, { parcelaId: tocando.parcelaId || null, hora: tocando.hora || null, ...(tocando.asignadoA ? { asignadoA: tocando.asignadoA } : {}) }, { quien: quienCambia, motivo: tocando.motivo, cuando, id: `ind${Date.now()}${Math.floor(Math.random() * 1000)}`, parcelas });
+    if (!r.ok) { setDicePlan(r.dice); return; }
+    upd("indicaciones", r.anterior);
+    if (r.nueva) add("indicaciones", r.nueva);
+    setTocando(null); setDicePlan(r.dice);
+  };
+
   /* ── Cómo va el día (lo ya mandado) ── */
   const mandadas = (data.indicaciones || []).filter(i => i.tipo === "tarea" && i.fecha === today());
   const seguimiento = comoVaElDia({
@@ -2864,6 +2887,58 @@ function ElDia({ data, add, upd, session, onClose }) {
               )}
             </>
           )}
+
+          {/* El plan mandado, de hoy o de mañana. Se puede cambiar; lo anterior queda guardado. */}
+          <div className="card plan-mandado" style={{ padding: 12 }}>
+            <div className="flex-b">
+              <div className="card-title" style={{ marginBottom: 0 }}>Plan mandado</div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {[["hoy", "Hoy"], ["manana", "Mañana"]].map(([v, lb]) => <button key={v} className={`tab-pill${diaPlan === v ? " active" : ""}`} onClick={() => { setDiaPlan(v); setTocando(null); setDicePlan(""); }}>{lb}</button>)}
+              </div>
+            </div>
+            <div className="text-xs text-muted" style={{ margin: "6px 0" }}>
+              {planMandado.hay
+                ? `${planMandado.cuantas} tarea(s) para ${planMandado.personas} persona(s). Al checar su entrada, cada quien ve la suya.`
+                : `No se ha mandado nada para ${diaPlan === "hoy" ? "hoy" : "mañana"}. Para planear mañana, di «mañana» en el reparto.`}
+              {planMandado.cambiadas > 0 ? ` ${planMandado.cambiadas} cambio(s) guardado(s).` : ""}
+            </div>
+            <div className="text-xs text-muted" style={{ marginBottom: 6 }}>El plan no es asistencia ni trabajo hecho: no genera pagos ni costos.</div>
+            {planMandado.filas.map(f => (
+              <div key={f.personaId} style={{ padding: "6px 0", borderTop: "1px solid var(--border)" }}>
+                <div className="text-sm font-bold">{f.nombre}</div>
+                {f.tareas.map(t => (
+                  <div key={t.id} className="plan-renglon" style={{ padding: "4px 0" }}>
+                    <div className="text-xs">{t.dice}{t.donde ? ` · ${t.donde}` : ""}{t.hora ? ` · ${t.hora}` : ""}</div>
+                    {tocando?.id === t.id ? (
+                      <div style={{ marginTop: 6 }}>
+                        {tocando.modo === "cambiar" && <>
+                          <select className="inp" aria-label="Parcela" value={tocando.parcelaId} onChange={e => setTocando(x => ({ ...x, parcelaId: e.target.value }))} style={{ marginBottom: 6 }}>
+                            <option value="">Sin parcela</option>
+                            {parcelas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                          </select>
+                          <select className="inp" aria-label="Persona" value={tocando.asignadoA} onChange={e => setTocando(x => ({ ...x, asignadoA: e.target.value }))} style={{ marginBottom: 6 }}>
+                            {gente.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+                          </select>
+                          <input className="inp" type="time" aria-label="Hora" value={tocando.hora} onChange={e => setTocando(x => ({ ...x, hora: e.target.value }))} style={{ marginBottom: 6 }} />
+                        </>}
+                        <input className="inp" aria-label="Motivo del cambio" placeholder={tocando.modo === "quitar" ? "¿Por qué se quita? (obligatorio)" : "¿Por qué cambia? (opcional)"} value={tocando.motivo} onChange={e => setTocando(x => ({ ...x, motivo: e.target.value }))} style={{ marginBottom: 6 }} />
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => { setTocando(null); setDicePlan(""); }}>Dejarlo como estaba</button>
+                          <button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={aplicarCambio}>{tocando.modo === "quitar" ? "Quitar del plan" : "Guardar el cambio"}</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                        <button className="btn btn-outline btn-sm" onClick={() => { setTocando({ id: t.id, modo: "cambiar", parcelaId: t.parcelaId || "", asignadoA: f.personaId, hora: t.hora || "", motivo: "" }); setDicePlan(""); }}>Cambiar</button>
+                        <button className="btn btn-outline btn-sm" onClick={() => { setTocando({ id: t.id, modo: "quitar", motivo: "" }); setDicePlan(""); }}>Quitar</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+            {dicePlan && <div className="text-xs plan-dice" style={{ color: "var(--gold)", marginTop: 6 }}>{dicePlan}</div>}
+          </div>
 
           {/* Lo ya mandado hoy. */}
           {mandadas.length > 0 && (
@@ -3346,6 +3421,7 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
   const [oyendo, setOyendo] = useState(false);
   const [mandando, setMandando] = useState(false);
   const [tab, setTab] = useState("hilo");
+  const [noSePudo, setNoSePudo] = useState(null);
   const grabadora = useRef(null);
   const dictador = useRef(null);
   const capacidad = comoPuedeOir();
@@ -3455,51 +3531,26 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
       motivo = prompt("¿Por qué no? (queda anotado, igual que una merma)");
       if (!motivo) return;
     }
+    // Lo que se confirma entra por el camino común: se revisa el permiso de quien firma y
+    // cada registro lleva de qué mensaje salió. Si no se puede, NO se firma.
+    let hecho = null;
+    if (estado !== "rechazado") {
+      hecho = confirmarDelChat({ mensaje, propuesta, quien: { id: session.id, nombre: session.nombre, rol: session.role }, hoy: today(), cuando: new Date().toISOString(), parcelas: data.parcelas || [] });
+      if (!hecho.ok) { setNoSePudo({ id: propuesta.id, dice: hecho.dice + (hecho.falta ? " Mándalo otra vez con ese dato, o di que no y regístralo en su pantalla." : "") }); return; }
+    }
     const r = marcarConfirmacion(propuesta, {
       estado, motivo,
       quien: { id: session.id, nombre: session.nombre },
     });
     if (!r.ok) { alert(r.dice); return; }
-    const nuevas = (mensaje.propuestas || []).map(x => (x.id === propuesta.id ? { ...r.propuesta, destino: x.destino } : x));
+    const firmada = hecho ? { ...r.propuesta, quedoEn: hecho.dice, ...(hecho.aviso ? { avisoAlGuardar: hecho.aviso } : {}) } : r.propuesta;
+    const nuevas = (mensaje.propuestas || []).map(x => (x.id === propuesta.id ? { ...firmada, destino: x.destino } : x));
     const actualizado = { ...mensaje, propuestas: nuevas };
     upd("chat", { ...actualizado, estado: estadoParaLaTabla(actualizado) });
+    setNoSePudo(null);
 
     // Al confirmar es cuando el movimiento entra de verdad al sistema.
-    if (estado !== "rechazado") aplicarPropuesta(r.propuesta, mensaje);
-  };
-
-  const aplicarPropuesta = (pr, mensaje) => {
-    const comun = {
-      fecha: pr.fecha || today(),
-      origenChat: { mensajeId: mensaje.id, de: mensaje.deQuien, cuando: mensaje.cuando },
-      // La evidencia va pegada al movimiento, no sólo al mensaje.
-      foto: mensaje.foto?.dataUrl || null,
-      audio: mensaje.audio?.dataUrl || null,
-      registradoPor: { rol: session.role, id: session.id, nombre: session.nombre },
-    };
-    if (pr.tipo === "gasto" && pr.monto != null) {
-      add("egresos", { ...comun, concepto: (pr.frase || pr.resumen || "Gasto del chat").slice(0, 90), monto: pr.monto, categoria: "insumos", proveedor: pr.proveedor || "" });
-    } else if (pr.tipo === "actividad") {
-      for (const per of (pr.personas || [])) {
-        add("actividades", { ...comun, parcelaId: pr.parcelaId || "", tipo: "Trabajo de campo", horas: pr.horas ?? null, trabajadorId: per.id, nota: pr.frase });
-      }
-    } else if (pr.tipo === "necesidad") {
-      add("solicitudes_compra", { ...comun, concepto: pr.frase, estado: "pendiente", paraQuien: pr.destino?.paraQuien?.nombre || pr.paraQuien || null });
-    } else if (pr.tipo === "incidencia") {
-      add("incidencias", { ...comun, descripcion: pr.frase, estado: "pendiente" });
-    } else if (pr.tipo === "cosecha" && pr.cantidad) {
-      add("cosechas", { ...comun, parcelaId: pr.parcelaId || "", registros: [{ cantidad: pr.cantidad.valor, unidad: pr.cantidad.unidad }] });
-    } else if (pr.tipo === "fertirriego" && pr.indicacion) {
-      add("indicaciones", {
-        ...comun, tipo: "fertirriego", estado: pr.destino?.paraQuien ? "mandada" : "propuesta",
-        parcelaId: pr.indicacion.parcelaId, asignadoA: pr.destino?.paraQuien?.id || null,
-        cultivo: pr.indicacion.cultivo, parcelaNombre: pr.indicacion.parcelaNombre,
-        superficie: pr.indicacion.superficie, productos: pr.indicacion.productos,
-        resumen: pr.indicacion.resumen, deQuien: pr.indicacion.deQuien,
-      });
-    } else {
-      add("bitacora", { ...comun, nota: pr.frase || pr.resumen || "(del chat)" });
-    }
+    for (const e of (hecho?.escrituras || [])) add(e.coleccion, e.registro);
   };
 
   /* ── Pantalla ── */
@@ -3548,7 +3599,9 @@ function ChatDelRancho({ data, add, upd, session, onClose }) {
             <button className="btn btn-outline btn-sm" style={{ flex: 1, color: "var(--red)", borderColor: "var(--red)" }} onClick={() => firmar(mensaje, pr, "rechazado")}>No</button>
           </div>
         )}
-        {firma && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Firmó {firma.quien}{firma.motivo ? ` — ${firma.motivo}` : ""}</div>}
+        {noSePudo?.id === pr.id && <div className="text-xs chat-nose" style={{ marginTop: 6, color: "var(--gold)" }}>{noSePudo.dice}</div>}
+        {firma && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Firmó {firma.quien}{firma.motivo ? ` — ${firma.motivo}` : ""}{pr.quedoEn ? ` · ${pr.quedoEn}` : ""}</div>}
+        {firma && pr.avisoAlGuardar && <div className="text-xs text-muted">{pr.avisoAlGuardar}</div>}
       </div>
     );
   };
@@ -7584,14 +7637,14 @@ function LoginScreen({ data, add, upd, onLogin, vinculo = null, eventosListos = 
   const camino = caminoDeEntrada(busq);
   // Checar sin abrir sesión: sólo en un aparato que un encargado dejó para su gente. La marca queda a nombre de esa cuenta.
   const checar = (quienEs) => {
-    const decir = (a) => { setMarca(a); clearTimeout(limpiaMarca.current); limpiaMarca.current = setTimeout(() => setMarca(null), 4500); };
+    const decir = (a) => { setMarca(a); clearTimeout(limpiaMarca.current); limpiaMarca.current = setTimeout(() => setMarca(null), a.toca ? 12000 : 4500); };
     if (!quienEs.ok) { decir({ tono: "mal", titulo: "No se registró", linea: quienEs.dice }); return; }
     if (!eventosListos) { decir({ tono: "aviso", titulo: "Un momento", linea: "Todavía se están cargando las marcas de este aparato." }); return; }
     const ahora = new Date();
     const r = marcar({ eventos: eventosRef.current, trabajador: quienEs.trabajador, via: quienEs.via, ahora: ahora.toISOString(), fecha: fechaLocal(ahora), quien: puerta.quien, lugar: NAVE, ventanaMin: ajusteVigente(eventosRef.current, "ventana_repetida_min").valor });
     if (!r.ok) { decir({ tono: r.repetida ? "aviso" : "mal", titulo: quienEs.trabajador.nombre, linea: r.dice }); return; }
     const guardado = add("eventos", r.evento); eventosRef.current = [...eventosRef.current, guardado];
-    decir({ tono: r.sentido, titulo: quienEs.trabajador.nombre, linea: `${r.sentido === "entrada" ? "ENTRADA" : "SALIDA"} · ${horaCorta(r.evento.cuando)}` });
+    decir({ tono: r.sentido, titulo: quienEs.trabajador.nombre, linea: `${r.sentido === "entrada" ? "ENTRADA" : "SALIDA"} · ${horaCorta(r.evento.cuando)}`, toca: r.sentido === "entrada" ? tocaAlChecar(data, quienEs.trabajador.id, fechaLocal(ahora)) : null });
   };
   const alLeerCredencial = (texto) => {
     const r = entrarConCredencial(texto, "", data);
@@ -7701,7 +7754,7 @@ function LoginScreen({ data, add, upd, onLogin, vinculo = null, eventosListos = 
           <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Sólo queda anotada tu hora. No abre la app ni enseña nada de nadie. Este aparato lo dejó {puerta.quien.nombre}.</div>
           <LectorQR onLeer={(texto) => checar(quienEsPorQR(texto, quienesChecan(data)))} pausado={false} />
           <div className={`chk-aviso ${marca ? marca.tono : "espera"}`} role="status" aria-live="polite">
-            {marca ? <><div className="chk-aviso-t">{marca.titulo}</div><div className="chk-aviso-l">{marca.linea}</div></> : <><div className="chk-aviso-t">Acerca tu credencial</div><div className="chk-aviso-l">o escribe tu PIN</div></>}
+            {marca ? <><div className="chk-aviso-t">{marca.titulo}</div><div className="chk-aviso-l">{marca.linea}</div><TocaHoy toca={marca.toca} /></> : <><div className="chk-aviso-t">Acerca tu credencial</div><div className="chk-aviso-l">o escribe tu PIN</div></>}
           </div>
           <div className="chk-pin">
             <div className="chk-pin-caja" aria-label="PIN para checar">{pinChk ? "•".repeat(pinChk.length) : <span className="text-muted">PIN</span>}</div>
@@ -8242,6 +8295,21 @@ function LectorQR({ onLeer, pausado }) {
 
 // Entrada y salida desde la tableta de la nave (o desde el teléfono del
 // encargado cuando alguien llega directo a campo). Una lectura = una marca.
+// A qué va quien checa, según el plan mandado para ese día. No registra nada.
+function tocaAlChecar(data, trabajadorId, fecha) {
+  const t = loQueLeToca(data.indicaciones || [], trabajadorId, fecha, { personas: [...(data.trabajadores || []), ...(data.encargados || [])], parcelas: data.parcelas || [] });
+  return t.dice ? t : null;
+}
+function TocaHoy({ toca }) {
+  if (!toca) return null;
+  return (
+    <div className="chk-toca">
+      <div className={toca.hay ? "chk-toca-t" : "chk-toca-l"}>{toca.dice}</div>
+      {toca.lineas.map((l, i) => <div key={i} className="chk-toca-l">{l}</div>)}
+    </div>
+  );
+}
+
 function Checador({ data, add, session, onNav, onClose, listo = true, cerrado = null, onCerrar, onAbrir }) {
   // En la lista del día salen los trabajadores, y los encargados sólo si ya checaron hoy: para ellos el checador no es obligatorio.
   const trabajadores = (data.trabajadores || []).concat((data.encargados || []).filter(e => (data.eventos || []).some(x => x.tipo === "marca" && x.fecha === today() && x.datos?.trabajadorId === e.id)));
@@ -8251,7 +8319,7 @@ function Checador({ data, add, session, onNav, onClose, listo = true, cerrado = 
   const limpiar = useRef(null);
   const eventosRef = useRef(data.eventos || []); eventosRef.current = data.eventos || [];
   const lugar = lugarId === "nave" ? NAVE : (() => { const r = (data.ranchos || []).find(x => x.id === lugarId); return { tipo: "rancho", id: lugarId, nombre: r?.nombre || "Rancho" }; })();
-  const decir = (a) => { setAviso(a); clearTimeout(limpiar.current); limpiar.current = setTimeout(() => setAviso(null), 4500); };
+  const decir = (a) => { setAviso(a); clearTimeout(limpiar.current); limpiar.current = setTimeout(() => setAviso(null), a.toca ? 12000 : 4500); };
   useEffect(() => () => clearTimeout(limpiar.current), []);
 
   const registrar = (quienEs) => {
@@ -8262,7 +8330,9 @@ function Checador({ data, add, session, onNav, onClose, listo = true, cerrado = 
     if (!r.ok) { decir({ tono: r.repetida ? "aviso" : "mal", titulo: quienEs.trabajador.nombre, linea: r.dice }); return; }
     const guardado = add("eventos", r.evento);
     eventosRef.current = [...eventosRef.current, guardado];   // la siguiente lectura ya la ve, aunque React no haya pintado
-    decir({ tono: r.sentido, titulo: quienEs.trabajador.nombre, linea: `${r.sentido === "entrada" ? "ENTRADA" : "SALIDA"} · ${horaCorta(r.evento.cuando)}${lugar.tipo !== "nave" ? ` · ${lugar.nombre}` : ""}` });
+    // Al entrar se le dice a qué va según el plan. Sólo informa: checar no da por hecho lo planeado.
+    const toca = r.sentido === "entrada" ? tocaAlChecar(data, quienEs.trabajador.id, fechaLocal(ahora)) : null;
+    decir({ tono: r.sentido, titulo: quienEs.trabajador.nombre, linea: `${r.sentido === "entrada" ? "ENTRADA" : "SALIDA"} · ${horaCorta(r.evento.cuando)}${lugar.tipo !== "nave" ? ` · ${lugar.nombre}` : ""}`, toca });
   };
   const conPin = () => { if (pin) { registrar(quienEsPorPin(pin, quienesChecan(data))); setPin(""); } };
   const hoy = today();
@@ -8320,7 +8390,7 @@ function Checador({ data, add, session, onNav, onClose, listo = true, cerrado = 
         <LectorQR onLeer={(texto) => registrar(quienEsPorQR(texto, quienesChecan(data)))} pausado={false} />
 
         <div className={`chk-aviso ${aviso ? aviso.tono : "espera"}`} role="status" aria-live="polite">
-          {aviso ? <><div className="chk-aviso-t">{aviso.titulo}</div><div className="chk-aviso-l">{aviso.linea}</div></>
+          {aviso ? <><div className="chk-aviso-t">{aviso.titulo}</div><div className="chk-aviso-l">{aviso.linea}</div><TocaHoy toca={aviso.toca} /></>
             : <><div className="chk-aviso-t">Acerca tu credencial</div><div className="chk-aviso-l">o escribe tu PIN</div></>}
         </div>
 
@@ -10741,7 +10811,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
               return (
                 <div key={inc.id} className={`alert alert-${inc.prioridad === "alta" ? "red" : "gold"}`} style={{ marginBottom: 10 }}>
                   <span className="alert-icon"><Ic e={icon[inc.tipo] || "⚠️"} /></span>
-                  <div className="alert-body"><div className="alert-title">{inc.desc}</div><div className="alert-desc">{quien} · {inc.fecha} · {inc.prioridad}</div></div>
+                  <div className="alert-body"><div className="alert-title">{inc.desc || inc.descripcion}</div><div className="alert-desc">{quien} · {inc.fecha} · {inc.prioridad}</div></div>
                   <div style={{ display: "flex", gap: 4 }}>
                     <button className="btn-ghost" style={{ padding: 2, fontSize: 13 }} onClick={() => setEditItem({ seccion: "incidencias", registro: inc, titulo: "Incidencia", campos: camposInc })}><Ic e="✏️" /></button>
                     <button className="btn btn-accent btn-sm" onClick={() => upd("incidencias", { ...inc, estado: "resuelta" })}>✓</button>
@@ -10752,7 +10822,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
             {data.incidencias.filter(i => i.estado === "resuelta").map(inc => (
               <div key={inc.id} className="list-item">
                 <div className="li-icon" style={{ background: "rgba(132,192,1,.1)" }}><Ic e="✅" /></div>
-                <div className="li-body"><div className="li-title">{inc.desc.slice(0, 48)}</div><div className="li-sub">{inc.fecha} · resuelta</div></div>
+                <div className="li-body"><div className="li-title">{String(inc.desc || inc.descripcion || "").slice(0, 48)}</div><div className="li-sub">{inc.fecha} · resuelta</div></div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button className="btn-ghost" style={{ padding: 4, fontSize: 13 }} onClick={() => upd("incidencias", { ...inc, estado: "pendiente" })}><Ic e="↩️" /></button>
                   <button className="btn-ghost" style={{ padding: 4, fontSize: 13, color: "var(--red)" }} onClick={() => del("incidencias", inc.id)}><Ic e="🗑" /></button>
@@ -13444,7 +13514,7 @@ function EncargadoTareas({ data, add, upd, del, session }) {
                   <span className={`badge badge-${inc.clase === "necesidad" ? "blue" : "gold"}`}>{inc.clase === "necesidad" ? "Necesidad" : "Incidencia"}</span>
                   <span className={`badge badge-${inc.estado === "resuelta" ? "green" : "gold"}`}>{inc.estado === "resuelta" ? "✓ Resuelta" : "Pendiente"}</span>
                 </div>
-                <div className="font-bold text-sm">{inc.desc}</div>
+                <div className="font-bold text-sm">{inc.desc || inc.descripcion}</div>
                 <div className="text-xs text-muted" style={{ marginTop: 4 }}>{inc.tipo} · {inc.prioridad} · {inc.fecha}</div>
               </div>
             ))}

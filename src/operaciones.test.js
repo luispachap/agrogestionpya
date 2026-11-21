@@ -98,3 +98,66 @@ test("con_lo_que_quedo_pendiente_se_sugiere_continuar_y_solo_se_estima_gente_si_
   assert.equal(registrarAvance({ parcelaId: "sf4", parcelas, actividad: "corte", cantidad: 300, unidad: "arpillas", quien: q, cuando: "2026-11-21T20:00:00.000Z", fecha: "2026-11-21" }).ok, false);
   assert.equal(unidadDe("Hectáreas"), "hectarea"); assert.equal(actividadDicha("llevamos cuarenta surcos de corte en la 53"), "corte"); assert.equal(actividadDicha("terminamos dos reguladores"), "");
 });
+
+/* ── El chat de adentro, por el mismo camino ── */
+import { clasificarMensaje, marcarConfirmacion } from "./chat.js";
+import { confirmarDelChat } from "./operaciones.js";
+const delChat = (texto, de = capataz, extra = {}) => clasificarMensaje({ mensaje: { id: `chat${n++}`, de, cuando: "2026-11-21T18:00:00.000Z", texto, ...extra }, personas, parcelas, insumos: [], hoy: "2026-11-21" });
+
+test("en_el_chat_un_gasto_no_lo_confirma_el_encargado_y_no_queda_firmado_ni_guardado", () => {
+  const m = delChat("Compramos un kilo de clavos, 350 pesos.");
+  const pr = m.propuestas.find(x => x.tipo === "gasto"); assert.ok(pr, "se entendió el gasto");
+  const no = confirmarDelChat({ mensaje: m, propuesta: pr, quien: capataz, hoy: "2026-11-21", parcelas });
+  assert.equal(no.ok, false); assert.equal(no.sinPermiso, true); assert.equal(no.escrituras, undefined); assert.match(no.dice, /lleva las cuentas/);
+  const si = confirmarDelChat({ mensaje: m, propuesta: pr, quien: admin, hoy: "2026-11-21", parcelas });
+  assert.equal(si.ok, true); assert.deepEqual(si.escrituras.map(e => e.coleccion), ["egresos"]);
+  const o = si.escrituras[0].registro.origen;
+  assert.deepEqual([o.mensaje, o.canal, o.dijo, o.confirmo], [m.id, "chat", "Capataz de prueba", "Admin de prueba"], "queda dicho de qué mensaje salió, quién lo dijo y quién lo confirmó");
+});
+
+test("en_el_chat_el_avance_es_un_avance_y_su_segunda_frase_no_se_registra_aparte", () => {
+  const m = delChat("Hoy terminamos dos reguladores de deshierbe en San Felipe 4. Trabajaron siete personas y mañana tenemos que terminar lo que falta.");
+  const principal = m.propuestas.find(x => x.tipo === "avance"), parte = m.propuestas.find(x => x.parteDe != null);
+  assert.ok(principal && parte);
+  const r = confirmarDelChat({ mensaje: m, propuesta: principal, quien: capataz, hoy: "2026-11-21", parcelas });
+  assert.equal(r.ok, true); assert.deepEqual(r.escrituras.map(e => [e.coleccion, e.registro.tipo]), [["eventos", T_AVANCE]], "ni actividades ni pagos de siete personas");
+  assert.equal(r.escrituras[0].registro.datos.origenDicho.canal, "chat");
+  const r2 = confirmarDelChat({ mensaje: m, propuesta: parte, quien: capataz, hoy: "2026-11-21", parcelas });
+  assert.deepEqual([r2.ok, r2.escrituras.length], [true, 0]);
+});
+
+test("en_el_chat_lo_ya_firmado_no_se_registra_otra_vez_y_lo_que_falta_se_dice", () => {
+  const m = delChat("Se descompuso la bomba del pozo.");
+  const pr = m.propuestas[0];
+  const r = confirmarDelChat({ mensaje: m, propuesta: pr, quien: capataz, hoy: "2026-11-21", parcelas });
+  assert.equal(r.ok, true); assert.equal(r.escrituras.length, 1);
+  const firmada = marcarConfirmacion(pr, { estado: "confirmado", quien: capataz }).propuesta;
+  const otra = confirmarDelChat({ mensaje: { ...m, propuestas: [firmada] }, propuesta: firmada, quien: capataz, hoy: "2026-11-21", parcelas });
+  assert.equal(otra.ok, false); assert.match(otra.dice, /ya se firmó/);
+  const m2 = delChat("Terminamos tres reguladores.");
+  const falta = confirmarDelChat({ mensaje: m2, propuesta: m2.propuestas[0], quien: capataz, hoy: "2026-11-21", parcelas });
+  assert.equal(falta.ok, false); assert.ok(falta.falta.length > 0, "sin parcela ni actividad no se guarda a medias");
+});
+
+test("en_el_chat_la_hoja_que_no_cuadra_o_el_papel_sin_total_no_entran_aunque_firme_un_administrador", () => {
+  const base = { id: "chatX", de: agronomo, cuando: "2026-11-21T18:00:00.000Z", propuestas: [] };
+  const hoja = { id: "chatX:hoja", tipo: "fertirriego", deQue: "foto", confiable: false, falta: [], indicacion: { parcelaId: "sf4", productos: [] } };
+  assert.match(confirmarDelChat({ mensaje: base, propuesta: hoja, quien: admin, hoy: "2026-11-21", parcelas }).dice, /no cuadra/);
+  const papel = { id: "chatX:papel", tipo: "gasto", deQue: "foto", monto: null, falta: [] };
+  assert.equal(confirmarDelChat({ mensaje: base, propuesta: papel, quien: admin, hoy: "2026-11-21", parcelas }).ok, false, "el total sale del papel o se pregunta");
+  const bien = { ...hoja, confiable: true, indicacion: { parcelaId: "sf4", parcelaNombre: "San Felipe 4", productos: [{ nombre: "Producto inventado", total: 10 }], resumen: "Hoja de prueba", deQuien: "Agrónomo de prueba" } };
+  const r = confirmarDelChat({ mensaje: base, propuesta: bien, quien: capataz, hoy: "2026-11-21", parcelas });
+  assert.equal(r.ok, true); assert.deepEqual([r.escrituras[0].coleccion, r.escrituras[0].registro.estado, r.escrituras[0].registro.origen.confirmo], ["indicaciones", "propuesta", "Capataz de prueba"]);
+  assert.equal(confirmarDelChat({ mensaje: base, propuesta: bien, quien: { id: "f1", nombre: "Finanzas de prueba", rol: "finanzas" }, hoy: "2026-11-21", parcelas }).sinPermiso, true);
+});
+
+test("una_incidencia_o_una_necesidad_dichas_se_guardan_con_la_forma_que_leen_sus_pantallas", () => {
+  // Pasó de verdad: se guardaba «descripcion» y la pantalla de inicio leía «desc»; al haber una incidencia dicha, el inicio tronaba.
+  const a = dicho("Se descompuso la bomba del pozo.");
+  const inc = ejecutar(a.plan.propuestas[0], { mensaje: a.mensaje, quien: capataz, parcelas, ...sello() }).escrituras[0];
+  assert.equal(inc.coleccion, "incidencias"); assert.deepEqual([typeof inc.registro.desc, inc.registro.estado, inc.registro.trabajadorId], ["string", "pendiente", "enc1"]); assert.equal(inc.registro.descripcion, undefined);
+  const b = dicho("Hace falta comprar urea para la semana que entra.");
+  const nec = b.plan.propuestas.find(x => x.tipo === "necesidad"); assert.ok(nec, "se entendió que hace falta algo");
+  const sol = ejecutar(nec, { mensaje: b.mensaje, quien: capataz, parcelas, ...sello() }).escrituras[0];
+  assert.equal(sol.coleccion, "solicitudes_compra"); assert.deepEqual([sol.registro.items, sol.registro.creadaPor.id, sol.registro.estado], [[], "enc1", "pendiente"]); assert.match(sol.registro.notas, /urea/);
+});

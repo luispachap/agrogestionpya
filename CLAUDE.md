@@ -464,9 +464,21 @@ Usuarios reales de la app:
   mensaje, frase, quién lo dijo, quién lo confirmó). **La IA o las reglas entienden y
   proponen; nunca escriben.** Sólo lo HECHO se propone como hecho. Lo que aún no tiene su
   operación conectada (`POR_CONECTAR`: préstamo, pago, aplicación, almacén) se dice y se
-  manda a su pantalla: no se guarda «parecido». Conectado: «Dile a la app». **El chat de
-  adentro todavía guarda por su cuenta: hay que pasarlo aquí.** Una operación nueva que se
+  manda a su pantalla: no se guarda «parecido». Conectado: «Dile a la app». **El chat de adentro ya confirma por aquí** (`confirmarDelChat`: permiso de quien firma, rastro `origen`; si no se puede, no se firma). Una operación nueva que se
   pueda decir se agrega a `OPERACIONES` y usa la función que su módulo ya tiene.
+- **Lo dicho se guarda con la forma que lee su pantalla**: incidencia = `desc`, `tipo`, `prioridad`, `trabajadorId`;
+  solicitud de compra = `notas`, `items: []`, `creadaPor`. (Se guardaba `descripcion` y el inicio tronaba.)
+- **`src/asignaciones.js`: a qué va cada quien** (el plan visto al checar). El plan son las `indicaciones` de tipo
+  `tarea` con su `fecha` (hoy o mañana). `loQueLeToca` es lo que dice el checador al marcar ENTRADA; `planDelDia`
+  es la tarjeta «Plan mandado» de «El día» → Reparto. Cambiar (`cambiarAsignacion`) deja el renglón anterior como
+  `cambiada` y crea otro que apunta a él; quitar (`quitarAsignacion`) pide motivo. **Planear ≠ asistir ≠ trabajar**:
+  el módulo no importa nada y ningún módulo de dinero o asistencia lee `indicaciones` (hay prueba). Checar NO
+  inicia la asignación real (`cuadrillas.js`): es decisión pendiente de Miguel.
+- **`src/whatsapp.js` + `supabase/functions/whatsapp-entrada/` + `supabase/pendientes/45-…sql`: WhatsApp PREPARADO
+  Y APAGADO.** El lector convierte el aviso de Meta en el `mensaje` del camino común (teléfono → persona del
+  catálogo; desconocido o repetido no se atribuye; mismo id no entra dos veces). La función sólo comprueba la firma
+  y guarda tal cual; no entiende, no registra y **no tiene con qué enviar**. **No la despliegues ni instales la
+  hoja 45 sin que Luis autorice cuenta, número y costos.** `pruebas/funcion_whatsapp.test.mjs` la prueba sin red.
 - **`src/avances.js`: avance de trabajo** (`avance_trabajo`): se registra en la unidad
   que se dice (regulador, surco, caja…). **Avance ≠ pago** (no crea actividades ni costo;
   «siete personas» es un número) y **avance ≠ porcentaje** (los reguladores no son
@@ -650,7 +662,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **215 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **216 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

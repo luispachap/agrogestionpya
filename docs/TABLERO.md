@@ -317,7 +317,7 @@ El desarrollo geoespacial va en paralelo. Esto sigue siendo lo primero:
 |---|---|---|
 | Checador | Hecho y publicado (QR o PIN, tableta cerrada) | **Usarlo en la tableta de la nave, con fila de gente** |
 | Operación diaria (reparto, cuadrillas, entregas del almacén, pagos al personal) | Hecho y publicado | **Un día real de punta a punta con Migue** |
-| WhatsApp | Definido por Luis el 21 nov: una puerta más para operar AgroGestión. Investigado (requisitos y costos en `OPERACION-HABLADA.md`) | **Nada activado. Va al final: primero el camino dentro de la app** |
+| WhatsApp | Una puerta más para operar AgroGestión (Luis, 21 nov). Requisitos y costos investigados. **Preparación técnica hecha en paralelo (21 nov, tarde)**: lector, entrada del servidor y buzón escritos y probados con datos de mentira | **Nada instalado ni activado, ningún mensaje real.** Para encender: cuenta de Meta, número y autorización de gasto (`OPERACION-HABLADA.md` 5.1) |
 | Acuerdos de la junta: inventario por bodega con responsable · bitácora de campo por turnos · expediente legal y documental por rancho/parcela · checador | Bodegas y checador: hechos. Bitácora por turnos y expediente legal: **sin construir** | Construir los dos que faltan |
 | Piloto | Presentación y guías entregadas | **Dos semanas en paralelo sin fallas, cero pérdidas al sincronizar, respaldo restaurado** |
 
@@ -385,3 +385,16 @@ el tope agotado la función se niega SIN llamar a la IA. Gasto total de la prueb
 movimiento del rancho se creó. Necesitó el secreto `ANTHROPIC_WORKSPACE_ID`. **Sin comprobar:** la entrada con
 la sesión de una persona desde la app (se probó el motor por una puerta temporal, ya apagada) y documentos
 REALES del rancho (fotos de teléfono, letra a mano).
+
+**Chat por el camino común, plan al checar y preparación de WhatsApp (21 nov, tarde):**
+
+- **Chat de adentro**: al confirmar revisa el permiso de quien firma y deja de qué mensaje salió cada registro. Si
+  no se puede, no queda firmado. De paso se corrigió un error real: una incidencia o una necesidad dichas se
+  guardaban con otra forma que la que leen sus pantallas, y la pantalla de inicio tronaba al haber una.
+- **Plan del día**: «Plan mandado» de hoy y de mañana en «El día» → Reparto; se cambia o se quita con rastro.
+- **Checador**: al checar la entrada dice a qué va cada quien según el plan de ese día. Sólo informa.
+- **WhatsApp**: preparado y apagado (ver arriba).
+- **Probado:** 1,130 pruebas de cuenta; `pruebas/plan_navegador.py` 14/14 en navegador con gente y parcelas
+  inventadas; `pruebas/funcion_whatsapp.test.mjs` 7/7 con Meta y base de mentira; recorrido 25/25, checador 22/22,
+  lo dicho 15/15. **Sin validar:** nada de esto lo ha usado todavía Miguel, un encargado ni un trabajador.
+- **Por confirmar con Miguel y Fito:** lista en `OPERACION-HABLADA.md` §7.
