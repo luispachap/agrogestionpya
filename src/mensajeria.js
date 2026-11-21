@@ -71,6 +71,21 @@ export function crearConversacion({ clase, nombre = "", miembros = [], quien, cu
   return { ok: true, evento: nuevoEvento({ tipo: T_CONVERSACION, cuando, fecha, quien, datos: { clase, nombre: String(nombre).trim(), miembros: todos, institucional: true } }) };
 }
 
+/* ── La conversación de cada quien con AgroGestión ──
+   Es PRIVADA y es de una sola persona: el asistente no es un integrante (no está en `miembros`, no entra a grupos).
+   Es una conversación más de la misma colección, así que usa el mismo motor, los mismos permisos y la misma pantalla.
+   El id es fijo por persona: la misma en todos sus aparatos. Mientras no se le ha escrito no existe en la base:
+   `misConversaciones` la enseña igual (`virtual`) y nace con el primer mensaje. */
+export const CLASE_ASISTENTE = "asistente";
+export const ROLES_CON_ASISTENTE = ["admin", "encargado", "agronomo"];   // los que escriben mensajes Y pueden abrir una conversación
+export const idConAsistente = (personaId) => `ev-conv-a-${String(personaId || "").replace(/[^A-Za-z0-9]/g, "")}`.slice(0, 120);
+export const esConAsistente = (c) => c?.clase === CLASE_ASISTENTE;
+export function abrirConAsistente({ quien, cuando, fecha }) {
+  if (!quien?.id) return { ok: false, dice: "Falta quién la abre." };
+  if (!ROLES_CON_ASISTENTE.includes(quien.rol)) return { ok: false, dice: "Tu perfil todavía no tiene conversación con AgroGestión." };
+  return { ok: true, evento: nuevoEvento({ id: idConAsistente(quien.id), tipo: T_CONVERSACION, cuando, fecha, quien, datos: { clase: CLASE_ASISTENTE, nombre: "AgroGestión", miembros: [{ tipo: "persona", id: quien.id, nombre: quien.nombre || "", rol: quien.rol }], institucional: true } }) };
+}
+
 export function cambiarConversacion({ conversacion, agregar = [], quitar = [], nombre, quien, cuando, fecha }) {
   if (!conversacion || conversacion.clase !== "grupo") return { ok: false, dice: "Sólo los grupos cambian de gente o de nombre." };
   if (!puedeEscribir(conversacion, quien)) return { ok: false, dice: "Sólo un participante puede cambiar el grupo." };
@@ -106,6 +121,7 @@ export const puedeEscribir = (c, persona) => ROLES_QUE_ESCRIBEN.includes(persona
 export function puedeVer(c, persona, { consultas = [], ahora } = {}) {
   if (!ROLES_CON_MENSAJES.includes(persona?.rol)) return { ve: false, porque: "Tu perfil todavía no tiene mensajería." };
   if (esParticipante(c, persona)) return { ve: true, porque: "Participas en esta conversación." };
+  if (esConAsistente(c)) return { ve: false, porque: "La conversación de cada quien con AgroGestión es privada." };
   const t = new Date(ahora || Date.now()).getTime();
   const consulta = (consultas || []).find(x => x.conversacion === c?.id && x.usuario === persona.id && new Date(x.hasta).getTime() > t);
   if (consulta) return { ve: true, porConsulta: true, hasta: consulta.hasta, motivo: consulta.motivo, porque: "La abriste por consulta excepcional: sólo lectura, queda anotado." };
@@ -115,11 +131,13 @@ export function puedeVer(c, persona, { consultas = [], ahora } = {}) {
 export function pedirConsulta({ conversacion, motivo, persona, otorgados = [] }) {
   if (!otorgados.includes(PERMISO_SUPERVISION)) return { ok: false, dice: "Abrir una conversación en la que no participas pide el permiso de supervisión, otorgado a tu cuenta. Ser administrador no lo da." };
   if (!conversacion || conversacion.id === GENERAL) return { ok: false, dice: "Escoge la conversación." };
+  if (esConAsistente(conversacion)) return { ok: false, dice: "La conversación de cada quien con AgroGestión es privada: no se abre por consulta. Lo que de ahí se registró se ve en Memoria, con su origen." };
   if (esParticipante(conversacion, persona)) return { ok: false, dice: "Ya participas en esa conversación." };
   if (String(motivo || "").trim().length < 10) return { ok: false, dice: "Di el motivo de la consulta: queda anotado y lo pueden ver los demás." };
   return { ok: true, conversacion: conversacion.id, motivo: String(motivo).trim() };
 }
 export function tituloDe(c, persona) {
+  if (esConAsistente(c)) return ASISTENTE.nombre;
   if (c.clase !== "directa") return c.nombre || "Grupo";
   const otro = c.miembros.find(m => m.tipo === "persona" && m.id !== persona?.id);
   return otro ? otro.nombre : c.miembros.map(nombreDeMiembro).join(" y ");
@@ -129,13 +147,16 @@ export const mensajesDe = (mensajes, convId) => (mensajes || []).filter(m => m &
 
 // Mis conversaciones, la más reciente arriba, con su último mensaje y cuántas propuestas esperan.
 export function misConversaciones({ eventos, mensajes, persona, consultas = [], ahora, leido = {} }) {
-  return conversacionesDe(eventos).map(c => ({ c, v: puedeVer(c, persona, { consultas, ahora }) })).filter(x => x.v.ve).map(({ c, v }) => {
+  const todas = conversacionesDe(eventos), mia = idConAsistente(persona?.id);
+  if (ROLES_CON_ASISTENTE.includes(persona?.rol) && !todas.some(c => c.id === mia)) todas.push({ id: mia, clase: CLASE_ASISTENTE, nombre: ASISTENTE.nombre, miembros: [{ tipo: "persona", id: persona.id, nombre: persona.nombre || "", rol: persona.rol }], creada: null, por: "", historial: [], virtual: true });
+  const orden = (c) => (esConAsistente(c) ? 0 : c.id === GENERAL ? 1 : 2);
+  return todas.map(c => ({ c, v: puedeVer(c, persona, { consultas, ahora }) })).filter(x => x.v.ve).map(({ c, v }) => {
     const suyos = mensajesDe(mensajes, c.id).sort((a, b) => String(a.cuando).localeCompare(String(b.cuando))), ultimo = suyos[suyos.length - 1] || null;
     const porConfirmar = suyos.reduce((n, m) => n + (m.propuestas || []).filter(p => !p.confirmacion && p.parteDe == null).length, 0);
-    const sinLeer = suyos.filter(m => m.de?.id !== persona.id && String(m.cuando || "") > String(leido[c.id] || "")).length;
+    const sinLeer = esConAsistente(c) ? 0 : suyos.filter(m => m.de?.id !== persona.id && String(m.cuando || "") > String(leido[c.id] || "")).length;
     return { ...c, titulo: tituloDe(c, persona), porConsulta: !!v.porConsulta, consultaHasta: v.hasta || null, cuantos: suyos.length, porConfirmar, sinLeer,
       ultimo: ultimo ? { de: ultimo.de?.nombre || ultimo.deQuien || "", texto: String(ultimo.texto || (ultimo.foto ? "📷 Foto" : ultimo.audio ? "🎤 Audio" : ultimo.documento ? `📎 ${ultimo.documento.nombre || "Documento"}` : "")).slice(0, 70), cuando: ultimo.cuando } : null };
-  }).sort((a, b) => (a.id === GENERAL ? -1 : b.id === GENERAL ? 1 : String(b.ultimo?.cuando || b.creada || "").localeCompare(String(a.ultimo?.cuando || a.creada || ""))));
+  }).sort((a, b) => orden(a) - orden(b) || String(b.ultimo?.cuando || b.creada || "").localeCompare(String(a.ultimo?.cuando || a.creada || "")));
 }
 
 /* ── Hablarle al asistente ── */
@@ -181,12 +202,22 @@ export function temasAbiertos(mensajes, ahora) {
 //   aclaracion  contesta lo que le faltaba a una propuesta, o dice cómo se pagó  → la MISMA operación
 //   ejecucion   «ya se aplicó» sobre algo que se había dicho como por hacer       → otro momento del mismo asunto
 //   seguimiento «voy a revisarla» sobre algo que alguien vio o avisó              → un pendiente sobre esa observación
+// ¿El mensaje trae SU PROPIO asunto? Una respuesta es un pedazo («en San Felipe 4», «20 pesos el kilo», «de caja chica»).
+// Una frase que duda, decide o arranca con su propio hecho («compramos…», «vimos…», «se descompuso…») es otra cosa,
+// aunque sea corta y aunque de paso nombre una parcela. En la duda es un mensaje nuevo: una respuesta mal pegada
+// cambia un registro de otra cosa (pasó en la prueba: una sospecha de cosecha «contestó» en qué parcela fue un avance).
+const HECHO_PROPIO = /\b(compramos|compre|compraron|se compro|se compraron|cosechamos|coseche|se cosecho|terminamos|termine|acabamos|vimos|vi|encontramos|encontre|vendimos|vendi|se vendio|sembramos|aplicamos|regamos|cortamos|prestamos|preste|le preste|se descompuso|se rompio|no sirve|tira aceite|hace falta|hacen falta|necesitamos|se necesita)\b/;
+export function traeOtroAsunto(texto) {
+  const t = ` ${plano(texto)} `;
+  return ["hipotesis", "decision"].includes(naturalezaDe(texto, "nota")) || HECHO_PROPIO.test(t);
+}
+
 export function relacionar({ mensajes, nuevo, personas = [], parcelas = [], ahora, hoy }) {
   const texto = String(nuevo?.texto || "").trim(), t = plano(texto);
   if (!texto) return null;
   const temas = temasAbiertos(mensajes, ahora || nuevo.cuando), corto = texto.split(/\s+/).length <= 14 && !/[.!?]\s+\S/.test(texto);
   const ref = (x) => ({ mensaje: x.mensaje.id, propuesta: x.propuesta.id, frase: x.propuesta.frase, dijo: x.mensaje.de?.nombre || x.mensaje.deQuien || "" });
-  if (corto) {
+  if (corto && !traeOtroAsunto(texto)) {
     // 1. Contesta una pregunta abierta. Primero la de la misma persona; si no, la más reciente de la conversación.
     const conPregunta = temas.filter(x => { const pr = preparar({ mensaje: { id: x.mensaje.id, de: x.mensaje.de?.id ? x.mensaje.de : { id: "x" }, cuando: x.mensaje.cuando }, entendido: { propuestas: [x.propuesta] } }).propuestas[0]; return pr && pr.preguntas.length > 0; });
     const orden = [...conPregunta.filter(x => x.mensaje.de?.id === nuevo.de?.id), ...conPregunta.filter(x => x.mensaje.de?.id !== nuevo.de?.id)];

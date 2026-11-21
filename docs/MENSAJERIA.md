@@ -161,3 +161,31 @@ reciente, barra visible con la pantalla encogida, historial, mensajes nuevos, au
 **Sin comprobar en un teléfono real:** el teclado de Android de verdad, la cámara, el micrófono y la reproducción de
 audios. Los audios siguen viajando DENTRO del mensaje (no van al almacén de archivos): pesan en la base y conviene
 moverlos antes de que el uso crezca.
+
+## AgroGestión dentro de Mensajes (21 nov 2026)
+
+«Dile a la app» dejó de ser una pantalla aparte. Ahora es una conversación más: **AgroGestión**, marcada como
+«Asistente», fijada arriba de la lista. Mismo motor, mismas confirmaciones y mismos permisos que antes.
+
+| Lo que hacía «Dile a la app» | Dónde quedó |
+|---|---|
+| Hablar o escribir lo que pasó, varias cosas juntas | La barra de mensajes de esa conversación (texto y micrófono) |
+| Ver qué entendió, de qué clase es y dónde queda | La tarjeta de cada propuesta, dentro del mensaje, ya desplegada |
+| Contestar lo que falta | En la tarjeta, o escribiendo la respuesta como un mensaje normal |
+| Guardar una por una, sólo lo que a mi perfil le toca | «Sí, guardar» en cada tarjeta; lo que no me toca lo dice y no ofrece guardar |
+| Guardar tal cual, sin clasificar | «Dejar tal cual en la bitácora» en el mensaje que no se pudo clasificar |
+| El audio como evidencia | El audio va en el mensaje y acompaña al registro al confirmar |
+
+Nuevo: se puede descartar una propuesta con su motivo, mandar foto de un papel (se lee como en cualquier conversación)
+y queda el historial de lo dicho, que antes no se guardaba.
+
+**Privacidad.** Es de una sola persona. Nadie más la lee, ni la administración, ni por consulta excepcional (hoja 49).
+Lo que se confirma sí queda en los registros de siempre y se ve con los permisos de siempre.
+
+**Límites que hay que saber.**
+- La tienen quienes escriben mensajes y pueden abrir conversaciones: administración, encargados y agrónomo. Finanzas y
+  dirección no (tampoco tenían «Dile a la app»).
+- No contesta preguntas sobre los datos («¿cuánto gastamos?»): prepara registros, igual que antes.
+- Quien entra con PIN en un teléfono ligado a la cuenta de un encargado sube con ESA cuenta: en la base, su
+  conversación con AgroGestión queda a nombre de esa cuenta.
+- Sin probar en un teléfono real.

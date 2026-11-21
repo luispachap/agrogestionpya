@@ -464,7 +464,7 @@ Usuarios reales de la app:
   mensaje, frase, quién lo dijo, quién lo confirmó). **La IA o las reglas entienden y
   proponen; nunca escriben.** Sólo lo HECHO se propone como hecho. Lo que aún no tiene su
   operación conectada (`POR_CONECTAR`: préstamo, pago, aplicación, almacén) se dice y se
-  manda a su pantalla: no se guarda «parecido». Conectado: «Dile a la app». **El chat de adentro ya confirma por aquí** (`confirmarDelChat`: permiso de quien firma, rastro `origen`; si no se puede, no se firma). Una operación nueva que se
+  manda a su pantalla: no se guarda «parecido». Conectado: la conversación con AgroGestión en Mensajes (antes «Dile a la app»). **El chat de adentro ya confirma por aquí** (`confirmarDelChat`: permiso de quien firma, rastro `origen`; si no se puede, no se firma). Una operación nueva que se
   pueda decir se agrega a `OPERACIONES` y usa la función que su módulo ya tiene.
 - **Lo dicho se guarda con la forma que lee su pantalla**: incidencia = `desc`, `tipo`, `prioridad`, `trabajadorId`;
   solicitud de compra = `notas`, `items: []`, `creadaPor`. (Se guardaba `descripcion` y el inicio tronaba.)
@@ -501,6 +501,18 @@ Usuarios reales de la app:
   otro». El botón atrás del teléfono lo atiende `atrasInterno`. `Propuesta` se llama como función (como componente perdía el
   foco al teclear). Lleva la clase `app` para heredar el tema claro. **No tocó permisos ni interpretación.** Prueba:
   `pruebas/mensajes_movil.py` (Pixel 7; el teclado se imita encogiendo la pantalla).
+- **«Dile a la app» YA NO EXISTE como pantalla: es la conversación con AgroGestión dentro de Mensajes (Luis, 21 nov).**
+  Un solo acceso (el botón flotante y el menú llevan a Mensajes; `RENOMBRADAS` en `menu.js` pasa a Mensajes lo que alguien
+  tenía anclado; la página vieja `dictado` redirige). La conversación es de clase `asistente` (`mensajeria.js`:
+  `idConAsistente`, `abrirConAsistente`, `esConAsistente`, `ROLES_CON_ASISTENTE` = admin, encargado, agrónomo): una por
+  persona, fijada arriba, `virtual` hasta el primer mensaje (ahí nace su evento). **El asistente no es un integrante**: no
+  está en `miembros` ni entra a grupos. Mismo motor que el chat (todo mensaje ahí es `alAsistente`), y las propuestas
+  dichas se enseñan con `PropuestaDicha` (la tarjeta que tenía «Dile a la app», sobre `preparar`) y se guardan con
+  `firmar` → `confirmarDelChat`: mismo permiso, mismo rastro. Lo que no se clasifica se puede «dejar tal cual en la
+  bitácora». **Es privada también en la base (hoja 49)**: su único participante es la cuenta que la abre, no admite
+  cambios de gente y NO se abre por consulta excepcional. No contesta preguntas sobre los datos: sólo prepara registros.
+  `traeOtroAsunto` (en `relacionar`): una frase con su propio asunto no se pega como respuesta a la pregunta de otra cosa.
+  Prueba: `pruebas/dicho_navegador.py` (30) recorre todo lo que hacía «Dile a la app» en su lugar nuevo.
 - **La conversación continúa** (`aclarar`, `pendienteDe`, `esRespuesta` en `operaciones.js`): lo que falta se
   contesta en corto y se entiende DENTRO de la propuesta pendiente («20 pesos el kilo» × lo que se dijo que se
   compró; sin cantidad se pregunta; «tres kilos» no son tres pesos). La frase original no cambia; cada aclaración
