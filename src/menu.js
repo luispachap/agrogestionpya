@@ -32,8 +32,7 @@ export const FUNCIONES = {
   aldia: f("dinero", "🎯", "¿Alcanza?", "Y qué dejó de aparecer"),
   resumen: f("dinero", "📰", "Resumen", "Cómo va la semana"),
   "panel-financiero": f("dinero", "💰", "¿Cómo vamos?", "Resumen del dinero"),
-  chat: f("gente", "💬", "Mensajes", "Conversaciones de trabajo, entre personas y grupos"),
-  dictado: f("campo", "💬", "Dile a la app", "Habla y ella lo registra"),
+  chat: f("gente", "💬", "Mensajes", "Con tu gente y con AgroGestión, el asistente del sistema"),
   // Campo
   "registrar-actividad": f("campo", "✏️", "Registrar actividad", "Lo que se hizo en campo"),
   "registro-masivo": f("campo", "👥", "Registro de varios", "Varios trabajadores a la vez"),
@@ -105,8 +104,8 @@ export const FUNCIONES = {
 // Qué puede abrir cada perfil. Tiene que coincidir con lo que App.jsx sabe
 // pintarle a ese perfil: una prueba lo compara contra el propio App.jsx.
 export const PANTALLAS_DE = {
-  admin: ["mapa", "checador", "reparto", "cuadrillas-dia", "mano-obra", "jornadas", "credenciales", "aldia", "aplicaciones", "aprobacion-externos", "arranque", "asistencia", "banco", "bitacora", "caja", "calendario", "chat", "ciclos", "comercializacion", "compras", "compras-insumos", "consignaciones", "contabilidad", "contpaqi", "corrida", "cosechas", "deudas", "dictado", "dron", "eldia", "embarque", "equipo", "estibas", "fito", "ganado", "importar", "indicaciones", "inventario", "mis", "movimientos", "nomina", "operacion", "panel-financiero", "panel-parcelas", "papeles", "parcelas", "pase-lista", "personal", "proveedores", "proyeccion", "registrar-actividad", "registro-masivo", "rendimiento-parcelas", "reporte", "reporte-variedades", "reportes", "respaldo", "resumen", "seguridad", "socios", "solicitudes", "subir-nube", "tareas", "terminados", "entregas", "vales", "variedades"],
-  encargado: ["mapa", "checador", "reparto", "cuadrillas-dia", "jornadas", "credenciales", "aldia", "aprobacion-externos", "asistencia", "banco", "bitacora", "caja", "chat", "corrida", "cosechas", "dictado", "dron", "eldia", "estibas", "fito", "ganado", "operacion", "papeles", "pase-lista", "personal", "registrar-actividad", "registro-masivo", "socios", "solicitudes", "tareas", "entregas", "vales"],
+  admin: ["mapa", "checador", "reparto", "cuadrillas-dia", "mano-obra", "jornadas", "credenciales", "aldia", "aplicaciones", "aprobacion-externos", "arranque", "asistencia", "banco", "bitacora", "caja", "calendario", "chat", "ciclos", "comercializacion", "compras", "compras-insumos", "consignaciones", "contabilidad", "contpaqi", "corrida", "cosechas", "deudas", "dron", "eldia", "embarque", "equipo", "estibas", "fito", "ganado", "importar", "indicaciones", "inventario", "mis", "movimientos", "nomina", "operacion", "panel-financiero", "panel-parcelas", "papeles", "parcelas", "pase-lista", "personal", "proveedores", "proyeccion", "registrar-actividad", "registro-masivo", "rendimiento-parcelas", "reporte", "reporte-variedades", "reportes", "respaldo", "resumen", "seguridad", "socios", "solicitudes", "subir-nube", "tareas", "terminados", "entregas", "vales", "variedades"],
+  encargado: ["mapa", "checador", "reparto", "cuadrillas-dia", "jornadas", "credenciales", "aldia", "aprobacion-externos", "asistencia", "banco", "bitacora", "caja", "chat", "corrida", "cosechas", "dron", "eldia", "estibas", "fito", "ganado", "operacion", "papeles", "pase-lista", "personal", "registrar-actividad", "registro-masivo", "socios", "solicitudes", "tareas", "entregas", "vales"],
   trabajador: ["compras", "mis", "pase-lista", "reporte", "solicitudes"],
   cuadrilla: ["compras", "mis", "reporte"],
   externo: ["mis", "reporte"],
@@ -161,10 +160,13 @@ export const elegirEnfoque = (prefs, id) => (ENFOQUES.some(e => e.id === id) ? {
 export const TOPE_BARRA = 3;     // más Inicio y Menú: cinco botones, lo que cabe en un teléfono
 export const TOPE_INICIO = 12;
 
+export const RENOMBRADAS = { dictado: "chat" };
 const permitidas = (rol) => PANTALLAS_DE[rol] || [];
 const limpiar = (lista, rol, tope) => {
   const ok = new Set(permitidas(rol)); const vistos = new Set(); const sale = [];
-  for (const id of Array.isArray(lista) ? lista : []) {
+  // «Dile a la app» ya vive dentro de Mensajes: quien lo tenía anclado conserva el lugar, ahora con Mensajes.
+  for (const viejo of Array.isArray(lista) ? lista : []) {
+    const id = RENOMBRADAS[viejo] || viejo;
     if (ok.has(id) && FUNCIONES[id] && !vistos.has(id)) { vistos.add(id); sale.push(id); }
   }
   return sale.slice(0, tope);
@@ -220,7 +222,7 @@ export const enBarraDe = (rol, prefs) => limpiar(prefs?.barra ?? fabricaDe(rol, 
 const CORTOS = {
   "registrar-actividad": "Registrar", "registro-masivo": "Varios", "panel-parcelas": "Parcelas", "rendimiento-parcelas": "Rendimiento",
   "reporte-variedades": "Comparar", solicitudes: "Compras", compras: "Compras", "compras-insumos": "Compra", "aprobacion-externos": "Externos",
-  "panel-financiero": "Dinero", "pase-lista": "Lista", credenciales: "Credencial", reparto: "Equipos", entregas: "Entregas", vales: "Conteo", "cuadrillas-dia": "Cuadrillas", "mano-obra": "M. de obra", dictado: "Dictar", corrida: "Corrida", terminados: "Terminado", embarque: "Camión",
+  "panel-financiero": "Dinero", "pase-lista": "Lista", credenciales: "Credencial", reparto: "Equipos", entregas: "Entregas", vales: "Conteo", "cuadrillas-dia": "Cuadrillas", "mano-obra": "M. de obra", corrida: "Corrida", terminados: "Terminado", embarque: "Camión",
   comercializacion: "Ventas", nomina: "Pagos", "subir-nube": "Subir", consignaciones: "Consigna", proveedores: "Proveed.",
   mis: "Mis días", fito: "Fito", caja: "Caja", indicaciones: "Indicar",
 };

@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { clasificarMensaje } from "./chat.js";
 import { preparar, ejecutar } from "./operaciones.js";
-import { pedirConsulta, PERMISO_SUPERVISION, hallazgosDe, antecedentes, deDondeSalio, comoEvidencia, admiteArchivos, ROLES_QUE_ESCRIBEN, ROLES_QUE_ABREN, crearConversacion, cambiarConversacion, conversacionesDe, misConversaciones, puedeVer, puedeEscribir, tituloDe, mensajesDe, paraElAsistente, respuestaDelAsistente, relacionar, conRelacion, temasAbiertos, REGLAS, GENERAL, T_CONVERSACION } from "./mensajeria.js";
+import { pedirConsulta, PERMISO_SUPERVISION, hallazgosDe, antecedentes, deDondeSalio, comoEvidencia, admiteArchivos, ROLES_QUE_ESCRIBEN, ROLES_QUE_ABREN, crearConversacion, cambiarConversacion, conversacionesDe, misConversaciones, puedeVer, puedeEscribir, tituloDe, mensajesDe, paraElAsistente, respuestaDelAsistente, relacionar, conRelacion, temasAbiertos, REGLAS, GENERAL, T_CONVERSACION, traeOtroAsunto, idConAsistente, abrirConAsistente, esConAsistente, ROLES_CON_ASISTENTE, ASISTENTE } from "./mensajeria.js";
 
 const parcelas = [{ id: "sf4", nombre: "San Felipe 4" }], personas = [{ id: "t1", nombre: "Juan Inventado" }];
 const miguel = { id: "c-mig", nombre: "Miguel de Prueba", rol: "admin" }, fito = { id: "ag1", nombre: "Agrónomo de Prueba", rol: "agronomo" }, capataz = { id: "enc1", nombre: "Capataz de Prueba", rol: "encargado" }, finanzas = { id: "f1", nombre: "Finanzas de Prueba", rol: "finanzas" }, peon = { id: "t1", nombre: "Juan Inventado", rol: "trabajador" };
@@ -29,7 +29,7 @@ test("una_conversacion_la_leen_sus_participantes_y_nadie_mas_ni_la_administracio
   assert.deepEqual([puedeVer(c, finanzas).ve, puedeEscribir(c, finanzas)], [false, false]);
   assert.deepEqual([puedeVer(c, miguel).ve, puedeEscribir(c, miguel)], [false, false], "ser administrador no abre una conversación ajena");
   assert.equal(puedeVer(c, peon).ve, false);
-  assert.deepEqual(misConversaciones({ eventos: [g], mensajes: [], persona: miguel }).map(x => x.id), [GENERAL]);
+  assert.deepEqual(misConversaciones({ eventos: [g], mensajes: [], persona: miguel }).map(x => x.id), [idConAsistente(miguel.id), GENERAL], "sólo la suya con AgroGestión y la general");
   assert.ok(REGLAS.some(r => /institucionales/.test(r)) && REGLAS.some(r => /No son para vigilar/.test(r)) && REGLAS.some(r => /tampoco la administración/.test(r)) && REGLAS.some(r => /se conservan/.test(r)) && REGLAS.some(r => /DIJO.*INTERPRETÓ.*CONFIRMÓ.*REGISTRADO/.test(r)));
 });
 
@@ -179,4 +179,49 @@ test("los_adjuntos_de_una_conversacion_cerrada_van_a_su_carpeta_y_los_de_la_gene
   assert.equal(leerReferencia(r.registro.foto.dataUrl).ruta, r.archivos[0].ruta);
   const comun = sacarArchivos({ id: "m2", foto: { dataUrl: foto } });
   assert.match(comun.archivos[0].ruta, /^[0-9a-f]{64}\.jpg$/); assert.notEqual(comun.archivos[0].id, r.archivos[0].id, "el mismo archivo en dos lugares son dos archivos: cada uno con su candado");
+});
+
+test("la_conversacion_con_agrogestion_es_de_una_sola_persona_va_fijada_arriba_y_el_asistente_no_es_integrante", () => {
+  // Antes de escribirle no existe en la base, pero ya se ve (y va primero, antes de la general).
+  const lista = misConversaciones({ eventos: [], mensajes: [], persona: capataz });
+  assert.deepEqual(lista.map(x => [x.id, x.clase, x.titulo, !!x.virtual]), [[idConAsistente(capataz.id), "asistente", "AgroGestión", true], [GENERAL, "general", "General del rancho", false]]);
+  assert.deepEqual(lista[0].miembros.map(m => m.id), [capataz.id], "el único participante es la persona: el asistente no es un integrante");
+  // Con su primer mensaje nace como evento, con id fijo por persona (la misma en todos sus aparatos).
+  const r = abrirConAsistente({ quien: capataz, ...sello() }), otra = abrirConAsistente({ quien: capataz, ...sello() });
+  assert.ok(r.ok && r.evento.id === otra.evento.id && r.evento.datos.clase === "asistente" && !r.evento.datos.miembros.some(m => m.id === ASISTENTE.id));
+  const conEvento = misConversaciones({ eventos: [r.evento], mensajes: [{ id: "m1", conversacion: r.evento.id, de: ASISTENTE, delAsistente: true, cuando: "2026-11-21T10:00:00Z", texto: "Lo dejé preparado." }], persona: capataz });
+  assert.deepEqual([conEvento.length, conEvento[0].id, !!conEvento[0].virtual, conEvento[0].sinLeer], [2, r.evento.id, false, 0], "no se duplica, y sus respuestas no cuentan como mensajes sin leer");
+  assert.equal(puedeEscribir(conEvento[0], capataz), true);
+});
+
+test("la_conversacion_con_agrogestion_de_otra_persona_no_la_ve_nadie_ni_por_consulta", () => {
+  const r = abrirConAsistente({ quien: capataz, ...sello() }), c = conversacionesDe([r.evento]).find(x => x.id === r.evento.id);
+  assert.ok(esConAsistente(c));
+  assert.deepEqual([puedeVer(c, miguel).ve, puedeVer(c, fito).ve, puedeEscribir(c, miguel)], [false, false, false]);
+  // Ni con el permiso de supervisión, ni con una consulta que alguien hubiera metido.
+  assert.equal(pedirConsulta({ conversacion: c, motivo: "Revisar una queja de una compra", persona: miguel, otorgados: ["supervisar_conversaciones"] }).ok, false);
+  assert.equal(puedeVer(c, miguel, { consultas: [{ conversacion: c.id, usuario: miguel.id, motivo: "x", hasta: "2999-01-01T00:00:00Z" }] }).ve, false);
+  // Y a miguel le sale la SUYA, no la del capataz.
+  assert.deepEqual(misConversaciones({ eventos: [r.evento], mensajes: [], persona: miguel }).map(x => x.id), [idConAsistente(miguel.id), GENERAL]);
+  // Quien no escribe mensajes o no puede abrir conversaciones no la tiene (finanzas, dirección, personal de campo).
+  assert.deepEqual(ROLES_CON_ASISTENTE, ["admin", "encargado", "agronomo"]);
+  assert.equal(abrirConAsistente({ quien: finanzas, ...sello() }).ok, false);
+  assert.ok(!misConversaciones({ eventos: [], mensajes: [], persona: finanzas }).some(esConAsistente));
+});
+
+test("una_frase_con_su_propio_asunto_no_se_pega_como_respuesta_a_la_pregunta_de_otra_cosa", () => {
+  // Pasó en la prueba de navegador: «Terminamos tres reguladores.» preguntaba en qué parcela, y la sospecha de cosecha
+  // que se dijo después le «contestó» La 53. Son dos cosas distintas.
+  const parcelas = [{ id: "sf4", nombre: "San Felipe 4" }, { id: "p53", nombre: "La 53" }];
+  const dicho = (id, texto, cuando) => { const e = clasificarMensaje({ mensaje: { id, de: capataz, cuando, texto }, personas: [], parcelas, insumos: [], hoy: "2026-11-21" }); return { ...e, id, de: capataz, cuando, texto }; };
+  const avance = dicho("m1", "Terminamos tres reguladores.", "2026-11-21T15:00:00.000Z");
+  const con = (texto) => relacionar({ mensajes: [avance], nuevo: { id: "m2", de: capataz, cuando: "2026-11-21T15:02:00.000Z", texto }, personas: [], parcelas, ahora: "2026-11-21T15:02:00.000Z", hoy: "2026-11-21" });
+  assert.equal(con("Creo que cosechamos como cien cajas de La 53."), null, "una sospecha es otro asunto");
+  assert.equal(con("Vimos mucha hierba en San Felipe 4"), null, "algo que se vio es otro asunto");
+  assert.equal(con("Compramos un rollo de manguera"), null);
+  assert.equal(con("El tractor se descompuso en La 53"), null);
+  // Lo que sí es una respuesta sigue pegándose a su pregunta.
+  assert.equal(con("En La 53")?.clase, "aclaracion");
+  assert.equal(con("la 53")?.clase, "aclaracion");
+  for (const t of ["20 pesos el kilo", "ochocientos pesos", "Se pagó de caja chica", "A Juan", "ocho horas", "de riego"]) assert.equal(traeOtroAsunto(t), false, t);
 });

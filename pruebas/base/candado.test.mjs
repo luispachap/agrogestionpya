@@ -102,3 +102,23 @@ test("los_archivos_de_una_conversacion_solo_los_ve_baja_o_sube_quien_participa_e
   await db.query("update consultas_de_conversacion set hasta = now() - interval '1 minute' where usuario = $1", [CUENTAS.finanzas]);
   assert.deepEqual(await ve("finanzas"), ["ticket-de-siempre.jpg"]);
 });
+
+test("la_conversacion_con_el_asistente_es_de_una_sola_cuenta_no_admite_mas_gente_ni_se_abre_por_consulta", async () => {
+  // El agrónomo abre la suya; en el evento alguien "coló" al encargado y a todo el puesto de finanzas: no cuenta.
+  assert.ok((await como(db, "agronomo", ...ev("conv-a", "conversacion", { clase: "asistente", nombre: "AgroGestión", miembros: [{ tipo: "persona", id: CUENTAS.agronomo }, { tipo: "persona", id: CUENTAS.encargado }, { tipo: "rol", rol: "finanzas" }] }))).ok);
+  assert.ok((await como(db, "agronomo", ...msj("m-asistente", "conv-a"))).ok);
+  assert.deepEqual((await db.query("select miembro, rol from conversacion_miembros where conversacion = 'conv-a'")).rows, [{ miembro: CUENTAS.agronomo, rol: null }], "su único participante es quien la abrió");
+  assert.ok((await lee("agronomo")).includes("m-asistente"));
+  for (const quien of ["encargado", "finanzas", "luis", "dueno"]) assert.ok(!(await lee(quien)).includes("m-asistente"), `${quien} no la lee`);
+  assert.equal((await como(db, "encargado", ...msj("m-colado", "conv-a"))).ok, false, "nadie más escribe en ella");
+  // Ni su dueño le agrega gente.
+  await como(db, "agronomo", ...ev("conv-a-cambio", "conversacion_cambio", { conversacion: "conv-a", agregar: [{ tipo: "persona", id: CUENTAS.encargado }] }));
+  assert.equal((await db.query("select count(*)::int n from conversacion_miembros where conversacion = 'conv-a'")).rows[0].n, 1);
+  // Ni con el permiso de supervisión otorgado se abre por consulta.
+  // Ni con el permiso de supervisión otorgado (dirección lo tiene desde la prueba de arriba) se abre por consulta.
+  const r = await como(db, "dueno", "select consultar_conversacion('conv-a', 'Revisar una queja sobre una compra') h");
+  assert.equal(r.ok, false); assert.match(JSON.stringify(r), /privada/);
+  assert.ok(!(await lee("dueno")).includes("m-asistente"));
+  // Y la consulta de una conversación entre personas sigue funcionando igual.
+  assert.equal((await como(db, "dueno", "select consultar_conversacion('conv-g', 'Revisar una queja sobre una compra') h")).ok, true);
+});

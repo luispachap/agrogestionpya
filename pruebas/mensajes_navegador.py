@@ -35,15 +35,16 @@ with sync_playwright() as p:
 
     # ── 1. Conversaciones y reglas ──
     t = plano(pg.locator(".msj-lista").inner_text())
-    caso("la mensajería abre en la lista de conversaciones, con la general", "General del rancho" in t and "Hablar con alguien" in t and "Nuevo grupo" in t, t)
-    pg.get_by_role("button", name="Reglas").click(); pg.wait_for_timeout(200)
+    pg.get_by_role("button", name="Nueva conversación").click(); pg.wait_for_timeout(200); t2 = pg.locator(".msj-menu").inner_text(); pg.keyboard.press("Escape"); pg.mouse.click(10, 10); pg.wait_for_timeout(200)
+    caso("la mensajería abre en la lista de conversaciones, con la general, y el botón de nueva conversación ofrece persona o grupo", "General del rancho" in t and "Hablar con alguien" in t2 and "Nuevo grupo" in t2, t + t2)
+    pg.get_by_role("button", name="Opciones").click(); pg.wait_for_timeout(200); pg.get_by_role("button", name="Reglas de los mensajes").click(); pg.wait_for_timeout(200)
     r = pg.locator(".msj-reglas").inner_text()
     caso("las reglas dicen que son institucionales, que no son para vigilar, quién las lee, que se conservan y que nada se registra solo", "institucionales" in r and "No son para vigilar" in r and "tampoco la administración" in r and "Nada se registra solo" in r and "se conservan" in r and "las hace cumplir la base de datos" in r, r[:200])
     pg.get_by_role("button", name="Entendido").click()
-    pg.get_by_role("button", name="Nuevo grupo").click(); pg.wait_for_timeout(200)
+    pg.get_by_role("button", name="Nueva conversación").click(); pg.wait_for_timeout(200); pg.get_by_role("button", name="Nuevo grupo").click(); pg.wait_for_timeout(200)
     pg.get_by_label("Nombre del grupo").fill("Compras"); pg.get_by_text("Todos los de Administración").click(); pg.get_by_role("button", name="Abrir").click(); pg.wait_for_timeout(500)
     d = datos(pg)
-    caso("se abre un grupo de trabajo por puesto y queda como evento", len(d["conv"]) == 1 and d["conv"][0]["nombre"] == "Compras" and d["conv"][0]["institucional"] is True and "Compras" in pg.locator(".top-bar h2").inner_text(), d["conv"])
+    caso("se abre un grupo de trabajo por puesto y queda como evento", len(d["conv"]) == 1 and d["conv"][0]["nombre"] == "Compras" and d["conv"][0]["institucional"] is True and "Compras" in pg.locator(".msj-cabeza h2").inner_text(), d["conv"])
 
     # ── 2. Una compra entre dos personas ──
     manda(pg, "Compramos tres kilos de clavos.")
@@ -55,7 +56,7 @@ with sync_playwright() as p:
     caso("la plática no genera propuestas ni cosas por confirmar", len(platica) == 2 and all(len(m["propuestas"]) == 0 for m in platica) and "no se entendió" not in pg.locator("body").inner_text().lower(), [m["texto"] for m in platica])
     entrar_como(pg, "7391")
     t = plano(pg.locator(".msj-lista").inner_text())
-    caso("el administrador ve el grupo porque es de su puesto, con lo que espera confirmación y lo que no ha leído", "Compras" in t and "1 por confirmar" in t and "3 sin leer" in t, t)
+    caso("el administrador ve el grupo porque es de su puesto, con lo que espera confirmación y lo que no ha leído", "Compras" in t and "1 por confirmar" in t and pg.locator(".msj-conv", has_text="Compras").locator(".msj-nuevos").inner_text() == "3", t)
     pg.locator(".msj-conv", has_text="Compras").click(); pg.wait_for_timeout(400)
     manda(pg, "20 pesos el kilo")
     d = datos(pg); gastos = [p for m in d["chat"] for p in m["propuestas"] if p["tipo"] == "gasto"]
@@ -63,16 +64,17 @@ with sync_playwright() as p:
     manda(pg, "Se pagó de caja chica")
     d = datos(pg); gastos = [p for m in d["chat"] for p in m["propuestas"] if p["tipo"] == "gasto"]
     caso("y «se pagó de caja chica» también va a la misma propuesta", len(gastos) == 1 and gastos[0].get("pagadoCon") == "caja_chica" and len(gastos[0]["aclaraciones"]) == 2, gastos)
-    t = plano(pg.locator(".card", has_text="Compramos tres kilos").last.inner_text())
+    bur = pg.locator(".msj-burbuja", has_text="Compramos tres kilos").first; bur.locator(".msj-prop-chip").click(); pg.wait_for_timeout(200)
+    t = plano(bur.inner_text())
     caso("la conversación se ve completa junto a la propuesta", "20 pesos el kilo" in t and "caja chica" in t and "Administrador" in t, t)
-    pg.locator(".card", has_text="Compramos tres kilos").last.get_by_role("button", name="Sí").click(); pg.wait_for_timeout(500)
+    bur.get_by_role("button", name="Sí").click(); pg.wait_for_timeout(500)
     d = datos(pg); e = d["egr"]
     caso("al confirmar nace UN gasto con el mensaje original, las dos aclaraciones y quién confirmó", len(e) == 1 and e[0]["monto"] == 60 and e[0]["pagadoCon"] == "caja_chica" and e[0]["origen"]["dijo"] == "ENCARGADO DE PRUEBA" and [a["texto"] for a in e[0]["origen"]["aclaraciones"]] == ["20 pesos el kilo", "Se pagó de caja chica"] and e[0]["origen"]["confirmo"] == "Administrador", e)
     caso("los mensajes de aclaración se conservan como mensajes de la conversación", len([m for m in d["chat"] if m.get("aclaraA")]) == 2)
     ev = [m for m in d["chat"] if m.get("esEvidencia")]
     caso("lo confirmado marca como evidencia el mensaje original y sus dos aclaraciones, y como sensible por ser dinero", len(ev) == 3 and all(m.get("sensible") for m in ev), [(m["texto"], m.get("sensible")) for m in ev])
-    pg.locator(".top-bar .btn-ghost").click(); pg.wait_for_timeout(300)
-    caso("al salir, el grupo ya no marca mensajes sin leer", "sin leer" not in pg.locator(".msj-conv", has_text="Compras").inner_text())
+    pg.locator(".msj-atras").click(); pg.wait_for_timeout(300)
+    caso("al salir, el grupo ya no marca mensajes sin leer", pg.locator(".msj-conv", has_text="Compras").locator(".msj-nuevos").count() == 0)
     pg.locator(".tab-pill", has_text="Memoria").click(); pg.wait_for_timeout(300)
     pg.get_by_label("Buscar en la memoria").fill("clavos"); pg.wait_for_timeout(300)
     h = pg.locator(".msj-hallazgo")
@@ -95,14 +97,14 @@ with sync_playwright() as p:
     caso("«la voy a inspeccionar» queda ligado a la plaga que reportó otra persona, con su parcela", len(seg) == 1 and seg[0]["sobre"]["clase"] == "seguimiento" and "plaga" in seg[0]["sobre"]["frase"] and seg[0].get("parcelaId") == "sf4" and seg[0]["heredado"] == ["parcela"], seg)
     t = pg.locator("body").inner_text().lower()
     caso("y no se inventa ningún diagnóstico", "no dice qué es ni qué lo causa" in t and not any(x in t for x in ["trips", "hongo", "se recomienda"]))
-    pg.locator(".card", has_text="Mañana la voy a inspeccionar").last.get_by_role("button", name="Sí").click(); pg.wait_for_timeout(400)
+    bur = pg.locator(".msj-burbuja", has_text="Mañana la voy a inspeccionar").last; bur.locator(".msj-prop-chip").click(); pg.wait_for_timeout(200); bur.get_by_role("button", name="Sí").click(); pg.wait_for_timeout(400)
     b0 = datos(pg)["bit"]
     caso("el agrónomo lo confirma y queda como pendiente en la bitácora, apuntando a la observación", len(b0) == 1 and b0[0]["naturaleza"] == "plan" and b0[0]["sobre"]["frase"].startswith("Vimos mucha plaga") and b0[0]["parcelaId"] == "sf4", b0)
     antes = len(datos(pg)["chat"])
     manda(pg, "Agro, se descompuso la bomba del pozo")
     d = datos(pg); bot = [m for m in d["chat"] if m.get("delAsistente")]
     caso("al asistente se le habla con «Agro,» y sólo entonces contesta", len(d["chat"]) == antes + 2 and len(bot) == 1 and "lo dejé preparado" in bot[0]["texto"] and bot[0]["de"]["nombre"] == "AgroGestión", [m["texto"] for m in bot])
-    pg.locator(".top-bar .btn-ghost").click(); pg.wait_for_timeout(300)
+    pg.locator(".msj-atras").click(); pg.wait_for_timeout(300)
     t = plano(pg.locator(".msj-lista").inner_text())
     caso("el agrónomo no ve el grupo de Compras, porque no participa", "Compras" not in t and "General del rancho" in t, t)
     pg.locator(".tab-pill", has_text="Memoria").click(); pg.wait_for_timeout(300)

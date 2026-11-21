@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { espacioDe, llavesDe } from "./espacio.js";
+import { almacenDeSesion } from "./nativoSeguro.js";
 
 // Sólo estas dos variables, y las dos son públicas por diseño.
 // TODA variable VITE_* se copia tal cual al JavaScript que baja cualquier
@@ -20,7 +21,8 @@ if (!url || !anonKey) {
 // Sin configuración la app debe abrir igual (modo sólo-teléfono), no quedar en blanco:
 // createClient("") lanza un error, así que se le da una dirección que no existe.
 export const supabase = createClient(url || "http://sin-configurar.invalid", anonKey || "sin-configurar", {
-  auth: { persistSession: true, autoRefreshToken: true },
+  // En la app Android la sesión va al almacén protegido del teléfono; en la web, donde siempre.
+  auth: { persistSession: true, autoRefreshToken: true, ...(almacenDeSesion ? { storage: almacenDeSesion } : {}) },
 });
 
 export const supabaseListo = !!(url && anonKey);

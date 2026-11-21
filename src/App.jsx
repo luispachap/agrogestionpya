@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component, createContext, useContext } from "react";
+import { createPortal } from "react-dom";
 // Una operación, múltiples consecuencias: el evento se captura una vez.
 import { estaVigente, cambioPermitido, sinRepetir, juntarEventos, cancelarEvento, exigirValidacion, sinValidar, OPERACION_DE, OPERACIONES, SOLO_OTORGADOS } from "./eventos.js";
 import { abrirAlmacenDeEventos, borrarAlmacenDeEventos } from "./almacenEventos.js";
@@ -29,7 +30,7 @@ import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarra
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
 import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo, caminoDeEntrada, quienEntraConPin, entrarConCredencial, puertaDeAsistencia } from "./acceso.js";
-import { consultasDeConversacion, consultarConversacion, verEvidencia, directorioDeCuentas, migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde, horaDelServidor, cuandoSelle, misPermisos, permisosDeTodos, cambiarPermiso } from "./dataApi";
+import { estadoDeIA, consultasDeConversacion, consultarConversacion, verEvidencia, directorioDeCuentas, migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde, horaDelServidor, cuandoSelle, misPermisos, permisosDeTodos, cambiarPermiso } from "./dataApi";
 import { desfaseDe, selloDeReloj, estadoDelReloj } from "./reloj.js";
 // Pagos al personal: ausencias, lo que corresponde, lo entregado, lo pendiente y los recibos.
 import { registrarAusencia, justificarFalta, ausenciasDe, semanaDe, leToca, DIAS_DE_SIEMPRE, cuentasDeCuadrillas, registrarPago, pagosA, saldoDe, emitirRecibo, recibosDe, reciboAlDia,
@@ -104,9 +105,10 @@ import {
 // El día: el clima de copiloto, el reparto de tareas y lo que se va a acabar.
 import { traerPronostico, planDelDia, alertasDelClima, riegoNecesario, describirEdad } from "./clima.js";
 import { destinoDe as destinoDeAviso, estadoDelAparato, CLASES_DE_AVISO } from "./avisos.js";
+import { comoSeDesbloquea, desbloquear, pantallaPrivada, PLAZOS as PLAZOS_DE_BLOQUEO, plazoDeBloqueo, guardarPlazo, tocaBloquear } from "./nativoSeguro.js";
 import { esNativo, prepararNativo, avisarNativo, alTocarAviso, vigilarMensajes, CANALES as CANALES_NATIVOS } from "./nativo.js";
 import { activarAvisos, desactivarAvisos, avisoDePrueba, misPreferenciasDeAvisos, guardarPreferenciasDeAvisos, quitarAvisosDe, suscripcionDeEsteAparato } from "./avisosRed.js";
-import { misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro, hallazgosDe, antecedentes, temasDe, deDondeSalio, comoEvidencia, admiteArchivos, carpetaDe, pedirConsulta, conversacionesDe as todasLasConversaciones, PERMISO_EVIDENCIA, PERMISO_SUPERVISION } from "./mensajeria.js";
+import { idConAsistente, abrirConAsistente, esConAsistente, misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro, hallazgosDe, antecedentes, temasDe, deDondeSalio, comoEvidencia, admiteArchivos, carpetaDe, pedirConsulta, conversacionesDe as todasLasConversaciones, PERMISO_EVIDENCIA, PERMISO_SUPERVISION } from "./mensajeria.js";
 import { planDelDia as planMandadoDe, loQueLeToca, quitarAsignacion, cambiarAsignacion } from "./asignaciones.js";
 import { repartirElDia, aQueSeVaCadaQuien, quienNoTieneNada, chocanLasTareas, indicacionParaElTrabajador, comoVaElDia } from "./plan.js";
 import { loQueVaAFaltar } from "./prediccion.js";
@@ -299,9 +301,81 @@ textarea.inp{min-height:90px;resize:none;}
 .chk-aviso.salida .chk-aviso-l{color:var(--blue);}
 .chk-aviso.aviso{border-color:var(--gold);background:rgba(228,178,63,.12);}
 .chk-aviso.mal{border-color:var(--red);background:rgba(227,100,100,.12);}
-.msj-burbuja.mio{border-left:3px solid var(--accent);}
-.msj-burbuja.asistente{border-left:3px solid var(--blue);background:var(--card2);}
-.msj-conv{border:1px solid var(--border);margin-bottom:8px;color:var(--text);background:var(--card);cursor:pointer;}
+.bloqueo-nativo{position:fixed;inset:0;z-index:300;background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:28px;}
+.msj-fila{display:flex;gap:12px;align-items:center;width:100%;text-align:left;padding:10px 4px;background:none;border:none;border-bottom:1px solid var(--border-soft);color:var(--text);cursor:pointer;font:inherit;}
+.msj-avatar{flex:none;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;background:rgba(132,192,1,.16);color:var(--brand);}
+.msj-avatar.grupo{background:rgba(228,178,63,.14);color:var(--accent);}
+.msj-avatar.asistente{background:rgba(88,166,222,.16);background:color-mix(in srgb,var(--blue) 18%,transparent);color:var(--blue);}
+.msj-sello{margin-left:8px;font-size:10.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:var(--blue);border:1px solid color-mix(in srgb,var(--blue) 45%,transparent);border-radius:8px;padding:1px 6px;vertical-align:middle;}
+.msj-conv-asistente{background:color-mix(in srgb,var(--blue) 6%,transparent);border-radius:12px;border-bottom:1px solid var(--border);padding-left:8px;padding-right:8px;margin-bottom:4px;}
+.msj-bienvenida{margin:14px auto 10px;max-width:420px;padding:14px;border-radius:14px;border:1px solid color-mix(in srgb,var(--blue) 30%,var(--border));background:color-mix(in srgb,var(--blue) 8%,var(--surface));font-size:13.5px;line-height:1.4;display:flex;flex-direction:column;gap:7px;text-align:center;}
+.msj-bienvenida i{color:var(--muted);font-size:13px;}
+.msj-avatar.chico{width:36px;height:36px;font-size:15px;}
+.msj-fila-medio{flex:1;min-width:0;}
+.msj-fila-t{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.msj-fila-s{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+.msj-fila-der{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px;font-size:11px;color:var(--muted);}
+.msj-nuevos{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--brand);color:#0C1207;font-weight:800;font-size:11px;display:inline-flex;align-items:center;justify-content:center;}
+.msj-fab{position:fixed;right:max(20px,calc(50% - 220px));bottom:calc(154px + env(safe-area-inset-bottom));width:52px;height:52px;border-radius:50%;border:none;background:var(--brand);color:#0C1207;font-size:24px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-lg);z-index:45;cursor:pointer;}
+.msj-pantalla{position:fixed;top:0;left:0;right:0;margin:0 auto;width:100%;max-width:480px;height:100vh;height:100dvh;min-height:0;z-index:70;display:flex;flex-direction:column;background:var(--bg);color:var(--text);overflow:hidden;}
+.msj-cabeza{flex:none;display:flex;align-items:center;gap:8px;padding:8px 8px;padding-top:calc(8px + env(safe-area-inset-top));background:var(--surface);border-bottom:1px solid var(--border);}
+.msj-cabeza h2{font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.msj-cabeza-medio{flex:1;min-width:0;background:none;border:none;color:inherit;text-align:left;font:inherit;cursor:pointer;padding:2px 0;}
+.msj-cabeza-s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.msj-ico{flex:none;width:40px;height:40px;border-radius:50%;border:none;background:none;color:var(--text);font-size:21px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.msj-ico:active{background:var(--card2);}
+.msj-ico.fuerte{background:var(--accent);color:#0C1207;}
+.msj-ico.rojo{background:var(--red);color:#fff;}
+.msj-pend{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 14px;background:rgba(228,178,63,.10);border:none;border-bottom:1px solid var(--border);color:var(--gold);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;width:100%;text-align:left;}
+.msj-hilo{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:8px 10px 10px;position:relative;}
+.msj-dia{display:flex;justify-content:center;margin:10px 0 8px;position:sticky;top:0;z-index:2;pointer-events:none;}
+.msj-dia span{background:var(--surface);border:1px solid var(--border);color:var(--muted);font-size:11.5px;font-weight:700;padding:3px 12px;border-radius:12px;}
+.msj-corte{display:flex;justify-content:center;margin:10px 0;}
+.msj-corte span{background:rgba(132,192,1,.14);color:var(--brand);font-size:12px;font-weight:800;padding:4px 14px;border-radius:12px;}
+.msj-renglon{display:flex;margin:2px 0;}
+.msj-renglon.mio{justify-content:flex-end;}
+.msj-renglon.junto{margin-top:1px;}
+.msj-renglon:not(.junto){margin-top:8px;}
+.msj-burbuja{max-width:84%;min-width:84px;padding:7px 10px 5px;border-radius:14px;border-top-left-radius:4px;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow);overflow-wrap:anywhere;}
+.msj-burbuja.mio{border-top-left-radius:14px;border-top-right-radius:4px;background:var(--card2);background:color-mix(in srgb,var(--brand) 20%,var(--surface));border-color:color-mix(in srgb,var(--brand) 32%,var(--border));border-left-width:1px;}
+.msj-burbuja.asistente{background:var(--card2);background:color-mix(in srgb,var(--blue) 12%,var(--surface));border-color:color-mix(in srgb,var(--blue) 30%,var(--border));border-left-width:1px;}
+.msj-burbuja.ancha{width:84%;}
+.msj-quien{font-size:12.5px;font-weight:800;color:var(--accent);margin-bottom:2px;}
+.msj-burbuja.asistente .msj-quien{color:var(--blue);}
+.msj-texto{font-size:15px;line-height:1.35;white-space:pre-line;}
+.msj-cita{border-left:3px solid var(--accent);background:rgba(0,0,0,.14);border-radius:6px;padding:4px 8px;font-size:12.5px;color:var(--muted);margin-bottom:4px;}
+.msj-nota{font-size:12px;color:var(--muted);margin-top:3px;}
+.msj-pie{display:flex;justify-content:flex-end;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);margin-top:2px;}
+.msj-img{display:block;max-width:100%;max-height:280px;border-radius:10px;margin:2px 0 4px;cursor:pointer;object-fit:cover;}
+.msj-doc{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;margin:2px 0 4px;border-radius:10px;border:1px solid var(--border);background:rgba(0,0,0,.12);color:var(--text);font:inherit;font-size:13.5px;text-align:left;cursor:pointer;}
+.msj-doc b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;}
+.msj-audio{display:block;width:230px;max-width:100%;height:40px;margin:2px 0 4px;}
+.msj-prop-chip{display:flex;align-items:center;gap:6px;width:100%;margin-top:5px;padding:5px 9px;border-radius:9px;border:1px solid var(--border);background:rgba(0,0,0,.12);color:var(--muted);font:inherit;font-size:12px;font-weight:700;text-align:left;cursor:pointer;}
+.msj-prop-chip.espera{color:var(--gold);border-color:rgba(228,178,63,.3);}
+.msj-prop-chip.listo{color:var(--safe);}
+.msj-prop-chip span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.msj-pregunta{font-size:12.5px;color:var(--gold);margin-top:4px;font-weight:700;}
+.msj-abajo{position:absolute;right:14px;bottom:76px;width:40px;height:40px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:19px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-lg);z-index:3;cursor:pointer;}
+.msj-barra{flex:none;background:var(--surface);border-top:1px solid var(--border);padding:6px 6px;padding-bottom:calc(6px + env(safe-area-inset-bottom));}
+.msj-barra-fila{display:flex;align-items:flex-end;gap:4px;}
+.msj-caja{flex:1;min-width:0;resize:none;border:1px solid var(--border);background:var(--card2);color:var(--text);border-radius:20px;padding:9px 14px;font:inherit;font-size:16px;line-height:1.3;max-height:120px;outline:none;}
+.msj-caja:focus{border-color:var(--accent);}
+.msj-prev{display:flex;align-items:center;gap:8px;padding:4px 6px 8px;font-size:13px;}
+.msj-prev img{height:56px;border-radius:8px;}
+.msj-prev .msj-prev-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.msj-grabando{flex:1;display:flex;align-items:center;gap:8px;padding:0 10px;height:40px;font-weight:800;color:var(--red);}
+.msj-grabando i{width:10px;height:10px;border-radius:50%;background:var(--red);animation:msjLate 1s infinite;}
+@keyframes msjLate{50%{opacity:.25;}}
+.msj-adj{display:flex;gap:8px;padding:4px 6px 8px;}
+.msj-adj button{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:12px;border:1px solid var(--border);background:var(--card2);color:var(--text);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;}
+.msj-adj button .ic{font-size:22px;color:var(--accent);}
+.msj-opcion{display:flex;align-items:center;gap:12px;width:100%;padding:13px 4px;background:none;border:none;border-bottom:1px solid var(--border-soft);color:var(--text);font:inherit;font-size:15px;font-weight:700;text-align:left;cursor:pointer;}
+.msj-opcion .ic{font-size:20px;color:var(--accent);}
+.msj-visor{position:fixed;inset:0;z-index:95;background:rgba(0,0,0,.94);display:flex;align-items:center;justify-content:center;}
+.msj-visor img{max-width:100%;max-height:100%;object-fit:contain;}
+.msj-visor button{position:absolute;top:calc(10px + env(safe-area-inset-top));right:10px;width:42px;height:42px;border-radius:50%;border:none;background:rgba(255,255,255,.14);color:#fff;font-size:22px;cursor:pointer;}
+.msj-solo{flex:none;padding:10px 14px;text-align:center;font-size:12.5px;color:var(--muted);background:var(--surface);border-top:1px solid var(--border);}
+@media (min-width:900px){.msj-pantalla{max-width:760px;border-left:1px solid var(--border);border-right:1px solid var(--border);}.msj-burbuja{max-width:68%;}.msj-burbuja.ancha{width:68%;}.msj-pantalla .modal-sheet{max-width:560px;}}
 .chat-pregunta{padding:8px;border-radius:10px;background:var(--card2);}
 .chk-toca{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);text-align:left;}
 .chk-toca-t{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
@@ -3421,6 +3495,9 @@ const ICONO_CHAT = {
   fertirriego: "💧", horometro: "⏱️", etiqueta: "🏷️", estado_cuenta: "🏦", nota: "📝",
 };
 
+// Una pantalla puede atender el botón «atrás» del teléfono antes de que la app regrese al inicio.
+const atrasInterno = { fn: null };
+
 function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
   const fileRef = useRef(null);
   const [texto, setTexto] = useState("");
@@ -3451,6 +3528,57 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
   const [leido, setLeido] = useState(() => { try { return JSON.parse(localStorage.getItem(llaveLeido) || "{}"); } catch { return {}; } });
   const otorgados = (PERMISOS && PERMISOS.operaciones) || [];
   useEffect(() => { let vivo = true; consultasDeConversacion().then(c => { if (vivo) setConsultas(c); }); directorioDeCuentas().then(c => { if (vivo) setCuentas(c); }); return () => { vivo = false; }; }, []);
+  // ── La conversación como pantalla de mensajería: lo de adelante es platicar; lo demás se abre encima. ──
+  const camRef = useRef(null), pantallaRef = useRef(null), hiloRef = useRef(null), dentroRef = useRef(null), cajaRef = useRef(null), pegado = useRef(true);
+  const [hoja, setHoja] = useState(null);        // pendientes · hoy · info · avisos · nuevaConv
+  const [menu, setMenu] = useState(false);
+  const [adjuntar, setAdjuntar] = useState(false);
+  const [verFoto, setVerFoto] = useState(null);
+  const [abiertas, setAbiertas] = useState({});  // propuestas desplegadas
+  const [segundos, setSegundos] = useState(0);
+  const [lejos, setLejos] = useState(false);
+  const [corte, setCorte] = useState(null);      // hasta dónde había leído AL ABRIR: de ahí sale «mensajes nuevos»
+  const [tic, setTic] = useState(0);
+  const bajar = () => { const el = hiloRef.current; if (el) el.scrollTop = el.scrollHeight; };
+  useEffect(() => { setCorte(convId ? { conv: convId, hasta: leido[convId] || "" } : null); setHoja(null); setMenu(false); setAdjuntar(false); setAbiertas({}); pegado.current = true; setLejos(false); }, [convId]);
+  // Al abrir: a lo más reciente. Si hay mensajes nuevos que no caben en la pantalla, al primero de ellos.
+  useEffect(() => {
+    if (!convId) return;
+    const r = requestAnimationFrame(() => {
+      const el = hiloRef.current, marca = el?.querySelector(".msj-corte");
+      if (el && marca && el.scrollHeight - marca.offsetTop > el.clientHeight) { el.scrollTop = Math.max(0, marca.offsetTop - 60); pegado.current = false; setLejos(true); }
+      else bajar();
+    });
+    return () => cancelAnimationFrame(r);
+  }, [convId, corte?.conv]);
+  // Si estoy al final y algo crece (llega un mensaje, carga una foto, sale el teclado), sigo al final.
+  useEffect(() => {
+    if (!convId || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => { if (pegado.current) bajar(); });
+    if (dentroRef.current) ro.observe(dentroRef.current);
+    if (hiloRef.current) ro.observe(hiloRef.current);
+    return () => ro.disconnect();
+  }, [convId, corte?.conv]);
+  // El teclado: la pantalla se ajusta a lo que de verdad se ve, para que la barra de escribir nunca quede tapada.
+  useEffect(() => {
+    if (!convId) return;
+    const vv = window.visualViewport, antes = document.body.style.overflow;
+    const poner = () => { const el = pantallaRef.current; if (!el || !vv) return; el.style.height = `${vv.height}px`; el.style.top = `${vv.offsetTop}px`; if (pegado.current) bajar(); };
+    poner(); vv?.addEventListener("resize", poner); vv?.addEventListener("scroll", poner);
+    document.body.style.overflow = "hidden";
+    return () => { vv?.removeEventListener("resize", poner); vv?.removeEventListener("scroll", poner); document.body.style.overflow = antes; };
+  }, [convId, corte?.conv]);
+  useEffect(() => { if (!oyendo) { setSegundos(0); return; } const r = setInterval(() => setSegundos(s => s + 1), 1000); return () => clearInterval(r); }, [oyendo]);
+  useEffect(() => { if (!convId) return; const r = setInterval(() => setTic(n => n + 1), 4000); return () => clearInterval(r); }, [convId]);
+  useEffect(() => { const c = cajaRef.current; if (c) { c.style.height = "auto"; c.style.height = `${Math.min(c.scrollHeight, 120)}px`; } }, [texto, convId]);
+  // Estado de envío: sólo lo que se puede comprobar en este aparato (sigue en la cola, o la subida falló).
+  const envio = useMemo(() => {
+    const ids = (llave) => { try { return new Set(JSON.parse(localStorage.getItem(llave) || "[]").filter(o => o?.sec === "chat").map(o => o?.payload?.id)); } catch { return new Set(); } };
+    return { porSubir: ids(LLAVES.cola), fallidas: ids(LLAVES.fallidas) };
+  }, [tic, convId, (data.chat || []).length]);
+  // El botón «atrás» del teléfono cierra lo de encima y luego la conversación, antes de salir de Mensajes.
+  atrasInterno.fn = convId ? () => { if (verFoto) setVerFoto(null); else if (hoja || menu || adjuntar || verReglas) { setHoja(null); setMenu(false); setAdjuntar(false); setVerReglas(false); } else setConvId(null); return true; } : null;
+  useEffect(() => () => { atrasInterno.fn = null; }, []);
   const docRef = useRef(null);
   const grabadora = useRef(null);
   const dictador = useRef(null);
@@ -3482,7 +3610,7 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
   const hallazgos = hallazgosDe({ mensajes: todos.filter(m => convs.some(c => c.id === (m?.conversacion || CONV_GENERAL)) && !esPlatica(m)), conversaciones: convs,
     registros: { egresos: data.egresos, bitacora: data.bitacora, incidencias: data.incidencias, solicitudes_compra: data.solicitudes_compra, cosechas: data.cosechas, actividades: data.actividades, eventos: (data.eventos || []).filter(e => e.datos?.origenDicho) } });
   const encontrados = antecedentes(hallazgos, filtro);
-  const ajenas = todasLasConversaciones(data.eventos || []).filter(c => c.id !== CONV_GENERAL && !convs.some(x => x.id === c.id));
+  const ajenas = todasLasConversaciones(data.eventos || []).filter(c => !esConAsistente(c) && c.id !== CONV_GENERAL && !convs.some(x => x.id === c.id));
   const abrirConsulta = async () => {
     const c = ajenas.find(x => x.id === pide.conversacion);
     const r = pedirConsulta({ conversacion: c, motivo: pide.motivo, persona: yo, otorgados });
@@ -3504,6 +3632,19 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
   const pendientes = pendientesDeConfirmar(operativos);
   const resumen = resumenDelDia({ mensajes: operativos, fecha: today() });
   const puedoEscribir = !!conv && puedeEscribirEn(conv, yo);
+  // La conversación con AgroGestión: todo lo que ahí se escribe es para el asistente, sin tener que llamarlo.
+  const conAsistente = esConAsistente(conv);
+  // Lo dicho, visto por el camino común (el mismo de siempre): qué es, dónde queda, qué falta y quién lo confirma.
+  const planDe = (m) => {
+    const dichas = (m.propuestas || []).filter(x => typeof x.i === "number"); if (!dichas.length) return null;
+    const de = m.de?.id ? m.de : { id: m.deQuien || "sin-nombre", nombre: m.deQuien || "", rol: null };
+    try { return prepararOperaciones({ mensaje: { id: m.id, canal: m.canal || "chat", de, cuando: m.cuando }, entendido: { propuestas: dichas } }); } catch { return null; }
+  };
+  // Lo que no se pudo clasificar se puede dejar en la bitácora tal cual, con su audio: nunca se pierde lo dicho.
+  const aLaBitacora = (m) => {
+    add("bitacora", { fecha: today(), nota: m.texto || "(audio sin transcribir)", audio: m.audio?.dataUrl || null, sinEntender: true, registradoPor: { rol: session.role, id: session.id, nombre: session.nombre }, origen: { canal: "chat", mensaje: m.id } });
+    upd("chat", { ...m, enBitacora: true });
+  };
   // Con quién se puede abrir una conversación: la gente con mensajería que la app conoce, y los grupos por puesto.
   const contactos = [
     ...(data.encargados || []).map(x => ({ tipo: "persona", id: x.id, nombre: x.nombre, rol: "encargado" })),
@@ -3567,8 +3708,9 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
     if (capacidad.dictado) {
       dictador.current = dictar({
         onParcial: setTexto,
-        onListo: (t) => { setTexto(t); setOyendo(false); },
-        onError: (err) => { alert(err); setOyendo(false); },
+        // Si se está grabando, el dictado que termina o falla NO corta la grabación: el audio sigue hasta que la persona lo pare.
+        onListo: (t) => { setTexto(t); if (!grabadora.current) setOyendo(false); },
+        onError: (err) => { if (!grabadora.current) { alert(err); setOyendo(false); } },
       });
     }
     setOyendo(true);
@@ -3583,10 +3725,11 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
       let adjunto = null;
       if (foto) {
         adjunto = { dataUrl: foto.dataUrl, nombre: foto.nombre };
-        // De gratis a caro, como siempre: se lee el papel una sola vez, aquí.
+        // Una foto en un mensaje NO llama a la IA por su cuenta (Luis, 21 nov): aquí sólo corre lo gratis (el QR de
+        // una factura). La lectura pagada se pide con el botón del mensaje (`leerFotoDe`).
         try {
-          const lect = await leerPapel({ imagenDataUrl: foto.dataUrl, patrones: data.patrones_lectura || [] });
-          adjunto.lectura = lect;
+          const lect = await leerPapel({ imagenDataUrl: foto.dataUrl, patrones: data.patrones_lectura || [], sinIA: true });
+          if (lect?.ok) adjunto.lectura = lect;
           // Si la foto es la hoja de Fito, se le pasan los renglones para que
           // chat.js la valide con la multiplicación. Si no lo es, no se fuerza.
           const t = String(lect?.transcripcion || "");
@@ -3602,7 +3745,9 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
         audio: audio ? { dataUrl: audio.dataUrl, segundos: null } : null,
         foto: adjunto,
       };
-      const alAsistente = paraElAsistente(crudo.texto);
+      const alAsistente = conAsistente ? { es: true, texto: crudo.texto } : paraElAsistente(crudo.texto);
+      // La conversación con AgroGestión nace en la base con su primer mensaje.
+      if (conAsistente && conv.virtual) { const r = abrirConAsistente({ quien: yo, cuando: crudo.cuando, fecha: today() }); if (r.ok && !(data.eventos || []).some(e => e.id === r.evento.id)) add("eventos", r.evento); }
       const enLaConversacion = mensajesDe(todos, conv.id);
       // ¿Va con algo que ya se venía hablando aquí? Una aclaración completa la MISMA operación: no nace otra.
       const relacion = crudo.texto && !foto ? relacionarMensaje({ mensajes: enLaConversacion, nuevo: { ...crudo, texto: alAsistente.texto }, personas: gente, parcelas: data.parcelas || [], ahora: crudo.cuando, hoy: today() }) : null;
@@ -3640,11 +3785,32 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
       // El asistente sólo contesta cuando se le habla.
       if (alAsistente.es) {
         const plan = prepararOperaciones({ mensaje: { id: crudo.id, canal: "chat", de: crudo.de, cuando: crudo.cuando }, entendido: { propuestas: conDestino.filter(x => typeof x.i === "number") } });
-        add("chat", { id: `${crudo.id}r`, de: ASISTENTE, delAsistente: true, cuando: new Date(Date.now() + 1).toISOString(), texto: respuestaDelAsistente({ plan, relacion }), conversacion: conv.id, canal: "chat", propuestas: [], tipo: "texto", estado: "platica", fecha: today(), deQuien: ASISTENTE.nombre, respondeA: crudo.id });
+        add("chat", { id: `${crudo.id}r`, de: ASISTENTE, delAsistente: true, cuando: new Date(Date.now() + 1).toISOString(), texto: !plan.propuestas.length && conDestino.length ? "Leí lo que mandaste y dejé una propuesta. Revísala antes de confirmar." : !plan.propuestas.length && doc ? "Guardé el documento en esta conversación. Para que entre a los registros, súbelo en «Importar documentos»." : respuestaDelAsistente({ plan, relacion }), conversacion: conv.id, canal: "chat", propuestas: [], tipo: "texto", estado: "platica", fecha: today(), deQuien: ASISTENTE.nombre, respondeA: crudo.id });
       }
 
       setTexto(""); setFoto(null); setAudio(null); setDoc(null);
     } finally { setMandando(false); }
+  };
+
+  /* ── Leer la foto de un mensaje, cuando alguien lo pide ── */
+  // Es la única lectura pagada de Mensajes. Pasa por el tope del mes (hoja 50) y queda anotada con quién la pidió,
+  // de qué mensaje salió, con qué modelo y cuánto costó. Lo leído sólo PROPONE: sigue faltando la confirmación.
+  const [leyendo, setLeyendo] = useState(null);
+  const [lectDice, setLectDice] = useState(null);
+  const leerFotoDe = async (m, nivel = "economico") => {
+    setLeyendo(m.id); setLectDice(null);
+    try {
+      const contenido = await contenidoDeArchivo(m.foto.dataUrl);
+      if (!contenido) { setLectDice({ id: m.id, dice: "Esta foto todavía no se ha bajado a este aparato." }); return; }
+      const lect = await leerPapel({ imagenDataUrl: contenido, patrones: data.patrones_lectura || [], nivel, operacion: "foto_en_mensaje", origen: m.id });
+      if (!lect.ok) { setLectDice({ id: m.id, dice: lect.dice }); return; }
+      const t = String(lect.transcripcion || ""), fotoLeida = { ...m.foto, lectura: lect, ...(/ferti\s?l?r?riego/i.test(t) ? { renglones: t.split(/\r?\n/) } : {}) };
+      const e = clasificarMensaje({ mensaje: { id: m.id, de: m.de, cuando: m.cuando, texto: "", foto: fotoLeida }, personas: gente, parcelas: data.parcelas, insumos: data.inventario, hoy: today() });
+      const nuevas = (e.propuestas || []).filter(pr => !(m.propuestas || []).some(x => x.id === pr.id)).map(pr => ({ ...pr, destino: aQuienLeToca({ propuesta: pr, personas: gente }) }));
+      const actualizado = { ...m, foto: fotoLeida, propuestas: [...(m.propuestas || []), ...nuevas], porIdentificar: nuevas.length === 0 && !(m.propuestas || []).length, platica: false };
+      upd("chat", { ...actualizado, estado: estadoParaLaTabla(actualizado) });
+      setLectDice({ id: m.id, dice: `${nuevas.length ? "Leído: quedó una propuesta para revisar." : "Se leyó, pero no se reconoció qué registrar."}${lect.presupuesto?.aviso ? ` El gasto en IA de este mes ya va en ${lect.presupuesto.pct} % de su límite.` : ""}` });
+    } finally { setLeyendo(null); }
   };
 
   /* ── Firmar una propuesta ── */
@@ -3662,7 +3828,7 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
     let hecho = null;
     if (estado !== "rechazado") {
       hecho = confirmarDelChat({ mensaje, propuesta, quien: { id: session.id, nombre: session.nombre, rol: session.role }, hoy: today(), cuando: new Date().toISOString(), parcelas: data.parcelas || [] });
-      if (!hecho.ok) { setNoSePudo({ id: propuesta.id, dice: hecho.dice + (hecho.falta ? " Mándalo otra vez con ese dato, o di que no y regístralo en su pantalla." : "") }); return; }
+      if (!hecho.ok) { setNoSePudo({ id: propuesta.id, dice: hecho.dice + (hecho.falta ? " Mándalo otra vez con ese dato, o di que no y regístralo en su pantalla." : "") + (hecho.sinPermiso && conAsistente ? " Esta conversación sólo la ves tú: mándalo en una conversación donde esté esa persona para que le llegue." : "") }); return; }
     }
     const r = marcarConfirmacion(propuesta, {
       estado, motivo,
@@ -3748,24 +3914,304 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
     );
   };
 
+  // La tarjeta de lo dicho, tal como era en «Dile a la app»: qué entendió, de qué clase es, dónde queda, qué falta
+  // y quién lo confirma. Guardar pasa por `firmar`: el mismo permiso, el mismo rastro y la misma evidencia.
+  const PropuestaDicha = ({ mensaje, pr, p }) => {
+    const firma = pr.confirmacion;
+    return (
+      <div className="card msj-dicha" style={{ padding: 10, marginTop: 6, opacity: firma?.estado === "rechazado" ? .5 : 1 }}>
+        <div className="flex-b">
+          <div className="font-bold text-sm"><Ic e={ICONO_DICHO[p.tipo] || "📝"} /> {decirPropuesta(p)}</div>
+          {firma && <span className={`badge${firma.estado === "rechazado" ? "" : " badge-green"}`}>{firma.estado === "rechazado" ? "descartado" : "guardado"}</span>}
+        </div>
+        <div className="text-xs text-muted" style={{ margin: "4px 0", fontStyle: "italic" }}>«{p.frase}»</div>
+        <div className="text-xs text-muted">{NATURALEZAS[p.naturaleza]} · queda en {OPERACIONES_DICHAS[p.tipo]?.a}</div>
+        {p.datos.personas.length > 0 && <div className="text-xs">Gente: {p.datos.personas.map(x => x.nombre).join(", ")}</div>}
+        {p.datos.parcelaNombre && <div className="text-xs">Parcela: {p.datos.parcelaNombre}</div>}
+        {p.datos.horas != null && <div className="text-xs">Horas: {p.datos.horas}</div>}
+        {p.datos.monto != null && <div className="text-xs">Monto: {fmt(p.datos.monto)}</div>}
+        {p.tipo !== "avance" && p.datos.cantidad && <div className="text-xs">Cantidad: {p.datos.cantidad.valor} {p.datos.cantidad.unidad || ""}</div>}
+        {p.tipo === "avance" && <div className="text-xs text-muted">Es sólo el avance: no le registra el día a nadie ni genera pago. No se calcula porcentaje.{p.datos.pendiente ? ` Pendiente: «${p.datos.pendiente.texto}»` : ""}</div>}
+        {p.datos.paraQuien && <div className="text-xs">Se le manda a: {p.datos.paraQuien}</div>}
+        {pr.pagadoCon && <div className="text-xs">Se pagó: {String(pr.pagadoCon).replace(/_/g, " ")}</div>}
+        {p.aviso && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>{p.aviso}</div>}
+        {!firma && p.preguntas.length > 0 && (
+          <div className="chat-pregunta" style={{ marginTop: 6 }}>
+            <div className="text-xs" style={{ fontWeight: 700, color: "var(--gold)" }}>{p.preguntas[0]}</div>
+            <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+              <input className="inp" style={{ flex: 1, minWidth: 0 }} aria-label="Respuesta" placeholder="Contesta en corto…" value={resp[pr.id] || ""} onChange={e => setResp(x => ({ ...x, [pr.id]: e.target.value }))} onKeyDown={e => { if (e.key === "Enter") contestar(mensaje, pr); }} />
+              <button className="btn btn-outline btn-sm" style={{ whiteSpace: "nowrap", width: "auto" }} onClick={() => contestar(mensaje, pr)}>Contestar</button>
+            </div>
+          </div>
+        )}
+        {(pr.aclaraciones || []).map((a, k) => <div key={k} className="text-xs text-muted chat-aclaracion" style={{ marginTop: 3 }}>↳ «{a.texto}»{a.entendido ? ` — ${a.entendido}` : " — no se entendió"}</div>)}
+        {p.mismoDineroQue && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>Es el mismo dinero que otra parte de lo que dijiste: se registra una sola vez.</div>}
+        {!firma && !p.permiso.puede && p.falta.length === 0 && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>{p.permiso.dice} Esta conversación sólo la ves tú: mándalo en una conversación donde esté esa persona para que le llegue.</div>}
+        {!firma && !p.seguro && p.falta.length === 0 && !p.aviso && <div className="text-xs text-muted mt-2">{p.porque}</div>}
+        {noSePudo?.id === pr.id && <div className="text-xs chat-nose" style={{ marginTop: 6, color: "var(--gold)" }}>{noSePudo.dice}</div>}
+        {!firma && (
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            {p.lista && p.permiso.puede && <button className="btn btn-accent btn-sm" style={{ flex: 1 }} aria-label={`Guardar ${decirPropuesta(p)}`} onClick={() => firmar(mensaje, pr, "confirmado")}>Sí, guardar{p.tipo === "nota" ? " en la bitácora" : ""}</button>}
+            <button className="btn btn-outline btn-sm" aria-label={`Descartar ${decirPropuesta(p)}`} onClick={() => firmar(mensaje, pr, "rechazado")}>Descartar</button>
+          </div>
+        )}
+        {firma && <div className="text-xs text-muted" style={{ marginTop: 4 }}>{firma.estado === "rechazado" ? "Descartó" : "Confirmó"} {firma.quien}{firma.motivo ? ` — ${firma.motivo}` : ""}{pr.quedoEn ? ` · ${pr.quedoEn}` : ""}</div>}
+        {firma && pr.avisoAlGuardar && <div className="text-xs text-muted">{pr.avisoAlGuardar}</div>}
+      </div>
+    );
+  };
+
+  const cerrarHoja = e => { if (e.target === e.currentTarget) { setHoja(null); setMenu(false); } };
+  const hojaReglas = verReglas && (
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setVerReglas(false); }}>
+      <div className="modal-sheet msj-reglas">
+        <div className="card-title">Cómo funcionan estos mensajes</div>
+        {REGLAS_DE_MENSAJES.map((r, i) => <div key={i} className="text-sm" style={{ padding: "5px 0", borderBottom: "1px solid var(--border)" }}>{r}</div>)}
+        <div className="text-xs text-muted" style={{ marginTop: 8 }}>Estas reglas las hace cumplir la base de datos, no sólo la pantalla. El personal de campo todavía no tiene mensajería propia. Las fotos y documentos de una conversación sólo los pueden abrir sus participantes.</div>
+        <button className="btn btn-accent" style={{ marginTop: 12 }} onClick={() => setVerReglas(false)}>Entendido</button>
+      </div>
+    </div>
+  );
+  const hojaAvisos = hoja === "avisos" && (() => { const ap = estadoDelAparato(); return (
+    <div className="modal-overlay" onClick={cerrarHoja}>
+      <div className="modal-sheet msj-avisos">
+        <div className="card-title">Avisos en este teléfono: {avisos.activo ? "activados" : "apagados"}</div>
+        {!avisos.activo && <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Sin esto sólo te enteras de un mensaje al abrir AgroGestión.</div>}
+        {ap.dice && <div className="text-xs" style={{ color: ap.puede ? "var(--muted)" : "var(--gold)", marginBottom: 6 }}>{ap.dice}</div>}
+        {!session.cuenta && <div className="text-xs" style={{ color: "var(--gold)", marginBottom: 6 }}>Los avisos son por cuenta: entra con tu correo y contraseña para activarlos. Con PIN no se pueden dirigir a una persona.</div>}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {!avisos.activo
+            ? <button className="btn btn-accent btn-sm" disabled={!ap.puede || !session.cuenta} onClick={async () => { const r = await activarAvisos(); setAvisos(a => ({ ...a, activo: r.ok || a.activo, dice: r.dice })); }}>Activar avisos</button>
+            : <>
+              <button className="btn btn-outline btn-sm" onClick={async () => { const r = await avisoDePrueba(); setAvisos(a => ({ ...a, dice: r.dice })); }}>Mandarme un aviso de prueba</button>
+              <button className="btn btn-outline btn-sm" onClick={async () => { const r = await desactivarAvisos(); setAvisos(a => ({ ...a, activo: !r.ok, dice: r.dice || "" })); }}>Apagarlos aquí</button>
+            </>}
+        </div>
+        {avisos.dice && <div className="text-xs" style={{ marginTop: 6 }}>{avisos.dice}</div>}
+        {esNativo() && <SeguridadNativa />}
+        <div className="text-xs text-muted" style={{ margin: "10px 0 4px" }}>Qué quiero que me avise (vale para todos mis aparatos). El aviso no enseña el texto del mensaje ni importes.</div>
+        {CLASES_DE_AVISO.map(c => (
+          <label key={c.clave} className="text-sm" style={{ display: "flex", gap: 8, padding: "5px 0" }}>
+            <input type="checkbox" disabled={c.obligatorio} checked={c.obligatorio || avisos.prefs[c.clave] !== false} onChange={async e => { const prefs = { ...avisos.prefs, [c.clave]: e.target.checked }; setAvisos(a => ({ ...a, prefs })); await guardarPreferenciasDeAvisos(prefs); }} />
+            <span>{c.nombre}{c.obligatorio ? " (siempre llega)" : ""}</span>
+          </label>
+        ))}
+        <button className="btn btn-outline" style={{ marginTop: 12 }} onClick={() => setHoja(null)}>Cerrar</button>
+      </div>
+    </div>
+  ); })();
+
+  /* ── Una conversación abierta: pantalla completa de mensajería ── */
+  if (conv) {
+    const hoyF = today(), ay = new Date(`${hoyF}T12:00:00`); ay.setDate(ay.getDate() - 1); const ayerF = fechaLocal(ay);
+    const nombreDia = f => (f === hoyF ? "Hoy" : f === ayerF ? "Ayer" : new Date(`${f}T12:00:00`).toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long", ...(f.slice(0, 4) !== hoyF.slice(0, 4) ? { year: "numeric" } : {}) }));
+    const esGrupo = conv.clase !== "directa" && !conAsistente;
+    const integrantes = conv.clase === "general" ? "Todos los que tienen mensajería" : conv.miembros.map(nombreDeMiembro).join(", ");
+    const nuevos = corte?.conv === conv.id && corte.hasta ? mensajes.filter(m => m.de?.id !== yo.id && String(m.cuando || "") > corte.hasta) : [];
+    const primerNuevo = nuevos.length ? nuevos.reduce((a, b) => (String(a.cuando) < String(b.cuando) ? a : b)).id : null;
+    const hayAlgo = !!(texto.trim() || foto || audio || doc);
+    const fino = typeof window !== "undefined" && window.matchMedia?.("(pointer:fine)").matches;
+    const enviar = async () => { pegado.current = true; setAdjuntar(false); await mandar(); requestAnimationFrame(bajar); };
+    const cancelarAudio = async () => { dictador.current?.detener(); if (grabadora.current) { try { await grabadora.current.detener(); } catch { /* nada que guardar */ } grabadora.current = null; } setOyendo(false); setAudio(null); };
+    let anterior = null;
+    return createPortal(
+      <div className="app msj-pantalla" ref={pantallaRef}>
+        <div className="msj-cabeza">
+          <button className="msj-ico msj-atras" aria-label="Volver a las conversaciones" onClick={() => { setConvId(null); setTab("hilo"); }}>‹</button>
+          <div className={`msj-avatar chico${conAsistente ? " asistente" : esGrupo ? " grupo" : ""}`}>{conAsistente ? <Ic e="✨" /> : esGrupo ? <Ic e="👥" /> : String(conv.titulo || "?").trim().charAt(0).toUpperCase()}</div>
+          <button className="msj-cabeza-medio" aria-label="Información de la conversación" onClick={() => setHoja("info")}>
+            <h2>{conv.titulo}</h2>
+            <div className="msj-cabeza-s">{conAsistente ? "Asistente del sistema · sólo tú ves esta conversación" : esGrupo ? integrantes : "Conversación directa"}</div>
+          </button>
+          <button className="msj-ico" aria-label="Opciones" onClick={() => setMenu(true)}><Ic name="dots" /></button>
+        </div>
+        {pendientes.cuantos > 0 && <button className="msj-pend" onClick={() => setHoja("pendientes")}><span>{pendientes.cuantos} por confirmar en esta conversación</span><span>Ver ›</span></button>}
+
+        <div className="msj-hilo" ref={hiloRef} onScroll={e => { const el = e.currentTarget, cerca = el.scrollHeight - el.scrollTop - el.clientHeight < 90; pegado.current = cerca; if (lejos === cerca) setLejos(!cerca); }}>
+          <div ref={dentroRef}>
+            {hilo.dias.length === 0 && !conAsistente && <div className="msj-dia" style={{ marginTop: 30 }}><span>Todavía no hay mensajes. Escribe el primero.</span></div>}
+            {conAsistente && hilo.dias.length === 0 && (
+              <div className="msj-bienvenida">
+                <div className="msj-avatar asistente" style={{ margin: "0 auto 8px" }}><Ic e="✨" /></div>
+                <b>AgroGestión, el asistente del sistema</b>
+                <div>Dile lo que pasó, como se dice, escrito o con el micrófono. Puedes juntar varias cosas en un mismo mensaje:</div>
+                <i>«Hoy en San Felipe 1 anduvieron Juan y Pedro regando ocho horas. También se compraron doscientos litros de diésel, tres mil ochocientos pesos. Y hace falta un filtro para el tractor 3.»</i>
+                <div>Lo entiende, lo separa y te lo deja listo. <b>Nada se guarda hasta que tú lo confirmas</b>, y sólo lo que a tu perfil le toca confirmar.</div>
+                <div className="text-xs text-muted">No es una persona y no participa en los grupos. {capacidad.porque}</div>
+              </div>
+            )}
+            {hilo.dias.map(dia => (
+              <div key={dia.fecha}>
+                <div className="msj-dia"><span>{nombreDia(dia.fecha)}</span></div>
+                {dia.mensajes.map(m => {
+                  const mio = m.de?.id === yo.id && !m.delAsistente, quien = m.delAsistente ? "AgroGestión" : (m.deQuien || m.de?.nombre || "alguien");
+                  const junto = anterior && anterior.dia === dia.fecha && anterior.quien === (m.delAsistente ? "*" : m.de?.id) && m.id !== primerNuevo; anterior = { dia: dia.fecha, quien: m.delAsistente ? "*" : m.de?.id };
+                  const props = m.propuestas || [], plan = conAsistente ? planDe(m) : null;
+                  // Con AgroGestión lo que falta confirmar va a la vista (a eso se viene); entre personas va plegado.
+                  const estaAbierta = pr => (abiertas[pr.id] ?? (conAsistente && !pr.confirmacion));
+                  const conAlgoAbierto = props.some(estaAbierta);
+                  return (
+                    <React.Fragment key={m.id}>
+                      {m.id === primerNuevo && <div className="msj-corte"><span>{nuevos.length === 1 ? "1 mensaje nuevo" : `${nuevos.length} mensajes nuevos`}</span></div>}
+                      <div className={`msj-renglon${mio ? " mio" : ""}${junto ? " junto" : ""}`}>
+                        <div className={`msj-burbuja${mio ? " mio" : ""}${m.delAsistente ? " asistente" : ""}${conAlgoAbierto ? " ancha" : ""}`}>
+                          {!mio && !junto && (esGrupo || m.delAsistente) && <div className="msj-quien">{quien}</div>}
+                          {m.aclaraA && <div className="msj-cita">{m.aclaraA.dijo ? `${m.aclaraA.dijo}: ` : ""}«{m.aclaraA.frase}»</div>}
+                          {m.foto?.dataUrl && <Foto src={m.foto.dataUrl} alt="Foto del mensaje" className="msj-img" onClick={() => setVerFoto(m.foto.dataUrl)} />}
+                          {m.foto?.dataUrl && !m.foto.lectura && !m.foto.renglones && puedoEscribir && (
+                            <button className="msj-prop-chip" disabled={leyendo === m.id} title="Usa una lectura pagada del mes. Sólo propone: nada se guarda sin confirmar." onClick={() => leerFotoDe(m)}>
+                              <Ic e="✨" /><span>{leyendo === m.id ? "Leyendo…" : "Leer este papel con IA (lectura pagada)"}</span>
+                            </button>)}
+                          {lectDice?.id === m.id && <div className="msj-nota chat-lectura">{lectDice.dice}</div>}
+                          {m.documento && <button className="msj-doc" onClick={() => abrirDoc(m.documento)}><Ic e="📄" style={{ fontSize: 22 }} /><b>{m.documento.nombre || "Documento"}</b><span className="text-xs text-muted">Abrir</span></button>}
+                          {m.audio?.dataUrl && <audio className="msj-audio" controls preload="metadata" src={m.audio.dataUrl} />}
+                          {m.texto && <div className="msj-texto">{m.texto}</div>}
+                          {m.aclaraA && m.seEntendio && <div className="msj-nota">{m.seEntendio}</div>}
+                          {m.relacion && m.relacion.clase !== "aclaracion" && <div className="msj-nota chat-relacion">{m.relacion.dice}</div>}
+                          {m.porIdentificar && !esPlatica(m) && <div className="msj-nota">Guardado tal cual; AgroGestión no encontró qué registrar de esto.</div>}
+                          {conAsistente && mio && !props.length && !m.aclaraA && (m.texto || m.audio) && (m.enBitacora
+                            ? <div className="msj-nota">Guardado en la bitácora, tal cual.</div>
+                            : <button className="msj-prop-chip" onClick={() => aLaBitacora(m)}><Ic e="📝" /><span>Dejar tal cual en la bitácora</span></button>)}
+                          {props.map(pr => { const firma = pr.confirmacion, falta = (pr.falta || []).length > 0, abierta = !!estaAbierta(pr), dicha = plan && typeof pr.i === "number" ? plan.propuestas.find(x => x.i === pr.i) : null; return (
+                            <React.Fragment key={pr.id}>
+                              <button className={`msj-prop-chip${firma ? (firma.estado === "rechazado" ? "" : " listo") : " espera"}`} aria-expanded={abierta} onClick={() => { pegado.current = false; setAbiertas(a => ({ ...a, [pr.id]: !abierta })); }}>
+                                <Ic e={ICONO_CHAT[pr.tipo] || "📝"} /><span>{pr.tipo} · {firma ? (conAsistente ? (firma.estado === "rechazado" ? "descartado" : "guardado") : firma.estado) : falta ? "falta un dato" : "por confirmar"}</span>{abierta ? "▴" : "▾"}
+                              </button>
+                              {!abierta && !firma && falta && typeof pr.i === "number" && <div className="msj-pregunta">AgroGestión pregunta: {preguntaDe(pr.falta[0])}</div>}
+                              {!abierta && noSePudo?.id === pr.id && <div className="msj-nota chat-nose" style={{ color: "var(--gold)" }}>{noSePudo.dice}</div>}
+                              {abierta && (dicha ? PropuestaDicha({ mensaje: m, pr, p: dicha }) : Propuesta({ mensaje: m, pr }))}
+                            </React.Fragment>
+                          ); })}
+                          <div className="msj-pie">
+                            <span>{m.cuando ? horaCorta(m.cuando) : ""}</span>
+                            {mio && envio.fallidas.has(m.id) && <span title="No se pudo subir; se reintenta desde Sincronización" style={{ color: "var(--red)" }}>no subió</span>}
+                            {mio && !envio.fallidas.has(m.id) && envio.porSubir.has(m.id) && <span title="Guardado en este teléfono; sube cuando haya señal"><Ic name="clock" /> por subir</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            ))}
+            {hilo.sinHora.length > 0 && <div className="msj-dia"><span>{hilo.sinHora.length} mensaje(s) sin hora legible: no se pudieron acomodar en ningún día.</span></div>}
+          </div>
+        </div>
+        {lejos && <button className="msj-abajo" aria-label="Ir a lo más reciente" onClick={() => { pegado.current = true; bajar(); setLejos(false); }}><Ic e="⬇" /></button>}
+
+        {puedoEscribir ? (
+          <div className="msj-barra">
+            <input ref={fileRef} type="file" aria-label="Adjuntar foto" accept="image/*" style={{ display: "none" }} onChange={tomarFoto} />
+            <input ref={camRef} type="file" aria-label="Tomar foto" accept="image/*" capture="environment" style={{ display: "none" }} onChange={e => { tomarFoto(e); if (camRef.current) camRef.current.value = ""; }} />
+            <input ref={docRef} type="file" aria-label="Adjuntar documento" accept=".pdf,.xlsx,.xls,.csv,.xml,.docx,.txt" style={{ display: "none" }} onChange={tomarDoc} />
+            {adjuntar && (
+              <div className="msj-adj">
+                <button onClick={() => { setAdjuntar(false); fileRef.current?.click(); }}><Ic e="📷" />Foto o imagen</button>
+                <button onClick={() => { setAdjuntar(false); docRef.current?.click(); }}><Ic e="📄" />Documento</button>
+              </div>
+            )}
+            {foto && <div className="msj-prev"><Foto src={foto.dataUrl} alt="" /><span className="msj-prev-n">{foto.nombre || "Foto"}</span><button className="msj-ico" aria-label="Quitar la foto" onClick={() => setFoto(null)}>×</button></div>}
+            {doc && <div className="msj-prev"><Ic e="📄" style={{ fontSize: 22 }} /><span className="msj-prev-n">{doc.nombre}</span><button className="msj-ico" aria-label="Quitar el documento" onClick={() => setDoc(null)}>×</button></div>}
+            {audio && <div className="msj-prev"><audio className="msj-audio" style={{ flex: 1, width: "auto" }} controls src={audio.dataUrl} /><button className="msj-ico" aria-label="Quitar el audio" onClick={() => setAudio(null)}>×</button></div>}
+            {oyendo ? (
+              <div className="msj-barra-fila">
+                <button className="msj-ico" aria-label="Cancelar la grabación" onClick={cancelarAudio}><Ic e="🗑" /></button>
+                <div className="msj-grabando"><i />Grabando {Math.floor(segundos / 60)}:{String(segundos % 60).padStart(2, "0")}</div>
+                <button className="msj-ico rojo" aria-label="Terminar de grabar" onClick={hablar}><Ic name="stop" /></button>
+              </div>
+            ) : (
+              <div className="msj-barra-fila">
+                <button className="msj-ico" aria-label="Adjuntar" aria-expanded={adjuntar} onClick={() => setAdjuntar(a => !a)}><Ic name="clip" /></button>
+                <textarea ref={cajaRef} className="msj-caja" rows={1} value={texto} placeholder={conAsistente ? "Dile a AgroGestión lo que pasó" : "Mensaje"} aria-label="Mensaje"
+                          onChange={e => setTexto(e.target.value)} onFocus={() => { setAdjuntar(false); if (pegado.current) setTimeout(bajar, 250); }}
+                          onKeyDown={e => { if (fino && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (hayAlgo && !mandando) enviar(); } }} />
+                {!texto.trim() && <button className="msj-ico" aria-label="Cámara" onClick={() => camRef.current?.click()}><Ic e="📷" /></button>}
+                {hayAlgo
+                  ? <button className="msj-ico fuerte" aria-label="Mandar" disabled={mandando} onClick={enviar}>{mandando ? <Ic e="⏳" /> : <Ic name="send" />}</button>
+                  : <button className="msj-ico fuerte" aria-label="Grabar audio" disabled={!capacidad.grabar && !capacidad.dictado} onClick={hablar}><Ic name="mic" /></button>}
+              </div>
+            )}
+          </div>
+        ) : <div className="msj-solo">{conv.porConsulta ? "La abriste por consulta excepcional: sólo lectura, y quedó anotado." : "En esta conversación sólo puedes leer."}</div>}
+
+        {menu && (
+          <div className="modal-overlay" onClick={cerrarHoja}>
+            <div className="modal-sheet msj-menu">
+              <button className="msj-opcion" onClick={() => { setMenu(false); setHoja("pendientes"); }}><Ic e="📝" />Por confirmar ({pendientes.cuantos})</button>
+              <button className="msj-opcion" onClick={() => { setMenu(false); setHoja("hoy"); }}><Ic e="📅" />Lo de hoy en esta conversación</button>
+              <button className="msj-opcion" onClick={() => { setMenu(false); setHoja("info"); }}><Ic e="👥" />Integrantes e información</button>
+              <button className="msj-opcion" onClick={() => { setMenu(false); setHoja("avisos"); }}><Ic name="bellAlert" />Avisos de este teléfono</button>
+              <button className="msj-opcion" onClick={() => { setMenu(false); setVerReglas(true); }}><Ic e="ℹ" />Reglas de los mensajes</button>
+            </div>
+          </div>
+        )}
+        {hoja === "info" && (
+          <div className="modal-overlay" onClick={cerrarHoja}>
+            <div className="modal-sheet msj-info">
+              <div className="card-title">{conv.titulo}</div>
+              <div className="text-xs text-muted" style={{ marginBottom: 8 }}>{conAsistente ? "Asistente del sistema" : conv.clase === "general" ? "Conversación general del rancho" : conv.clase === "directa" ? "Conversación directa" : "Grupo de trabajo"}</div>
+              {conAsistente ? <div className="text-sm">Aquí le hablas directo a AgroGestión: dile lo que pasó y lo deja listo para que lo confirmes. No es una persona, no participa en los grupos y <b>esta conversación sólo la ves tú</b>; ni la administración la puede abrir. Lo que confirmes sí queda en los registros de siempre, con de qué mensaje salió.</div> : conv.clase === "general" ? <div className="text-sm">Participan todos los que tienen mensajería.</div> : conv.miembros.map((mb, k) => <div key={k} className="text-sm" style={{ padding: "6px 0", borderBottom: "1px solid var(--border)" }}>{nombreDeMiembro(mb)}</div>)}
+              <div className="text-xs text-muted msj-aviso" style={{ marginTop: 10 }}>Conversación institucional de Agroselectos: {conAsistente ? "Nada se registra solo: cada cosa espera tu confirmación, y lo que no le toca confirmar a tu perfil no se guarda desde aquí." : "AgroGestión la lee para proponer registros, y nada se registra solo. Para pedirle algo directamente, empieza el mensaje con «Agro,», o escríbele en su conversación."}{conv.porConsulta ? " La abriste por consulta excepcional: sólo lectura, y quedó anotado." : ""}</div>
+              <button className="btn btn-outline" style={{ marginTop: 12 }} onClick={() => setHoja(null)}>Cerrar</button>
+            </div>
+          </div>
+        )}
+        {hoja === "pendientes" && (
+          <div className="modal-overlay" onClick={cerrarHoja}>
+            <div className="modal-sheet msj-pendientes">
+              <div className="card-title">Por confirmar</div>
+              <div className="text-sm" style={{ marginBottom: 8 }}>{pendientes.dice}</div>
+              {pendientes.filas.map((f, k) => <div key={f.mensajeId || k} className="card" style={{ padding: 12, borderLeft: f.apura ? "3px solid var(--gold)" : undefined }}><div className="text-sm">{f.dice}</div></div>)}
+              {pendientes.sinHora.length > 0 && <div className="text-xs text-muted mt-2">{pendientes.sinHora.length} sin hora: no se puede decir cuánto llevan esperando.</div>}
+              <div className="text-xs text-muted" style={{ marginTop: 8 }}>Para confirmar una, toca su etiqueta dentro del mensaje.</div>
+              <button className="btn btn-outline" style={{ marginTop: 12 }} onClick={() => setHoja(null)}>Cerrar</button>
+            </div>
+          </div>
+        )}
+        {hoja === "hoy" && (
+          <div className="modal-overlay" onClick={cerrarHoja}>
+            <div className="modal-sheet msj-hoy">
+              <div className="card-title">Lo de hoy</div>
+              <div className="text-sm">{resumen.dice}</div>
+              {resumen.gastado != null && <div className="text-sm mt-2">Se gastó {fmt(resumen.gastado)}.</div>}
+              {resumen.gastosSinMonto > 0 && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>{resumen.gastosSinMonto} gasto(s) confirmados sin monto: ese total va corto.</div>}
+              {resumen.colgados.length > 0 && <><div className="card-title" style={{ marginTop: 12 }}>Colgados</div>{resumen.colgados.map(c => <div key={c.id} className="text-xs" style={{ padding: "3px 0" }}>{c.resumen || c.frase}</div>)}</>}
+              {resumen.posiblesDuplicados.length > 0 && <><div className="card-title" style={{ marginTop: 12 }}>Puede que estén dos veces</div>{resumen.posiblesDuplicados.map((d, i) => <div key={i} className="text-xs" style={{ padding: "3px 0" }}>{d.dice}</div>)}</>}
+              <button className="btn btn-outline" style={{ marginTop: 12 }} onClick={() => setHoja(null)}>Cerrar</button>
+            </div>
+          </div>
+        )}
+        {hojaAvisos}
+        {hojaReglas}
+        {verFoto && <div className="msj-visor" onClick={() => setVerFoto(null)}><Foto src={verFoto} alt="Foto del mensaje" /><button aria-label="Cerrar la foto" onClick={() => setVerFoto(null)}>×</button></div>}
+      </div>, document.body);
+  }
+
   return (
     <div>
       <div className="top-bar">
-        <button className="btn-ghost" onClick={conv ? () => { setConvId(null); setTab("hilo"); } : onClose}>‹</button>
-        <h2 style={{ flex: 1 }}>{conv ? conv.titulo : "Mensajes"}</h2>
-        <button className="btn btn-outline btn-sm" onClick={() => setVerReglas(true)}>Reglas</button>
+        <button className="btn-ghost" onClick={onClose}>‹</button>
+        <h2 style={{ flex: 1 }}>Mensajes</h2>
+        <button className="msj-ico" aria-label="Opciones" onClick={() => setMenu(true)}><Ic name="dots" /></button>
       </div>
-
-      {verReglas && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setVerReglas(false); }}>
-          <div className="modal-sheet msj-reglas">
-            <div className="card-title">Cómo funcionan estos mensajes</div>
-            {REGLAS_DE_MENSAJES.map((r, i) => <div key={i} className="text-sm" style={{ padding: "5px 0", borderBottom: "1px solid var(--border)" }}>{r}</div>)}
-            <div className="text-xs text-muted" style={{ marginTop: 8 }}>Estas reglas las hace cumplir la base de datos, no sólo la pantalla. El personal de campo todavía no tiene mensajería propia. Las fotos y documentos de una conversación sólo los pueden abrir sus participantes.</div>
-            <button className="btn btn-accent" style={{ marginTop: 12 }} onClick={() => setVerReglas(false)}>Entendido</button>
+      {menu && (
+        <div className="modal-overlay" onClick={cerrarHoja}>
+          <div className="modal-sheet msj-menu">
+            <button className="msj-opcion" onClick={() => { setMenu(false); setHoja("avisos"); }}><Ic name="bellAlert" />Avisos de este teléfono: {avisos.activo ? "activados" : "apagados"}</button>
+            <button className="msj-opcion" onClick={() => { setMenu(false); setVerReglas(true); }}><Ic e="ℹ" />Reglas de los mensajes</button>
           </div>
         </div>
       )}
+      {hoja === "nuevaConv" && (
+        <div className="modal-overlay" onClick={cerrarHoja}>
+          <div className="modal-sheet msj-menu">
+            <button className="msj-opcion" onClick={() => { setHoja(null); setNueva({ clase: "directa", nombre: "", miembros: {} }); }}><Ic e="👤" />Hablar con alguien</button>
+            <button className="msj-opcion" onClick={() => { setHoja(null); setNueva({ clase: "grupo", nombre: "", miembros: {} }); }}><Ic e="👥" />Nuevo grupo</button>
+          </div>
+        </div>
+      )}
+      {hojaAvisos}
+      {hojaReglas}
 
       {!conv && !nueva && (
         <div className="tabs-row">
@@ -3844,57 +4290,25 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
       )}
 
       {!conv && !nueva && vista === "conversaciones" && (
-        <div className="section-pad msj-lista">
-          <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Mensajes de trabajo del rancho. AgroGestión los lee para proponer registros; nada se registra solo.</div>
-          <div className="card msj-avisos" style={{ padding: 10, marginBottom: 8 }}>
-            <div className="flex-b">
-              <div className="text-sm font-bold">Avisos en este teléfono: {avisos.activo ? "activados" : "apagados"}</div>
-              <button className="btn btn-outline btn-sm" onClick={() => setAvisos(a => ({ ...a, ver: !a.ver }))}>{avisos.ver ? "Cerrar" : "Ajustar"}</button>
-            </div>
-            {!avisos.activo && !avisos.ver && <div className="text-xs text-muted">Sin esto sólo te enteras de un mensaje al abrir AgroGestión.</div>}
-            {avisos.ver && (() => { const ap = estadoDelAparato(); return (
-              <div style={{ marginTop: 8 }}>
-                {ap.dice && <div className="text-xs" style={{ color: ap.puede ? "var(--text-muted)" : "var(--gold)", marginBottom: 6 }}>{ap.dice}</div>}
-                {!session.cuenta && <div className="text-xs" style={{ color: "var(--gold)", marginBottom: 6 }}>Los avisos son por cuenta: entra con tu correo y contraseña para activarlos. Con PIN no se pueden dirigir a una persona.</div>}
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {!avisos.activo
-                    ? <button className="btn btn-accent btn-sm" disabled={!ap.puede || !session.cuenta} onClick={async () => { const r = await activarAvisos(); setAvisos(a => ({ ...a, activo: r.ok || a.activo, dice: r.dice })); }}>Activar avisos</button>
-                    : <>
-                      <button className="btn btn-outline btn-sm" onClick={async () => { const r = await avisoDePrueba(); setAvisos(a => ({ ...a, dice: r.dice })); }}>Mandarme un aviso de prueba</button>
-                      <button className="btn btn-outline btn-sm" onClick={async () => { const r = await desactivarAvisos(); setAvisos(a => ({ ...a, activo: !r.ok, dice: r.dice || "" })); }}>Apagarlos aquí</button>
-                    </>}
-                </div>
-                {esNativo() && <div style={{ marginTop: 8 }}>
-                  <div className="text-xs text-muted" style={{ marginBottom: 4 }}>App Android (prototipo): cada clase de aviso tiene su tono. Pruébalos:</div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {CANALES_NATIVOS.map(c => <button key={c.id} className="btn btn-outline btn-sm" onClick={() => avisarNativo({ clase: c.clases[0], titulo: `Prueba de ${c.name.toLowerCase()}`, cuerpo: "Así suena este aviso en AgroGestión.", url: "/?ir=chat" })}>{c.name}</button>)}
-                  </div>
-                </div>}
-                {avisos.dice && <div className="text-xs" style={{ marginTop: 6 }}>{avisos.dice}</div>}
-                <div className="text-xs text-muted" style={{ margin: "8px 0 4px" }}>Qué quiero que me avise (vale para todos mis aparatos). El aviso no enseña el texto del mensaje ni importes.</div>
-                {CLASES_DE_AVISO.map(c => (
-                  <label key={c.clave} className="text-xs" style={{ display: "flex", gap: 8, padding: "3px 0" }}>
-                    <input type="checkbox" disabled={c.obligatorio} checked={c.obligatorio || avisos.prefs[c.clave] !== false} onChange={async e => { const prefs = { ...avisos.prefs, [c.clave]: e.target.checked }; setAvisos(a => ({ ...a, prefs })); await guardarPreferenciasDeAvisos(prefs); }} />
-                    <span>{c.nombre}{c.obligatorio ? " (siempre llega)" : ""}</span>
-                  </label>
-                ))}
+        <div className="section-pad msj-lista" style={{ paddingBottom: 90 }}>
+          {!avisos.activo && <button className="msj-pend" style={{ borderRadius: 10, border: "1px solid var(--border)", marginBottom: 6 }} onClick={() => setHoja("avisos")}><span>Activa los avisos para enterarte de los mensajes sin abrir AgroGestión</span><span>›</span></button>}
+          {convs.map(c => { const ult = c.ultimo, deHoy = ult?.cuando && fechaLocal(new Date(ult.cuando)) === today(); return (
+            <button key={c.id} className={`msj-fila msj-conv${esConAsistente(c) ? " msj-conv-asistente" : ""}`} onClick={() => { setConvId(c.id); setTab("hilo"); }}>
+              <div className={`msj-avatar${esConAsistente(c) ? " asistente" : c.clase === "directa" ? "" : " grupo"}`}>{esConAsistente(c) ? <Ic e="✨" /> : c.clase === "directa" ? String(c.titulo || "?").trim().charAt(0).toUpperCase() : <Ic e="👥" />}</div>
+              <div className="msj-fila-medio">
+                <div className="msj-fila-t">{c.titulo}{esConAsistente(c) && <span className="msj-sello">Asistente</span>}</div>
+                <div className="msj-fila-s">{esConAsistente(c) ? (ult ? ult.texto : "Dile lo que pasó y lo deja listo para confirmar") : ult ? `${ult.de && c.clase !== "directa" ? `${String(ult.de).split(" ")[0]}: ` : ""}${ult.texto}` : c.clase === "general" ? "Todos los que tienen mensajería" : c.clase === "directa" ? "Sin mensajes todavía" : c.miembros.map(nombreDeMiembro).join(", ")}</div>
+                {(c.porConfirmar > 0 || c.porConsulta) && <div className="msj-fila-s" style={{ color: "var(--gold)", fontSize: 12 }}>{c.porConfirmar > 0 ? `${c.porConfirmar} por confirmar` : ""}{c.porConsulta ? `${c.porConfirmar > 0 ? " · " : ""}consulta excepcional (sólo lectura)` : ""}</div>}
               </div>
-            ); })()}
-          </div>
-          {convs.map(c => (
-            <button key={c.id} className="card msj-conv" style={{ padding: 12, width: "100%", textAlign: "left", display: "block" }} onClick={() => { setConvId(c.id); setTab("hilo"); }}>
-              <div className="flex-b">
-                <div className="text-sm font-bold">{c.titulo}</div>
-                <span>{c.sinLeer > 0 && <span className="badge badge-green msj-nuevos" style={{ marginRight: 4 }}>{c.sinLeer} sin leer</span>}{c.porConfirmar > 0 && <span className="badge badge-gold">{c.porConfirmar} por confirmar</span>}</span>
+              <div className="msj-fila-der">
+                <span>{ult?.cuando ? (deHoy ? horaCorta(ult.cuando) : new Date(ult.cuando).toLocaleDateString("es-MX", { day: "numeric", month: "short" })) : ""}</span>
+                {c.sinLeer > 0 && <span className="msj-nuevos" aria-label={`${c.sinLeer} sin leer`}>{c.sinLeer}</span>}
               </div>
-              <div className="text-xs text-muted">{c.clase === "directa" ? "Directa" : c.clase === "general" ? "Todos los que tienen mensajería" : c.miembros.map(nombreDeMiembro).join(", ")}{c.porConsulta ? " · abierta por consulta excepcional (sólo lectura)" : ""}</div>
-              {c.ultimo && <div className="text-xs" style={{ marginTop: 4 }}>{c.ultimo.de ? `${c.ultimo.de}: ` : ""}{c.ultimo.texto}</div>}
             </button>
-          ))}
-          {ROLES_QUE_ABREN.includes(yo.rol) ? <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={() => setNueva({ clase: "directa", nombre: "", miembros: {} })}>Hablar con alguien</button>
-            <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => setNueva({ clase: "grupo", nombre: "", miembros: {} })}>Nuevo grupo</button>
-          </div> : <div className="text-xs text-muted" style={{ marginTop: 8 }}>Tu perfil participa en las conversaciones donde lo incluyan; abrir una nueva lo hace un administrador, un encargado o el agrónomo.</div>}
+          ); })}
+          <div className="text-xs text-muted" style={{ marginTop: 12, textAlign: "center" }}>Mensajes de trabajo de Agroselectos. AgroGestión los lee para proponer registros; nada se registra solo.</div>
+          {!ROLES_QUE_ABREN.includes(yo.rol) && <div className="text-xs text-muted" style={{ marginTop: 8, textAlign: "center" }}>Tu perfil participa en las conversaciones donde lo incluyan; abrir una nueva lo hace un administrador, un encargado o el agrónomo.</div>}
+          {ROLES_QUE_ABREN.includes(yo.rol) && <button className="msj-fab" aria-label="Nueva conversación" onClick={() => setHoja("nuevaConv")}><Ic name="plus" /></button>}
         </div>
       )}
 
@@ -3919,140 +4333,6 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
               <button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={abrirNueva}>Abrir</button>
             </div>
           </div>
-        </div>
-      )}
-
-      {conv && <div className="tabs-row">
-        {[["hilo", "Conversación"], ["pendientes", `Por confirmar (${pendientes.cuantos})`], ["hoy", "Hoy"]].map(([v, lb]) => (
-          <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => setTab(v)}>{lb}</button>
-        ))}
-      </div>}
-
-      {conv && tab === "hilo" && (
-        <div className="section-pad">
-          <div className="text-xs text-muted msj-aviso" style={{ marginBottom: 8 }}>
-            Conversación de trabajo{conv.clase !== "general" ? ` · ${conv.miembros.map(nombreDeMiembro).join(", ")}` : ""}. Conversación institucional: AgroGestión la lee para proponer registros.{conv.porConsulta ? " La abriste por consulta excepcional: sólo lectura, y quedó anotado." : ""}
-          </div>
-          {/* ── Escribir ── */}
-          {puedoEscribir && <div className="card ab">
-            <textarea className="inp" rows={3} value={texto} onChange={e => setTexto(e.target.value)}
-                      placeholder="Escribe, habla o manda una foto o un documento. Para pedirle algo a AgroGestión empieza con «Agro,»" />
-            {doc && (
-              <div className="flex-b" style={{ marginTop: 6 }}>
-                <div className="text-xs">📎 {doc.nombre}</div>
-                <button className="btn-ghost" onClick={() => setDoc(null)}>quitar</button>
-              </div>
-            )}
-            {foto && (
-              <div className="flex-b" style={{ marginTop: 6 }}>
-                <Foto src={foto.dataUrl} alt="" style={{ height: 54, borderRadius: 6 }} />
-                <button className="btn-ghost" onClick={() => setFoto(null)}>quitar</button>
-              </div>
-            )}
-            {audio && (
-              <div style={{ marginTop: 6 }}>
-                <audio controls src={audio.dataUrl} style={{ width: "100%" }} />
-                <button className="btn-ghost text-xs" onClick={() => setAudio(null)}>quitar el audio</button>
-              </div>
-            )}
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={tomarFoto} />
-            <input ref={docRef} type="file" aria-label="Adjuntar documento" accept=".pdf,.xlsx,.xls,.csv,.xml,.docx,.txt" style={{ display: "none" }} onChange={tomarDoc} />
-            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-              <button className="btn btn-outline btn-sm" onClick={() => fileRef.current?.click()}><Ic e="📷" /></button>
-              <button className="btn btn-outline btn-sm" aria-label="Documento" onClick={() => docRef.current?.click()}><Ic e="📄" /></button>
-              <button className={`btn btn-sm ${oyendo ? "btn-danger" : "btn-outline"}`} onClick={hablar}>
-                <Ic e={oyendo ? "⏳" : "🎤"} />
-              </button>
-              <button className="btn btn-accent btn-sm" style={{ flex: 1 }} disabled={mandando} onClick={mandar}>
-                {mandando ? "leyendo…" : "Mandar"}
-              </button>
-            </div>
-            {oyendo && <div className="text-xs text-accent mt-2">Oyendo… habla normal.</div>}
-            <div className="text-xs text-muted mt-2">
-              Lo que mandes se entiende y se archiva donde va, pero <b>nada cuenta hasta que
-              alguien lo confirme</b>. La foto, el audio y el documento se quedan pegados al mensaje.
-            </div>
-          </div>}
-
-          {/* ── El hilo ── */}
-          {hilo.dias.length === 0 && <div className="text-xs text-muted">Todavía no hay mensajes en esta conversación.</div>}
-          {[...hilo.dias].reverse().map(dia => (
-            <div key={dia.fecha}>
-              <div className="text-xs text-muted" style={{ margin: "14px 0 6px", fontWeight: 700 }}>{dia.fecha} · {dia.dice}</div>
-              {[...dia.mensajes].reverse().map(m => (
-                <div key={m.id} className={`card msj-burbuja${m.de?.id === yo.id ? " mio" : ""}${m.delAsistente ? " asistente" : ""}`} style={{ padding: 12 }}>
-                  <div className="flex-b">
-                    <div className="text-sm font-bold">{m.deQuien || m.de?.nombre || "alguien"}</div>
-                    <span className="text-xs text-muted">{m.cuando ? horaCorta(m.cuando) : ""}</span>
-                  </div>
-                  {m.aclaraA && <div className="text-xs text-muted">Contestó sobre: «{m.aclaraA.frase}»{m.aclaraA.dijo ? ` (${m.aclaraA.dijo})` : ""}</div>}
-                  {m.texto && <div className="text-sm" style={{ margin: "6px 0", whiteSpace: "pre-line" }}>{m.texto}</div>}
-                  {m.aclaraA && m.seEntendio && <div className="text-xs text-muted">{m.seEntendio}</div>}
-                  {m.relacion && m.relacion.clase !== "aclaracion" && <div className="text-xs text-muted chat-relacion">{m.relacion.dice}</div>}
-                  {m.documento && <button className="btn btn-outline btn-sm" onClick={() => abrirDoc(m.documento)}>📎 {m.documento.nombre || "Documento"}</button>}
-                  {m.foto?.dataUrl && <Foto src={m.foto.dataUrl} alt="" style={{ width: "100%", borderRadius: 8, margin: "6px 0" }} />}
-                  {m.audio?.dataUrl && <audio controls src={m.audio.dataUrl} style={{ width: "100%", margin: "6px 0" }} />}
-                  {m.porIdentificar && !esPlatica(m) && (
-                    <div className="text-xs" style={{ color: "var(--gold)" }}>
-                      Esto no se entendió. Queda guardado tal cual, con su foto y su audio, para
-                      que alguien diga qué es. <b>No se pierde.</b>
-                    </div>
-                  )}
-                  {(m.propuestas || []).map(pr => <Propuesta key={pr.id} mensaje={m} pr={pr} />)}
-                </div>
-              ))}
-            </div>
-          ))}
-          {hilo.sinHora.length > 0 && (
-            <div className="text-xs text-muted mt-2">
-              {hilo.sinHora.length} mensaje(s) sin hora legible: no se pudieron acomodar en ningún día.
-            </div>
-          )}
-        </div>
-      )}
-
-      {conv && tab === "pendientes" && (
-        <div className="section-pad">
-          <div className="card" style={{ padding: 12 }}>
-            <div className="text-sm">{pendientes.dice}</div>
-          </div>
-          {pendientes.filas.map(f => (
-            <div key={f.mensajeId || Math.random()} className="card" style={{ padding: 12, borderLeft: f.apura ? "3px solid var(--gold)" : undefined }}>
-              <div className="text-sm">{f.dice}</div>
-            </div>
-          ))}
-          {pendientes.sinHora.length > 0 && (
-            <div className="text-xs text-muted mt-2">
-              {pendientes.sinHora.length} sin hora: no se puede decir cuánto llevan esperando.
-            </div>
-          )}
-        </div>
-      )}
-
-      {conv && tab === "hoy" && (
-        <div className="section-pad">
-          <div className="card" style={{ padding: 12 }}>
-            <div className="card-title">Lo de hoy</div>
-            <div className="text-sm">{resumen.dice}</div>
-            {resumen.gastado != null && <div className="text-sm mt-2">Se gastó {fmt(resumen.gastado)}.</div>}
-            {resumen.gastosSinMonto > 0 && (
-              <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>
-                {resumen.gastosSinMonto} gasto(s) confirmados sin monto: ese total va corto.
-              </div>
-            )}
-          </div>
-          {resumen.colgados.length > 0 && (
-            <div className="card" style={{ padding: 12 }}>
-              <div className="card-title">Colgados</div>
-              {resumen.colgados.map(c => <div key={c.id} className="text-xs" style={{ padding: "3px 0" }}>{c.resumen || c.frase}</div>)}
-            </div>
-          )}
-          {resumen.posiblesDuplicados.length > 0 && (
-            <div className="card" style={{ padding: 12, borderLeft: "3px solid var(--gold)" }}>
-              <div className="card-title">Puede que estén dos veces</div>
-              {resumen.posiblesDuplicados.map((d, i) => <div key={i} className="text-xs" style={{ padding: "3px 0" }}>{d.dice}</div>)}
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -4419,189 +4699,8 @@ function HojaDeFito({ data, add, upd, session, onClose }) {
 
 const ICONO_DICHO = { actividad: "👷", gasto: "💵", necesidad: "🛒", incidencia: "⚠️", cosecha: "🌾", nota: "📝", avance: "✅" };
 
-function Dictado({ data, add, session, onClose }) {
-  const capacidad = comoPuedeOir();
-  const [oyendo, setOyendo] = useState(false);
-  const [texto, setTexto] = useState("");
-  const [error, setError] = useState(null);
-  const [audio, setAudio] = useState(null);
-  const [entendido, setEntendido] = useState(null);
-  const [guardadas, setGuardadas] = useState({});
-  const ctrl = useRef(null);
-  const grabadora = useRef(null);
-
-  // Toda la gente del rancho junta: el dictado no sabe de categorías.
-  const personas = [
-    ...(data.trabajadores || []), ...(data.encargados || []),
-    ...(data.agronomos || []), ...(data.cuadrillas || []), ...(data.externos || []),
-  ];
-
-  const empezar = async () => {
-    setError(null); setEntendido(null); setGuardadas({}); setTexto("");
-    // Se graba EN PARALELO al dictado: si el dictado falla a media frase, el
-    // audio queda igual y no se pierde lo que dijo.
-    if (capacidad.grabar) grabadora.current = await grabar({ onError: () => {} });
-    if (capacidad.dictado) {
-      ctrl.current = dictar({
-        onParcial: setTexto,
-        onListo: (t) => { setTexto(t); setOyendo(false); },
-        onError: (e) => { setError(e); setOyendo(false); },
-      });
-    }
-    setOyendo(true);
-  };
-
-  const parar = async () => {
-    ctrl.current?.detener();
-    if (grabadora.current) {
-      const a = await grabadora.current.detener();
-      setAudio(a);
-      grabadora.current = null;
-    }
-    setOyendo(false);
-  };
-
-  const entender = () => {
-    if (!texto.trim()) { alert("Todavía no hay nada que entender. Habla o escribe lo que pasó."); return; }
-    const e = entenderLoDicho({ texto, personas, parcelas: data.parcelas, insumos: data.inventario });
-    // El camino común: de lo entendido a propuestas con su clase, lo que falta y a quién le toca confirmar.
-    const mensaje = { id: `dicho-${session.id}-${Date.now()}`, canal: "app", de: { id: session.id, nombre: session.nombre, rol: session.role }, cuando: new Date().toISOString(), texto };
-    setEntendido({ ...e, plan: prepararOperaciones({ mensaje, entendido: e }) });
-  };
-
-  // Guarda UNA propuesta, la que la persona confirmó. Una por una a propósito:
-  // así se puede aceptar el gasto y corregir la actividad. La misma regla que en el chat y que en
-  // WhatsApp cuando exista (`operaciones.js`): revisa permiso y faltantes, y usa la operación de siempre.
-  const [dice, setDice] = useState({});
-  // Contestar lo que falta sin repetir lo dicho: la respuesta se entiende dentro de ESA propuesta.
-  const [respD, setRespD] = useState({});
-  const contestarDicho = (pr) => {
-    const t = String(respD[pr.i] || "").trim(); if (!t) return;
-    const cruda = entendido.propuestas.find(x => x.i === pr.i);
-    const r = aclararPropuesta({ propuesta: cruda, respuesta: { id: `acl-${Date.now()}`, texto: t, de: { id: session.id, nombre: session.nombre }, cuando: new Date().toISOString() }, personas, parcelas: data.parcelas || [], hoy: today() });
-    const e = { ...entendido, propuestas: entendido.propuestas.map(x => (x.i === pr.i ? r.propuesta : x)) };
-    setEntendido({ ...e, plan: prepararOperaciones({ mensaje: entendido.plan.mensaje, entendido: e, yaHechas: Object.keys(guardadas).filter(k => guardadas[k]).map(k => `${entendido.plan.mensaje.id}#${k}`) }) });
-    setRespD(x => ({ ...x, [pr.i]: "" })); setDice(d => ({ ...d, [pr.i]: r.dice }));
-  };
-  const guardar = (pr) => {
-    const r = ejecutarOperacion(pr, { mensaje: entendido.plan.mensaje, quien: { id: session.id, nombre: session.nombre, rol: session.role }, cuando: new Date().toISOString(), fecha: today(), parcelas: data.parcelas || [], evidencia: { audio: audio?.dataUrl || null } });
-    if (!r.ok) { setDice(d => ({ ...d, [pr.i]: r.dice })); return; }
-    r.escrituras.forEach(e => add(e.coleccion, e.registro));
-    setDice(d => ({ ...d, [pr.i]: "" })); setGuardadas(g => ({ ...g, [pr.i]: true }));
-  };
-
-  // Guardar el audio completo aunque no se haya entendido nada. Nunca se
-  // pierde lo que alguien dijo.
-  const guardarSoloElAudio = () => {
-    add("bitacora", {
-      fecha: today(), nota: texto || "(audio sin transcribir)",
-      audio: audio?.dataUrl || null, sinEntender: true,
-      registradoPor: { rol: session.role, id: session.id, nombre: session.nombre },
-    });
-    alert("Se guardó tal cual, con el audio. Se puede revisar después.");
-    setTexto(""); setEntendido(null); setAudio(null);
-  };
-
-  return (
-    <div>
-      <div className="top-bar">
-        <button className="btn-ghost" onClick={onClose}>‹</button>
-        <h2 style={{ flex: 1 }}>Dile a la app</h2>
-      </div>
-      <div className="section-pad">
-        <div className="card ab">
-          <div className="text-xs text-muted mb-3">
-            Di lo que pasó, como se dice. Puedes juntar varias cosas en un mismo audio:
-            <i> «Hoy en San Felipe 1 anduvieron Juan y Pedro regando ocho horas. También se
-            compraron doscientos litros de diésel, tres mil ochocientos pesos. Y hace falta un
-            filtro para el tractor 3.»</i>
-          </div>
-          <div className="text-xs text-muted mb-3">{capacidad.porque}</div>
-
-          {!oyendo
-            ? <button className="btn btn-accent" onClick={empezar}><Ic e="💬" /> Empezar a hablar</button>
-            : <button className="btn btn-danger" onClick={parar}><Ic e="⏳" /> Ya terminé</button>}
-
-          {oyendo && <div className="text-xs text-accent mt-2">Oyendo… habla normal, no hace falta dictar despacio.</div>}
-          {error && <div className="text-xs mt-2" style={{ color: "var(--red)" }}>{error}</div>}
-
-          <div className="form-group mt-3">
-            <label className="form-label">Lo que se oyó (puedes corregirlo)</label>
-            <textarea className="inp" rows={5} value={texto} onChange={e => setTexto(e.target.value)}
-                      placeholder="…o escríbelo aquí a mano y se clasifica igual." />
-          </div>
-          {audio && <audio controls src={audio.dataUrl} style={{ width: "100%", marginBottom: 10 }} />}
-          {texto.trim() && !entendido && (
-            <button className="btn btn-accent" onClick={entender}>Ver qué entendió</button>
-          )}
-        </div>
-
-        {entendido && (
-          <>
-            <div className="card" style={{ padding: 12 }}>
-              <div className="text-sm">{entendido.resumen}</div>
-              <div className="text-xs text-muted mt-2">
-                Nada se guarda solo. Revisa cada uno y guarda los que estén bien.
-              </div>
-            </div>
-
-            {entendido.plan.propuestas.map(pr => (
-              <div key={pr.i} className="card" style={{ padding: 12, opacity: guardadas[pr.i] ? .55 : 1 }}>
-                <div className="flex-b">
-                  <div className="font-bold text-sm"><Ic e={ICONO_DICHO[pr.tipo] || "📝"} /> {decirPropuesta(pr)}</div>
-                  {guardadas[pr.i] && <span className="badge badge-green">guardado</span>}
-                </div>
-                <div className="text-xs text-muted" style={{ margin: "6px 0", fontStyle: "italic" }}>«{pr.frase}»</div>
-                <div className="text-xs text-muted">{NATURALEZAS[pr.naturaleza]} · queda en {OPERACIONES_DICHAS[pr.tipo].a}</div>
-
-                {pr.datos.personas.length > 0 && <div className="text-xs">Gente: {pr.datos.personas.map(x => x.nombre).join(", ")}</div>}
-                {pr.datos.parcelaNombre && <div className="text-xs">Parcela: {pr.datos.parcelaNombre}</div>}
-                {pr.datos.horas != null && <div className="text-xs">Horas: {pr.datos.horas}</div>}
-                {pr.datos.monto != null && <div className="text-xs">Monto: {fmt(pr.datos.monto)}</div>}
-                {pr.tipo !== "avance" && pr.datos.cantidad && <div className="text-xs">Cantidad: {pr.datos.cantidad.valor} {pr.datos.cantidad.unidad || ""}</div>}
-                {pr.tipo === "avance" && <div className="text-xs text-muted">Es sólo el avance: no le registra el día a nadie ni genera pago. No se calcula porcentaje.{pr.datos.pendiente ? ` Pendiente: «${pr.datos.pendiente.texto}»` : ""}</div>}
-                {pr.datos.paraQuien && <div className="text-xs">Se le manda a: {pr.datos.paraQuien}</div>}
-                {pr.aviso && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>{pr.aviso}</div>}
-
-                {/* Lo que la app no pudo llenar se pregunta, por su nombre. */}
-                {pr.preguntas.length > 0 && (
-                  <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>
-                    {pr.preguntas[0]}
-                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                      <input className="inp" aria-label={`Respuesta ${pr.i + 1}`} placeholder="Contesta en corto, sin repetir todo…" value={respD[pr.i] || ""} onChange={e => setRespD(x => ({ ...x, [pr.i]: e.target.value }))} onKeyDown={e => { if (e.key === "Enter") contestarDicho(pr); }} />
-                      <button className="btn btn-outline btn-sm" onClick={() => contestarDicho(pr)}>Contestar</button>
-                    </div>
-                  </div>
-                )}
-                {(pr.aclaraciones || []).map((a, k) => <div key={k} className="text-xs text-muted" style={{ marginTop: 3 }}>↳ «{a.texto}»{a.entendido ? ` — ${a.entendido}` : " — no se entendió"}</div>)}
-                {pr.mismoDineroQue && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>Es el mismo dinero que otra parte de lo que dijiste: se registra una sola vez.</div>}
-                {!pr.permiso.puede && pr.falta.length === 0 && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>{pr.permiso.dice} Mándalo por el Chat para que le llegue.</div>}
-                {!pr.seguro && pr.falta.length === 0 && !pr.aviso && (
-                  <div className="text-xs text-muted mt-2">{pr.porque}</div>
-                )}
-                {dice[pr.i] && <div className="text-xs" style={{ color: "var(--red)", marginTop: 4 }}>{dice[pr.i]}</div>}
-
-                {!guardadas[pr.i] && pr.lista && pr.permiso.puede && (
-                  <button className="btn btn-accent btn-sm mt-2" aria-label={`Guardar ${decirPropuesta(pr)}`} onClick={() => guardar(pr)}>
-                    Sí, guardar{pr.tipo === "nota" ? " en la bitácora" : ""}
-                  </button>
-                )}
-              </div>
-            ))}
-
-            <button className="btn btn-outline mt-2" onClick={guardarSoloElAudio}>
-              Guardar tal cual, sin clasificar
-            </button>
-            <div className="text-xs text-muted mt-2">
-              Si nada de esto quedó bien, se guarda el texto y el audio como nota. <b>Nunca se
-              pierde lo que dijiste.</b>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
+// «Dile a la app» ya no es una pantalla aparte: es la conversación con AgroGestión dentro de Mensajes
+// (`esConAsistente` en ChatDelRancho). Mismo motor (`operaciones.js`), misma tarjeta (`PropuestaDicha`).
 
 /* ════════════ EL ALMACÉN: VALES, MERMAS Y CONTEO A CIEGAS ════════════ */
 /* Tres reglas mandan aquí:
@@ -7177,6 +7276,8 @@ function AppInner() {
   // Abrir lo que dice un aviso del teléfono: sólo la pantalla y, si es un mensaje, la conversación. El contenido lo
   // enseña la pantalla con la sesión de la persona; si ya no tiene acceso, no ve nada.
   const [desdeAviso, setDesdeAviso] = useState(null);
+  // La dirección vieja de «Dile a la app» lleva a su lugar nuevo: la conversación con AgroGestión.
+  useEffect(() => { if (page !== "dictado") return; if (session?.id) setDesdeAviso({ pagina: "chat", conversacion: idConAsistente(session.id), n: Date.now() }); setPage("chat"); }, [page]);
   useEffect(() => {
     const abrir = (url) => { const d = destinoDeAviso(url); if (!d) return; setDesdeAviso({ ...d, n: Date.now() }); setPage(d.pagina); };
     if (window.location.search.includes("ir=")) { abrir(window.location.href); try { window.history.replaceState(null, "", window.location.pathname); } catch { /* da igual */ } }
@@ -7195,6 +7296,51 @@ function AppInner() {
     pendiente(); document.addEventListener("visibilitychange", alVolver); window.addEventListener("focus", alVolver);
     return () => { navigator.serviceWorker?.removeEventListener?.("message", oir); document.removeEventListener("visibilitychange", alVolver); window.removeEventListener("focus", alVolver); };
   }, [setPage]);
+  // PROTOTIPO Android: el candado de la app. Protege el acceso EN ESTE APARATO; quién es la persona lo sigue
+  // diciendo la base. Una sesión de PIN (operativa, de teléfono compartido) NUNCA se abre con la huella del dueño
+  // del teléfono: al bloquearse se cierra y hay que volver a poner el PIN.
+  const [bloqueada, setBloqueada] = useState(() => esNativo());
+  const [bloqueoDice, setBloqueoDice] = useState("");
+  const salioRef = useRef(null);
+  const bloquear = useCallback(async () => {
+    if (!session) return;
+    const c = await comoSeDesbloquea();
+    if (!session.cuenta || !c.seguro) { await cerrarSesion(); setBloqueada(false); return; }
+    setBloqueada(true);
+  }, [session, cerrarSesion]);
+  useEffect(() => { if (esNativo()) pantallaPrivada(true); }, []);
+  // En frío: una sesión de cuenta arranca bloqueada; una de PIN no se recuerda.
+  // Una sesión que la app RECUPERA al abrir arranca bloqueada. Quien acaba de escribir su correo y contraseña no
+  // tiene que desbloquear enseguida: se distingue porque tecleó algo antes de que hubiera sesión.
+  const tecleoRef = useRef(false);
+  useEffect(() => { if (!esNativo()) return; const t = () => { tecleoRef.current = true; }; document.addEventListener("input", t, true); return () => document.removeEventListener("input", t, true); }, []);
+  useEffect(() => {
+    if (!esNativo()) return;
+    if (!session) { tecleoRef.current = false; return; }
+    if (tecleoRef.current) setBloqueada(false); else bloquear();
+  }, [!!session]);
+  useEffect(() => {
+    if (!esNativo()) return;
+    const ver = () => {
+      if (document.visibilityState === "hidden") { salioRef.current = Date.now(); return; }
+      if (tocaBloquear({ salio: salioRef.current, volvio: Date.now(), plazo: plazoDeBloqueo() })) bloquear();
+      salioRef.current = null;
+    };
+    document.addEventListener("visibilitychange", ver);
+    return () => document.removeEventListener("visibilitychange", ver);
+  }, [bloquear]);
+  const abrirCandado = useCallback(async () => {
+    setBloqueoDice("");
+    const r = await desbloquear();
+    if (!r.ok) { setBloqueoDice("No se desbloqueó. Intenta otra vez."); return; }
+    setBloqueada(false);
+    // La huella abre la app, no la sesión: se le pregunta a la base si la sesión sigue viva.
+    if (supabaseListo && navigator.onLine !== false) {
+      const { error } = await supabase.auth.getUser();
+      if (error && [401, 403].includes(error.status)) { await cerrarSesion(); alert("Tu sesión ya no es válida en el servidor. Entra otra vez con tu correo y contraseña."); }
+    }
+  }, [cerrarSesion]);
+
   // PROTOTIPO Android: canales con tono propio, mensajes nuevos mientras la app vive, y abrir al tocar.
   useEffect(() => {
     if (!esNativo() || !session) return;
@@ -7217,6 +7363,7 @@ function AppInner() {
   useEffect(() => {
     const onPop = () => {
       // Al presionar atrás: si no estamos en home, volver a home; si ya estamos en home, dejar salir.
+      if (atrasInterno.fn && atrasInterno.fn()) { window.history.pushState({ agroPage: "chat" }, ""); return; }
       setPageRaw(prev => {
         if (prev !== "home") { setNavParam(null); return "home"; }
         return prev;
@@ -7716,6 +7863,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
           {session && page === "home" && <AvisoEntregas data={data} session={session} onNav={setPage} />}
           {session && page === "home" && <AvisoCompras data={data} session={session} onNav={setPage} />}
           {session && page === "home" && <AvisoSalarioMinimo data={data} session={session} onNav={setPage} />}
+          {session && page === "home" && <AvisoGastoIA session={session} />}
           <MenuCtx.Provider value={ctxMenu}>
           <ErrorBoundary key={`${session.role}-${page}`} onReset={() => { setSession(null); setPage("home"); setNavParam(null); }}>
             {isAdmin && <>
@@ -7732,7 +7880,6 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "bitacora" && <Bitacora data={data} onClose={() => setPage("home")} />}
               {page === "vales" && <AlmacenVales data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "entregas" && <EntregasAlmacen data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
-              {page === "dictado" && <Dictado data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "fito" && <HojaDeFito data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} abrir={desdeAviso} onClose={() => setPage("home")} />}
               {page === "dron" && <RecorridoDron data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
@@ -7809,7 +7956,6 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "bitacora" && <Bitacora data={data} onClose={() => setPage("home")} />}
               {page === "vales" && <AlmacenVales data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "entregas" && <EntregasAlmacen data={data} add={add} upd={upd} session={session} onNav={setPage} onClose={() => setPage("home")} />}
-              {page === "dictado" && <Dictado data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "fito" && <HojaDeFito data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "chat" && <ChatDelRancho data={data} add={add} upd={upd} session={session} abrir={desdeAviso} onClose={() => setPage("home")} />}
               {page === "dron" && <RecorridoDron data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
@@ -7912,13 +8058,20 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
           )}
         </nav>}
         {menuAbierto && !clavado && <MenuCtx.Provider value={ctxMenu}><MenuTodo acomodar={menuAbierto === "acomodar"} /></MenuCtx.Provider>}
-        {/* Hablarle a la app está EN TODOS LADOS: el botón flotante sale en
-            cualquier pantalla, para quien sea. Antes esto abría un panel que
-            le hablaba a la IA sin llave y sólo devolvía "Hubo un error de
-            conexión" — código muerto que ocupaba el mejor lugar de la
-            pantalla. */}
-        {page !== "dictado" && page !== "checador" && page !== "reparto" && (
-          <button className="ai-fab" title="Dile a la app lo que pasó" onClick={() => setPage("dictado")}>
+        {esNativo() && bloqueada && session?.cuenta && (
+          <div className="bloqueo-nativo">
+            <Ic e="🔒" style={{ fontSize: 44 }} />
+            <b>AgroGestión está bloqueada</b>
+            <div className="text-sm text-muted" style={{ textAlign: "center" }}>Tu sesión sigue abierta. Confirma que eres tú para entrar.</div>
+            <button className="btn btn-accent" style={{ width: "auto", padding: "12px 28px" }} onClick={abrirCandado}>Desbloquear</button>
+            {bloqueoDice && <div className="text-xs" style={{ color: "var(--gold)" }}>{bloqueoDice}</div>}
+            <button className="btn btn-outline btn-sm" style={{ width: "auto" }} onClick={async () => { await cerrarSesion(); setBloqueada(false); }}>Salir y entrar con otra cuenta</button>
+          </div>
+        )}
+        {/* Un solo acceso: Mensajes. Ahí está la gente y, fijada arriba, la conversación con AgroGestión
+            (lo que antes era «Dile a la app»). Sólo le sale a quien tiene mensajería. */}
+        {ROLES_CON_MENSAJES.includes(session?.role) && page !== "chat" && page !== "checador" && page !== "reparto" && (
+          <button className="ai-fab" title="Mensajes" aria-label="Mensajes" onClick={() => setPage("chat")}>
             <Ic e="💬" />
           </button>
         )}
@@ -21780,6 +21933,44 @@ function CierreSemana({ data, add, session, ini, fin, renglones }) {
 // Prestaciones: saldo inicial, lo generado después del corte, ajustes, pagos y lo pendiente, por persona.
 // Al abrir la app: falta el salario mínimo del año en curso, o ya es diciembre y falta el del que viene.
 // Sólo le sale a quien puede capturarlo. No propone importe.
+// PROTOTIPO Android: cómo se protege la app en este teléfono, cada cuánto se bloquea, y los tonos de aviso.
+function SeguridadNativa() {
+  const [como, setComo] = useState(null);
+  const [plazo, setPlazo] = useState(plazoDeBloqueo());
+  useEffect(() => { let vivo = true; comoSeDesbloquea().then(c => { if (vivo) setComo(c); }); return () => { vivo = false; }; }, []);
+  return (
+    <div className="card" style={{ padding: 10, marginTop: 10 }}>
+      <div className="text-sm font-bold">Seguridad de la app en este teléfono (prototipo)</div>
+      <div className="text-xs" style={{ marginTop: 4, color: como && !como.seguro ? "var(--gold)" : "var(--muted)" }}>{como ? como.dice : "Revisando el bloqueo del teléfono…"}</div>
+      <div className="text-xs text-muted" style={{ margin: "8px 0 4px" }}>Bloquear AgroGestión al dejar de usarla:</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {PLAZOS_DE_BLOQUEO.map(p => <button key={p.v} className={`btn btn-sm ${plazo === p.v ? "btn-accent" : "btn-outline"}`} style={{ width: "auto" }} onClick={() => { guardarPlazo(p.v); setPlazo(p.v); }}>{p.n}</button>)}
+      </div>
+      <div className="text-xs text-muted" style={{ marginTop: 6 }}>La huella abre la app en este teléfono; no sustituye tu cuenta. Una sesión con PIN de trabajo no se abre con huella: se cierra al bloquearse.</div>
+      <div className="text-xs text-muted" style={{ margin: "10px 0 4px" }}>Cada clase de aviso tiene su tono. Pruébalos:</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {CANALES_NATIVOS.map(c => <button key={c.id} className="btn btn-outline btn-sm" style={{ width: "auto" }} onClick={() => avisarNativo({ clase: c.clases[0], titulo: `Prueba de ${c.name.toLowerCase()}`, cuerpo: "Así suena este aviso en AgroGestión.", url: "/?ir=chat" })}>{c.name}</button>)}
+      </div>
+    </div>);
+}
+
+// El gasto en IA del mes: avisa a quien administra desde el 70 % del límite, y dice cuando ya quedó bloqueado.
+// Si no se pudo saber, no dice nada (no se inventa un «todo bien»).
+function AvisoGastoIA({ session }) {
+  const [e, setE] = useState(null);
+  const administra = ["admin", "finanzas"].includes(session?.role) && !!session?.cuenta;
+  useEffect(() => { if (!administra) return; let vivo = true; estadoDeIA().then(x => { if (vivo) setE(x); }); return () => { vivo = false; }; }, [administra]);
+  if (!administra || !e || e.estado === "bien") return null;
+  const usd = (m) => `$${(Number(m || 0) / 1e6).toFixed(2)} USD`;
+  return (
+    <div className="section-pad" style={{ paddingBottom: 0 }}>
+      <div className="card aviso-ia" style={{ borderColor: e.estado === "bloqueado" ? "var(--red)" : "var(--gold)" }}>
+        <div className="text-sm"><b>{e.estado === "bloqueado" ? "Se llegó al límite de gasto en IA de este mes" : `El gasto en IA de este mes va en ${e.pct} % de su límite`}</b></div>
+        <div className="text-xs text-muted" style={{ marginTop: 4 }}>Van {usd(e.gastado_microusd)} de {usd(e.tope_microusd)} en {e.llamadas} lectura(s). {e.estado === "bloqueado" ? "Ya no se hacen lecturas pagadas hasta el mes que entra, o hasta que un superadministrador suba el límite." : "Al llegar al límite las lecturas pagadas se detienen solas."} Los mensajes normales y el asistente no gastan.</div>
+      </div>
+    </div>);
+}
+
 function AvisoSalarioMinimo({ data, session, onNav }) {
   if (!seOfrece(session, "cambiar_reglas")) return null;
   const a = alertaDeSalarioMinimo(today(), ajusteVigente(data.eventos, "zona_salario_minimo").valor, data.eventos);

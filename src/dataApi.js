@@ -309,6 +309,13 @@ export async function verEvidencia(mensajes, motivo) {
   const { data, error } = await supabase.rpc("ver_evidencia", { p_mensajes: mensajes, p_motivo: motivo || null });
   return error ? { ok: false, mensaje: error.message } : { ok: true, mensajes: (data || []).map(filaAObjeto) };
 }
+// El gasto en IA del mes contra su límite (hoja 50). Sólo le contesta a quien administra; si no se pudo saber, null.
+export async function estadoDeIA() {
+  if (!supabaseListo) return null;
+  const { data, error } = await supabase.rpc("estado_de_ia");
+  return error ? null : data || null;
+}
+
 export async function directorioDeCuentas() {
   if (!supabaseListo) return [];
   const { data, error } = await supabase.rpc("directorio_de_cuentas");

@@ -17,6 +17,13 @@ export const ICONS = {
   // ── Ganado ──
   // Cabeza de res: las orejas anchas, la testa y el hocico. Mismo trazo que
   // el resto — todo aquí es línea, sin relleno.
+  // ── Mensajes ──
+  mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0" /><path d="M12 17.5V21" /></>,
+  clip: <><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4l7.6-7.6" /></>,
+  send: <><path d="M4 12l16-8-6 16-3-6.5z" /><path d="M11 13.5L20 4" /></>,
+  dots: <><path d="M12 5v.01M12 12v.01M12 19v.01" strokeWidth="2.8" /></>,
+  clock: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></>,
+  stop: <><rect x="6.5" y="6.5" width="11" height="11" rx="2" /></>,
   res: <><path d="M4 6.5c0-1.4 1.4-2.3 2.6-1.7L9 6" /><path d="M20 6.5c0-1.4-1.4-2.3-2.6-1.7L15 6" /><path d="M6.2 6.2c-.6 3 .3 5.6 1.6 7.2 1.2 1.5 2.6 2.2 4.2 2.2s3-.7 4.2-2.2c1.3-1.6 2.2-4.2 1.6-7.2" /><path d="M9.2 16.6c.5 1.9 1.5 2.9 2.8 2.9s2.3-1 2.8-2.9" /><path d="M10 10v.01M14 10v.01" /></>,
   // ── Navegación / módulos ──
   dashboard: <><rect x="3.5" y="3.5" width="7" height="9" rx="2" /><rect x="13.5" y="3.5" width="7" height="5.5" rx="2" /><rect x="13.5" y="12.5" width="7" height="8" rx="2" /><rect x="3.5" y="16" width="7" height="4.5" rx="2" /></>,

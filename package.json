@@ -11,6 +11,9 @@
     "test:base": "node --test \"pruebas/base/*.test.mjs\""
   },
   "dependencies": {
+    "@aparajita/capacitor-biometric-auth": "^10.0.0",
+    "@aparajita/capacitor-secure-storage": "^8.0.1",
+    "@capacitor-community/privacy-screen": "^8.0.0",
     "@capacitor/android": "^8.6.2",
     "@capacitor/cli": "^8.6.2",
     "@capacitor/core": "^8.6.2",

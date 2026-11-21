@@ -129,7 +129,7 @@ export function leerXmlCFDI(textoXml) {
 //
 // Si la función no está instalada, NO se rompe nada: devuelve el porqué y la
 // app ofrece capturar a mano. La foto ya se guardó de todos modos.
-export async function leerConIA({ imagenBase64, tipoMedio, tipo, pistaEmisor }) {
+export async function leerConIA({ imagenBase64, tipoMedio, tipo, pistaEmisor, nivel = "economico", operacion = "papel", origen = null }) {
   if (!supabaseListo) {
     return { ok: false, motivo: "sin_nube", dice: "No hay conexión con la nube. Puedes capturar a mano; la foto se guarda igual." };
   }
@@ -138,7 +138,7 @@ export async function leerConIA({ imagenBase64, tipoMedio, tipo, pistaEmisor }) 
   }
   try {
     const { data, error } = await supabase.functions.invoke("leer-papel", {
-      body: { imagenBase64, tipoMedio, tipo, pistaEmisor },
+      body: { imagenBase64, tipoMedio, tipo, pistaEmisor, nivel, operacion, origen },
     });
     if (error) {
       return { ok: false, motivo: "fallo", dice: `No se pudo leer con IA (${error.message}). Puedes capturar a mano; la foto se guarda igual.` };
@@ -172,7 +172,9 @@ export const CAMPOS_ESPERADOS = {
 // NO decide: propone. Lo que salga de aquí lo confirma una persona antes de
 // convertirse en un gasto, una entrada de inventario o una lectura de
 // horómetro.
-export async function leerPapel({ imagenDataUrl, textoArchivo, nombreArchivo, patrones = [], nitidez = null, ancho = null, alto = null }) {
+// `sinIA`: sólo los pasos gratis (archivo, patrón aprendido, QR). Una foto que llega dentro de un mensaje se lee así:
+// la lectura pagada se hace cuando la persona la pide (`operacion`, `origen` dicen de dónde salió; `nivel`, con qué modelo).
+export async function leerPapel({ imagenDataUrl, textoArchivo, nombreArchivo, patrones = [], nitidez = null, ancho = null, alto = null, sinIA = false, nivel = "economico", operacion = "papel", origen = null }) {
   const pasos = [];
 
   // La foto se guarda SIEMPRE, se lea o no. Nunca se pierde evidencia de un pago.
@@ -236,10 +238,14 @@ export async function leerPapel({ imagenDataUrl, textoArchivo, nombreArchivo, pa
   const base64 = String(imagenDataUrl).split(",")[1] || "";
   const tipoMedio = (String(imagenDataUrl).match(/^data:([^;]+);/) || [])[1] || "image/jpeg";
 
+  if (sinIA) {
+    pasos.push({ paso: "sin ia", dice: "No se mandó a leer con IA: la lectura pagada sólo se hace cuando alguien la pide." });
+    return { ok: false, sinLeer: true, tipo: clase.tipo, campos: qr?.uuid ? { uuid: qr.uuid } : {}, noSeLeyo: CAMPOS_ESPERADOS[clase.tipo] || [], pasos, seGuardaLaFoto: true, dice: "La foto quedó guardada sin leer. Se puede pedir su lectura." };
+  }
   const ia = await leerConIA({
     imagenBase64: base64, tipoMedio,
     tipo: clase.tipo === "por identificar" ? "ticket" : clase.tipo,
-    pistaEmisor: clase.emisor,
+    pistaEmisor: clase.emisor, nivel, operacion, origen,
   });
 
   if (!ia.ok) {
@@ -256,7 +262,7 @@ export async function leerPapel({ imagenDataUrl, textoArchivo, nombreArchivo, pa
   // Si el QR dio folio fiscal, ese manda sobre lo que se leyó de la imagen:
   // el QR no se equivoca a medias.
   if (qr?.uuid) ia.campos = { ...ia.campos, uuid: qr.uuid };
-  return terminar(ia, patrones, ia.transcripcion, pasos);
+  return { ...terminar(ia, patrones, ia.transcripcion, pasos), uso: ia.uso || null, presupuesto: ia.presupuesto || null };
 }
 
 function terminar(lectura, patrones, texto, pasos) {

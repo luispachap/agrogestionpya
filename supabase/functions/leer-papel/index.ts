@@ -45,7 +45,17 @@
 //  con IA no está disponible y pide capturar a mano.
 // ============================================================
 
-import Anthropic from "npm:@anthropic-ai/sdk@^0.71.0";
+// Los modelos y su precio (USD por millón de tokens). El económico es el de siempre; el superior sólo cuando un
+// administrador lo pide expresamente. Si los precios cambian, se cambian aquí y en `interpretar-documento/nucleo.ts`.
+const MODELOS: Record<string, { modelo: string; entrada: number; salida: number; maxSalida: number }> = {
+  economico: { modelo: "claude-haiku-5-5", entrada: 0.10, salida: 0.50, maxSalida: 4000 },
+  superior: { modelo: "claude-sonnet-5-5", entrada: 2, salida: 10, maxSalida: 4000 },
+};
+// Lo más que puede costar una lectura: se APARTA antes de llamar. Una foto no pasa de unos miles de tokens de entrada.
+const ENTRADA_MAXIMA = 8000;
+const microusd = (m: { entrada: number; salida: number }, entrada: number, salida: number) => Math.ceil(entrada * m.entrada + salida * m.salida);
+// De dónde puede venir una lectura. Lo que no esté aquí se anota como «papel».
+const OPERACIONES = ["papel", "foto_en_mensaje", "estado_de_cuenta", "etiqueta", "horometro"];
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -114,37 +124,36 @@ async function yaLeido(funcion: string, huella: string): Promise<Record<string, 
   } catch { return null; }
 }
 
-// ¿Queda presupuesto este mes? Si NO se puede comprobar, no se llama a la IA:
-// un presupuesto que se salta cuando falla la consulta no es un presupuesto.
-async function quedaPresupuesto(): Promise<{ ok: boolean; dice: string }> {
-  if (!BASE || !SERVICIO) return { ok: false, dice: "No se pudo comprobar el presupuesto de IA. Captura a mano." };
-  try {
-    const inicio = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Mexico_City" }));
-    const desde = new Date(Date.UTC(inicio.getFullYear(), inicio.getMonth(), 1, 6)).toISOString(); // día 1, medianoche de Zacatecas
-    const [lim, uso] = await Promise.all([
-      fetch(`${BASE}/rest/v1/limites?select=ia_llamadas_mes,ia_centavos_mes&limit=1`, { headers: cabServicio }).then((r) => r.json()),
-      fetch(`${BASE}/rest/v1/uso_ia?select=centavos&de_cache=eq.false&cuando=gte.${desde}`, { headers: cabServicio }).then((r) => r.json()),
-    ]);
-    const tope = lim?.[0];
-    if (!tope || !Array.isArray(uso)) return { ok: false, dice: "No se pudo comprobar el presupuesto de IA. Captura a mano." };
-    const gastado = uso.reduce((s: number, u: { centavos: number | null }) => s + (u.centavos ?? 0), 0);
-    if (uso.length >= tope.ia_llamadas_mes) return { ok: false, dice: `Ya se usaron las ${tope.ia_llamadas_mes} lecturas con IA de este mes. Se puede capturar a mano; el XML y los proveedores ya conocidos se siguen leyendo solos.` };
-    if (tope.ia_centavos_mes && gastado >= tope.ia_centavos_mes) return { ok: false, dice: "Se llegó al presupuesto de IA de este mes. Se puede capturar a mano." };
-    return { ok: true, dice: "" };
-  } catch { return { ok: false, dice: "No se pudo comprobar el presupuesto de IA. Captura a mano." }; }
+// El presupuesto del MES (hoja 50): se aparta lo máximo antes de llamar y se cierra con lo que costó de verdad.
+// Si no se puede comprobar, no se llama a la IA: un presupuesto que se salta cuando falla la consulta no es un presupuesto.
+async function rpc(nombre: string, cuerpo: Record<string, unknown>) {
+  const r = await fetch(`${BASE}/rest/v1/rpc/${nombre}`, { method: "POST", headers: cabServicio, body: JSON.stringify(cuerpo) });
+  if (!r.ok) throw new Error(`${nombre}: ${r.status}`);
+  const t = await r.text(); return t ? JSON.parse(t) : null;
 }
-
+async function apartar(p: { huella: string; cuenta: string | null; modelo: string; nivel: string; maximo: number; operacion: string; origen: string | null }) {
+  if (!BASE || !SERVICIO) return { ok: false as const, dice: "No se pudo comprobar el presupuesto de IA. Captura a mano." };
+  try {
+    const r = await rpc("reservar_ia_mes", { p_funcion: "leer-papel", p_huella: p.huella, p_cuenta: p.cuenta, p_modelo: p.modelo, p_nivel: p.nivel, p_microusd_max: p.maximo, p_operacion: p.operacion, p_origen: p.origen });
+    if (r?.id) return { ok: true as const, id: r.id as string, aviso: !!r.aviso, pct: Number(r.pct ?? 0) };
+    if (r?.motivo === "tope_del_mes") return { ok: false as const, dice: "Se llegó al límite de gasto en IA de este mes: ya no se hacen lecturas pagadas hasta el mes que entra o hasta que un superadministrador suba el límite. Se puede capturar a mano; el XML y los proveedores ya conocidos se siguen leyendo solos." };
+    if (r?.motivo === "tope_de_llamadas") return { ok: false as const, dice: `Ya se usaron las ${r.llamadas} lecturas con IA de este mes. Se puede capturar a mano.` };
+    return { ok: false as const, dice: "No se pudo comprobar el presupuesto de IA. Captura a mano." };
+  } catch { return { ok: false as const, dice: "No se pudo comprobar el presupuesto de IA. Captura a mano." }; }
+}
+async function cerrar(id: string, entrada: number | null, salida: number | null, costo: number, resultado: unknown, fallo = false) {
+  try { await rpc("cerrar_ia", { p_id: id, p_entrada: entrada, p_salida: salida, p_microusd: costo, p_resultado: resultado ?? null, p_fallo: fallo }); } catch { /* si no se pudo cerrar, la base suelta lo apartado a los 15 minutos */ }
+}
 async function anotarUso(fila: Record<string, unknown>) {
   if (!BASE || !SERVICIO) return;
-  try { await fetch(`${BASE}/rest/v1/uso_ia`, { method: "POST", headers: { ...cabServicio, Prefer: "return=minimal" }, body: JSON.stringify(fila) }); } catch { /* la lectura ya se hizo: no se pierde por no poder anotarla */ }
+  try { await fetch(`${BASE}/rest/v1/uso_ia`, { method: "POST", headers: { ...cabServicio, Prefer: "return=minimal" }, body: JSON.stringify(fila) }); } catch { /* sólo es la anotación de que salió de memoria */ }
 }
-
-// El costo estimado sólo se calcula si alguien configuró el precio. Sin
-// precio no se inventa: se deja en blanco y manda el tope por número de lecturas.
-function centavosDe(entrada: number | null, salida: number | null): number | null {
-  const pe = Number(Deno.env.get("IA_CENTAVOS_POR_MILLON_ENTRADA")), ps = Number(Deno.env.get("IA_CENTAVOS_POR_MILLON_SALIDA"));
-  if (!pe || !ps || entrada == null || salida == null) return null;
-  return Math.ceil((entrada * pe + salida * ps) / 1_000_000);
+// El modelo superior sólo lo pide quien administra.
+async function esAdministrador(autorizacion: string | null): Promise<boolean> {
+  try {
+    const r = await fetch(`${BASE}/rest/v1/rpc/es_admin`, { method: "POST", headers: { Authorization: autorizacion ?? "", apikey: Deno.env.get("SUPABASE_ANON_KEY") ?? "", "Content-Type": "application/json" }, body: "{}" });
+    return r.ok && (await r.json()) === true;
+  } catch { return false; }
 }
 
 async function tienePerfil(autorizacion: string | null): Promise<{ ok: boolean; estado: number; dice: string; cuenta?: string | null }> {
@@ -199,6 +208,9 @@ Deno.serve(async (req: Request) => {
     tipoMedio?: string;
     tipo?: string;
     pistaEmisor?: string;
+    nivel?: string;        // economico (por defecto) | superior (sólo administración)
+    operacion?: string;    // qué pidió la lectura
+    origen?: string;       // de qué registro salió (el mensaje, el papel)
   };
   try {
     cuerpo = await req.json();
@@ -207,6 +219,13 @@ Deno.serve(async (req: Request) => {
   }
 
   const { imagenBase64, tipoMedio = "image/jpeg", tipo = "ticket", pistaEmisor } = cuerpo;
+  const operacion = OPERACIONES.includes(String(cuerpo.operacion)) ? String(cuerpo.operacion) : "papel";
+  const origen = cuerpo.origen ? String(cuerpo.origen).slice(0, 120) : null;
+  const nivel = cuerpo.nivel === "superior" ? "superior" : "economico";
+  if (nivel === "superior" && !(await esAdministrador(req.headers.get("Authorization")))) {
+    return responder({ error: "sin_permiso", dice: "La lectura con el modelo superior la pide un administrador. Se puede leer con el económico o capturar a mano." }, 403);
+  }
+  const M = MODELOS[nivel];
   if (!imagenBase64) {
     return responder({ error: "sin_imagen", dice: "No llegó la foto." }, 400);
   }
@@ -220,12 +239,13 @@ Deno.serve(async (req: Request) => {
 
   // Una lectura por documento: si esta misma foto ya se leyó, se devuelve eso.
   const huella = await huellaDe(imagenBase64);
-  const previa = await yaLeido("leer-papel", huella);
+  // Pedir el modelo superior es pedir OTRA lectura: no se contesta con la que ya hizo el económico.
+  const previa = nivel === "superior" ? null : await yaLeido("leer-papel", huella);
   if (previa) {
-    await anotarUso({ huella, funcion: "leer-papel", cuenta: quien.cuenta ?? null, de_cache: true });
+    await anotarUso({ huella, funcion: "leer-papel", cuenta: quien.cuenta ?? null, de_cache: true, microusd: 0, estado: "hecha", operacion, origen });
     return responder({ ...previa, ok: true, fuente: "ia", deMemoria: true, huella });
   }
-  const presupuesto = await quedaPresupuesto();
+  const presupuesto = await apartar({ huella, cuenta: quien.cuenta ?? null, modelo: M.modelo, nivel, maximo: microusd(M, ENTRADA_MAXIMA, M.maxSalida), operacion, origen });
   if (!presupuesto.ok) return responder({ error: "sin_presupuesto", dice: presupuesto.dice }, 429);
 
   const esquema = {
@@ -279,62 +299,49 @@ Deno.serve(async (req: Request) => {
   const pista = pistaEmisor ? `\n\nEs posible que el emisor sea "${pistaEmisor}", pero compruébalo en el papel: si el texto dice otra cosa, manda lo que dice el texto.` : "";
 
   try {
-    const anthropic = new Anthropic({ apiKey: llave });
-    const respuesta = await anthropic.messages.create({
-      model: "claude-opus-5",
-      max_tokens: 8000,
-      // Esto es transcribir y señalar, no razonar largo. Con esfuerzo medio
-      // sale bien y cuesta menos; y de todos modos casi nunca se llama,
-      // porque el patrón local se lleva la mayoría de los papeles.
-      output_config: { effort: "medium", format: { type: "json_schema", schema: esquema } },
-      system: INSTRUCCIONES,
-      messages: [{
-        role: "user",
-        content: [
-          { type: "image", source: { type: "base64", media_type: tipoMedio, data: imagenBase64 } },
-          { type: "text", text: `Este papel debería ser: ${tipo}. Busca sobre todo: ${queBuscar}.${pista}` },
-        ],
-      }],
-    });
-
-    if (respuesta.stop_reason === "refusal") {
-      return responder({
-        error: "no_se_pudo_leer",
-        dice: "No se pudo leer esta foto. Se puede capturar a mano; la foto queda guardada igual.",
-      }, 422);
+    const espacio = (Deno.env.get("ANTHROPIC_WORKSPACE_ID") ?? "").trim();
+    const cab: Record<string, string> = { "x-api-key": llave, "anthropic-version": "2023-06-01", "content-type": "application/json", ...(espacio ? { "anthropic-workspace-id": espacio } : {}) };
+    const pedido = {
+      model: M.modelo, max_tokens: M.maxSalida, system: INSTRUCCIONES,
+      messages: [{ role: "user", content: [
+        { type: "image", source: { type: "base64", media_type: tipoMedio, data: imagenBase64 } },
+        { type: "text", text: `Este papel debería ser: ${tipo}. Busca sobre todo: ${queBuscar}.${pista}` },
+      ] }],
+    };
+    let r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: cab, body: JSON.stringify({ ...pedido, output_config: { format: { type: "json_schema", schema: esquema } } }) });
+    // Si el servidor no acepta el formato estructurado, se intenta UNA vez pidiéndolo con palabras (lo rechazado no se cobra).
+    if (r.status === 400 && /output_config|json_schema|format|schema/i.test(await r.clone().text())) {
+      const conPalabras = INSTRUCCIONES + "\n\nEl JSON debe cumplir exactamente este esquema (JSON Schema), sin texto antes ni después:\n" + JSON.stringify(esquema);
+      r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: cab, body: JSON.stringify({ ...pedido, system: conPalabras }) });
     }
-
-    const texto = respuesta.content.find((b) => b.type === "text");
-    if (!texto || texto.type !== "text") {
-      return responder({ error: "respuesta_vacia", dice: "La lectura vino vacía. Captura a mano." }, 502);
+    if (!r.ok) {
+      await cerrar(presupuesto.id, null, null, 0, null, true);
+      return responder({ error: "fallo_la_lectura", dice: `No se pudo leer la foto con IA (${r.status}). No se cobró. La foto se guarda igual y se puede capturar a mano.` }, 502);
     }
-
-    let leido;
-    try {
-      leido = JSON.parse(texto.text);
-    } catch {
-      return responder({ error: "respuesta_ilegible", dice: "La lectura no se entendió. Captura a mano." }, 502);
-    }
-
+    const respuesta = await r.json();
     const entrada = respuesta.usage?.input_tokens ?? null, salida = respuesta.usage?.output_tokens ?? null;
-    await anotarUso({
-      huella, funcion: "leer-papel", cuenta: quien.cuenta ?? null, de_cache: false,
-      entrada, salida, centavos: centavosDe(entrada, salida), resultado: leido,
-    });
-
+    const costo = microusd(M, entrada ?? ENTRADA_MAXIMA, salida ?? M.maxSalida);
+    const texto = (respuesta.content || []).find((b: { type: string }) => b.type === "text");
+    let leido = null;
+    try { const t = String(texto?.text || ""), a = t.indexOf("{"), b = t.lastIndexOf("}"); leido = a >= 0 && b > a ? JSON.parse(t.slice(a, b + 1)) : null; } catch { leido = null; }
+    if (respuesta.stop_reason === "refusal" || !leido) {
+      // La llamada se hizo y se cobró, aunque no sirviera: se anota lo que costó, sin guardar respuesta.
+      await cerrar(presupuesto.id, entrada, salida, costo, null);
+      return responder({ error: "no_se_pudo_leer", dice: "No se pudo leer esta foto. Se puede capturar a mano; la foto queda guardada igual." }, 422);
+    }
+    await cerrar(presupuesto.id, entrada, salida, costo, leido);
     return responder({
       ok: true,
       fuente: "ia",                 // para que la app sepa que esta lectura SÍ costó
-      huella,
-      ...leido,
-      uso: {
-        entrada: respuesta.usage?.input_tokens ?? null,
-        salida: respuesta.usage?.output_tokens ?? null,
-      },
+      huella, ...leido,
+      uso: { entrada, salida, modelo: M.modelo, nivel, microusd: costo },
+      // Para avisar a tiempo: cuánto va del límite del mes.
+      presupuesto: { pct: presupuesto.pct, aviso: presupuesto.aviso },
     });
   } catch (e) {
     // Se dice qué pasó. Fallar callada es lo que ya nos costó una vez con
     // los iconos: el navegador nunca bajaba la fuente y nadie se enteraba.
+    await cerrar(presupuesto.id, null, null, 0, null, true);
     const msg = e instanceof Error ? e.message : String(e);
     return responder({
       error: "fallo_la_lectura",

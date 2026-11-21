@@ -91,11 +91,13 @@ with sync_playwright() as p:
     # ── 4. El chat por el camino común ──
     ir(pg, "chat"); pg.locator(".msj-conv", has_text="General del rancho").click(); pg.wait_for_timeout(300)
     pg.locator("textarea").first.fill("Compramos un kilo de clavos, 350 pesos."); pg.get_by_role("button", name="Mandar").click(); pg.wait_for_timeout(600)
+    pg.locator(".msj-prop-chip").last.click(); pg.wait_for_timeout(200)
     tarjeta = pg.locator(".card", has_text="Monto").last
     tarjeta.get_by_role("button", name="Sí").click(); pg.wait_for_timeout(400)
     d = datos(pg)
     caso("en el chat, un gasto no lo confirma el encargado: se le dice quién sí y no se guarda ni se firma", d["egr"] == antes["egr"] and pg.locator(".chat-nose").count() == 1 and "lleva las cuentas" in pg.locator(".chat-nose").inner_text() and pg.get_by_text("Firmó").count() == 0, pg.locator(".chat-nose").all_inner_texts())
     pg.locator("textarea").first.fill("Se descompuso la bomba del pozo."); pg.get_by_role("button", name="Mandar").click(); pg.wait_for_timeout(600)
+    pg.locator(".msj-prop-chip").last.click(); pg.wait_for_timeout(200)
     pg.locator(".card", has_text="Se descompuso la bomba").last.get_by_role("button", name="Sí").click(); pg.wait_for_timeout(400)
     d = datos(pg); inc = d["inc"]
     caso("lo que sí le toca confirmar queda guardado con el mensaje de donde salió, quién lo dijo y quién lo confirmó", len(inc) == 1 and inc[0]["origen"]["canal"] == "chat" and inc[0]["origen"]["mensaje"].startswith("msj") and inc[0]["origen"]["confirmo"] == "ENCARGADO DE PRUEBA" and "Firmó ENCARGADO DE PRUEBA" in pg.locator("body").inner_text(), inc)

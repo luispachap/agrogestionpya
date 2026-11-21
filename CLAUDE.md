@@ -464,7 +464,7 @@ Usuarios reales de la app:
   mensaje, frase, quién lo dijo, quién lo confirmó). **La IA o las reglas entienden y
   proponen; nunca escriben.** Sólo lo HECHO se propone como hecho. Lo que aún no tiene su
   operación conectada (`POR_CONECTAR`: préstamo, pago, aplicación, almacén) se dice y se
-  manda a su pantalla: no se guarda «parecido». Conectado: «Dile a la app». **El chat de adentro ya confirma por aquí** (`confirmarDelChat`: permiso de quien firma, rastro `origen`; si no se puede, no se firma). Una operación nueva que se
+  manda a su pantalla: no se guarda «parecido». Conectado: la conversación con AgroGestión en Mensajes (antes «Dile a la app»). **El chat de adentro ya confirma por aquí** (`confirmarDelChat`: permiso de quien firma, rastro `origen`; si no se puede, no se firma). Una operación nueva que se
   pueda decir se agrega a `OPERACIONES` y usa la función que su módulo ya tiene.
 - **Lo dicho se guarda con la forma que lee su pantalla**: incidencia = `desc`, `tipo`, `prioridad`, `trabajadorId`;
   solicitud de compra = `notas`, `items: []`, `creadaPor`. (Se guardaba `descripcion` y el inicio tronaba.)
@@ -493,6 +493,33 @@ Usuarios reales de la app:
   conversación (`tag`), no duplica (`avisos_enviados`), lo obligatorio (asignación, autorización) no se silencia.
   `src/avisos.js` (puro) y `src/avisosRed.js`; `public/sw.js` enseña y abre (`destinoDe`). Si cambias `nucleo.ts`
   hay que volver a desplegar la función. **Sin probar en un teléfono real.** **Agroselectos = la empresa; AgroGestión = el sistema.** WhatsApp es opcional y futuro. Página `chat` («Mensajes») para admin, encargado, agrónomo, finanzas y dirección (hoja 45).
+- **La conversación abierta es una pantalla de mensajería** (portal `.msj-pantalla` sobre toda la app, 21 nov): encabezado,
+  burbujas del más viejo al más nuevo, barra de escribir fija abajo (adjuntar, cámara, audio; mandar aparece al escribir),
+  abre en lo reciente, se ajusta al teclado con `visualViewport`, raya de «mensajes nuevos», botón para volver al final.
+  Las propuestas van PLEGADAS dentro del mensaje (`.msj-prop-chip`); pendientes, lo de hoy, integrantes, avisos y reglas se
+  abren desde «Opciones». Estado de envío: sólo lo comprobable en el aparato (`por subir`, `no subió`); no hay «leído por el
+  otro». El botón atrás del teléfono lo atiende `atrasInterno`. `Propuesta` se llama como función (como componente perdía el
+  foco al teclear). Lleva la clase `app` para heredar el tema claro. **No tocó permisos ni interpretación.** Prueba:
+  `pruebas/mensajes_movil.py` (Pixel 7; el teclado se imita encogiendo la pantalla).
+- **«Dile a la app» YA NO EXISTE como pantalla: es la conversación con AgroGestión dentro de Mensajes (Luis, 21 nov).**
+  Un solo acceso (el botón flotante y el menú llevan a Mensajes; `RENOMBRADAS` en `menu.js` pasa a Mensajes lo que alguien
+  tenía anclado; la página vieja `dictado` redirige). La conversación es de clase `asistente` (`mensajeria.js`:
+  `idConAsistente`, `abrirConAsistente`, `esConAsistente`, `ROLES_CON_ASISTENTE` = admin, encargado, agrónomo): una por
+  persona, fijada arriba, `virtual` hasta el primer mensaje (ahí nace su evento). **El asistente no es un integrante**: no
+  está en `miembros` ni entra a grupos. Mismo motor que el chat (todo mensaje ahí es `alAsistente`), y las propuestas
+  dichas se enseñan con `PropuestaDicha` (la tarjeta que tenía «Dile a la app», sobre `preparar`) y se guardan con
+  `firmar` → `confirmarDelChat`: mismo permiso, mismo rastro. Lo que no se clasifica se puede «dejar tal cual en la
+  bitácora». **Es privada también en la base (hoja 49)**: su único participante es la cuenta que la abre, no admite
+  cambios de gente y NO se abre por consulta excepcional. No contesta preguntas sobre los datos: sólo prepara registros.
+  `traeOtroAsunto` (en `relacionar`): una frase con su propio asunto no se pega como respuesta a la pregunta de otra cosa.
+  Prueba: `pruebas/dicho_navegador.py` (30) recorre todo lo que hacía «Dile a la app» en su lugar nuevo.
+- **IA: HÍBRIDO Y CON TOPE (Luis, 21 nov; `docs/IA-COSTOS.md`).** Ningún mensaje llama a un modelo: entender, proponer,
+  contestar y la memoria son reglas propias. **Una foto en un mensaje NO se lee sola** (`leerPapel({ sinIA: true })` al
+  mandar; la lectura pagada es el botón `leerFotoDe`). `leer-papel` usa Haiku (`MODELOS`; `superior` sólo si lo pide un
+  administrador) y pasa por el tope del MES (hoja 50: `reservar_ia_mes` aparta, `cerrar_ia` cierra, aviso al 70 %,
+  bloqueo al llegar; `limites.ia_mes_tope_microusd`). Cada llamada queda en `uso_ia` con cuenta, modelo, tokens, costo,
+  `operacion` y `origen`. `estado_de_ia()` + `<AvisoGastoIA>`. **Toda función nueva que llame a un modelo pasa por
+  `reservar_ia_mes` y dice su operación; nunca se llama a un modelo al guardar o al mandar algo.**
 - **La conversación continúa** (`aclarar`, `pendienteDe`, `esRespuesta` en `operaciones.js`): lo que falta se
   contesta en corto y se entiende DENTRO de la propuesta pendiente («20 pesos el kilo» × lo que se dijo que se
   compró; sin cantidad se pregunta; «tres kilos» no son tres pesos). La frase original no cambia; cada aclaración
