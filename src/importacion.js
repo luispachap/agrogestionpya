@@ -39,7 +39,8 @@
 import { normalizar, aNumero, aFecha } from "./lectura.js";
 import { sumarDinero } from "./calculos.js";
 import { nuevoEvento, vigentes } from "./eventos.js";
-import { catalogoDeClaves, normalizarClave, formaDe, partirClaves, relacionDeRenglon, clavesPorPreguntar } from "./claves.js";
+import { catalogoDeClaves, normalizarClave, formaDe, partirClaves, relacionDeRenglon, clavesPorPreguntar, CLASE_REFERENCIA } from "./claves.js";
+import { leerCatalogos, leerRayaSemanal, periodoDelLibro } from "./excelRayas.js";
 
 export const ESTADOS = {
   recibido: "Recibido, falta abrirlo",
@@ -61,6 +62,7 @@ export const CLASES = {
   personal: "Lista de personal",
   nomina: "Nómina o lista de pagos al personal",
   raya: "Lista de raya con claves de actividad y de lugar",
+  catalogo_claves: "Catálogo de claves de un Excel anterior (referencia histórica)",
   combustible: "Bitácora de combustible",
   actividades: "Actividades agrícolas",
   gastos: "Compras, gastos o pagos",
@@ -407,8 +409,29 @@ export function proponer(doc, contexto = {}) {
     } else propone({ ...comoHistorico({ fecha: c.fecha, monto: c.total }, "otro", { contraparte: c.emisor.nombre, concepto: clase === "cfdi_pago" ? "Complemento de pago" : "Comprobante fiscal", uuid: c.uuid }), llave: `uuid:${c.uuid}` });
   }
   /* ── b) Hojas ── */
+  const delLibro = periodoDelLibro(doc.hojas || []);
   for (const h of doc.hojas || []) {
-    const e = entenderHoja(h.filas, aprendidos);
+    // Un catálogo de claves de un Excel anterior: entra como REFERENCIA histórica (de qué archivo, de qué fechas), nunca
+    // como definición. Los trabajadores y el tabulador de sueldos de esa misma hoja no se leen.
+    const cat = leerCatalogos(h.filas);
+    if (cat.referencias.length >= 3) {
+      if (clase === "desconocido") clase = "catalogo_claves";
+      hojasVistas.push({ nombre: h.nombre, clase: "catalogo_claves", encabezados: [], mapa: {}, registros: cat.referencias.length, descartadas: 0 });
+      for (const r of cat.referencias) propone({ destino: "historico", accion: "agregar", origen: { hoja: h.nombre },
+        datos: { clase: CLASE_REFERENCIA, fecha: null, mes: null, monto: null, contraparte: r.clave, concepto: `${r.significado}${r.cultivoAsociado ? ` · cultivo que tenía: ${r.cultivoAsociado}` : ""}`, clave: normalizarClave(r.clave).clave, tipoDeClave: r.clase, significado: r.significado, escrita: r.escrita,
+          ...(r.cultivoAsociado ? { cultivoAsociado: r.cultivoAsociado } : {}), ...(r.sinCodigo ? { sinCodigo: true } : {}), ...(r.aliasDe ? { aliasDe: r.aliasDe } : {}), documento: doc.nombre, hoja: h.nombre, desde: delLibro?.desde || null, hasta: delLibro?.hasta || null, vigencia: "por confirmar" },
+        llave: `ref:${normalizarClave(r.clave).clave}:${r.clase}:${corto(r.significado)}:${r.cultivoAsociado || ""}:${String(doc.huella || doc.id || "").slice(0, 12)}` });
+      excepciones.push(`«${h.nombre}» trae catálogos de claves (${cat.secciones.map(s => `${s.renglones} de ${s.clase === "ubicacion" ? "ubicaciones" : s.clase === "actividad" ? "actividades" : "cultivos"}`).join(", ")}). Entran como REFERENCIA histórica de este archivo${delLibro ? ` (${delLibro.desde} a ${delLibro.hasta})` : ""}, con vigencia por confirmar: se sugieren al preguntar una clave, y una persona decide. Los trabajadores y los sueldos de esa hoja NO se leen.`);
+      continue;
+    }
+    // La hoja semanal del Excel de rayas: un renglón por trabajador y tres columnas por día.
+    const sem = leerRayaSemanal(h.filas);
+    const e = sem ? { clase: sem.registros.length ? "raya" : "desconocido", encabezados: [], mapa: {}, dudas: [], i: 0 } : entenderHoja(h.filas, aprendidos);
+    if (sem && !sem.registros.length) { hojasVistas.push({ nombre: h.nombre, clase: "raya", encabezados: [], mapa: {}, registros: 0, descartadas: 0 }); excepciones.push(`«${h.nombre}» es una hoja semanal de rayas sin nada capturado.`); continue; }
+    if (sem) {
+      if (!sem.semana) excepciones.push(`En «${h.nombre}» no se pudo leer de qué semana es: sus renglones entran «sin fecha».`);
+      if (sem.cultivoConError) excepciones.push(`En «${h.nombre}», ${sem.cultivoConError} día(s) no traen cultivo (en el Excel venía vacío o con error #N/A, casi siempre porque el nombre de la ubicación no coincidía con su catálogo). Se conserva la actividad y la ubicación, y el cultivo queda vacío: no se supone. Esos días el Excel tampoco contó su costo.`);
+    }
     const vista = { nombre: h.nombre, clase: e.clase, encabezados: e.encabezados, mapa: e.mapa, aprendido: e.aprendido, dudas: e.dudas, renglonEncabezado: e.i, registros: 0, descartadas: 0 };
     hojasVistas.push(vista);
     // Para poder preguntarle a la persona: el primer renglón que parece de encabezados (dos o más celdas con texto).
@@ -416,7 +439,7 @@ export function proponer(doc, contexto = {}) {
     if (e.clase === "desconocido") { if ((h.filas || []).some(f => f.filter(c => texto(c)).length >= 2)) excepciones.push(`La hoja «${h.nombre}» no se reconoce: hay que decir qué es y cuáles son sus columnas.`); continue; }
     if (clase === "desconocido") clase = e.clase;
     if (e.clase === "banco") { excepciones.push(`La hoja «${h.nombre}» parece un estado de cuenta del banco. Esos se suben en la pantalla Banco, que comprueba que los saldos cuadren antes de creerle.`); continue; }
-    const x = extraerDeHoja(e, h.filas);
+    const x = sem ? { registros: sem.registros, descartadas: sem.descartadas } : extraerDeHoja(e, h.filas);
     vista.registros = x.registros.length; vista.descartadas = x.descartadas.length;
     descartadas.push(...x.descartadas.map(d => ({ ...d, hoja: h.nombre })));
     for (const r of x.registros) {
@@ -435,7 +458,7 @@ export function proponer(doc, contexto = {}) {
           // El número que trae el renglón PROBABLEMENTE es el pago del día, pero no está confirmado: se guarda como
           // tentativo, aparte, y no como importe (así no suma en ningún total ni parece un pago).
           monto: null, ...(r.monto > 0 ? { importeTentativo: r.monto } : {}),
-          ...(r.observacion ? { observacion: r.observacion } : {}), ...(r.dias ? { dias: r.dias } : {}), referencia: lugar === "operacion" }), origen, llave: llaveDe({ ...r, deDonde: `${String(doc.huella || doc.id || "").slice(0, 12)}-${h.nombre}-${r.renglon}` }) });
+          ...(r.observacion ? { observacion: r.observacion } : {}), ...(r.dias ? { dias: r.dias } : {}), ...(r.escrito ? { escrito: r.escrito } : {}), referencia: lugar === "operacion" }), origen, llave: llaveDe({ ...r, deDonde: `${String(doc.huella || doc.id || "").slice(0, 12)}-${h.nombre}-${r.renglon}` }) });
       }
       else if (r.clase === "combustible") {
         const m = maquinaria.filter(v => corto(v.nombre) && corto(v.nombre) === corto(r.vehiculo));

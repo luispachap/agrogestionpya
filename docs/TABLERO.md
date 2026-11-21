@@ -301,6 +301,14 @@ Todo junto: `sh pruebas/todo.sh`.
 1. Vercel: quitar `app.agroselectos.com` del proyecto viejo `vitejs-vite-3ymxjehp` (Settings → Domains → Remove) para poder darlo de alta como dominio propio de `agrogestion-operacion`. Mientras tanto el dominio se apunta a mano a cada publicación.
 2. Supabase → Authentication → URL Configuration: poner `https://app.agroselectos.com` como Site URL y dejar `https://agrogestion-operacion.vercel.app` en Redirect URLs, para que el correo de confirmación regrese al dominio definitivo.
 
+**Excel de rayas 2024 (21 nov):** ingeniería inversa y matriz contra AgroGestión en `docs/EXCEL-RAYAS-2024.md`.
+Implementado: lectura de sus catálogos como referencias históricas (con procedencia, varias por clave, se sugieren
+y una persona confirma) y de sus 12 semanas como rayas históricas (1,339 días-persona; sin importes ni sueldos); y el
+cultivo de una parcela por FECHA (`src/ciclos.js`) en Finanzas y en el reporte por ciclo. Probado con pruebas
+automáticas y pasando el archivo real por la pantalla en la máquina de trabajo (no se incorporó a producción).
+**Sin hacer:** que Luis lo importe y confirme las claves; ligar cada ubicación del Excel a una parcela real; las
+«rayas ajenos» (cuadrillas) del Excel no se leen. **Sin medir:** qué tanto tarda el recálculo con un año de datos.
+
 **Rayas, aclaraciones del rancho (20 nov, 8 pm):** cinco cosas por renglón (trabajador, fecha, actividad,
 ubicación, cultivo). «Ajo» es cultivo, no A07. «Gen» = General (no es lugar). RA50/51/53 = Ranchos 50s; SF1–4 = San
 Felipe (grupos). El número al lado es importe TENTATIVO (no suma, no es pago). Segunda lectura real de la libreta

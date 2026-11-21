@@ -421,6 +421,27 @@ Usuarios reales de la app:
   no es `monto`, no suma y no es un pago (falta confirmar qué es). La lectura
   con IA recibe los códigos ya registrados (`pedido.claves`) sólo para decidir
   trazos dudosos.
+- **`src/excelRayas.js` + referencias históricas** (`docs/EXCEL-RAYAS-2024.md`): del
+  Excel antiguo de rayas se leen SÓLO sus catálogos de claves y sus hojas
+  semanales. Los catálogos entran al histórico como `referencia_clave`: lo que
+  una clave significaba EN ESE ARCHIVO, con sus fechas y «vigencia por
+  confirmar»; puede haber varias por clave (`referenciasDeClaves`). **Una
+  referencia nunca define ni cambia nada**: se sugiere al preguntar la clave
+  (`sugerenciasDe`; `parecidasDe` para claves que se escriben casi igual) y una
+  persona confirma (`clave_aprendida` con `deReferencia`). Las hojas semanales
+  entran como rayas históricas con lo que DECÍA el Excel (`escrito`). **No se
+  leen trabajadores, tabulador de sueldos ni importes** (muchos venían en #N/A
+  y dejaban de contar el costo sin avisar). Una celda con error llega vacía.
+- **`src/ciclos.js`: el cultivo de una parcela DEPENDE DE LA FECHA.** Sale del
+  ciclo (`siembras`) que la parcela tenía ese día (`cultivoEn`, `partesDe`),
+  no de `parcela.cultivo`. Un ciclo terminado sigue contando en sus fechas;
+  dos ciclos a la vez reparten (por superficie o parejo) con suma exacta, nunca
+  se carga entero a los dos; lo que cae fuera de todo ciclo queda `sinCiclo`,
+  a la vista, y no se reparte. Finanzas → «Resultado por cultivo»
+  (`resultadoPorCultivo`) y el reporte por ciclo salen de ahí. **No vuelvas a
+  agrupar costos por `parcela.cultivo`**: es el error del Excel (una ubicación
+  = un cultivo para siempre). Una parcela sin ningún ciclo usa su cultivo
+  anotado, y la pantalla lo dice.
 - **Un gasto de «insumos» no es siempre una compra para el almacén**
   (`claseDeInsumo`, `resultado.js`): `destinoInsumo` = inventario · produccion ·
   general · otro; sin decir → **por clasificar** (ni gasto ni inventario; en el
@@ -562,7 +583,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **137 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **139 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

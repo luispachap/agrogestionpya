@@ -49,7 +49,8 @@ import { ESTADOS as ESTADOS_DOC, CLASES as CLASES_DOC, CAMPOS_DE, NOMBRE_DE_CAMP
 import { abrirArchivo, originalDe, guardarPropuesta, leerPropuesta, olvidarPropuesta, imagenParaIA, paginasParaIA, pedirInterpretacion, leerPresupuestoIA } from "./importador.js";
 import { NIVELES as NIVELES_IA, necesitaIA, pedidoDeHoja, pedidoDeTexto, resultadoConIA, metricasDeIA, costoMaximo, enDolares, estadoDelPresupuesto, NOMBRE_DE_RESULTADO } from "./interpretacion.js";
 import { entenderHoja, fecharRaya } from "./importacion.js";
-import { CLASES_DE_CLAVE, catalogoDeClaves, listaDeClaves, aprenderClave, relacionDeRenglon, decirRelacion, clavesPorPreguntar, usoDeClaves } from "./claves.js";
+import { parteDe, resultadoPorCultivo, historialDeParcela } from "./ciclos.js";
+import { CLASES_DE_CLAVE, catalogoDeClaves, listaDeClaves, aprenderClave, relacionDeRenglon, decirRelacion, clavesPorPreguntar, usoDeClaves, referenciasDeClaves, sugerenciasDe, parecidasDe, decirFuente, CLASE_REFERENCIA } from "./claves.js";
 import { resultadoDelRancho, flujoDeEfectivo, NOMBRE_DE_FLUJO, DESTINOS_DE_INSUMO, insumosPorClasificar } from "./resultado.js";
 // El resultado y el flujo del rancho: TODAS las pantallas los sacan de aquí, para que digan lo mismo.
 // Cada ajuste de valuación sigue a su consumo: a la parcela, al uso general, o al vehículo (que lo lleva en su propia cuenta).
@@ -1159,16 +1160,8 @@ function reporteParcela(data, parcelaId) {
 // actividad; si ninguna tiene superficie capturada, se reparte en partes iguales.
 // Esta es la regla base (Capa 3); las reglas por fenología vendrán después.
 function fraccionReparto(data, actividad, siembraId) {
-  const activas = siembrasActivasEnFecha(data, actividad.parcelaId, actividad.fecha);
-  if (activas.length === 0) return 0;
-  const idx = activas.findIndex(s => s.id === siembraId);
-  if (idx === -1) return 0; // esta siembra no estaba activa cuando se hizo la actividad
-  const supTotal = activas.reduce((s, x) => s + (parseFloat(x.superficie) || 0), 0);
-  if (supTotal > 0) {
-    const sup = parseFloat(activas[idx].superficie) || 0;
-    return sup / supTotal; // proporcional a superficie
-  }
-  return 1 / activas.length; // partes iguales si no hay superficies
+  // (La regla vive en `src/ciclos.js`, con sus pruebas: un ciclo terminado sigue contando en sus fechas.)
+  return parteDe({ parcelaId: actividad.parcelaId, fecha: actividad.fecha }, siembraId, data.siembras || []);
 }
 
 
@@ -1899,27 +1892,31 @@ function reporteSiembra(data, siembraId) {
   const egr = vivos(data.egresos).filter(e => e.parcelaId === si.parcelaId && enRango(e.fecha));
   const comp = (data.compras || []).filter(c => c.estado === "aprobada" && c.parcelaId === si.parcelaId && enRango(c.fecha));
   const ing = vivos(data.ingresos).filter(g => g.parcelaId === si.parcelaId && enRango(g.fecha));
-  const costoActs = acts.reduce((s, a) => s + (a.costoTotal || 0), 0);
-  const costoEgr = egr.reduce((s, e) => s + e.monto, 0);
-  const costoComp = comp.reduce((s, c) => s + c.monto, 0);
+  // Si en esa fecha la parcela tenía OTRO ciclo a la vez (dos variedades), a éste le toca sólo su parte: lo que no se
+  // marcó de cuál era se reparte, no se carga entero a los dos (`parteDe`, src/ciclos.js). Con un solo ciclo la parte es 1.
+  const peso = (x) => (x.siembraId === si.id ? 1 : parteDe({ parcelaId: si.parcelaId, fecha: x.fecha }, si.id, data.siembras || []) || 1);
+  const costoActs = acts.reduce((s, a) => s + (a.costoTotal || 0) * peso(a), 0);
+  const costoEgr = egr.reduce((s, e) => s + e.monto * peso(e), 0);
+  const costoComp = comp.reduce((s, c) => s + c.monto * peso(c), 0);
   const total = costoActs + costoEgr + costoComp;
-  const mo = acts.reduce((s, a) => s + (a.costoMO || 0), 0);
-  const ins = acts.reduce((s, a) => s + (a.costoInsumos || 0), 0);
-  const maq = acts.reduce((s, a) => s + (a.costoMaq || 0), 0);
-  const ingresoTotal = ing.reduce((s, g) => s + g.monto, 0);
+  const mo = acts.reduce((s, a) => s + (a.costoMO || 0) * peso(a), 0);
+  const ins = acts.reduce((s, a) => s + (a.costoInsumos || 0) * peso(a), 0);
+  const maq = acts.reduce((s, a) => s + (a.costoMaq || 0) * peso(a), 0);
+  const ingresoTotal = ing.reduce((s, g) => s + g.monto * peso(g), 0);
   const p = data.parcelas.find(x => x.id === si.parcelaId);
   // Agrupar por actividad e insumo
   const porActividad = {};
   acts.forEach(a => {
     if (!porActividad[a.tipo]) porActividad[a.tipo] = { tipo: a.tipo, total: 0, mo: 0, ins: 0, maq: 0, count: 0 };
     const g = porActividad[a.tipo];
-    g.total += a.costoTotal || 0; g.mo += a.costoMO || 0; g.ins += a.costoInsumos || 0; g.maq += a.costoMaq || 0; g.count++;
+    const w = peso(a);
+    g.total += (a.costoTotal || 0) * w; g.mo += (a.costoMO || 0) * w; g.ins += (a.costoInsumos || 0) * w; g.maq += (a.costoMaq || 0) * w; g.count++;
   });
   const porInsumo = {};
   acts.forEach(a => (a.insumos || []).forEach(i => {
-    const k = i.nombre;
+    const k = i.nombre, w = peso(a);
     if (!porInsumo[k]) porInsumo[k] = { nombre: i.nombre, emoji: i.emoji, unidad: i.unidad, cantidad: 0, costo: 0 };
-    porInsumo[k].cantidad += i.cantidad; porInsumo[k].costo += i.costo;
+    porInsumo[k].cantidad += i.cantidad * w; porInsumo[k].costo += i.costo * w;
   }));
   // Cosecha de la siembra: preferir registros ligados por siembraId; si no hay,
   // usar los del rango de fechas de la parcela (compatibilidad con datos viejos).
@@ -5508,22 +5505,33 @@ function useInicioDeOperaciones() {
   return v;
 }
 const NOMBRE_DE_DESTINO = { egresos: "Gasto por registrar", historico: "Al histórico (no crea nada de hoy)", trabajadores: "Persona para el catálogo", proveedores: "Proveedor para el catálogo" };
-const CLASE_HISTORICA = { gasto: "Compras y gastos", raya: "Rayas (quién hizo qué y dónde)", nomina: "Pagos al personal", combustible: "Combustible", actividad: "Actividades", venta: "Ventas", otro: "Otros comprobantes" };
+const CLASE_HISTORICA = { gasto: "Compras y gastos", referencia_clave: "Claves de un Excel anterior (referencia)", raya: "Rayas (quién hizo qué y dónde)", nomina: "Pagos al personal", combustible: "Combustible", actividad: "Actividades", venta: "Ventas", otro: "Otros comprobantes" };
 // Una clave de una raya que todavía no se sabe qué significa. La app pregunta; no propone significado.
-function PreguntaDeClave({ p, onGuardar }) {
+// Lo que un documento anterior decía de una clave. Es una pista con su procedencia: la persona decide si la usa.
+const COMO_CLASE = { actividad: "una actividad", ubicacion: "una ubicación", cultivo: "un cultivo", general: "trabajo general" };
+function PistaDeClave({ r, onUsar }) {
+  return (<div className="text-xs" style={{ marginTop: 4, padding: "6px 8px", border: "1px dashed var(--border-soft)", borderRadius: 8 }}>
+    {r.parecida ? <>Se parece a <b>{r.claveDeLaReferencia}</b>, que en </> : <>En </>}{r.fuentes.map(decirFuente).join(" y en ")} {r.parecida ? "era" : "esta clave era"} {COMO_CLASE[r.clase] || r.clase}: <b>«{r.significado}»</b>{r.cultivoAsociado ? `, con cultivo ${r.cultivoAsociado}` : ""}.
+    {" "}<span className="text-muted">{r.parecida ? "Parecerse no es ser la misma. " : ""}{r.variasInterpretaciones ? "Hay más de una interpretación de esta clave. " : ""}{r.estado === "otra_clase" ? "Aquí se usa para otra cosa: no se mezcla. " : "Vigencia por confirmar."}</span>
+    {onUsar && r.estado !== "otra_clase" && <div className="acc-row" style={{ marginTop: 4 }}><button aria-label={`Usar ${r.significado}`} onClick={() => onUsar(r)}>Usar «{r.significado}»</button></div>}
+  </div>);
+}
+function PreguntaDeClave({ p, onGuardar, pistas = [] }) {
   const [clase, setClase] = useState(p.clase || "");
   const [que, setQue] = useState("");
+  const [de, setDe] = useState(null);
   const [dice, setDice] = useState(null);
   const pide = clase === "actividad" || clase === "ubicacion" || clase === "cultivo" || clase === "nota";
   const otras = (p.escritas || []).filter(x => x !== p.clave);
   return (<div style={{ borderTop: "1px solid var(--border-soft)", padding: "8px 0" }}>
     <div className="text-sm"><b>{p.clave}</b>{otras.length ? <span className="text-muted"> (en el papel: {otras.join(", ")})</span> : null} · sale {p.veces} {p.veces === 1 ? "vez" : "veces"}</div>
     {p.ejemplo && <div className="text-xs text-muted">Por ejemplo: {p.ejemplo}</div>}
+    {pistas.slice(0, 4).map((r, i) => <PistaDeClave key={i} r={r} onUsar={(p.clase && p.clase !== r.clase) ? null : (x) => { setClase(x.clase); setQue(x.significado); setDe({ documento: x.fuentes[0]?.documento || "", clave: x.claveDeLaReferencia || x.clave, ...(x.parecida ? { parecida: true } : {}) }); setDice(null); }} />)}
     {p.clase ? <div className="text-xs text-muted" style={{ marginTop: 2 }}>Por cómo está escrita, es {p.clase === "actividad" ? "una clave de actividad" : p.clase === "cultivo" ? "un cultivo" : p.clase === "general" ? "trabajo general" : "una clave de ubicación"}.</div>
       : <select className="inp" style={{ marginTop: 6 }} aria-label={`Qué es ${p.clave}`} value={clase} onChange={e => { setClase(e.target.value); setDice(null); }}><option value="">¿Qué es «{p.original}»?</option>{Object.entries(CLASES_DE_CLAVE).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>}
     {pide && <input className="inp" style={{ marginTop: 6 }} aria-label={`Qué significa ${p.clave}`} placeholder={clase === "actividad" ? `¿Qué actividad es ${p.clave}?` : clase === "ubicacion" ? `¿Qué lugar es ${p.clave}?` : clase === "cultivo" ? "¿Qué cultivo es?" : "¿Qué quiere decir?"} value={que} onChange={e => { setQue(e.target.value); setDice(null); }} />}
     {dice && <div className="text-xs" style={{ color: dice.ok ? "var(--gold)" : "var(--red)", marginTop: 4 }}>{dice.texto}</div>}
-    {clase && <div className="acc-row" style={{ marginTop: 6 }}><button onClick={() => { const r = onGuardar(p.original, clase, que); if (!r.ok || r.aviso) setDice({ ok: r.ok, texto: r.ok ? r.aviso : r.dice }); }}>Guardar {p.clave}</button></div>}
+    {clase && <div className="acc-row" style={{ marginTop: 6 }}><button onClick={() => { const r = onGuardar(p.original, clase, que, de); if (!r.ok || r.aviso) setDice({ ok: r.ok, texto: r.ok ? r.aviso : r.dice }); }}>Guardar {p.clave}</button></div>}
   </div>);
 }
 // Una equivalencia ya guardada: se puede corregir; lo anterior queda a la vista.
@@ -5552,6 +5560,9 @@ function ImportarDocumentos({ data, add, session, onClose }) {
   const aprendidos = useMemo(() => aprendidosDe(data.eventos), [data.eventos]);
   const catalogo = useMemo(() => catalogoDeClaves(data.eventos), [data.eventos]);
   const usos = useMemo(() => usoDeClaves(historico), [historico]);
+  // Lo que decían los Excel anteriores de cada clave: referencias con su procedencia. Sólo se sugieren.
+  const referencias = useMemo(() => referenciasDeClaves(historico), [historico]);
+  const pistasDe = (clave, refs = referencias) => { const s = sugerenciasDe(clave, refs, catalogo); return s.length ? s : parecidasDe(clave, refs); };
   const ini = useInicioDeOperaciones();
   const [tab, setTab] = useState("bandeja");
   const [filtro, setFiltro] = useState("atender");
@@ -5566,7 +5577,7 @@ function ImportarDocumentos({ data, add, session, onClose }) {
   const datosRef = useRef(data); datosRef.current = data;
   const contexto = (extra = {}) => { const d = datosRef.current; return { inicio: ini.inicio, rfcsPropios: (d.titulares || []).map(t => t.rfc).filter(Boolean), egresos: d.egresos || [], historico: historicoDe(d.eventos), trabajadores: d.trabajadores || [], encargados: d.encargados || [], proveedores: d.proveedores || [], maquinaria: d.maquinaria || [], parcelas: d.parcelas || [], documentos: bandejaDe(d.eventos), aprendidos: aprendidosDe(d.eventos), claves: catalogoDeClaves(d.eventos), ...extra }; };
   // Guardar (o corregir) lo que significa una clave de las rayas. Queda para todos los documentos, también los ya importados.
-  const guardarClave = (clave, clase, significado, docId = null, grupo = undefined) => { const r = aprenderClave({ catalogo: catalogoDeClaves(datosRef.current.eventos), clave, clase, significado, grupo, docId, ...sello() }); if (r.ok) add("eventos", r.evento); return r; };
+  const guardarClave = (clave, clase, significado, docId = null, grupo = undefined, deReferencia = null) => { const r = aprenderClave({ catalogo: catalogoDeClaves(datosRef.current.eventos), clave, clase, significado, grupo, docId, deReferencia, ...sello() }); if (r.ok) add("eventos", r.evento); return r; };
   const sello = () => ({ quien, cuando: new Date().toISOString(), fecha: hoy });
   const cede = () => new Promise(r => setTimeout(r, 0));
 
@@ -5792,8 +5803,20 @@ function ImportarDocumentos({ data, add, session, onClose }) {
           </div>
           {pend.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}>
             <div className="card-title">Salen en lo ya importado y falta decir qué son ({pend.length})</div>
-            {pend.slice(0, 40).map(p => <PreguntaDeClave key={p.clave} p={p} onGuardar={guardarClave} />)}
+            {pend.slice(0, 40).map(p => <PreguntaDeClave key={p.clave} p={p} pistas={pistasDe(p.clave)} onGuardar={(c, k, q, de) => guardarClave(c, k, q, null, undefined, de)} />)}
           </div>}
+          {referencias.size > 0 && (() => { const filas = [...referencias.entries()].filter(([, l]) => l.some(r => !r.aliasDe)).sort((a, b) => a[0].localeCompare(b[0], "es", { numeric: true }));
+            return (<div className="card">
+              <div className="card-title">Lo que decían tus Excel anteriores ({filas.length} claves)</div>
+              <div className="text-xs text-muted">Son referencias históricas, no definiciones: dicen qué significaba cada clave en ese archivo y en esas fechas. Los significados cambiaron entre versiones, así que ninguna se aplica sola. Si una sigue siendo cierta, confírmala.</div>
+              {filas.slice(0, 150).map(([clave, lista]) => (<div key={clave} style={{ borderTop: "1px solid var(--border-soft)", padding: "6px 0" }}>
+                <div className="text-sm"><b>{clave}</b>{catalogo.get(clave) ? <span className="text-muted"> · hoy: {catalogo.get(clave).significado || "se ignora"}</span> : <span style={{ color: "var(--gold)" }}> · sin confirmar</span>}</div>
+                {sugerenciasDe(clave, referencias, catalogo).filter(r => !r.aliasDe).map((r, i) => (<div key={i} className="text-xs" style={{ marginTop: 2 }}>
+                  {COMO_CLASE[r.clase] || r.clase}: «{r.significado}»{r.cultivoAsociado ? ` · cultivo que tenía: ${r.cultivoAsociado}` : ""} <span className="text-muted">— {r.fuentes.map(decirFuente).join("; ")}{r.estado === "coincide" ? " · coincide con lo confirmado" : r.estado === "difiere" ? " · distinto de lo confirmado: no lo cambia" : r.estado === "otra_clase" ? " · aquí se usa para otra cosa" : ""}</span>
+                  {r.estado === "nueva" && <button className="btn-ghost" aria-label={`Confirmar ${clave} como ${r.significado}`} onClick={() => guardarClave(clave, r.clase, r.significado, null, undefined, { documento: r.fuentes[0]?.documento || "", clave })}>Confirmar</button>}
+                </div>))}
+              </div>))}
+            </div>); })()}
           {[["actividad", "Actividades"], ["ubicacion", "Ubicaciones"], ["general", "Trabajo general (sin rancho específico)"], ["cultivo", "Cultivos"], ["nota", "Anotaciones"], ["ignorar", "Se ignoran"]].map(([k, titulo]) => { const de = lista.filter(c => c.clase === k); if (!de.length && k !== "actividad") return null;
             return (<div className="card" key={k}><div className="card-title">{titulo} ({de.length})</div>
               {de.length === 0 && <div className="text-sm text-muted">Todavía no se ha guardado ninguna. Aparecen aquí conforme se contestan.</div>}
@@ -5843,7 +5866,8 @@ function ImportarDocumentos({ data, add, session, onClose }) {
           {(() => { const pend = clavesPorPreguntar(abierto.resultado.propuestas.filter(p => p.datos.clase === "raya" && p.accion !== "duplicado").map(p => ({ nombre: p.datos.contraparte, fecha: p.datos.fecha, claves: p.datos.claves || [], cultivo: p.datos.cultivoEscrito || "" })), catalogo);
             return pend.length === 0 ? null : (<div className="card" style={{ borderColor: "var(--gold)" }}>
               <div className="text-sm"><b>Claves que falta decir qué son ({pend.length}).</b> Contesta las que sepas; las demás se pueden dejar para después: el renglón se guarda con su código.</div>
-              {pend.slice(0, 30).map(p => <PreguntaDeClave key={p.clave} p={p} onGuardar={(c, k, q) => guardarClave(c, k, q, abierto.doc.id)} />)}
+              {(() => { const refs = referenciasDeClaves([...historico, ...abierto.resultado.propuestas.filter(x => x.datos.clase === CLASE_REFERENCIA).map(x => x.datos)]);
+                return pend.slice(0, 30).map(p => <PreguntaDeClave key={p.clave} p={p} pistas={pistasDe(p.clave, refs)} onGuardar={(c, k, q, de) => guardarClave(c, k, q, abierto.doc.id, undefined, de)} />); })()}
             </div>); })()}
           {abierto.resultado.propuestas.length > 0 && <>
             <div className="text-sm font-bold" style={{ marginTop: 6 }}>Lo que se propone ({abierto.marcadas.size} marcado(s) de {abierto.resultado.propuestas.filter(p => p.accion !== "duplicado").length})</div>
@@ -11871,6 +11895,10 @@ function AdminReportes({ data, navParam, setNavParam, add, session }) {
                     <div className="font-bold font-syne" style={{ fontSize: 15 }}>{p.emoji} {p.nombre}</div>
                     <span className="text-xs text-muted">{p.hectareas} ha</span>
                   </div>
+                  {(() => { const h = historialDeParcela(data.siembras || [], p.id), otros = h.traslapes.filter(t => t.otroCultivo);
+                    return (h.huecos.length || otros.length) ? <div className="text-xs" style={{ color: "var(--gold)", marginBottom: 6 }}>
+                      {h.huecos.map(x => `Del ${x.desde} al ${x.hasta} no tuvo ciclo: lo que se trabaje o gaste en esas fechas no se le carga a ningún cultivo.`).join(" ")}
+                      {otros.map(t => ` Del ${t.desde} al ${t.hasta} tuvo dos cultivos a la vez: lo que no se marque de cuál es se reparte entre los dos.`).join("")}</div> : null; })()}
                   {semb.map(s => {
                     const r = reporteSiembra(data, s.id);
                     const esActiva = s.id === activa?.id;
@@ -12274,21 +12302,38 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
             <div className="card">
               <div className="card-title">Resultado por cultivo</div>
               {(() => { const g = sumarDinero((data.actividadesContables || data.actividades || []).filter(a => a.esBodega && a.cultivoBodega === "__general__").map(a => (a.costoMO || 0) + (a.costoMaq || 0) + (a.costoInsumos || 0))); return g > 0 ? <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Los trabajos generales de bodega ({fmt(g)}) no se reparten entre los cultivos: son gasto general y salen aparte en el cierre de mes.</div> : null; })()}
-              {[...new Set(data.parcelas.map(p => p.cultivo))].filter(Boolean).map(cul => {
-                const r = reporteCultivo(data, cul);
-                return (
-                  <div key={cul} className="list-item">
-                    <div className="li-body">
-                      <div className="li-title">{cul}</div>
-                      <div className="li-sub">Ingresos {fmt(r.ingresoTotal)} · Costos {fmt(r.total)}</div>
-                    </div>
-                    <div className="li-right">
-                      <div className="li-val" style={{ color: r.utilidad >= 0 ? "var(--safe)" : "var(--red)" }}>{fmt(r.utilidad)}</div>
-                      <div className="li-val-sub">utilidad</div>
-                    </div>
-                  </div>
-                );
-              })}
+              {(() => {
+                // El cultivo de cada trabajo, gasto e ingreso sale del ciclo que tenía la parcela ESE DÍA (src/ciclos.js),
+                // no de la etiqueta de la parcela. Una parcela sin ningún ciclo registrado usa su cultivo anotado, y se dice.
+                const conCiclo = new Set((data.siembras || []).map(x => x.parcelaId));
+                const fijas = (data.parcelas || []).filter(p => !conCiclo.has(p.id) && p.cultivo);
+                const ciclos = [...(data.siembras || []), ...fijas.map(p => ({ id: `_fijo_${p.id}`, parcelaId: p.id, cultivoNombre: p.cultivo, fechaSiembra: "0000-01-01" }))];
+                const acts = data.actividadesContables || data.actividades || [];
+                const R = resultadoPorCultivo([
+                  ...acts.map(a => ({ tipo: "costo", monto: (a.costoMO || 0) + (a.costoMaq || 0) + (a.costoInsumos || 0), fecha: a.fecha, parcelaId: a.esBodega ? null : a.parcelaId, siembraId: a.siembraId, bodegaDe: a.esBodega && a.cultivoBodega && a.cultivoBodega !== "__general__" ? a.cultivoBodega : null, general: !!a.esBodega && a.cultivoBodega === "__general__" })).filter(x => x.parcelaId || x.bodegaDe),
+                  ...vivos(data.egresos).filter(e => e.parcelaId).map(e => ({ tipo: "costo", monto: e.monto, fecha: e.fecha, parcelaId: e.parcelaId })),
+                  ...(data.compras || []).filter(c => c.estado === "aprobada" && c.parcelaId).map(c => ({ tipo: "costo", monto: c.monto, fecha: c.fecha, parcelaId: c.parcelaId })),
+                  ...vivos(data.ingresos).filter(g => g.parcelaId).map(g => ({ tipo: "ingreso", monto: g.monto, fecha: g.fecha, parcelaId: g.parcelaId })),
+                ], ciclos);
+                const nombreP = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "una parcela";
+                return (<>
+                  {R.cultivos.length === 0 && <div className="text-sm text-muted">Todavía no hay costos ni ingresos de parcelas con cultivo.</div>}
+                  {R.cultivos.map(r => (
+                    <div key={r.cultivo} className="list-item">
+                      <div className="li-body">
+                        <div className="li-title">{r.cultivo}</div>
+                        <div className="li-sub">Ingresos {fmt(r.ingresos)} · Costos {fmt(r.costo)}{r.enBodega ? ` (en bodega ${fmt(r.enBodega)})` : ""}</div>
+                      </div>
+                      <div className="li-right">
+                        <div className="li-val" style={{ color: r.utilidad >= 0 ? "var(--safe)" : "var(--red)" }}>{fmt(r.utilidad)}</div>
+                        <div className="li-val-sub">utilidad</div>
+                      </div>
+                    </div>))}
+                  {(R.sinCiclo.costo !== 0 || R.sinCiclo.ingresos !== 0) && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 8 }}><b>Sin ciclo: {fmt(R.sinCiclo.costo)} de costos{R.sinCiclo.ingresos ? ` y ${fmt(R.sinCiclo.ingresos)} de ingresos` : ""}</b> que no se le cargaron a ningún cultivo, porque en esas fechas la parcela no tenía ciclo registrado: {R.sinCiclo.parcelas.map(x => `${nombreP(x.parcelaId)} (${x.desde}${x.hasta !== x.desde ? ` a ${x.hasta}` : ""}, ${fmt(x.monto)})`).join("; ")}. Se arregla registrando el ciclo en Temporadas; no se reparte solo.</div>}
+                  {fijas.length > 0 && <div className="text-xs text-muted" style={{ marginTop: 6 }}>{fijas.length === 1 ? "Una parcela no tiene" : `${fijas.length} parcelas no tienen`} ningún ciclo registrado ({fijas.slice(0, 6).map(p => p.nombre).join(", ")}): se usa el cultivo anotado en la parcela para todas sus fechas. Si cambió de cultivo, hay que registrar sus ciclos.</div>}
+                  <div className="text-xs text-muted" style={{ marginTop: 6 }}>El cultivo de cada trabajo sale del ciclo que tenía la parcela ese día. Lo que cae en dos ciclos a la vez se reparte entre ellos; nunca se cuenta dos veces.</div>
+                </>);
+              })()}
             </div>
           </>
         )}

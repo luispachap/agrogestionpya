@@ -91,10 +91,10 @@ export function catalogoDeClaves(eventos = []) {
 export const listaDeClaves = (catalogo) => [...catalogo.values()].sort((a, b) => a.clase.localeCompare(b.clase) || a.clave.localeCompare(b.clave, "es", { numeric: true }));
 
 // Guardar (o corregir) una equivalencia. Devuelve { ok, evento } o { ok:false, dice }.
-export function aprenderClave({ catalogo, clave: escrita, clase, significado = "", grupo = undefined, docId = null, quien, cuando, fecha, azar }) {
+export function aprenderClave({ catalogo, clave: escrita, clase, significado = "", grupo = undefined, deReferencia = null, docId = null, quien, cuando, fecha, azar }) {
   const { clave, original } = normalizarClave(escrita), que = String(significado || "").replace(/\s+/g, " ").trim();
   if (!clave) return { ok: false, dice: "Falta la clave." };
-  if (clave.length > 12) return { ok: false, dice: "Eso no parece una clave: es muy largo." };
+  if (clave.length > 24) return { ok: false, dice: "Eso no parece una clave: es muy largo." };
   if (!CLASES_DE_CLAVE[clase]) return { ok: false, dice: `Falta decir si «${original}» es una actividad o una ubicación.` };
   const forma = formaDe(clave);
   const DIM = ["actividad", "ubicacion", "general", "cultivo"], COMO = { actividad: "actividad", ubicacion: "ubicación", general: "trabajo general", cultivo: "cultivo" };
@@ -106,7 +106,7 @@ export function aprenderClave({ catalogo, clave: escrita, clase, significado = "
   const previo = catalogo?.get(clave);
   if (previo && previo.clase === clase && previo.significado === que && (grupo === undefined || (previo.grupo || "") === String(grupo).trim())) return { ok: false, igual: true, dice: `«${clave}» ya estaba guardada así.` };
   return { ok: true, corrige: !!previo, aviso: gemela ? `Ojo: «${gemela.clave}» ya significa «${gemela.significado}». Si son la misma, corrige una.` : "",
-    evento: nuevoEvento({ tipo: T_CLAVE, cuando, fecha, quien, azar, datos: { clave, original, clase, significado: que, ...(typeof grupo === "string" ? { grupo: grupo.replace(/\s+/g, " ").trim() } : {}), ...(docId ? { docId } : {}) } }) };
+    evento: nuevoEvento({ tipo: T_CLAVE, cuando, fecha, quien, azar, datos: { clave, original, clase, significado: que, ...(deReferencia ? { deReferencia } : {}), ...(typeof grupo === "string" ? { grupo: grupo.replace(/\s+/g, " ").trim() } : {}), ...(docId ? { docId } : {}) } }) };
 }
 
 // Parte una celda con varias claves («A07 | Bod», «A07 Bod», «A07, Bod»).
@@ -174,4 +174,50 @@ export function usoDeClaves(historico = []) {
   const m = new Map();
   for (const h of historico) for (const c of h.claves || []) { const k = normalizarClave(c).clave; if (k) m.set(k, (m.get(k) || 0) + 1); }
   return m;
+}
+
+/* ════════════ REFERENCIAS HISTÓRICAS ════════════
+   Lo que una clave significaba en un documento viejo (un Excel de rayas de otro año). NO es el catálogo: es evidencia.
+   · Cada referencia dice de qué archivo salió y de qué fechas era; su vigencia queda «por confirmar».
+   · Una misma clave puede tener VARIAS (los significados cambiaron entre versiones): se conservan todas.
+   · Nunca se aplican solas: se SUGIEREN al preguntar una clave, y una persona confirma (ahí nace `clave_aprendida`,
+     que anota de qué referencia salió). Viven en el histórico de la importación (clase `referencia_clave`). */
+export const CLASE_REFERENCIA = "referencia_clave";
+export function referenciasDeClaves(historico = []) {
+  const m = new Map();
+  for (const h of historico) {
+    if (h.clase !== CLASE_REFERENCIA || !h.clave) continue;
+    const lista = m.get(h.clave) || [];
+    const igual = lista.find(x => x.clase === h.tipoDeClave && sinAcentos(x.significado).toUpperCase() === sinAcentos(h.significado).toUpperCase() && (x.cultivoAsociado || "") === (h.cultivoAsociado || ""));
+    const fuente = { documento: h.documento || h._importado?.documento || "", hoja: h.hoja || "", desde: h.desde || null, hasta: h.hasta || null };
+    // La misma interpretación en dos archivos: una sola, con sus dos fuentes (más evidencia, no otra interpretación).
+    if (igual) { if (!igual.fuentes.some(f => f.documento === fuente.documento)) igual.fuentes.push(fuente); }
+    else lista.push({ clave: h.clave, clase: h.tipoDeClave, significado: h.significado, escrita: h.escrita || "", cultivoAsociado: h.cultivoAsociado || "", sinCodigo: !!h.sinCodigo, aliasDe: h.aliasDe || "", vigencia: "por confirmar", fuentes: [fuente] });
+    m.set(h.clave, lista);
+  }
+  return m;
+}
+const mismo = (a, b) => sinAcentos(a).toUpperCase().replace(/\s+/g, " ").trim() === sinAcentos(b).toUpperCase().replace(/\s+/g, " ").trim();
+// Lo que se le puede sugerir a la persona para una clave, comparado con lo que ya se sabe. No decide nada.
+//  estado: "nueva" (el catálogo no la tiene) · "coincide" · "difiere" (el catálogo dice otra cosa: las dos se enseñan)
+//          · "otra_clase" (la referencia la usa para otra cosa: actividad contra ubicación, por ejemplo)
+export function sugerenciasDe(clave, referencias = new Map(), catalogo = new Map()) {
+  const k = normalizarClave(clave).clave, sabida = catalogo.get(k), forma = formaDe(k);
+  return (referencias.get(k) || []).map(r => {
+    const claseActual = sabida?.clase || forma;
+    const estado = claseActual && claseActual !== r.clase && !(claseActual === "general" && r.clase === "ubicacion") ? "otra_clase" : !sabida ? "nueva" : mismo(sabida.significado, r.significado) ? "coincide" : "difiere";
+    return { ...r, estado, actual: sabida ? { clase: sabida.clase, significado: sabida.significado } : null, variasInterpretaciones: (referencias.get(k) || []).length > 1 };
+  });
+}
+// Claves de las referencias que se escriben CASI igual (una letra de más o de menos: «RA51» y «R51», «MB» y «MAB»).
+// Es sólo una pista para la persona: parecerse no es ser la misma, y nunca se toma sola.
+const aUna = (a, b) => { if (a === b || Math.abs(a.length - b.length) > 1) return false; let i = 0, j = 0, d = 0; while (i < a.length && j < b.length) { if (a[i] === b[j]) { i++; j++; continue; } if (++d > 1) return false; if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; } } return d + (a.length - i) + (b.length - j) <= 1; };
+export function parecidasDe(clave, referencias = new Map()) {
+  const k = normalizarClave(clave).clave; if (k.length < 2 || referencias.has(k)) return [];
+  return [...referencias.entries()].filter(([otra]) => otra.length <= 6 && aUna(k, otra)).flatMap(([otra, lista]) => lista.filter(r => !r.aliasDe).map(r => ({ ...r, parecida: true, estado: "parecida", claveDeLaReferencia: otra })));
+}
+export const decirFuente = (f) => `${f.documento || "un documento anterior"}${f.desde ? ` (${f.desde}${f.hasta && f.hasta !== f.desde ? ` a ${f.hasta}` : ""})` : ""}`;
+// Comparar un conjunto de claves vistas (las de una libreta, por ejemplo) contra las referencias: qué coincide, qué no está.
+export function compararConReferencias(claves = [], referencias = new Map(), catalogo = new Map()) {
+  return [...new Set(claves.map(c => normalizarClave(c).clave).filter(Boolean))].map(k => ({ clave: k, enCatalogo: catalogo.get(k) || null, sugerencias: sugerenciasDe(k, referencias, catalogo) }));
 }
