@@ -48,3 +48,15 @@ test("desde_la_app_nadie_aparta_gasto_ni_sube_el_tope_salvo_el_superadministrado
   assert.equal((await como(db, "encargado", "update limites set ia_mes_tope_microusd = 99999999 where id = 'unico'")).afectadas, 0);
   assert.equal((await como(db, "luis", "update limites set ia_mes_tope_microusd = 20000 where id = 'unico'")).afectadas, 1);
 });
+
+test("la_lectura_de_la_importacion_tambien_respeta_el_tope_del_mes_ademas_de_su_tope_total", async () => {
+  await db.query("update limites set ia_mes_tope_microusd = 50000, ia_importacion_tope_microusd = 4000000 where id = 'unico'");
+  const mes = Number((await db.query("select coalesce(sum(microusd),0) s from uso_ia where de_cache = false and coalesce(estado,'hecha') <> 'fallida' and cuando >= inicio_del_mes_local()")).rows[0].s);
+  const pedir = async (max) => (await db.query("select reservar_ia('interpretar-documento', $1, null, 'claude-haiku-5-5', 'economico', $2) id", ["h" + Math.random(), max])).rows[0].id;
+  assert.equal(await pedir(50000 - mes + 1), null, "cabe en su total, pero rebasaría el mes: no se aparta");
+  const id = await pedir(50000 - mes);
+  assert.ok(id, "lo que sí cabe en el mes, sí");
+  assert.equal((await db.query("select operacion from uso_ia where id = $1", [id])).rows[0].operacion, "importar_documento");
+  // Y lo que apartó la importación le cuenta al mes para la lectura de fotos.
+  assert.equal((await apartar(10)).motivo, "tope_del_mes");
+});

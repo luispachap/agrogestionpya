@@ -108,6 +108,7 @@ import { destinoDe as destinoDeAviso, estadoDelAparato, CLASES_DE_AVISO } from "
 import { activarAvisos, desactivarAvisos, avisoDePrueba, misPreferenciasDeAvisos, guardarPreferenciasDeAvisos, quitarAvisosDe, suscripcionDeEsteAparato } from "./avisosRed.js";
 import { idConAsistente, abrirConAsistente, esConAsistente, misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro, hallazgosDe, antecedentes, temasDe, deDondeSalio, comoEvidencia, admiteArchivos, carpetaDe, pedirConsulta, conversacionesDe as todasLasConversaciones, PERMISO_EVIDENCIA, PERMISO_SUPERVISION } from "./mensajeria.js";
 import { planDelDia as planMandadoDe, loQueLeToca, quitarAsignacion, cambiarAsignacion } from "./asignaciones.js";
+import { jornadaDe, cerrarJornada, reabrirJornada, cierreDe as cierreDeJornada, diferenciasDelCierre as diferenciasDeJornada, tareasParaManana, MOTIVOS as MOTIVOS_DE_JORNADA, ESTADOS as ESTADOS_DE_JORNADA, ROLES_QUE_CIERRAN as ROLES_QUE_CIERRAN_JORNADA } from "./jornada.js";
 import { repartirElDia, aQueSeVaCadaQuien, quienNoTieneNada, chocanLasTareas, indicacionParaElTrabajador, comoVaElDia } from "./plan.js";
 import { loQueVaAFaltar } from "./prediccion.js";
 // El recorrido del dron: fotos fechadas y ubicadas. NO es fotogrametría.
@@ -2754,6 +2755,33 @@ function ElDia({ data, add, upd, session, onClose }) {
   };
 
   /* ── El plan mandado: se puede ver el de hoy o el de mañana, y cambiarlo ── */
+  // ── La jornada: lo planeado contra lo que de verdad pasó, y su cierre ──
+  const [diaJ, setDiaJ] = useState("hoy");
+  const [motivosJ, setMotivosJ] = useState({});
+  const [pasanJ, setPasanJ] = useState({});
+  const [notaJ, setNotaJ] = useState("");
+  const [diceJ, setDiceJ] = useState("");
+  const [reabreJ, setReabreJ] = useState(null);
+  const fechaJ = diaJ === "hoy" ? today() : sumarDias(today(), -1);
+  const jornada = jornadaDe({ fecha: fechaJ, indicaciones: data.indicaciones || [], eventos: data.eventos || [], incidencias: data.incidencias || [], personas: gente, parcelas, quienesChecan: data.trabajadores || [], hoy: today(), ahora: new Date().toISOString() });   // los encargados pueden checar, pero no es obligatorio: de ellos no se dice «no vino»
+  const cierreJ = cierreDeJornada(data.eventos || [], fechaJ);
+  const difJ = cierreJ.vigente ? diferenciasDeJornada(cierreJ.vigente, jornada) : [];
+  const quienJ = { id: session.id, nombre: session.nombre, rol: session.role };
+  const puedeCerrarJ = ROLES_QUE_CIERRAN_JORNADA.includes(session.role);
+  const cerrarLaJornada = () => {
+    const r = cerrarJornada({ jornada, eventos: data.eventos || [], motivos: motivosJ, pasan: Object.keys(pasanJ).filter(k => pasanJ[k]), nota: notaJ, quien: quienJ, cuando: new Date().toISOString() });
+    if (!r.ok) { setDiceJ(r.dice); return; }
+    add("eventos", r.evento); setDiceJ(r.dice); setMotivosJ({}); setPasanJ({}); setNotaJ("");
+  };
+  const reabrirLaJornada = () => {
+    const r = reabrirJornada({ fecha: fechaJ, eventos: data.eventos || [], motivo: reabreJ, quien: quienJ, cuando: new Date().toISOString() });
+    if (!r.ok) { setDiceJ(r.dice); return; }
+    add("eventos", r.evento); setReabreJ(null); setDiceJ("La jornada se reabrió. La foto anterior queda guardada.");
+  };
+  const mananaJ = sumarDias(fechaJ, 1);
+  const porPasarJ = cierreJ.vigente ? tareasParaManana({ cierre: cierreJ.vigente, indicaciones: data.indicaciones || [], manana: mananaJ, quien: quienJ, cuando: new Date().toISOString(), idNuevo: k => `ind${Date.now()}${k}` }) : [];
+  const pasarAManana = () => { for (const t of porPasarJ) add("indicaciones", t); setDiceJ(`${porPasarJ.length} tarea(s) quedaron en el plan del ${fechaLarga(new Date(`${mananaJ}T12:00:00`))}. Se pueden cambiar en Reparto.`); };
+
   const [diaPlan, setDiaPlan] = useState("hoy");
   const [tocando, setTocando] = useState(null);      // { id, modo: "cambiar" | "quitar", parcelaId, hora, motivo }
   const [dicePlan, setDicePlan] = useState("");
@@ -2793,7 +2821,7 @@ function ElDia({ data, add, upd, session, onClose }) {
       </div>
 
       <div className="tabs-row">
-        {[["clima", "Clima"], ["reparto", "Reparto"], ["insumos", `Insumos${faltantes.yaVanTarde.length ? " ⚠" : ""}`]].map(([v, lb]) => (
+        {[["clima", "Clima"], ["reparto", "Reparto"], ["jornada", `Jornada${jornada.cuenta.planeadas && !cierreJ.cerrada ? ` (${jornada.cuenta.sinHacer})` : ""}`], ["insumos", `Insumos${faltantes.yaVanTarde.length ? " ⚠" : ""}`]].map(([v, lb]) => (
           <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => setTab(v)}>{lb}</button>
         ))}
       </div>
@@ -3033,6 +3061,95 @@ function ElDia({ data, add, upd, session, onClose }) {
       )}
 
       {/* ══ INSUMOS ══ */}
+      {tab === "jornada" && (
+        <div className="section-pad jornada">
+          <div className="tabs-row" style={{ padding: 0, marginBottom: 8 }}>
+            {[["hoy", "Hoy"], ["ayer", "Ayer"]].map(([v, lb]) => <button key={v} className={`tab-pill${diaJ === v ? " active" : ""}`} onClick={() => { setDiaJ(v); setDiceJ(""); setMotivosJ({}); setPasanJ({}); }}>{lb}</button>)}
+          </div>
+          <div className="card" style={{ padding: 12 }}>
+            <div className="card-title">La jornada del {fechaLarga(new Date(`${fechaJ}T12:00:00`))}{cierreJ.cerrada ? ` · cerrada (versión ${cierreJ.vigente.version})` : ""}</div>
+            {jornada.cuenta.planeadas === 0
+              ? <div className="text-sm text-muted">No hay tareas mandadas para este día. Se mandan en la pestaña Reparto.</div>
+              : <div className="text-sm">De {jornada.cuenta.planeadas} tarea(s) mandadas: <b>{jornada.cuenta.hechas}</b> marcadas como hechas, <b>{jornada.cuenta.enCurso + jornada.cuenta.seTrabajo}</b> con trabajo registrado sin marcar terminada y <b>{jornada.cuenta.sinHacer}</b> sin evidencia de que se hicieran.</div>}
+            <div className="text-xs text-muted" style={{ marginTop: 6 }}>Esto compara lo planeado con lo registrado en el checador, en Equipos de trabajo y en los avances. No registra horas, pagos ni costos.</div>
+          </div>
+
+          {jornada.tareas.length > 0 && (
+            <div className="card" style={{ padding: 12 }}>
+              <div className="card-title">Lo planeado, tarea por tarea</div>
+              {jornada.tareas.map(t => { const m = motivosJ[t.id] || {}, guardado = cierreJ.vigente?.tareas?.find(x => x.id === t.id); return (
+                <div key={t.id} className="jornada-tarea" style={{ borderTop: "1px solid var(--border-soft)", padding: "8px 0" }}>
+                  <div className="flex-b" style={{ gap: 8 }}>
+                    <div className="text-sm"><b>{t.nombre}</b>{t.donde ? ` · ${t.donde}` : ""}</div>
+                    <span className={`badge${t.estado === "hecha" ? " badge-green" : t.pideMotivo ? " badge-gold" : ""}`}>{ESTADOS_DE_JORNADA[t.estado].nombre}</span>
+                  </div>
+                  <div className="text-sm" style={{ marginTop: 2 }}>{t.dice || "(sin texto)"}</div>
+                  <div className="text-xs text-muted" style={{ marginTop: 2 }}>{t.porque}</div>
+                  {cierreJ.cerrada && guardado?.motivo && <div className="text-xs" style={{ marginTop: 3 }}>Al cerrar se dijo: {MOTIVOS_DE_JORNADA[guardado.motivo]}{guardado.nota ? ` — ${guardado.nota}` : ""}{cierreJ.vigente.pasan.includes(t.id) ? " · pasa a mañana" : ""}</div>}
+                  {!cierreJ.cerrada && t.pideMotivo && puedeCerrarJ && (
+                    <div style={{ marginTop: 6 }}>
+                      <select className="inp" aria-label={`Por qué no se hizo: ${t.nombre}`} value={m.motivo || ""} onChange={e => setMotivosJ(x => ({ ...x, [t.id]: { ...x[t.id], motivo: e.target.value } }))}>
+                        <option value="">¿Por qué no se hizo?</option>
+                        {Object.entries(MOTIVOS_DE_JORNADA).map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+                      </select>
+                      {m.motivo && <input className="inp" style={{ marginTop: 4 }} aria-label={`Nota: ${t.nombre}`} placeholder={m.motivo === "otro" ? "Di qué pasó" : "Nota (opcional)"} value={m.nota || ""} onChange={e => setMotivosJ(x => ({ ...x, [t.id]: { ...x[t.id], nota: e.target.value } }))} />}
+                      <label className="text-xs" style={{ display: "flex", gap: 6, marginTop: 6 }}><input type="checkbox" checked={!!pasanJ[t.id]} onChange={e => setPasanJ(x => ({ ...x, [t.id]: e.target.checked }))} />Pasa a mañana</label>
+                    </div>
+                  )}
+                </div>
+              ); })}
+            </div>
+          )}
+
+          {jornada.fueraDelPlan.length > 0 && (
+            <div className="card" style={{ padding: 12 }}>
+              <div className="card-title">Se trabajó y no estaba en el plan</div>
+              {jornada.fueraDelPlan.map((f, i) => <div key={i} className="text-sm" style={{ padding: "4px 0" }}><b>{f.nombre}</b> — {f.dice}{f.sinTarea ? " (no tenía tarea mandada)" : ""}</div>)}
+            </div>
+          )}
+          {jornada.porAclarar.length > 0 && (
+            <div className="card" style={{ padding: 12 }}>
+              <div className="card-title" style={{ color: "var(--gold)" }}>Tiempo por aclarar</div>
+              {jornada.porAclarar.map(p => <div key={p.personaId} className="text-sm" style={{ padding: "3px 0" }}><b>{p.nombre}</b> — {p.dice}</div>)}
+              <div className="text-xs text-muted" style={{ marginTop: 4 }}>Se aclara en Equipos de trabajo. Mientras, no se le carga a ninguna parcela.</div>
+            </div>
+          )}
+          <div className="card" style={{ padding: 12 }}>
+            <div className="card-title">Avances reportados ({jornada.avances.length})</div>
+            {jornada.avances.length === 0 && <div className="text-sm text-muted">Nadie ha reportado avances de este día. Se reportan diciéndoselo a AgroGestión en Mensajes.</div>}
+            {jornada.avances.map(a => <div key={a.evento} className="text-sm" style={{ padding: "3px 0" }}>{a.cantidad} {a.unidad === "otra" ? a.unidadDicha || "unidades" : a.unidad}(s) de {a.actividad}{a.donde ? ` en ${a.donde}` : ""}{a.personas != null ? ` · ${a.personas} persona(s)` : ""}{a.pendiente ? " · quedó pendiente" : ""}</div>)}
+          </div>
+          <div className="card" style={{ padding: 12 }}>
+            <div className="card-title" style={{ color: jornada.cuenta.incidenciasAbiertas ? "var(--red)" : undefined }}>Incidencias del día ({jornada.incidencias.length})</div>
+            {jornada.incidencias.length === 0 && <div className="text-sm text-muted">No se reportó ninguna.</div>}
+            {jornada.incidencias.map(x => <div key={x.id} className="text-sm" style={{ padding: "3px 0" }}>{x.dice}{x.prioridad ? ` · ${x.prioridad}` : ""}{x.resuelta ? " · resuelta" : " · abierta"}</div>)}
+          </div>
+
+          <div className="card" style={{ padding: 12, borderColor: cierreJ.cerrada ? "var(--safe)" : "var(--border)" }}>
+            <div className="card-title">Cierre de la jornada</div>
+            {cierreJ.cerrada ? (
+              <>
+                <div className="text-sm">La cerró {cierreJ.vigente.quien} · {horaCorta(cierreJ.vigente.cuando)}{cierreJ.vigente.nota ? ` — «${cierreJ.vigente.nota}»` : ""}</div>
+                {difJ.length > 0 && <div style={{ marginTop: 8 }}><div className="text-xs" style={{ color: "var(--gold)", fontWeight: 700 }}>Cambió después de cerrar (la foto no se toca):</div>{difJ.map((d, i) => <div key={i} className="text-xs" style={{ padding: "2px 0" }}>{d}</div>)}</div>}
+                {porPasarJ.length > 0 && puedeCerrarJ && <button className="btn btn-accent btn-sm" style={{ marginTop: 10 }} onClick={pasarAManana}>Poner en el plan de mañana lo que quedó ({porPasarJ.length})</button>}
+                {cierreJ.vigente.pasan.length > 0 && porPasarJ.length === 0 && <div className="text-xs text-muted" style={{ marginTop: 6 }}>Lo que quedó ya está en el plan del día siguiente.</div>}
+                {puedeCerrarJ && (reabreJ === null
+                  ? <button className="btn btn-outline btn-sm" style={{ marginTop: 10 }} onClick={() => setReabreJ("")}>Reabrir la jornada</button>
+                  : <div style={{ marginTop: 10 }}><input className="inp" aria-label="Motivo para reabrir" placeholder="¿Por qué se reabre?" value={reabreJ} onChange={e => setReabreJ(e.target.value)} /><div style={{ display: "flex", gap: 6, marginTop: 6 }}><button className="btn btn-accent btn-sm" onClick={reabrirLaJornada}>Reabrir</button><button className="btn btn-outline btn-sm" onClick={() => setReabreJ(null)}>No</button></div></div>)}
+              </>
+            ) : puedeCerrarJ ? (
+              <>
+                {cierreJ.reabierta && <div className="text-xs" style={{ color: "var(--gold)", marginBottom: 6 }}>Reabierta por {cierreJ.reabierta.quien}: «{cierreJ.reabierta.motivo}». Ya tuvo {cierreJ.versiones} cierre(s).</div>}
+                <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Cerrar deja una foto del día: qué se planeó, qué se hizo, qué no y por qué. No cambia horas ni pagos, y lo que llegue después se verá aparte.</div>
+                <input className="inp" aria-label="Nota del cierre" placeholder="Nota del día (opcional)" value={notaJ} onChange={e => setNotaJ(e.target.value)} />
+                <button className="btn btn-accent" style={{ marginTop: 8 }} disabled={jornada.cuenta.planeadas === 0 && jornada.fueraDelPlan.length === 0 && jornada.avances.length === 0} onClick={cerrarLaJornada}>Cerrar la jornada</button>
+              </>
+            ) : <div className="text-sm text-muted">La cierra un administrador o un encargado.</div>}
+            {diceJ && <div className="text-xs jornada-dice" style={{ marginTop: 8, color: "var(--gold)" }}>{diceJ}</div>}
+          </div>
+        </div>
+      )}
+
       {tab === "insumos" && (
         <div className="section-pad">
           <div className="card" style={{ padding: 12 }}>

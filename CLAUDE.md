@@ -535,6 +535,14 @@ Usuarios reales de la app:
   `cambiada` y crea otro que apunta a él; quitar (`quitarAsignacion`) pide motivo. **Planear ≠ asistir ≠ trabajar**:
   el módulo no importa nada y ningún módulo de dinero o asistencia lee `indicaciones` (hay prueba). Checar NO
   inicia la asignación real (`cuadrillas.js`): es decisión pendiente de Miguel.
+- **`src/jornada.js`: LA JORNADA** (El día → pestaña «Jornada»; `docs/JORNADA.md`). No guarda lo que pasó: JUNTA lo
+  planeado (`indicaciones`), quién vino (checador), dónde se trabajó (`tramosDeTrabajo`), avances e incidencias, y dice de
+  cada tarea qué se sabe y con qué (`jornadaDe`, `ESTADOS`). **«Hecha» sólo es lo que una persona marcó; horas en la
+  parcela = «se trabajó ahí». De quien no checa no se dice «no vino»: «no hay con qué saberlo».** El cierre
+  (`cierre_jornada`, foto con versión; `reapertura_jornada` con motivo) pide el porqué de cada tarea sin evidencia
+  (`MOTIVOS`, lo dice una persona) y qué pasa a mañana (`tareasParaManana`: se proponen con `vieneDe`, una sola vez, y
+  se mandan cuando alguien lo pide). `diferenciasDelCierre` enseña lo que llegó después. **Ningún módulo de dinero lee
+  la jornada ni su cierre** (hay prueba). El tope de IA del mes cubre también la importación (hoja 51).
 - **`src/whatsapp.js` + `supabase/functions/whatsapp-entrada/` + `supabase/pendientes/whatsapp-entrada.sql`: WhatsApp PREPARADO
   Y APAGADO.** El lector convierte el aviso de Meta en el `mensaje` del camino común (teléfono → persona del
   catálogo; desconocido o repetido no se atribuye; mismo id no entra dos veces). La función sólo comprueba la firma

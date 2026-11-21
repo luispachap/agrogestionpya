@@ -11,7 +11,7 @@ Mensajes entre personas, mensajes a AgroGestión, propuestas, preguntas de lo qu
 | Función del servidor | Cuándo | Modelo | Tope |
 |---|---|---|---|
 | `leer-papel` | Alguien pide leer una foto (botón del mensaje, o la pantalla de Papeles) | Haiku; Sonnet sólo si lo pide un administrador | Mensual (hoja 50) |
-| `interpretar-documento` | «Lectura con IA» en Importar documentos | Haiku; Sonnet a petición | Total de 4 USD (hoja 44) y también cuenta en el mes |
+| `interpretar-documento` | «Lectura con IA» en Importar documentos | Haiku; Sonnet a petición | Dos a la vez: total de 4 USD (hoja 44) Y el mensual (hoja 51) |
 
 No instaladas (no pueden gastar): `oir-audio`, `revisar-parcela`, `whatsapp-entrada`.
 `comprobar-ia`: sirvió para las comprobaciones reales del 20 nov. Está **apagada** (contesta «cerrada» y no hace nada
@@ -32,3 +32,16 @@ más), no gasta y nada en el código la llama. Sigue instalada sólo porque no s
 - La función `leer-papel` no tiene prueba automática propia (sí la tiene el tope en la base: `pruebas/base/tope_ia.test.mjs`).
   **La lectura nueva (Haiku) no se ha probado con una foto real**: la primera lectura real hay que revisarla.
 - El dictado del teléfono no nos cuesta, pero en Chrome el audio suele pasar por servidores de Google.
+
+## Límites que existen (son tres, y no se confunden)
+| Límite | Cuánto | Sobre qué | Se reinicia |
+|---|---|---|---|
+| Mensual de IA | 3 USD | TODA la IA pagada: fotos e importación | Cada mes (hora de Zacatecas) |
+| Total de la importación | 4 USD | Sólo «Lectura con IA» de Importar | Nunca; lo sube un superadministrador |
+| Lecturas de fotos | 150 al mes | Sólo cuántas fotos se leen | Cada mes |
+
+**Reservas, errores y reintentos.** Antes de llamar se aparta lo MÁXIMO que puede costar; al terminar se cambia por lo
+real. Si el modelo falla o rechaza la petición, lo apartado se libera (cuesta cero). Si la función muere a medias, la
+base libera lo apartado a los 15 minutos. Un reintento por formato rechazado no se cobra dos veces (lo rechazado no se
+cobra). La misma foto o documento ya leído sale de memoria y no cuenta. Lo que sí se cobra aunque no sirva: una
+respuesta que llegó pero no se pudo interpretar.
