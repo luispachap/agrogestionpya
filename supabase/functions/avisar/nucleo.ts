@@ -111,8 +111,9 @@ export async function mandar(base: B, push: Push, k: any, a: Aviso, usuarios: st
     const cuerpo = JSON.stringify({ clase: esMencion ? "mencion" : a.clase, titulo: esMencion ? a.titulo.replace(" mandó ", " te mencionó en ") : a.titulo, cuerpo: a.cuerpo, url: a.url, tag: a.tag });
     for (const s of await base.leer(`avisos_suscripciones?usuario=eq.${u}&select=endpoint,p256dh,auth`)) {
       try {
+        // Prioridad alta SIEMPRE: con prioridad normal Android retuvo el aviso hasta que se abrió el navegador (teléfono real, 21 nov).
         await push.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, cuerpo,
-          { vapidDetails: { subject: "https://app.agroselectos.com", publicKey: k.publica, privateKey: k.privada }, TTL: 86400, urgency: a.obligatorio || esMencion ? "high" : "normal", topic: a.tag.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32) || undefined });
+          { vapidDetails: { subject: "https://app.agroselectos.com", publicKey: k.publica, privateKey: k.privada }, TTL: 86400, urgency: "high", topic: a.tag.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32) || undefined });
         enviados++;
       } catch (e: any) {
         // El aparato ya no existe (desinstalaron o quitaron el permiso): se olvida esa suscripción.

@@ -43,6 +43,7 @@ test("un_mensaje_le_avisa_a_los_demas_participantes_y_a_nadie_mas_sin_decir_que_
   const e = f.enviados[0];
   assert.deepEqual([e.titulo, e.cuerpo, e.tag, e.url], ["Capataz Inventado mandó un mensaje", "En «Riego»", "conv-conv-g", "/?ir=chat&conv=conv-g&msj=m1"]);
   assert.equal(/3,500|di[eé]sel|pesos/.test(JSON.stringify(e)), false, "el aviso se ve en la pantalla bloqueada: no lleva el texto ni importes");
+  assert.equal(e.urgencia, "high", "con prioridad normal el teléfono lo retiene hasta que se abre el navegador: pasó en la prueba real");
 });
 
 test("el_mismo_aviso_no_llega_dos_veces_y_los_de_una_conversacion_se_agrupan", async () => {
