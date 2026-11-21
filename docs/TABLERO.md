@@ -301,6 +301,9 @@ Todo junto: `sh pruebas/todo.sh`.
 1. Vercel: quitar `app.agroselectos.com` del proyecto viejo `vitejs-vite-3ymxjehp` (Settings → Domains → Remove) para poder darlo de alta como dominio propio de `agrogestion-operacion`. Mientras tanto el dominio se apunta a mano a cada publicación.
 2. Supabase → Authentication → URL Configuration: poner `https://app.agroselectos.com` como Site URL y dejar `https://agrogestion-operacion.vercel.app` en Redirect URLs, para que el correo de confirmación regrese al dominio definitivo.
 
+**Rumbo (Luis, 21 nov, 5 am):** el análisis del Excel de 2024 queda CERRADO. No es el modelo de AgroGestión: es
+un documento histórico más. Lo que sigue es el rancho de hoy; la importación histórica es una capacidad adicional.
+
 **Trazabilidad del histórico y prueba controlada (21 nov, madrugada):** cerradas las decisiones de Luis (RA51 =
 Rancho 51 y «R51 · El 51» como otra forma de escribirlo; Bod con dos posibilidades; ajo de campo/postcosecha como
 clasificación histórica; mB sólo sugerencia; el domingo no se pasa al lunes; vigencia de claves por fechas;

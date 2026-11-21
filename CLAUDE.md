@@ -421,6 +421,13 @@ Usuarios reales de la app:
   no es `monto`, no suma y no es un pago (falta confirmar qué es). La lectura
   con IA recibe los códigos ya registrados (`pedido.claves`) sólo para decidir
   trazos dudosos.
+- **El Excel de 2024 NO es el modelo (Luis, 21 nov).** Es un documento histórico más,
+  entre muchos formatos posibles; su análisis está CERRADO. No se copian sus fórmulas,
+  catálogos ni estructuras, y no se diseña AgroGestión a partir de él. La importación
+  histórica es una capacidad adicional —flexible, sencilla, que aprende de las
+  correcciones— y no el centro: lo primero es administrar bien el rancho de hoy. **Un
+  documento que Luis comparte no es un proyecto de desarrollo**: entra por el camino
+  general de importar; sólo se toca el código si ese camino falla.
 - **`src/excelRayas.js` + referencias históricas** (`docs/EXCEL-RAYAS-2024.md`): del
   Excel antiguo de rayas se leen SÓLO sus catálogos de claves y sus hojas
   semanales. Los catálogos entran al histórico como `referencia_clave`: lo que
