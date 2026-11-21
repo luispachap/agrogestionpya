@@ -11,8 +11,8 @@ const FUNCION = "interpretar-documento";
 // Precios en dólares por millón de unidades de texto (= millonésimas de dólar por unidad).
 // Leídos de la lista oficial de precios el 20 nov 2026. Si cambian, se cambian aquí.
 const MODELOS: Record<string, { modelo: string; entrada: number; salida: number; maxSalida: number }> = {
-  economico: { modelo: "claude-haiku-5-5", entrada: 0.10, salida: 0.50, maxSalida: 8000 },
-  superior: { modelo: "claude-sonnet-5-5", entrada: 2, salida: 10, maxSalida: 8000 },
+  economico: { modelo: "claude-haiku-5-5", entrada: 0.10, salida: 0.50, maxSalida: 12000 },
+  superior: { modelo: "claude-sonnet-5-5", entrada: 2, salida: 10, maxSalida: 12000 },
 };
 // Para apartar: lo MÁS que puede pesar la petición. Generoso a propósito: apartar de más no cuesta, quedarse corto sí.
 const UNIDADES_POR_IMAGEN = 12000, UNIDADES_FIJAS = 2500, MAX_IMAGENES = 4, MAX_TEXTO = 24000, MAX_BASE64_POR_IMAGEN = 1_600_000;

@@ -456,6 +456,10 @@ export function proponer(doc, contexto = {}) {
       const faltan = clavesPorPreguntar(deRaya, claves), conDuda = deRaya.filter(r => relacionDeRenglon(r, claves).dudas.length).length;
       excepciones.push(`«${h.nombre}» es una raya con claves: entra al histórico como relación de quién hizo qué, dónde y en qué cultivo. NO se crean pagos ni actividades.`);
       if (faltan.length) excepciones.push(`Hay ${faltan.length} clave(s) que todavía no se sabe qué significan (${faltan.slice(0, 8).map(f => f.clave).join(", ")}${faltan.length > 8 ? "…" : ""}). No se inventan: se pueden contestar aquí abajo, o incorporar así —se guardan con su código— y contestarlas después.`);
+      const ajoRaro = deRaya.filter(r => r.cultivo && normalizarClave(r.cultivo).clave === "AJO" && !/^ajo$/i.test(r.cultivo.trim()));
+      if (ajoRaro.length) excepciones.push(`En ${ajoRaro.length} renglón(es) el cultivo se leyó «${[...new Set(ajoRaro.map(r => r.cultivo))].join("», «")}» y se tomó como Ajo (así se escribe a mano en las libretas, confirmado por el rancho). Si en alguno no dice Ajo, quítale la marca.`);
+      const tentativos = deRaya.filter(r => r.monto > 0).length;
+      if (tentativos) excepciones.push(`${tentativos} renglón(es) traen un número al lado (probablemente el pago del día). Se guarda como importe TENTATIVO, por confirmar: no es un pago ni suma en ningún total.`);
       if (deRaya.some(r => !r.fecha)) excepciones.push(`En «${h.nombre}» hay renglones sin día: entran al histórico «sin fecha».`);
       if (conDuda > faltan.length && conDuda) excepciones.push(`${conDuda} renglón(es) de «${h.nombre}» traen alguna duda (se enseña en cada uno).`);
     }

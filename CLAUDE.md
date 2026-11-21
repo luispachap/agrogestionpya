@@ -409,6 +409,18 @@ Usuarios reales de la app:
   normalizada, NO el significado: lo que se aprenda o corrija después vale
   también para lo ya importado. Lo que no se reconoce en un renglón queda como
   duda (`relacionDeRenglon().dudas`), no se le asigna papel por su columna.
+  **Cinco cosas independientes por renglón: trabajador · fecha · actividad ·
+  ubicación · cultivo.** «Ajo» es un CULTIVO (campo propio: `cultivoEscrito` y
+  `cultivo`), nunca la clave A07; a mano se lee «9jo»/«2jo». Una palabra no se
+  vuelve clave de actividad (hace falta un dígito de verdad). «Gen» = General:
+  trabajo sin rancho específico (clase `general`, NO es un lugar ni, por sí
+  solo, un gasto general). `RA50/RA51/RA53` = Ranchos 50, 51 y 53, grupo
+  «Ranchos 50s»; SF1–SF4, grupo «San Felipe» (`grupo`: cada ubicación sigue
+  siendo independiente). Lo que se ajusta al leer (RASI→RA51, 5f4→SF4) se
+  avisa en el renglón. El número al lado del renglón es `importeTentativo`:
+  no es `monto`, no suma y no es un pago (falta confirmar qué es). La lectura
+  con IA recibe los códigos ya registrados (`pedido.claves`) sólo para decidir
+  trazos dudosos.
 - **Un gasto de «insumos» no es siempre una compra para el almacén**
   (`claseDeInsumo`, `resultado.js`): `destinoInsumo` = inventario · produccion ·
   general · otro; sin decir → **por clasificar** (ni gasto ni inventario; en el

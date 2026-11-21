@@ -37,6 +37,7 @@ test("de_una_raya_sale_quien_que_y_donde_como_historico_con_el_codigo_original",
   // El número del renglón es TENTATIVO: no es un importe ni suma en ningún total.
   const felipe = r.propuestas.find(p => p.datos.contraparte === "Felipe").datos;
   assert.equal(felipe.monto, null); assert.equal(felipe.importeTentativo, 420); assert.equal(r.total, 0);
+  assert.match(r.excepciones.join(" "), /1 renglón\(es\) traen un número al lado.*TENTATIVO/); assert.match(r.excepciones.join(" "), /el cultivo se leyó «9jo» y se tomó como Ajo/);
   assert.match(r.excepciones.join(" "), /NO se crean pagos ni actividades/);
   assert.match(r.excepciones.find(e => /todavía no se sabe/.test(e)), /A07, A16, A23, A27/);
 });

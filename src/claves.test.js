@@ -123,7 +123,7 @@ test("ajo_es_un_cultivo_y_nunca_la_clave_a07", () => {
 test("un_ajo_leido_raro_o_un_codigo_en_el_lugar_del_cultivo_quedan_por_confirmar", () => {
   const cat = catalogoDeClaves([]);
   const raro = relacionDeRenglon({ nombre: "Persona", fecha: "2024-10-06", claves: ["A07", "Bod"], cultivo: "9jo" }, cat);
-  assert.equal(raro.cultivo.clave, "AJO"); assert.match(raro.dudas.join(" "), /Se leyó «9jo» y se tomó como Ajo/);
+  assert.equal(raro.cultivo.clave, "AJO"); assert.equal(raro.cultivo.original, "9jo", "queda dicho cómo se leyó");
   const codigo = relacionDeRenglon({ nombre: "Persona", fecha: "2024-10-06", claves: ["Bod"], cultivo: "A07" }, cat);
   assert.equal(codigo.cultivo, null); assert.match(codigo.dudas.join(" "), /En el lugar del cultivo se leyó «A07»/);
   const otro = relacionDeRenglon({ nombre: "Persona", fecha: "2024-10-06", claves: ["A16", "RA51"], cultivo: "mB" }, cat);

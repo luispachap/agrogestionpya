@@ -139,7 +139,8 @@ export function relacionDeRenglon({ nombre = "", fecha = null, claves = [], cult
   for (const c of act.filter(c => c.deCultivo)) dudas.push(`En el lugar del cultivo se leyó «${c.original}», que tiene forma de clave de actividad: confirma contra el papel.`);
   // Lo que se ajustó al leer (una letra por un número) se dice: es una interpretación, no un hecho.
   const literal = (c) => c.original.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[\s.\-_/]+/g, "");
-  for (const c of leidas.filter(c => ["SF", "RA", "AJ"].includes(c.clave.slice(0, 2)) && literal(c) !== c.clave)) dudas.push(`Se leyó «${c.original}» y se tomó como ${c.clase === "cultivo" ? "Ajo" : c.clave}: confirma contra el papel.`);
+  // («Ajo» leído «9jo» o «2jo» no se repite en cada renglón: lo confirmó el rancho, y se avisa una vez por documento.)
+  for (const c of leidas.filter(c => ["SF", "RA"].includes(c.clave.slice(0, 2)) && literal(c) !== c.clave)) dudas.push(`Se leyó «${c.original}» y se tomó como ${c.clave}: confirma contra el papel.`);
   for (const c of raras) dudas.push(c.deCultivo ? `En el lugar del cultivo dice «${c.original}» y no se sabe qué es.` : `No se sabe qué es «${c.original}» (¿actividad, ubicación, cultivo o una anotación?).`);
   const sinTrabajo = act.length === 0 && ubi.length === 0;
   if (sinTrabajo && !observacion && raras.length === 0) dudas.push("No trae ninguna clave.");
