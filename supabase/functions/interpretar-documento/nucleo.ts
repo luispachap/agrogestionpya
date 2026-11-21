@@ -94,7 +94,10 @@ const ESQUEMA_HOJA = {
 // Llama a la API. Si el servidor no acepta el formato estructurado, se intenta UNA vez pidiéndolo sólo con palabras
 // (una petición rechazada por mal formada no se cobra).
 async function preguntar(llave: string, cuerpo: Record<string, unknown>, esquema: unknown) {
-  const cab = { "x-api-key": llave, "anthropic-version": "2023-06-01", "content-type": "application/json" };
+  // Una llave que no está ligada a un espacio de trabajo de la Consola pide que cada petición diga a cuál va.
+  // Su identificador no es un secreto (sin la llave no sirve de nada), pero vive junto a ella, en el servidor.
+  const espacio = (Deno.env.get("ANTHROPIC_WORKSPACE_ID") ?? "").trim();
+  const cab: Record<string, string> = { "x-api-key": llave, "anthropic-version": "2023-06-01", "content-type": "application/json", ...(espacio ? { "anthropic-workspace-id": espacio } : {}) };
   let r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: cab, body: JSON.stringify({ ...cuerpo, output_config: { format: { type: "json_schema", schema: esquema } } }) });
   let formato = "estructurado", rechazo = "";
   if (r.status === 400) {
@@ -159,6 +162,8 @@ export async function interpretar(c: Pedido, cuenta: string | null): Promise<Sal
     if (!r.ok) {
       await cerrar(null, null, null, null, true);
       const sinSaldo = r.estado === 400 && /credit balance/i.test(r.dice), malaLlave = r.estado === 401 || r.estado === 403;
+      const sinEspacio = (r.estado === 400 || r.estado === 404) && /workspace/i.test(r.dice);
+      if (sinEspacio) return responder({ error: "falta_espacio_de_trabajo", dice: "La llave de la IA no dice a qué espacio de trabajo de la Consola pertenece. Falta un dato en el servidor; no se gastó nada y el documento queda guardado.", detalle: r.dice }, 502);
       return responder({ error: sinSaldo ? "sin_saldo" : malaLlave ? "llave_invalida" : "fallo_la_lectura",
         dice: sinSaldo ? "La cuenta de la IA se quedó sin saldo. El documento queda guardado." : malaLlave ? "La llave de la IA que está en el servidor no es válida. Hay que volver a ponerla." : `No se pudo leer con IA (${r.estado}). El documento queda guardado y se puede reintentar.`, detalle: r.dice }, 502);
     }

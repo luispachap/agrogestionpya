@@ -9,9 +9,9 @@ import { buildSync } from "esbuild";
 const js = buildSync({ entryPoints: [new URL("../supabase/functions/interpretar-documento/index.ts", import.meta.url).pathname], bundle: true, format: "esm", write: false }).outputFiles[0].text;
 const LLAVE = "sk-ant-LLAVE-DE-MENTIRA";
 
-async function montar({ conLlave = true, puede = true, reserva = "res-1", memoria = null, api = null } = {}) {
+async function montar({ conLlave = true, puede = true, reserva = "res-1", memoria = null, api = null, espacio = "" } = {}) {
   const log = { anthropic: [], rpc: [], rest: [] }; let manejador = null;
-  const env = { SUPABASE_URL: "https://base.invalid", SUPABASE_SERVICE_ROLE_KEY: "servicio", SUPABASE_ANON_KEY: "publica", ...(conLlave ? { ANTHROPIC_API_KEY: LLAVE } : {}) };
+  const env = { SUPABASE_URL: "https://base.invalid", SUPABASE_SERVICE_ROLE_KEY: "servicio", SUPABASE_ANON_KEY: "publica", ...(conLlave ? { ANTHROPIC_API_KEY: LLAVE } : {}), ...(espacio ? { ANTHROPIC_WORKSPACE_ID: espacio } : {}) };
   globalThis.Deno = { env: { get: (k) => env[k] }, serve: (f) => { manejador = f; } };
   globalThis.fetch = async (url, opc = {}) => {
     const u = String(url), cuerpo = opc.body ? JSON.parse(opc.body) : null;
@@ -81,6 +81,19 @@ test("si_la_api_falla_se_suelta_lo_apartado_y_no_cuesta", async () => {
   assert.equal((await sinSaldo.pedir(PEDIDO)).datos.error, "sin_saldo");
   const mala = await montar({ api: () => new Response("{}", { status: 401 }) });
   assert.equal((await mala.pedir(PEDIDO)).datos.error, "llave_invalida");
+});
+
+// Pasó de verdad en la primera llamada real (20 nov 2026): la llave de Luis no estaba ligada a un espacio de trabajo.
+test("una_llave_sin_espacio_de_trabajo_se_dice_claro_no_cuesta_y_con_el_dato_puesto_viaja_en_la_peticion", async () => {
+  const pide = () => new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header with the ID of the workspace to use." } }), { status: 400 });
+  let m = await montar({ api: pide }), r = await m.pedir(PEDIDO);
+  assert.equal(r.estado, 502); assert.equal(r.datos.error, "falta_espacio_de_trabajo");
+  assert.equal(m.log.anthropic.length, 1, "no se reintenta con palabras: no es un problema de formato");
+  assert.equal(m.log.rpc.find(x => x[0] === "cerrar")[1].p_fallo, true, "lo apartado se suelta");
+  assert.equal(m.log.anthropic[0].cab["anthropic-workspace-id"], undefined);
+  m = await montar({ espacio: "wrkspc_DE_MENTIRA" }); r = await m.pedir(PEDIDO);
+  assert.equal(r.estado, 200); assert.equal(m.log.anthropic[0].cab["anthropic-workspace-id"], "wrkspc_DE_MENTIRA");
+  assert.ok(!JSON.stringify(r.datos).includes("wrkspc_"), "el identificador no sale del servidor");
 });
 
 test("si_el_servidor_no_acepta_el_formato_estructurado_se_pide_con_palabras_una_sola_vez", async () => {
