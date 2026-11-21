@@ -45,7 +45,7 @@ Clases: ticket (compra de mostrador), factura (factura impresa con datos fiscale
 
 En "renglones" usa sólo los campos que apliquen y deja los demás vacíos:
 - ticket, factura, nota: un renglón por artículo (concepto, cantidad, unidad, importe). El proveedor, la fecha, el folio y el total van arriba.
-- raya: un renglón por persona. "nombre" como viene escrito (aunque sea un apodo). En "claves" copia TODOS los códigos cortos del renglón, TAL CUAL están escritos y en su orden, separados por " | " (ejemplo: "Ao7 | Bod"). NO los traduzcas, NO los corrijas, NO digas qué significan y NO decidas cuál es actividad y cuál es lugar: eso lo hace la app con su catálogo. Si un código no se lee claro, cópialo como lo ves y dilo en "avisos". "observacion": palabras sueltas del renglón que no son código (por ejemplo "falta"). "importe": SÓLO si es claramente una cantidad de dinero; si es un garabato o una marca que no sabes qué es, déjalo vacío y dilo en "avisos". El día o la fecha escritos arriba de la lista van en "fecha" del documento. No todas las columnas de una raya significan lo mismo en todos los renglones: no las fuerces. En una raya NO reportes como no leídos el emisor, el folio, el subtotal, el total ni la moneda: no aplican. Si de la fecha sólo se lee una parte, déjala vacía y di en "avisos" exactamente lo que sí se lee.
+- raya: un renglón por persona. "nombre" como viene escrito (aunque sea un apodo). En "claves" copia TODOS los códigos cortos del renglón, TAL CUAL están escritos y en su orden, separados por " | " (ejemplo: "Ao7 | Bod"). NO los traduzcas, NO los corrijas, NO digas qué significan y NO decidas cuál es actividad y cuál es lugar: eso lo hace la app con su catálogo. Si un código no se lee claro, cópialo como lo ves y dilo en "avisos". "cultivo": si el renglón trae escrito un cultivo con PALABRA (casi siempre "Ajo"; también puede ser otro, como chile o frijol), cópialo ahí tal cual y NO lo pongas en "claves". OJO: "Ajo" escrito a mano (A-j-o, a veces parece "2jo" o "9jo") NO es el código "A07" ni ningún código: los códigos de actividad llevan NÚMEROS después de la A (A07, A27) y suelen ir en otra columna, antes del lugar; un mismo renglón puede traer las dos cosas ("A07 | Bod" y además "Ajo"). Nunca conviertas una palabra en un código ni un código en una palabra. Si en esa posición hay algo que no sabes si es "Ajo" u otra cosa, cópialo en "cultivo" como lo ves y dilo en "avisos". "observacion": palabras sueltas del renglón que no son código ni cultivo (por ejemplo "falta"). "importe": los números escritos APARTE, a la derecha del renglón (a veces con otro color, como 200 o 420), van en "importe" del renglón con el que están alineados; son tentativos, la app no los toma como pago. Si no queda claro a qué renglón corresponde un número, NO lo asignes y dilo en "avisos" con el número. Círculos, ceros sueltos, rayas o garabatos no son importes. El día o la fecha escritos arriba de la lista van en "fecha" del documento. No todas las columnas de una raya significan lo mismo en todos los renglones: no las fuerces. En una raya NO reportes como no leídos el emisor, el folio, el subtotal, el total ni la moneda: no aplican. Si de la fecha sólo se lee una parte, déjala vacía y di en "avisos" exactamente lo que sí se lee.
 - nomina: un renglón por persona (nombre, importe = lo que se le pagó, dias, puesto, fecha si la trae).
 - personal: nombre, puesto, importe = sueldo por día si lo trae, fecha = fecha de ingreso si la trae.
 - combustible: fecha, vehiculo, litros, importe.
@@ -75,12 +75,12 @@ const ESQUEMA_DOCUMENTO = {
     confianza: { type: "string", enum: ["alta", "media", "baja"] },
     emisor: S, fecha: S, folio: S, subtotal: S, total: S, moneda: S,
     renglones: { type: "array", items: { type: "object", additionalProperties: false,
-      required: ["fecha", "nombre", "concepto", "cantidad", "unidad", "importe", "litros", "vehiculo", "parcela", "dias", "puesto", "claves", "observacion"],
-      properties: { fecha: S, nombre: S, concepto: S, cantidad: S, unidad: S, importe: S, litros: S, vehiculo: S, parcela: S, dias: S, puesto: S, claves: S, observacion: S } } },
+      required: ["fecha", "nombre", "concepto", "cantidad", "unidad", "importe", "litros", "vehiculo", "parcela", "dias", "puesto", "claves", "cultivo", "observacion"],
+      properties: { fecha: S, nombre: S, concepto: S, cantidad: S, unidad: S, importe: S, litros: S, vehiculo: S, parcela: S, dias: S, puesto: S, claves: S, cultivo: S, observacion: S } } },
     no_se_leyo: { type: "array", items: S }, avisos: { type: "array", items: S },
   },
 };
-const CAMPOS_HOJA = ["fecha", "nombre", "puesto", "sueldo", "ingreso", "dias", "importe", "proveedor", "concepto", "litros", "vehiculo", "horometro", "parcela", "actividad", "personas", "folio", "periodo", "claves"];
+const CAMPOS_HOJA = ["fecha", "nombre", "puesto", "sueldo", "ingreso", "dias", "importe", "proveedor", "concepto", "litros", "vehiculo", "horometro", "parcela", "actividad", "personas", "folio", "periodo", "claves", "cultivo"];
 const ESQUEMA_HOJA = {
   type: "object", additionalProperties: false, required: ["clase", "confianza", "renglon_encabezado", "columnas", "avisos"],
   properties: {
@@ -115,7 +115,7 @@ async function preguntar(llave: string, cuerpo: Record<string, unknown>, esquema
 const sacarJson = (texto: string) => { const a = texto.indexOf("{"), b = texto.lastIndexOf("}"); if (a < 0 || b <= a) throw new Error("sin JSON"); return JSON.parse(texto.slice(a, b + 1)); };
 
 
-export type Pedido = { huella?: string; nivel?: string; modo?: string; nombre?: string; imagenes?: { tipoMedio?: string; base64?: string }[]; texto?: string };
+export type Pedido = { claves?: string[]; huella?: string; nivel?: string; modo?: string; nombre?: string; imagenes?: { tipoMedio?: string; base64?: string }[]; texto?: string };
 type Salida = { estado: number; cuerpo: Record<string, unknown> };
 const responder = (cuerpo: Record<string, unknown>, estado = 200): Salida => ({ estado, cuerpo });
 
@@ -130,6 +130,9 @@ export async function interpretar(c: Pedido, cuenta: string | null): Promise<Sal
   if (!/^[0-9a-f]{64}$/.test(huella)) return responder({ error: "sin_huella", dice: "Falta la huella del documento." }, 400);
   const imagenes = (c.imagenes || []).filter((i) => i?.base64).slice(0, MAX_IMAGENES);
   const texto = String(c.texto || "").slice(0, MAX_TEXTO);
+  // Los códigos que el rancho ya tiene registrados (los manda la app, de su catálogo). Sólo letras y números, cortos.
+  const conocidas = (Array.isArray(c.claves) ? c.claves : []).map((x) => String(x || "").toUpperCase().replace(/[^A-Z0-9]/g, "")).filter((x) => x.length >= 2 && x.length <= 8).slice(0, 80);
+  const pista = conocidas.length ? `\n\nCódigos que este rancho ya tiene registrados: ${conocidas.join(", ")}. Úsalos SÓLO para decidir un trazo dudoso entre una letra y un número dentro de un código (por ejemplo, escribir RA51 y no RASI, o SF4 y no 5f4). No cambies un código legible por otro de la lista, no completes códigos que no estén escritos, y si lo escrito no coincide con ninguno, cópialo como lo ves.` : "";
   if (imagenes.length === 0 && !texto.trim()) return responder({ error: "sin_contenido", dice: "No llegó nada que leer." }, 400);
   if (imagenes.some((i) => (i.base64 as string).length > MAX_BASE64_POR_IMAGEN || !/^image\/(jpeg|png|webp)$/.test(i.tipoMedio || ""))) return responder({ error: "imagen_no_valida", dice: "La imagen pesa demasiado o no es JPG, PNG ni WebP. La app debe reducirla antes de mandarla." }, 413);
 
@@ -158,7 +161,7 @@ export async function interpretar(c: Pedido, cuenta: string | null): Promise<Sal
   try {
     const contenido: unknown[] = imagenes.map((i) => ({ type: "image", source: { type: "base64", media_type: i.tipoMedio, data: i.base64 } }));
     const nombre = String(c.nombre || "").slice(0, 120);
-    contenido.push({ type: "text", text: modo === "hoja" ? `Archivo: ${nombre}\n\n${texto}` : `Archivo: ${nombre}${imagenes.length > 1 ? ` (${imagenes.length} páginas del mismo documento)` : ""}${texto ? `\n\nTexto del documento:\n${texto}` : ""}` });
+    contenido.push({ type: "text", text: modo === "hoja" ? `Archivo: ${nombre}\n\n${texto}` : `Archivo: ${nombre}${imagenes.length > 1 ? ` (${imagenes.length} páginas del mismo documento)` : ""}${texto ? `\n\nTexto del documento:\n${texto}` : ""}${pista}` });
     const r = await preguntar(llave, { model: m.modelo, max_tokens: m.maxSalida, system: modo === "hoja" ? INSTRUCCIONES_HOJA : INSTRUCCIONES, messages: [{ role: "user", content: contenido }] }, modo === "hoja" ? ESQUEMA_HOJA : ESQUEMA_DOCUMENTO);
     if (!r.ok) {
       await cerrar(null, null, null, null, true);

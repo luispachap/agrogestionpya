@@ -139,13 +139,14 @@ const PALABRAS = {
   saldo: ["SALDO"], cargo: ["CARGO", "CARGOS", "RETIRO", "RETIROS"], abono: ["ABONO", "ABONOS", "DEPOSITO", "DEPOSITOS"],
   periodo: ["PERIODO", "SEMANA", "QUINCENA"],
   claves: ["CLAVES", "CLAVE", "CODIGOS", "CODIGO", "CLAVES DE ACTIVIDAD Y LUGAR"],
+  cultivo: ["CULTIVO", "CULTIVOS"],
 };
 // Qué campos hacen falta y cuáles ayudan, por clase de hoja. El orden importa: gana la primera que junte más.
 const RECETAS = [
   { clase: "banco", pide: ["fecha", "saldo"], ayuda: ["cargo", "abono", "concepto"] },
   { clase: "combustible", pide: ["fecha", "litros"], ayuda: ["vehiculo", "importe", "horometro", "proveedor", "nombre"] },
   // Una raya con claves («A07 · Bod»): quién, qué hizo y dónde. El importe ayuda, pero no hace falta.
-  { clase: "raya", pide: ["nombre", "claves"], ayuda: ["fecha", "importe", "concepto", "dias"] },
+  { clase: "raya", pide: ["nombre", "claves"], ayuda: ["fecha", "cultivo", "importe", "concepto", "dias"] },
   { clase: "nomina", pide: ["nombre", "importe"], ayuda: ["fecha", "dias", "periodo", "puesto", "sueldo"] },
   { clase: "personal", pide: ["nombre"], alguna: ["puesto", "sueldo", "ingreso"], ayuda: ["puesto", "sueldo", "ingreso", "telefono"], prohibe: ["importe", "litros"] },
   { clase: "actividades", pide: ["fecha", "actividad"], ayuda: ["parcela", "personas", "importe", "nombre", "cantidad"] },
@@ -213,7 +214,7 @@ export function aprenderHoja(aprendidos = [], { encabezados, clase, mapa, quien 
   return { ok: true, patron: nuevo, aprendidos: [...aprendidos.filter(a => a.firma !== firma), nuevo] };
 }
 export const CAMPOS_DE = (clase) => { const r = RECETAS.find(x => x.clase === clase); return r ? [...r.pide, ...r.ayuda] : []; };
-export const NOMBRE_DE_CAMPO = { claves: "Claves (A07, Bod, SF4…)", fecha: "Fecha", nombre: "Nombre de la persona", puesto: "Puesto", sueldo: "Sueldo por día", ingreso: "Fecha de ingreso", dias: "Días", importe: "Importe", proveedor: "Proveedor", concepto: "Concepto", rfc: "RFC", telefono: "Teléfono", litros: "Litros", vehiculo: "Vehículo o máquina", horometro: "Horómetro o kilometraje", parcela: "Parcela", actividad: "Actividad", personas: "Número de personas", cantidad: "Cantidad", folio: "Folio", saldo: "Saldo", cargo: "Cargo", abono: "Abono", periodo: "Periodo" };
+export const NOMBRE_DE_CAMPO = { claves: "Claves (A07, Bod, SF4…)", cultivo: "Cultivo (Ajo…)", fecha: "Fecha", nombre: "Nombre de la persona", puesto: "Puesto", sueldo: "Sueldo por día", ingreso: "Fecha de ingreso", dias: "Días", importe: "Importe", proveedor: "Proveedor", concepto: "Concepto", rfc: "RFC", telefono: "Teléfono", litros: "Litros", vehiculo: "Vehículo o máquina", horometro: "Horómetro o kilometraje", parcela: "Parcela", actividad: "Actividad", personas: "Número de personas", cantidad: "Cantidad", folio: "Folio", saldo: "Saldo", cargo: "Cargo", abono: "Abono", periodo: "Periodo" };
 
 /* ════════════ 4 · DE LA HOJA A RENGLONES LIMPIOS ════════════ */
 const texto = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
@@ -245,9 +246,9 @@ export function extraerDeHoja(entendida, filas) {
       const nombre = texto(de(fila, "nombre")); if (nombre.length < 2) { descarta("No trae el nombre de la persona."); continue; }
       const usadas = new Set(Object.values(mapa));
       const sueltas = fila.map((c, col) => ({ c: texto(c), col })).filter(x => x.c && !usadas.has(x.col) && formaDe(normalizarClave(x.c).clave)).map(x => x.c);
-      const claves = [...partirClaves(texto(de(fila, "claves"))), ...sueltas], observacion = texto(de(fila, "concepto"));
-      if (claves.length === 0 && !observacion) { descarta("No trae ninguna clave ni anotación."); continue; }
-      registros.push({ clase: "raya", fecha, nombre, claves, observacion, monto: importe > 0 ? importe : null, dias: aNumero(de(fila, "dias")), renglon: n + 1 });
+      const claves = [...partirClaves(texto(de(fila, "claves"))), ...sueltas], observacion = texto(de(fila, "concepto")), cultivo = texto(de(fila, "cultivo"));
+      if (claves.length === 0 && !observacion && !cultivo) { descarta("No trae ninguna clave ni anotación."); continue; }
+      registros.push({ clase: "raya", fecha, nombre, claves, cultivo, observacion, monto: importe > 0 ? importe : null, dias: aNumero(de(fila, "dias")), renglon: n + 1 });
     } else if (clase === "combustible") {
       const litros = aNumero(de(fila, "litros"));
       if (!fecha) { descarta("No se pudo leer la fecha."); continue; }
@@ -424,11 +425,16 @@ export function proponer(doc, contexto = {}) {
       else if (r.clase === "proveedores") propone({ destino: "proveedores", accion: "agregar", origen, datos: { clase: "proveedores", nombre: r.nombre, rfc: r.rfc, telefono: r.telefono, giro: r.giro } });
       else if (r.clase === "nomina") propone({ ...comoHistorico(r, "nomina", { contraparte: r.nombre, concepto: [r.puesto, r.periodo, r.dias ? `${r.dias} días` : ""].filter(Boolean).join(" · "), referencia: lugar === "operacion" }), origen, llave: llaveDe(r) });
       else if (r.clase === "raya") {
-        // Trabajador · fecha · actividad · ubicación, SIEMPRE como histórico o referencia: de una raya importada nunca
+        // Trabajador · fecha · actividad · ubicación · cultivo, SIEMPRE como histórico o referencia: de una raya importada nunca
         // sale un pago ni una actividad. Se guarda la CLAVE (no su significado): lo que se aprenda o se corrija después
         // vale también para lo ya importado.
         const rel = relacionDeRenglon(r, claves);
-        propone({ ...comoHistorico(r, "raya", { contraparte: r.nombre, concepto: [...r.claves, r.observacion].filter(Boolean).join(" · "), claves: r.claves, actividad: rel.actividad?.clave || null, ubicacion: rel.ubicacion?.clave || null,
+        propone({ ...comoHistorico(r, "raya", { contraparte: r.nombre, concepto: [...r.claves, r.cultivo, r.observacion].filter(Boolean).join(" · "), claves: r.claves, actividad: rel.actividad?.clave || null, ubicacion: rel.ubicacion?.clave || null,
+          // El cultivo es un campo propio: lo que venía escrito (`cultivoEscrito`) y, si se reconoce, cuál es (`cultivo`).
+          ...(r.cultivo ? { cultivoEscrito: r.cultivo } : {}), cultivo: rel.cultivo?.clave || null, ...(rel.sinLugarFisico ? { general: true } : {}),
+          // El número que trae el renglón PROBABLEMENTE es el pago del día, pero no está confirmado: se guarda como
+          // tentativo, aparte, y no como importe (así no suma en ningún total ni parece un pago).
+          monto: null, ...(r.monto > 0 ? { importeTentativo: r.monto } : {}),
           ...(r.observacion ? { observacion: r.observacion } : {}), ...(r.dias ? { dias: r.dias } : {}), referencia: lugar === "operacion" }), origen, llave: llaveDe({ ...r, deDonde: `${String(doc.huella || doc.id || "").slice(0, 12)}-${h.nombre}-${r.renglon}` }) });
       }
       else if (r.clase === "combustible") {
@@ -448,7 +454,7 @@ export function proponer(doc, contexto = {}) {
     const deRaya = x.registros.filter(r => r.clase === "raya");
     if (deRaya.length) {
       const faltan = clavesPorPreguntar(deRaya, claves), conDuda = deRaya.filter(r => relacionDeRenglon(r, claves).dudas.length).length;
-      excepciones.push(`«${h.nombre}» es una raya con claves: entra al histórico como relación de quién hizo qué y dónde. NO se crean pagos ni actividades.`);
+      excepciones.push(`«${h.nombre}» es una raya con claves: entra al histórico como relación de quién hizo qué, dónde y en qué cultivo. NO se crean pagos ni actividades.`);
       if (faltan.length) excepciones.push(`Hay ${faltan.length} clave(s) que todavía no se sabe qué significan (${faltan.slice(0, 8).map(f => f.clave).join(", ")}${faltan.length > 8 ? "…" : ""}). No se inventan: se pueden contestar aquí abajo, o incorporar así —se guardan con su código— y contestarlas después.`);
       if (deRaya.some(r => !r.fecha)) excepciones.push(`En «${h.nombre}» hay renglones sin día: entran al histórico «sin fecha».`);
       if (conDuda > faltan.length && conDuda) excepciones.push(`${conDuda} renglón(es) de «${h.nombre}» traen alguna duda (se enseña en cada uno).`);

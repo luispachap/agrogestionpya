@@ -40,9 +40,12 @@ const CORS = {
 const responder = (cuerpo: unknown, status = 200) => new Response(JSON.stringify(cuerpo), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 const BASE = Deno.env.get("SUPABASE_URL") ?? "";
-const PUBLICA = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+const PUBLICA_DEL_SERVIDOR = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
-async function quienLlama(autorizacion: string | null): Promise<{ ok: boolean; estado: number; dice: string; cuenta?: string | null }> {
+// `llaveDeLaApp`: la llave pública que manda la propia app en su petición. Se prefiere a la variable del servidor, que
+// en proyectos nuevos puede no existir (la llave «anon» antigua es opcional).
+async function quienLlama(autorizacion: string | null, llaveDeLaApp: string | null): Promise<{ ok: boolean; estado: number; dice: string; cuenta?: string | null }> {
+  const PUBLICA = llaveDeLaApp || PUBLICA_DEL_SERVIDOR;
   if (!autorizacion || !BASE || !PUBLICA) return { ok: false, estado: 401, dice: "Hay que entrar con tu cuenta para leer documentos con IA." };
   try {
     const r = await fetch(`${BASE}/rest/v1/rpc/puede_interpretar`, { method: "POST", headers: { Authorization: autorizacion, apikey: PUBLICA, "Content-Type": "application/json" }, body: "{}" });
@@ -59,7 +62,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return responder({ error: "Usa POST" }, 405);
 
-  const quien = await quienLlama(req.headers.get("Authorization"));
+  const quien = await quienLlama(req.headers.get("Authorization"), req.headers.get("apikey"));
   if (!quien.ok) return responder({ error: "sin_permiso", dice: quien.dice }, quien.estado);
 
   let c: Pedido;

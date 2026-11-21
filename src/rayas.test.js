@@ -10,9 +10,9 @@ const sello = (s = "00") => ({ quien, cuando: `2026-11-20T10:00:${s}.000Z`, fech
 // Lo que devuelve la IA al leer una libreta (personas inventadas).
 const LECTURA = { clase: "raya", confianza: "media", emisor: "", fecha: "2024-10-06", folio: "", subtotal: "", total: "", moneda: "", no_se_leyo: [], avisos: ["La última columna no se distingue si es dinero."],
   renglones: [
-    { nombre: "Chon", claves: "A27 | Sf4", importe: "", observacion: "" }, { nombre: "Lupe", claves: "Ao7 | Bod", importe: "", observacion: "" },
-    { nombre: "Rigo", claves: "A16 | RASI | mB", importe: "", observacion: "" }, { nombre: "Gus", claves: "", importe: "", observacion: "falta" },
-    { nombre: "Felipe", claves: "A07 | Bod", importe: "420", observacion: "" }, { nombre: "", claves: "", importe: "", observacion: "" },
+    { nombre: "Chon", claves: "A27 | Sf4", cultivo: "Ajo", importe: "", observacion: "" }, { nombre: "Lupe", claves: "Ao7 | Bod", cultivo: "9jo", importe: "", observacion: "" },
+    { nombre: "Rigo", claves: "A16 | RASI", cultivo: "mB", importe: "", observacion: "" }, { nombre: "Gera", claves: "A23 | Gen", cultivo: "", importe: "", observacion: "" }, { nombre: "Gus", claves: "", importe: "", observacion: "falta" },
+    { nombre: "Felipe", claves: "A07 | Bod", cultivo: "Ajo", importe: "420", observacion: "" }, { nombre: "", claves: "", importe: "", observacion: "" },
   ] };
 const doc = (hojas, mas = {}) => ({ id: "doc-1", nombre: "raya.jpg", huella: "h".repeat(64), formato: "excel", hojas, ...mas });
 
@@ -24,15 +24,21 @@ test("una_raya_leida_se_reconoce_como_raya_y_no_como_nomina", () => {
 test("de_una_raya_sale_quien_que_y_donde_como_historico_con_el_codigo_original", () => {
   const r = proponer(doc(hojasDeLectura(LECTURA)), { inicio: "2026-11-20" });
   assert.equal(r.clase, "raya"); assert.equal(r.estado, "propuesto");
-  assert.equal(r.propuestas.length, 5, "el renglón vacío no se propone"); assert.ok(r.propuestas.every(p => p.destino === "historico"));
+  assert.equal(r.propuestas.length, 6, "el renglón vacío no se propone"); assert.ok(r.propuestas.every(p => p.destino === "historico"));
   const lupe = r.propuestas.find(p => p.datos.contraparte === "Lupe").datos;
   assert.deepEqual(lupe.claves, ["Ao7", "Bod"], "como venía en el papel"); assert.equal(lupe.actividad, "A07"); assert.equal(lupe.ubicacion, "BOD"); assert.equal(lupe.fecha, "2024-10-06");
   const rigo = r.propuestas.find(p => p.datos.contraparte === "Rigo").datos;
-  assert.equal(rigo.actividad, "A16"); assert.equal(rigo.ubicacion, null, "RASI no se toma por lugar sólo por venir en esa columna");
+  assert.equal(rigo.actividad, "A16"); assert.equal(rigo.ubicacion, "RA51"); assert.deepEqual(rigo.claves, ["A16", "RASI"], "el código se guarda como venía"); assert.equal(rigo.cultivo, null, "«mB» no se toma por cultivo"); assert.equal(rigo.cultivoEscrito, "mB");
+  // Las cinco cosas van cada una en su campo: el cultivo no se mezcla con las claves.
+  assert.equal(lupe.cultivo, "AJO"); assert.equal(lupe.cultivoEscrito, "9jo"); assert.ok(!lupe.claves.includes("9jo"));
+  const gera = r.propuestas.find(p => p.datos.contraparte === "Gera").datos;
+  assert.equal(gera.ubicacion, "GEN"); assert.equal(gera.general, true, "General no es un lugar físico"); assert.equal(gera.cultivo, null);
   assert.equal(r.propuestas.find(p => p.datos.contraparte === "Gus").datos.observacion, "falta");
-  assert.equal(r.propuestas.find(p => p.datos.contraparte === "Felipe").datos.monto, 420);
+  // El número del renglón es TENTATIVO: no es un importe ni suma en ningún total.
+  const felipe = r.propuestas.find(p => p.datos.contraparte === "Felipe").datos;
+  assert.equal(felipe.monto, null); assert.equal(felipe.importeTentativo, 420); assert.equal(r.total, 0);
   assert.match(r.excepciones.join(" "), /NO se crean pagos ni actividades/);
-  assert.match(r.excepciones.join(" "), /A07, A16, A27, MB, RASI|clave\(s\) que todavía no se sabe/);
+  assert.match(r.excepciones.find(e => /todavía no se sabe/.test(e)), /A07, A16, A23, A27/);
 });
 
 test("una_raya_posterior_al_arranque_tampoco_crea_pagos_ni_actividades", () => {
@@ -57,8 +63,8 @@ test("la_misma_raya_en_otra_foto_no_se_duplica", () => {
 
 test("lo_que_se_aprende_en_un_documento_sirve_en_el_siguiente_y_en_lo_ya_importado", () => {
   const ev = [], r0 = proponer(doc(hojasDeLectura(LECTURA)), {});
-  const renglones = r0.propuestas.map(p => ({ nombre: p.datos.contraparte, fecha: p.datos.fecha, claves: p.datos.claves }));
-  assert.deepEqual(clavesPorPreguntar(renglones, catalogoDeClaves(ev)).map(x => x.clave), ["A07", "A16", "A27", "MB", "RASI"]);
+  const renglones = r0.propuestas.map(p => ({ nombre: p.datos.contraparte, fecha: p.datos.fecha, claves: p.datos.claves, cultivo: p.datos.cultivoEscrito || "" }));
+  assert.deepEqual(clavesPorPreguntar(renglones, catalogoDeClaves(ev)).map(x => x.clave), ["A07", "A16", "A23", "A27", "MB"], "Ajo, Gen, Bod, SF4 y RA51 ya se saben: no se preguntan");
   ev.push(aprenderClave({ catalogo: catalogoDeClaves(ev), clave: "A07", clase: "actividad", significado: "Limpia de ajo", ...sello("01") }).evento);
   // Lo ya propuesto (o ya incorporado) guarda la clave: con el catálogo de ahora ya dice qué es.
   const lupe = relacionDeRenglon(renglones.find(x => x.nombre === "Lupe"), catalogoDeClaves(ev));
@@ -78,7 +84,7 @@ test("una_raya_sin_dia_entra_sin_fecha_y_no_se_le_supone", () => {
 test("el_dia_que_no_se_leyo_lo_dice_una_persona_y_ya_no_se_duplica_con_otra_foto_del_mismo_dia", () => {
   const sinDia = proponer(doc(hojasDeLectura({ ...LECTURA, fecha: "" })), {});
   assert.equal(fecharRaya(sinDia, "").ok, false);
-  const f = fecharRaya(sinDia, "06/10/2024"); assert.equal(f.ok, true); assert.equal(f.puestos, 5);
+  const f = fecharRaya(sinDia, "06/10/2024"); assert.equal(f.ok, true); assert.equal(f.puestos, 6);
   assert.ok(f.resultado.propuestas.every(p => p.datos.fecha === "2024-10-06" && p.datos.mes === "2024-10" && p.datos.fechaDicha === true));
   assert.ok(!f.resultado.excepciones.some(e => /sin día/.test(e))); assert.deepEqual(f.resultado.periodo, { desde: "2024-10-06", hasta: "2024-10-06" });
   // Con el día puesto, las llaves son las mismas que las de una foto que sí lo traía: lo ya incorporado no entra otra vez.

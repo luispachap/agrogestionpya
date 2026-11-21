@@ -5514,14 +5514,14 @@ function PreguntaDeClave({ p, onGuardar }) {
   const [clase, setClase] = useState(p.clase || "");
   const [que, setQue] = useState("");
   const [dice, setDice] = useState(null);
-  const pide = clase === "actividad" || clase === "ubicacion" || clase === "nota";
+  const pide = clase === "actividad" || clase === "ubicacion" || clase === "cultivo" || clase === "nota";
   const otras = (p.escritas || []).filter(x => x !== p.clave);
   return (<div style={{ borderTop: "1px solid var(--border-soft)", padding: "8px 0" }}>
     <div className="text-sm"><b>{p.clave}</b>{otras.length ? <span className="text-muted"> (en el papel: {otras.join(", ")})</span> : null} · sale {p.veces} {p.veces === 1 ? "vez" : "veces"}</div>
     {p.ejemplo && <div className="text-xs text-muted">Por ejemplo: {p.ejemplo}</div>}
-    {p.clase ? <div className="text-xs text-muted" style={{ marginTop: 2 }}>Por cómo está escrita, es una clave de {p.clase === "actividad" ? "actividad" : "ubicación"}.</div>
+    {p.clase ? <div className="text-xs text-muted" style={{ marginTop: 2 }}>Por cómo está escrita, es {p.clase === "actividad" ? "una clave de actividad" : p.clase === "cultivo" ? "un cultivo" : p.clase === "general" ? "trabajo general" : "una clave de ubicación"}.</div>
       : <select className="inp" style={{ marginTop: 6 }} aria-label={`Qué es ${p.clave}`} value={clase} onChange={e => { setClase(e.target.value); setDice(null); }}><option value="">¿Qué es «{p.original}»?</option>{Object.entries(CLASES_DE_CLAVE).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>}
-    {pide && <input className="inp" style={{ marginTop: 6 }} aria-label={`Qué significa ${p.clave}`} placeholder={clase === "actividad" ? `¿Qué actividad es ${p.clave}?` : clase === "ubicacion" ? `¿Qué lugar es ${p.clave}?` : "¿Qué quiere decir?"} value={que} onChange={e => { setQue(e.target.value); setDice(null); }} />}
+    {pide && <input className="inp" style={{ marginTop: 6 }} aria-label={`Qué significa ${p.clave}`} placeholder={clase === "actividad" ? `¿Qué actividad es ${p.clave}?` : clase === "ubicacion" ? `¿Qué lugar es ${p.clave}?` : clase === "cultivo" ? "¿Qué cultivo es?" : "¿Qué quiere decir?"} value={que} onChange={e => { setQue(e.target.value); setDice(null); }} />}
     {dice && <div className="text-xs" style={{ color: dice.ok ? "var(--gold)" : "var(--red)", marginTop: 4 }}>{dice.texto}</div>}
     {clase && <div className="acc-row" style={{ marginTop: 6 }}><button onClick={() => { const r = onGuardar(p.original, clase, que); if (!r.ok || r.aviso) setDice({ ok: r.ok, texto: r.ok ? r.aviso : r.dice }); }}>Guardar {p.clave}</button></div>}
   </div>);
@@ -5531,15 +5531,17 @@ function ClaveGuardada({ c, usos, onGuardar }) {
   const [edita, setEdita] = useState(false);
   const [que, setQue] = useState(c.significado);
   const [clase, setClase] = useState(c.clase);
+  const [grupo, setGrupo] = useState(c.grupo || "");
   const [dice, setDice] = useState("");
   return (<div style={{ borderTop: "1px solid var(--border-soft)", padding: "6px 0" }}>
-    <div className="flex-b text-sm"><span><b>{c.clave}</b> · {c.clase === "ignorar" ? "se ignora" : c.significado || "—"}</span><button className="btn-ghost" aria-label={`Corregir ${c.clave}`} onClick={() => { setEdita(x => !x); setQue(c.significado); setClase(c.clase); setDice(""); }}>{edita ? "Cancelar" : "Corregir"}</button></div>
+    <div className="flex-b text-sm"><span><b>{c.clave}</b> · {c.clase === "ignorar" ? "se ignora" : c.significado || "—"}{c.grupo ? <span className="text-muted"> · grupo {c.grupo}</span> : null}</span><button className="btn-ghost" aria-label={`Corregir ${c.clave}`} onClick={() => { setEdita(x => !x); setQue(c.significado); setClase(c.clase); setGrupo(c.grupo || ""); setDice(""); }}>{edita ? "Cancelar" : "Corregir"}</button></div>
     <div className="text-xs text-muted">{c.deArranque ? "Lo dijo Luis al arrancar" : `Lo guardó ${c.quien || "alguien"} el ${c.fecha}`}{usos ? ` · sale ${usos} ${usos === 1 ? "vez" : "veces"} en lo ya importado` : ""}{c.anteriores.length ? ` · antes decía: ${c.anteriores.map(a => `«${a.significado || "se ignora"}»`).join(", ")}` : ""}</div>
     {edita && <><select className="inp" style={{ marginTop: 6 }} aria-label={`Qué es ${c.clave}`} value={clase} onChange={e => setClase(e.target.value)}>{Object.entries(CLASES_DE_CLAVE).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
       <input className="inp" style={{ marginTop: 6 }} aria-label={`Nuevo significado de ${c.clave}`} value={que} onChange={e => setQue(e.target.value)} />
+      {clase === "ubicacion" && <input className="inp" style={{ marginTop: 6 }} aria-label={`Grupo de ${c.clave}`} placeholder="Grupo (opcional): San Felipe, Ranchos 50s…" value={grupo} onChange={e => setGrupo(e.target.value)} />}
       <div className="text-xs text-muted" style={{ marginTop: 4 }}>Al corregir, lo ya importado con {c.clave} se lee con el significado nuevo. El código del papel no cambia.</div>
       {dice && <div className="text-xs" style={{ color: "var(--red)", marginTop: 4 }}>{dice}</div>}
-      <div className="acc-row" style={{ marginTop: 6 }}><button onClick={() => { const r = onGuardar(c.clave, clase, que); if (r.ok) setEdita(false); else setDice(r.dice); }}>Guardar corrección</button></div></>}
+      <div className="acc-row" style={{ marginTop: 6 }}><button onClick={() => { const r = onGuardar(c.clave, clase, que, null, clase === "ubicacion" ? grupo : undefined); if (r.ok) setEdita(false); else setDice(r.dice); }}>Guardar corrección</button></div></>}
   </div>);
 }
 
@@ -5564,7 +5566,7 @@ function ImportarDocumentos({ data, add, session, onClose }) {
   const datosRef = useRef(data); datosRef.current = data;
   const contexto = (extra = {}) => { const d = datosRef.current; return { inicio: ini.inicio, rfcsPropios: (d.titulares || []).map(t => t.rfc).filter(Boolean), egresos: d.egresos || [], historico: historicoDe(d.eventos), trabajadores: d.trabajadores || [], encargados: d.encargados || [], proveedores: d.proveedores || [], maquinaria: d.maquinaria || [], parcelas: d.parcelas || [], documentos: bandejaDe(d.eventos), aprendidos: aprendidosDe(d.eventos), claves: catalogoDeClaves(d.eventos), ...extra }; };
   // Guardar (o corregir) lo que significa una clave de las rayas. Queda para todos los documentos, también los ya importados.
-  const guardarClave = (clave, clase, significado, docId = null) => { const r = aprenderClave({ catalogo: catalogoDeClaves(datosRef.current.eventos), clave, clase, significado, docId, ...sello() }); if (r.ok) add("eventos", r.evento); return r; };
+  const guardarClave = (clave, clase, significado, docId = null, grupo = undefined) => { const r = aprenderClave({ catalogo: catalogoDeClaves(datosRef.current.eventos), clave, clase, significado, grupo, docId, ...sello() }); if (r.ok) add("eventos", r.evento); return r; };
   const sello = () => ({ quien, cuando: new Date().toISOString(), fecha: hoy });
   const cede = () => new Promise(r => setTimeout(r, 0));
 
@@ -5647,6 +5649,8 @@ function ImportarDocumentos({ data, add, session, onClose }) {
       else pedido.texto = pedidoDeTexto(a.texto || "");
       if (!pedido.texto.trim()) return { error: "El documento no trae texto que mandar a leer." };
     }
+    // Los códigos que el rancho ya tiene registrados ayudan a leer un trazo dudoso (RA51 y no RASI). Sólo los códigos.
+    if (nec.modo !== "hoja") pedido.claves = listaDeClaves(catalogoDeClaves(datosRef.current.eventos)).filter(c => ["actividad", "ubicacion", "general"].includes(c.clase)).map(c => c.clave);
     const respuesta = await pedirInterpretacion(pedido);
     const r = resultadoConIA({ ...d, hojas: hojas || undefined, hojaIA }, respuesta, contexto());
     verPresupuesto();
@@ -5780,17 +5784,17 @@ function ImportarDocumentos({ data, add, session, onClose }) {
         </div>}
       </>}
 
-      {tab === "claves" && (() => { const lista = listaDeClaves(catalogo), pend = clavesPorPreguntar(historico.filter(h => h.clase === "raya").map(h => ({ nombre: h.contraparte, fecha: h.fecha, claves: h.claves || [] })), catalogo);
+      {tab === "claves" && (() => { const lista = listaDeClaves(catalogo), pend = clavesPorPreguntar(historico.filter(h => h.clase === "raya").map(h => ({ nombre: h.contraparte, fecha: h.fecha, claves: h.claves || [], cultivo: h.cultivoEscrito || "" })), catalogo);
         return (<>
           <div className="card">
             <div className="card-title">Claves de las rayas</div>
-            <div className="text-xs text-muted">En las libretas cada renglón trae códigos: unos dicen qué se hizo (los que empiezan con A) y otros dónde (Bod, SF4). Aquí está lo que ya se sabe. La app no inventa ninguno: los va preguntando conforme salen en los documentos, y lo que contestes sirve para todos.</div>
+            <div className="text-xs text-muted">En las libretas cada renglón trae códigos: unos dicen qué se hizo (los que empiezan con A y un número) y otros dónde (Bod, SF4); el cultivo (Ajo) va aparte y no es una clave. Aquí está lo que ya se sabe. La app no inventa ninguno: los va preguntando conforme salen en los documentos, y lo que contestes sirve para todos.</div>
           </div>
           {pend.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}>
             <div className="card-title">Salen en lo ya importado y falta decir qué son ({pend.length})</div>
             {pend.slice(0, 40).map(p => <PreguntaDeClave key={p.clave} p={p} onGuardar={guardarClave} />)}
           </div>}
-          {[["actividad", "Actividades"], ["ubicacion", "Ubicaciones"], ["nota", "Anotaciones"], ["ignorar", "Se ignoran"]].map(([k, titulo]) => { const de = lista.filter(c => c.clase === k); if (!de.length && k !== "actividad") return null;
+          {[["actividad", "Actividades"], ["ubicacion", "Ubicaciones"], ["general", "Trabajo general (sin rancho específico)"], ["cultivo", "Cultivos"], ["nota", "Anotaciones"], ["ignorar", "Se ignoran"]].map(([k, titulo]) => { const de = lista.filter(c => c.clase === k); if (!de.length && k !== "actividad") return null;
             return (<div className="card" key={k}><div className="card-title">{titulo} ({de.length})</div>
               {de.length === 0 && <div className="text-sm text-muted">Todavía no se ha guardado ninguna. Aparecen aquí conforme se contestan.</div>}
               {de.map(c => <ClaveGuardada key={c.clave} c={c} usos={usos.get(c.clave) || 0} onGuardar={guardarClave} />)}</div>); })}
@@ -5836,7 +5840,7 @@ function ImportarDocumentos({ data, add, session, onClose }) {
             <div className="acc-row" style={{ marginTop: 6 }}><button onClick={async () => { const f = fecharRaya(abierto.resultado, abierto.dia || ""); if (!f.ok) { setDice(f.dice); return; } setDice(""); const antes = abierto.resultado.propuestas; await guardarPropuesta(LLAVES.importacion, abierto.doc.id, f.resultado);
               setAbierto(a => ({ ...a, resultado: f.resultado, marcadas: new Set(f.resultado.propuestas.filter((p, i) => p.accion !== "duplicado" && a.marcadas.has(antes[i].llave)).map(p => p.llave)) })); }}>Poner ese día a los renglones</button></div>
           </div>}
-          {(() => { const pend = clavesPorPreguntar(abierto.resultado.propuestas.filter(p => p.datos.clase === "raya" && p.accion !== "duplicado").map(p => ({ nombre: p.datos.contraparte, fecha: p.datos.fecha, claves: p.datos.claves || [] })), catalogo);
+          {(() => { const pend = clavesPorPreguntar(abierto.resultado.propuestas.filter(p => p.datos.clase === "raya" && p.accion !== "duplicado").map(p => ({ nombre: p.datos.contraparte, fecha: p.datos.fecha, claves: p.datos.claves || [], cultivo: p.datos.cultivoEscrito || "" })), catalogo);
             return pend.length === 0 ? null : (<div className="card" style={{ borderColor: "var(--gold)" }}>
               <div className="text-sm"><b>Claves que falta decir qué son ({pend.length}).</b> Contesta las que sepas; las demás se pueden dejar para después: el renglón se guarda con su código.</div>
               {pend.slice(0, 30).map(p => <PreguntaDeClave key={p.clave} p={p} onGuardar={(c, k, q) => guardarClave(c, k, q, abierto.doc.id)} />)}
@@ -5846,7 +5850,7 @@ function ImportarDocumentos({ data, add, session, onClose }) {
             {abierto.resultado.propuestas.filter(p => p.accion !== "duplicado").length > 3 && <div className="acc-row" style={{ margin: "6px 0" }}><button onClick={() => setAbierto(a => ({ ...a, marcadas: new Set(a.resultado.propuestas.filter(p => p.accion !== "duplicado").map(p => p.llave)) }))}>Marcar todos</button><button onClick={() => setAbierto(a => ({ ...a, marcadas: new Set() }))}>Quitar todos</button></div>}
             {abierto.resultado.propuestas.slice(0, 150).map((p, i) => <label key={i} className="text-sm" style={{ display: "flex", gap: 8, alignItems: "flex-start", borderTop: "1px solid var(--border-soft)", padding: "6px 0", opacity: p.accion === "duplicado" ? 0.55 : 1 }}>
               <input type="checkbox" disabled={p.accion === "duplicado"} aria-label={`Incorporar ${p.datos.concepto || p.datos.nombre || p.datos.contraparte || p.llave}`} checked={p.accion !== "duplicado" && abierto.marcadas.has(p.llave)} onChange={e => setAbierto(a => { const m = new Set(a.marcadas); e.target.checked ? m.add(p.llave) : m.delete(p.llave); return { ...a, marcadas: m }; })} />
-              <span style={{ flex: 1 }}>{p.datos.nombre || (p.destino === "historico" ? p.datos.contraparte || p.datos.concepto : p.datos.concepto || p.datos.proveedor) || "Renglón"}{p.datos.monto != null ? <b> · {fmt(p.datos.monto)}</b> : null}{p.datos.clase === "raya" && (() => { const rel = relacionDeRenglon({ nombre: p.datos.contraparte, fecha: p.datos.fecha, claves: p.datos.claves || [], observacion: p.datos.observacion || "" }, catalogo); return rel.dudas.length ? <div className="text-xs" style={{ color: "var(--gold)" }}>{rel.dudas.join(" ")}</div> : null; })()}<div className="text-xs text-muted">{[p.datos.fecha || (p.datos.clase === "raya" ? "sin día" : ""), p.datos.clase === "raya" ? decirRelacion(relacionDeRenglon({ claves: p.datos.claves || [], observacion: p.datos.observacion || "", fecha: p.datos.fecha, nombre: p.datos.contraparte }, catalogo)) : p.destino === "historico" ? (p.datos.contraparte ? p.datos.concepto : "") : p.datos.proveedor, p.datos.puesto, p.datos.litros ? `${p.datos.litros} L` : "", p.datos.parcela].filter(Boolean).join(" · ")}</div><div className="text-xs" style={{ color: p.accion === "duplicado" ? "var(--muted)" : p.destino === "historico" ? "var(--muted)" : "var(--accent)" }}>{p.accion === "duplicado" ? p.nota : `${p.viaIA ? "Leído con IA · " : ""}${NOMBRE_DE_DESTINO[p.destino]}${p.datos.referencia ? " · posterior al arranque: sólo referencia" : ""}${p.destino === "egresos" && p.datos.categoria ? ` · ${p.datos.categoria}` : ""}`}</div></span>
+              <span style={{ flex: 1 }}>{p.datos.nombre || (p.destino === "historico" ? p.datos.contraparte || p.datos.concepto : p.datos.concepto || p.datos.proveedor) || "Renglón"}{p.datos.monto != null ? <b> · {fmt(p.datos.monto)}</b> : null}{p.datos.importeTentativo ? <span style={{ color: "var(--gold)" }}> · {fmt(p.datos.importeTentativo)} tentativo, por confirmar</span> : null}{p.datos.clase === "raya" && (() => { const rel = relacionDeRenglon({ nombre: p.datos.contraparte, fecha: p.datos.fecha, claves: p.datos.claves || [], cultivo: p.datos.cultivoEscrito || "", observacion: p.datos.observacion || "" }, catalogo); return rel.dudas.length ? <div className="text-xs" style={{ color: "var(--gold)" }}>{rel.dudas.join(" ")}</div> : null; })()}<div className="text-xs text-muted">{[p.datos.fecha || (p.datos.clase === "raya" ? "sin día" : ""), p.datos.clase === "raya" ? decirRelacion(relacionDeRenglon({ claves: p.datos.claves || [], cultivo: p.datos.cultivoEscrito || "", observacion: p.datos.observacion || "", fecha: p.datos.fecha, nombre: p.datos.contraparte }, catalogo)) : p.destino === "historico" ? (p.datos.contraparte ? p.datos.concepto : "") : p.datos.proveedor, p.datos.puesto, p.datos.litros ? `${p.datos.litros} L` : "", p.datos.parcela].filter(Boolean).join(" · ")}</div><div className="text-xs" style={{ color: p.accion === "duplicado" ? "var(--muted)" : p.destino === "historico" ? "var(--muted)" : "var(--accent)" }}>{p.accion === "duplicado" ? p.nota : `${p.viaIA ? "Leído con IA · " : ""}${NOMBRE_DE_DESTINO[p.destino]}${p.datos.referencia ? " · posterior al arranque: sólo referencia" : ""}${p.destino === "egresos" && p.datos.categoria ? ` · ${p.datos.categoria}` : ""}`}</div></span>
             </label>)}
             {abierto.resultado.propuestas.length > 150 && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Se enseñan 150 de {abierto.resultado.propuestas.length}; al incorporar entran todos los marcados.</div>}
           </>}
