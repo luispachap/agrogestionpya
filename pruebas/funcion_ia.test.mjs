@@ -53,7 +53,7 @@ test("se_aparta_lo_maximo_antes_se_usa_el_modelo_barato_y_se_anota_lo_que_costo_
   assert.equal(reservar[0], "reservar"); assert.equal(reservar[1].p_modelo, "claude-haiku-5-5"); assert.equal(reservar[1].p_microusd_max, 3450, "(2,500 + 12,000) × 0.10 + 4,000 × 0.50"); assert.equal(reservar[1].p_cuenta, "cuenta-1");
   assert.equal(m.log.anthropic[0].cuerpo.model, "claude-haiku-5-5"); assert.equal(m.log.anthropic[0].cuerpo.max_tokens, 4000);
   assert.equal(cerrar[0], "cerrar"); assert.equal(cerrar[1].p_microusd, 470, "2,600 × 0.10 + 420 × 0.50"); assert.equal(cerrar[1].p_fallo, false);
-  assert.deepEqual(r.datos.uso, { modelo: "claude-haiku-5-5", nivel: "economico", entrada: 2600, salida: 420, microusd: 470 });
+  assert.deepEqual(r.datos.uso, { modelo: "claude-haiku-5-5", modeloQueContesto: null, formato: "estructurado", nivel: "economico", entrada: 2600, salida: 420, microusd: 470 });
   assert.ok(!JSON.stringify(r.datos).includes(LLAVE), "la llave nunca viaja de regreso");
   assert.equal(m.log.anthropic[0].cab["x-api-key"], LLAVE);
 });
