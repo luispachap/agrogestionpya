@@ -552,8 +552,16 @@ Usuarios reales de la app:
   fecha)` la CALCULA; `superiorDe` sale de la cadena; `historialDe`; `enCalidadDe` (para copiar el cargo a lo que se
   haga). Un responsable nace `provisional`. `estructuraProvisional` (ids fijos) crea sólo unidades, sin personas.
   **No da ni lee permisos y nadie decide con él** (hay prueba: ningún módulo de permisos, dinero, asistencia o jornada
-  lo importa). Ningún nombre de persona en la lógica (hay prueba). La base NO valida aún quién captura (eso es la
-  etapa 3). **Etapas 2 a 6 y el motor de especialidades (`docs/ESPECIALIDADES.md`): SÓLO DISEÑO, sin autorizar.** No
+  lo importa). Ningún nombre de persona en la lógica (hay prueba). **Quién captura lo valida la BASE (hoja 52)**: los
+  hechos `org_*` y `act_*` están en `OPERACION_DE` con la operación `configurar_organizacion`, que es SÓLO OTORGADA
+  (ni el superadministrador la tiene por serlo; `puede_operar_evento`, columna `solo_otorgado`); el mapa cuenta con
+  `vigentes()`, así que lo no autorizado no aparece. La hoja no le dio el permiso a nadie.
+  **`src/actividades.js`: EL CATÁLOGO ÚNICO DE ACTIVIDADES** (pestaña «Actividades» de Organización): `DE_FABRICA` =
+  sólo lo que las pantallas ya ofrecían; Reparto, Cuadrillas y la actividad tecleada leen de `catalogoEn`. **No pongas
+  otra lista de actividades en una pantalla.** `normalizar` no adivina; lo no reconocido sale en `porLigar` y lo liga una
+  persona (`act_equivalencia`). Requisitos (`act_requisito`): legal · interno · experiencia; lo legal nace `por_validar` y
+  no se valida sin norma y sin quién validó; lo interno no lleva norma ni cambia de clase. `RESTRICCIONES_ACTIVAS = false`:
+  nada restringe todavía. **Etapas 2 a 6 y el motor de especialidades (`docs/ESPECIALIDADES.md`): SÓLO DISEÑO, sin autorizar.** No
   cambies permisos ni actives recomendaciones; la estructura real espera a Miguel, Fito y Dirección. Lo acordado: cuatro
   niveles (experiencia observada · especialidad declarada · capacitación · habilitación); la experiencia se calcula y
   nunca se vuelve autorización; una habilitación legal no tiene excepción interna; las facultades serán operaciones de
@@ -746,7 +754,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **221 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **222 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

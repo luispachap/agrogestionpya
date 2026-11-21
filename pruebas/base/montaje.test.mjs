@@ -190,7 +190,9 @@ test("la_ia_de_la_importacion_aparta_antes_de_gastar_y_no_pasa_del_tope_ni_con_d
   const p2 = (await como(db, "migue", `select presupuesto_ia() p`)).filas[0].p;
   assert.equal(p2.gastado, 650); assert.equal(p2.fallidas, 1);
   // Al acabarse, se acaba.
-  const c = await aparta(4000000 - 650); assert.ok(c); await verdad(db, `select cerrar_ia('${c}', 1, 1, ${4000000 - 650}, '{}'::jsonb)`);
+  // Desde la hoja 51 el tope del MES (3 dólares) cubre también la importación, y se alcanza antes que el total de 4.
+  assert.equal(await aparta(4000000 - 650), null, "lo que rebasa el tope del mes no se aparta, aunque quepa en el total de la importación");
+  const c = await aparta(3000000 - 650); assert.ok(c); await verdad(db, `select cerrar_ia('${c}', 1, 1, ${3000000 - 650}, '{}'::jsonb)`);
   assert.equal(await aparta(1), null, "ni una millonésima más");
   await verdad(db, `delete from uso_ia where funcion = '${F}'`);
 });

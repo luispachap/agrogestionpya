@@ -1,7 +1,7 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { nuevoEvento, vigentes, exigirValidacion, validacionDe, sinValidar, juntarEventos, cancelarEvento, OPERACION_DE, OPERACIONES, negado, SIN_PERMISO } from "./eventos.js";
+import { nuevoEvento, vigentes, exigirValidacion, validacionDe, sinValidar, juntarEventos, cancelarEvento, OPERACION_DE, SOLO_OTORGADOS, OPERACIONES, negado, SIN_PERMISO } from "./eventos.js";
 import { objetoAFila, filaAObjeto } from "./filas.js";
 import { registrarPago, pagosA, saldoDe } from "./pagos.js";
 import { cerrarSemana, estadoDeSemana } from "./cierres.js";
@@ -16,6 +16,10 @@ test("la_lista_de_operaciones_sensibles_de_la_app_es_la_misma_que_la_de_la_base"
   const sql = readFileSync(new URL("../supabase/42-revision-de-bonos.sql", import.meta.url), "utf8");
   const lista = sql.slice(sql.indexOf("insert into operaciones_sensibles"), sql.indexOf("on conflict (tipo)"));
   const enBase = Object.fromEntries([...lista.matchAll(/\('([a-z_]+)',\s+'([a-z_]+)',\s+(true|false)\)/g)].map(m => [m[1], m[2]]));
+  // La hoja 52 agrega los de la organización y el catálogo de actividades (con una columna más: sólo otorgados).
+  const sql52 = readFileSync(new URL("../supabase/52-organizacion-con-permiso.sql", import.meta.url), "utf8");
+  const lista52 = sql52.slice(sql52.indexOf("insert into operaciones_sensibles"), sql52.indexOf("on conflict (tipo)"));
+  for (const m of lista52.matchAll(/\('([a-z_]+)',\s+'([a-z_]+)',\s+(true|false),\s+(true|false)\)/g)) { enBase[m[1]] = m[2]; assert.equal(m[4], "true"); assert.ok(SOLO_OTORGADOS.includes(m[2]), `${m[2]} debe ser «sólo otorgado» también en la app`); }
   assert.deepEqual(enBase, OPERACION_DE);
   for (const op of new Set(Object.values(OPERACION_DE))) assert.ok(OPERACIONES[op], `falta el nombre en pantalla de ${op}`);
 });

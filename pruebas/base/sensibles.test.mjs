@@ -37,7 +37,7 @@ test("ni_escribiendo_el_sello_a_mano_se_autoriza_solo", async () => {
 });
 
 test("todos_los_tipos_sensibles_se_rechazan_sin_permiso_y_se_autorizan_al_superadministrador", async () => {
-  const tipos = (await verdad(db, "select tipo from operaciones_sensibles order by tipo")).map(x => x.tipo);
+  const tipos = (await verdad(db, "select tipo from operaciones_sensibles where not solo_otorgado order by tipo")).map(x => x.tipo);   // las «sólo otorgadas» de la hoja 52 tienen su propia prueba
   assert.equal(tipos.length, 25);   // 23 de dinero y reglas + 2 de la mensajería (hoja 46), que además piden estar otorgados
   for (const t of tipos) {
     const datos = { ...PAGO };

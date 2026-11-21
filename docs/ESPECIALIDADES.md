@@ -1,6 +1,8 @@
 # Motor de especialidades y recomendaciones
 
-**Estado: DISEÑO. Nada de esto está construido.** (21 nov 2026) Complementa `ORGANIZACION.md` (etapas 2 y 5).
+**Estado (21 nov 2026, 19 h): construido SÓLO el catálogo único de actividades y sus requisitos (sección 13).**
+Todo lo demás sigue siendo diseño. Las recomendaciones están apagadas y ningún requisito restringe nada todavía.
+Complementa `ORGANIZACION.md` (etapas 2 y 5).
 Pedido por Luis: que las especialidades no sean sólo etiquetas tecleadas, sino que salgan también del trabajo real; y
 que AgroGestión pueda sugerir gente para una actividad y actividades para la gente disponible. No se activa ninguna
 recomendación ni se cambia ningún permiso hasta que el diseño se apruebe.
@@ -278,11 +280,60 @@ Las recomendaciones nacen apagadas y se encienden cuando Luis lo apruebe.
 
 ---
 
-## 12. Decisiones que no son mías
+## 12. Decisiones tomadas por Luis (21 nov) y las que quedan
 
-1. ¿Qué actividades piden habilitación **legal** y cuáles sólo interna? (Lo debe decir quien conozca la norma.)
-2. ¿Quién valida una especialidad: el responsable del equipo, o sólo Miguel y Fito?
-3. Los mínimos para sugerir (10 días, 40 horas, una confirmación): ¿se parecen a lo que Miguel consideraría «ya sabe»?
-4. ¿Se ligan las libretas viejas a las personas para tener experiencia antigua, o se empieza desde cero?
-5. ¿Los trabajadores pueden ver su propia experiencia y sus especialidades?
-6. Para experiencia de aplicador: ¿se empieza a capturar quién aplicó, además de quién registró?
+**Tomadas**
+
+| Tema | Decisión |
+|---|---|
+| Habilitaciones | Catálogo configurable de actividades y requisitos, con tres clases: legal, interno y experiencia recomendada. No se asume que toda actividad pide habilitación legal. Lo interno no sustituye una obligación de norma. Antes de activar una restricción legal: documentar qué norma es y validar que aplica |
+| Validación de especialidades | Sugerida por el sistema · declarada por una persona · validada por un responsable operativo con facultad específica. De inicio, Miguel (operación general) y Fito (operación agronómica), **por confirmar con Dirección**. Los encargados participan según las facultades que se les den |
+| Historial anterior | Se conserva la posibilidad de importar libretas. Lo importado se distingue siempre de lo registrado y verificado en AgroGestión. Un antecedente incompleto no se vuelve experiencia validada |
+| Calidad de datos | Antes de activar recomendaciones: saber quién EJECUTÓ cada actividad, confirmar la terminación y normalizar actividades. Siempre separados: quién ordenó · quién capturó · quién ejecutó · quién confirmó |
+| Recomendaciones | Apagadas hasta tener datos suficientes y pruebas satisfactorias. Sin historial, se dice claro y los responsables pueden declarar y validar capacidades para empezar |
+| Costos | Cálculo propio, sin IA, para las recomendaciones ordinarias |
+
+**Quedan por decidir (antes de autorizar la siguiente etapa)**
+
+1. **Normas.** ¿Quién va a documentar qué norma pide qué, actividad por actividad (asesor de seguridad, Fito, un
+   despacho)? El catálogo ya tiene dónde escribirlo; hoy no hay ninguna capturada.
+2. **Mínimos para sugerir una especialidad.** Mi propuesta de arranque: 10 días distintos y 40 horas medidas en el
+   último año, con al menos una jornada confirmada. ¿Se valida con Miguel?
+3. **Quién ejecutó.** Para cerrar el hueco hay que cambiar tres capturas: que la actividad tecleada diga quién la
+   hizo (no sólo quién la registró), que la aplicación diga quién aplicó, y que la cuadrilla siga como está. ¿Se
+   autoriza tocar esas pantallas?
+4. **Quién confirma la terminación.** Es el criterio pendiente de la jornada con Miguel. Sin eso no hay «trabajo
+   validado» y, por lo decidido arriba, no se enciende ninguna sugerencia.
+5. **Libretas viejas.** Queda la posibilidad. Para usarlas como antecedente hace falta que una persona ligue cada
+   nombre de la libreta con su ficha. ¿Se hace ahora, después, o sólo para algunas personas?
+6. **¿Los trabajadores ven su propia experiencia y especialidades?**
+7. **Catálogo.** ¿Agrego de una vez un ámbito de «Bodega» con sus actividades? Hoy el catálogo sólo trae las doce
+   que las pantallas ya ofrecían (ocho de campo y cuatro de vehículos); las de bodega viven en otra pantalla y no
+   las moví.
+
+---
+
+## 13. Lo construido: el catálogo único de actividades (21 nov, 19 h)
+
+Está en la pantalla **Organización**, pestaña **Actividades**.
+
+- **Una sola lista** para Equipos de trabajo, Cuadrillas y la actividad tecleada. De arranque trae sólo las doce que
+  esas pantallas ya ofrecían; no inventé ninguna. Las pantallas ya no tienen su propia lista escrita aparte.
+- **Agregar, renombrar o dar de baja** una actividad deja historial. La dada de baja ya no se ofrece, pero lo
+  registrado con ella se sigue entendiendo.
+- **«Por ligar»**: lo que está escrito en los registros y el catálogo no reconoce (por ejemplo algo tecleado en
+  «Otra cosa…») sale en una lista. **No se adivina**: una persona dice a qué actividad corresponde o la da de alta.
+  Lo ya registrado no se reescribe.
+- **Requisitos por actividad, en tres clases que no se mezclan**: legal, interno y experiencia recomendada.
+  - Un requisito **legal** nace «por validar». Para darlo por validado hay que escribir qué norma lo pide y quién
+    validó que aplica. La app no decide qué es de ley, y ninguna actividad trae un requisito legal de fábrica.
+  - Un requisito **interno** no puede llevar norma ni convertirse en legal: son renglones distintos.
+  - La **experiencia recomendada** nunca impide nada.
+- **Nada restringe todavía.** Los requisitos son informativos; ninguna asignación se bloquea ni se avisa por ellos.
+- Lo captura sólo quien tiene el permiso otorgado, y lo valida la base (la misma hoja 52 de la organización).
+
+Probado con datos inventados: 7 pruebas de cuentas y el recorrido en pantalla (dentro de los 24 pasos de
+`pruebas/organizacion_navegador.py`). **Sin validar con nadie del rancho.**
+
+Lo que este catálogo todavía NO hace: no liga las claves de las libretas (A07…) con las actividades, no incluye las
+actividades de bodega, y los registros siguen guardando el texto tal cual (se normaliza al leer, no al guardar).

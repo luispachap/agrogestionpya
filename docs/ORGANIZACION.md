@@ -324,11 +324,20 @@ Lo que este plan NO incluye: nómina, costos ni pagos (no cambian), y WhatsApp (
 | Probarse con datos ficticios | 10 pruebas de cuentas y un recorrido de 18 pasos en la pantalla |
 | Sin modificar la operación | El recorrido comprueba cero tareas, actividades, gastos o repartos creados |
 
+**Protección en la base (hoja 52, instalada el 21 nov; pedida por Luis antes de publicar)**
+- Dar de alta, cambiar o cerrar una unidad, nombrar o quitar un responsable, adscribir, registrar un apoyo y cancelar
+  cualquiera de esos hechos **lo valida la base** con la cuenta de la sesión, con el mismo mecanismo de lo sensible.
+- Hay un permiso propio, «capturar la organización y el catálogo de actividades». **No viene con ningún perfil,
+  tampoco con ser superadministrador**: se otorga cuenta por cuenta en Arranque → Cuentas, y queda quién lo dio.
+- Sin el permiso, lo capturado se guarda como constancia, queda **rechazado** y no aparece en el mapa. Sin señal,
+  queda «por validar» y tampoco cuenta hasta que la base lo autorice.
+- **La hoja no le dio el permiso a nadie** y no cambió ningún permiso existente. No es la etapa 3: no hay facultades
+  de mando.
+- Probado atacando la base aislada (8 pruebas): encargado, agrónomo y los dos superadministradores sin el permiso
+  quedan rechazados; el sello no se falsifica; el permiso no autoriza pagos, cierres, reglas ni conversaciones;
+  quitarlo surte efecto sin deshacer lo anterior; lo sensible de antes se valida igual.
+
 **Lo que NO hace todavía, dicho claro**
-- **La base no valida quién captura la organización.** Hoy es una regla de la pantalla (sólo el administrador la ve).
-  Cualquier cuenta que ya puede guardar hechos en la base podría, sabiendo cómo, guardar uno de organización. Cerrarlo
-  es un cambio de permisos (etapa 3), que no está autorizado. Mientras tanto no hay riesgo operativo, porque **el mapa
-  no le da poder a nadie**: nada decide con él.
 - **Sólo aparece la gente que la app conoce** (catálogo de personal, encargados y agrónomos, y quien está viendo la
   pantalla). Para poner de responsable a alguien de Dirección que no esté en esos catálogos hay que resolver primero
   cómo se da de alta; es parte de la validación.

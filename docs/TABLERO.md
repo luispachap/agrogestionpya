@@ -448,3 +448,8 @@ provisional disponible con un botón (no creada en producción). Sin cambios de 
 cuenta; `pruebas/organizacion_navegador.py` 18/18. **Sin validar con Miguel, Fito ni Dirección.**
 **Motor de especialidades y recomendaciones — `ESPECIALIDADES.md`: SÓLO DISEÑO.** Hallazgo: la base de producción no
 tiene historial (0 trabajadores, 0 actividades), así que no hay con qué sugerir hasta que haya operación registrada.
+
+**Organización protegida en la base y catálogo de actividades (21 nov, 19 h):** hoja 52 (capturar la organización pide
+un permiso propio, sólo otorgado; 8 pruebas atacando la base aislada; no se le dio a nadie). Catálogo único de
+actividades con requisitos legal · interno · experiencia (`ESPECIALIDADES.md` §13); nada restringe todavía. **Probado:**
+1,200 pruebas de cuenta, 116 contra la base aislada, navegador 24/24. Recomendaciones apagadas. Sin validar en campo.

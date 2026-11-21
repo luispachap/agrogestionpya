@@ -4,8 +4,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { organizacionEn, superiorDe, enCalidadDe, crearUnidad, cambiarUnidad, cerrarUnidad, nombrarResponsable, quitarResponsable, adscribir, quitarAdscripcion, apoyar, cancelarHecho,
-  historialDe, estructuraProvisional, ARRANQUE_PROVISIONAL, TIPOS, T_UNIDAD, T_CARGO } from "./organizacion.js";
-import { OPERACION_DE, sinRepetir } from "./eventos.js";
+  historialDe, estructuraProvisional, ARRANQUE_PROVISIONAL, TIPOS, T_UNIDAD, T_CARGO, OPERACION } from "./organizacion.js";
+import { OPERACION_DE, SOLO_OTORGADOS, sinRepetir, exigirValidacion } from "./eventos.js";
 
 const jefa = { id: "adm1", nombre: "ADMINISTRADORA INVENTADA", rol: "admin" };
 const gente = [{ id: "p1", nombre: "PERSONA UNO" }, { id: "p2", nombre: "PERSONA DOS" }, { id: "p3", nombre: "PERSONA TRES" }, { id: "p4", nombre: "PERSONA CUATRO" }, { id: "p5", nombre: "PERSONA CINCO" }];
@@ -132,14 +132,37 @@ test("la_estructura_de_arranque_son_solo_unidades_provisionales_sin_personas_y_n
   assert.ok(v.ok); assert.equal(en([...r.eventos, v.evento], "2026-11-25").porId.get("org-riegos").provisional, false); assert.equal(en([...r.eventos, v.evento], "2026-11-24").porId.get("org-riegos").provisional, true);
 });
 
-test("el_mapa_lo_captura_un_administrador_y_no_da_ni_lee_permisos", () => {
+test("capturar_la_organizacion_pide_un_permiso_propio_que_valida_la_base_y_no_viene_con_ningun_perfil", () => {
+  const { ev } = armado(), base = { eventos: ev, nombre: "Otra", clase: "equipo", desde: "2026-11-10", cuando: "2026-11-10T15:00:00.000Z", hoy: "2026-11-10" };
+  for (const t of TIPOS) assert.equal(OPERACION_DE[t], OPERACION, `${t} lo valida la base`);
+  assert.ok(SOLO_OTORGADOS.includes(OPERACION), "ni el superadministrador lo tiene por serlo: se otorga a la cuenta");
+  // Sin base (un aparato suelto): manda el perfil con que se entró.
+  for (const rol of ["encargado", "agronomo", "finanzas", "dueno", "trabajador"]) assert.equal(crearUnidad({ ...base, quien: { id: "x", nombre: "x", rol } }).ok, false, rol);
+  // Con base: manda lo que la base dijo de la cuenta, sea cual sea su perfil.
+  assert.match(crearUnidad({ ...base, quien: jefa, permitido: false }).dice, /no tiene ese permiso/, "un administrador sin el permiso otorgado no captura");
+  assert.equal(crearUnidad({ ...base, quien: { id: "x", nombre: "x", rol: "encargado" }, permitido: true }).ok, true, "y una cuenta a la que se le otorgó, sí");
+  assert.equal(cancelarHecho(ev[0], { motivo: "x", quien: jefa, cuando: "2026-11-10T16:00:00.000Z", permitido: false }).ok, false);
+  assert.equal(estructuraProvisional({ eventos: [], desde: "2026-11-10", quien: jefa, cuando: "2026-11-10T15:00:00.000Z", hoy: "2026-11-10", permitido: false }).ok, false);
+});
+
+test("con_base_un_hecho_no_cuenta_hasta_que_la_base_lo_autoriza_y_lo_rechazado_nunca_cuenta", () => {
   const { ev } = armado();
-  for (const rol of ["encargado", "agronomo", "finanzas", "dueno", "trabajador"]) assert.equal(crearUnidad({ eventos: ev, nombre: "Otra", clase: "equipo", desde: "2026-11-10", quien: { id: "x", nombre: "x", rol }, cuando: "2026-11-10T15:00:00.000Z", hoy: "2026-11-10" }).ok, false, rol);
-  for (const t of TIPOS) assert.equal(OPERACION_DE[t], undefined, `${t} no es una operación sensible: el mapa no toca los permisos existentes`);
+  try {
+    exigirValidacion(true);
+    assert.deepEqual(en(ev, "2026-11-10").unidades, [], "capturado sin señal: por validar, todavía no hay organización");
+    assert.equal(historialDe(ev)[0].validacion, "pendiente", "pero se ve en el historial, como pendiente");
+    const sellados = ev.map((e, k) => ({ ...e, _validacion: k === 1 ? "rechazado" : "autorizado" }));   // la base rechazó la unidad «Campo»
+    const o = en(sellados, "2026-11-10");
+    assert.ok(o.porId.has("dir") && !o.porId.has("campo"), "lo que la base rechazó no existe en el mapa");
+    assert.equal(o.porId.get("norte").huerfana, true, "y lo que dependía de eso queda a la vista, sin superior");
+    assert.equal(historialDe(sellados).find(h => h.evento === ev[1].id).validacion, "rechazado");
+  } finally { exigirValidacion(false); }
+});
+
+test("el_mapa_no_da_ni_lee_permisos_y_nadie_decide_con_el", () => {
   const fuente = readFileSync(new URL("./organizacion.js", import.meta.url), "utf8");
-  assert.ok(!/permisos_operacion|puede_operar|puedeOp|permisos_rol|otorgar_permiso/.test(fuente), "la organización no lee ni escribe permisos");
-  // Y nadie decide dinero ni permisos leyendo el mapa.
-  const ajenos = ["pagos.js", "resultado.js", "cierreMes.js", "cierres.js", "indirectos.js", "personal.js", "prestaciones.js", "conciliacion.js", "bonos.js", "calculos.js", "cuadrillas.js", "checador.js", "jornada.js", "asignaciones.js", "acceso.js", "eventos.js", "prestamos.js", "bajas.js"];
+  assert.ok(!/permisos_operacion|puede_operar|puedeOp|permisos_rol|otorgar_permiso/.test(fuente), "la organización no lee ni escribe permisos: sólo pregunta si puede capturar");
+  const ajenos = ["pagos.js", "resultado.js", "cierreMes.js", "cierres.js", "indirectos.js", "personal.js", "prestaciones.js", "conciliacion.js", "bonos.js", "calculos.js", "cuadrillas.js", "checador.js", "jornada.js", "asignaciones.js", "acceso.js", "prestamos.js", "bajas.js"];
   for (const f of readdirSync(new URL(".", import.meta.url)).filter(x => ajenos.includes(x))) assert.ok(!/organizacion\.js|org_unidad|org_cargo|org_adscripcion/.test(readFileSync(new URL(f, import.meta.url), "utf8")), `${f} no debe leer la organización en esta etapa`);
 });
 

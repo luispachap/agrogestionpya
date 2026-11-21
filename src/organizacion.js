@@ -12,7 +12,7 @@
 //   · Nada se asigna solo: nadie queda en un equipo ni con un superior si una persona no lo captura. Quien no tiene
 //     equipo sale «sin equipo»; una unidad sin responsable sale «sin responsable». No se supone.
 //   · Lo que está por confirmar se dice: `provisional`.
-import { nuevoEvento, sinRepetir, estaVigente, cancelarEvento } from "./eventos.js";
+import { nuevoEvento, sinRepetir, estaVigente, vigentes, cancelarEvento, negado, validacionDe } from "./eventos.js";
 import { sumarDias } from "./calculos.js";
 
 export const T_UNIDAD = "org_unidad", T_UNIDAD_CAMBIO = "org_unidad_cambio", T_UNIDAD_CIERRE = "org_unidad_cierre";
@@ -20,8 +20,11 @@ export const T_CARGO = "org_cargo", T_CARGO_FIN = "org_cargo_fin";
 export const T_ADSCRIPCION = "org_adscripcion", T_ADSCRIPCION_FIN = "org_adscripcion_fin", T_APOYO = "org_apoyo";
 export const TIPOS = [T_UNIDAD, T_UNIDAD_CAMBIO, T_UNIDAD_CIERRE, T_CARGO, T_CARGO_FIN, T_ADSCRIPCION, T_ADSCRIPCION_FIN, T_APOYO];
 export const CLASES = { area: "Área", equipo: "Equipo" };
-// Quién captura el mapa en esta etapa. Es una regla de pantalla: la base todavía no lo valida por operación (eso es
-// la etapa 3, que cambia permisos y no está autorizada). Por eso el mapa no le da poder a nadie.
+// Quién captura el mapa: lo decide LA BASE (hoja 52). Cada hecho de la organización es una operación validada con la
+// cuenta de la sesión, y el permiso `configurar_organizacion` no viene con ningún perfil —tampoco con ser
+// superadministrador—: hay que tenerlo otorgado. Sin él, el hecho se guarda rechazado y no cuenta. A las funciones se
+// les pasa `permitido` (lo que la base dijo de esta cuenta); sin base (un aparato suelto, las pruebas) manda el perfil.
+export const OPERACION = "configurar_organizacion";
 export const PUEDE_CONFIGURAR = ["admin"];
 export const LO_QUE_NO_ES = "Este mapa dice quién responde por qué. No da ni quita permisos en el sistema: ésos se asignan aparte, cuenta por cuenta.";
 
@@ -33,7 +36,8 @@ const enOrden = (a, b) => String(a.datos.desde).localeCompare(String(b.datos.des
 
 /* ── La organización de un día ── */
 export function organizacionEn(eventos, fecha, { personas = [] } = {}) {
-  const vivos = deOrg(eventos).filter(estaVigente).map(e => (e.tipo === T_UNIDAD_CIERRE || e.tipo === T_CARGO_FIN || e.tipo === T_ADSCRIPCION_FIN ? { ...e, datos: { ...e.datos, desde: sumarDias(e.datos.hasta, 1) } } : e))
+  // Sólo cuenta lo vigente Y autorizado por la base: lo capturado sin señal está «por validar»; lo rechazado no cuenta.
+  const vivos = vigentes(eventos || []).filter(e => TIPOS.includes(e.tipo)).map(e => (e.tipo === T_UNIDAD_CIERRE || e.tipo === T_CARGO_FIN || e.tipo === T_ADSCRIPCION_FIN ? { ...e, datos: { ...e.datos, desde: sumarDias(e.datos.hasta, 1) } } : e))
     .filter(e => e.datos.desde <= fecha).sort(enOrden);
   const nombreDe = (id, dicho) => (personas.find(p => p.id === id)?.nombre) || dicho || "Alguien que ya no está en el catálogo";
   const unidades = new Map(), cargo = new Map(), adscrito = new Map(), apoyos = [];
@@ -99,12 +103,12 @@ export function enCalidadDe(org, personaId) {
 }
 
 /* ── Capturar los hechos ── */
-const ahoraSi = ({ quien, cuando, hoy }) => (!quien?.id ? "Falta quién lo registra." : !PUEDE_CONFIGURAR.includes(quien.rol) ? "La organización la captura un administrador." : !cuando || !esFecha(hoy) ? "Falta la fecha de hoy." : null);
+const ahoraSi = ({ quien, cuando, hoy, permitido }) => (!quien?.id ? "Falta quién lo registra." : negado(quien, permitido, "La organización la captura quien tiene ese permiso.") || (!cuando || !esFecha(hoy) ? "Falta la fecha de hoy." : null));
 const hecho = (tipo, datos, { quien, cuando, hoy, id }) => nuevoEvento({ id, tipo, cuando, fecha: hoy, quien, datos: { ...datos, ...((datos.desde || datos.hasta) < hoy ? { retroactivo: true } : {}) } });
 const bajan = (org, id) => { const s = new Set(); const baja = (x) => { for (const u of org.unidades) if (u.dependeDe === x && !s.has(u.id)) { s.add(u.id); baja(u.id); } }; baja(id); return s; };
 
-export function crearUnidad({ eventos = [], nombre, clase, dependeDe = null, desde, provisional = false, nota = "", unidadId, quien, cuando, hoy, id } = {}) {
-  const no = ahoraSi({ quien, cuando, hoy }); if (no) return { ok: false, dice: no };
+export function crearUnidad({ eventos = [], nombre, clase, dependeDe = null, desde, provisional = false, nota = "", unidadId, quien, cuando, hoy, id, permitido } = {}) {
+  const no = ahoraSi({ quien, cuando, hoy, permitido }); if (no) return { ok: false, dice: no };
   if (!texto(nombre)) return { ok: false, dice: "Falta el nombre." };
   if (!CLASES[clase]) return { ok: false, dice: "Di si es un área o un equipo." };
   if (!esFecha(desde)) return { ok: false, dice: "Falta desde cuándo existe." };
@@ -117,8 +121,8 @@ export function crearUnidad({ eventos = [], nombre, clase, dependeDe = null, des
 }
 
 // Cambiar nombre, de quién depende, o confirmar lo provisional. Lo anterior se queda con sus fechas.
-export function cambiarUnidad({ eventos = [], unidadId, nombre, dependeDe, provisional, desde, motivo, quien, cuando, hoy, id } = {}) {
-  const no = ahoraSi({ quien, cuando, hoy }); if (no) return { ok: false, dice: no };
+export function cambiarUnidad({ eventos = [], unidadId, nombre, dependeDe, provisional, desde, motivo, quien, cuando, hoy, id, permitido } = {}) {
+  const no = ahoraSi({ quien, cuando, hoy, permitido }); if (no) return { ok: false, dice: no };
   if (!esFecha(desde)) return { ok: false, dice: "Falta desde cuándo vale el cambio." };
   const org = organizacionEn(eventos, desde), u = org.porId.get(unidadId);
   if (!u) return { ok: false, dice: "Esa unidad no existe en esa fecha." };
@@ -136,8 +140,8 @@ export function cambiarUnidad({ eventos = [], unidadId, nombre, dependeDe, provi
 }
 
 // Cerrar una unidad: `hasta` es su último día. No se cierra con equipos o gente adentro: primero se dice a dónde van.
-export function cerrarUnidad({ eventos = [], unidadId, hasta, motivo, quien, cuando, hoy, id } = {}) {
-  const no = ahoraSi({ quien, cuando, hoy }); if (no) return { ok: false, dice: no };
+export function cerrarUnidad({ eventos = [], unidadId, hasta, motivo, quien, cuando, hoy, id, permitido } = {}) {
+  const no = ahoraSi({ quien, cuando, hoy, permitido }); if (no) return { ok: false, dice: no };
   if (!esFecha(hasta)) return { ok: false, dice: "Falta su último día." };
   const org = organizacionEn(eventos, sumarDias(hasta, 1)), u = org.porId.get(unidadId);
   if (!u) return { ok: false, dice: "Esa unidad ya no existe en esa fecha." };
@@ -149,8 +153,8 @@ export function cerrarUnidad({ eventos = [], unidadId, hasta, motivo, quien, cua
 }
 
 // Nombrar responsable. Si ya había uno, deja de serlo ese día (queda en el historial). Por defecto es «por confirmar».
-export function nombrarResponsable({ eventos = [], unidadId, persona: p, desde, provisional = true, motivo = "", quien, cuando, hoy, id } = {}) {
-  const no = ahoraSi({ quien, cuando, hoy }); if (no) return { ok: false, dice: no };
+export function nombrarResponsable({ eventos = [], unidadId, persona: p, desde, provisional = true, motivo = "", quien, cuando, hoy, id, permitido } = {}) {
+  const no = ahoraSi({ quien, cuando, hoy, permitido }); if (no) return { ok: false, dice: no };
   if (!esFecha(desde)) return { ok: false, dice: "Falta desde cuándo." };
   const quienEs = persona(p); if (!quienEs) return { ok: false, dice: "Falta la persona." };
   const org = organizacionEn(eventos, desde), u = org.porId.get(unidadId);
@@ -163,8 +167,8 @@ export function nombrarResponsable({ eventos = [], unidadId, persona: p, desde, 
     dice: confirma ? `Confirmado: ${quienEs.nombre} responde por ${u.nombre}.` : `${quienEs.nombre} responde por ${u.nombre} desde el ${desde}${provisional ? " (por confirmar)" : ""}. Esto no le da permisos en el sistema.` };
 }
 
-export function quitarResponsable({ eventos = [], unidadId, hasta, motivo, quien, cuando, hoy, id } = {}) {
-  const no = ahoraSi({ quien, cuando, hoy }); if (no) return { ok: false, dice: no };
+export function quitarResponsable({ eventos = [], unidadId, hasta, motivo, quien, cuando, hoy, id, permitido } = {}) {
+  const no = ahoraSi({ quien, cuando, hoy, permitido }); if (no) return { ok: false, dice: no };
   if (!esFecha(hasta)) return { ok: false, dice: "Falta su último día como responsable." };
   const u = organizacionEn(eventos, hasta).porId.get(unidadId);
   if (!u?.responsable) return { ok: false, dice: "Esa unidad no tiene responsable en esa fecha." };
@@ -173,8 +177,8 @@ export function quitarResponsable({ eventos = [], unidadId, hasta, motivo, quien
 }
 
 // El equipo habitual de una persona: uno a la vez. Pasar a otro deja el anterior con sus fechas.
-export function adscribir({ eventos = [], persona: p, unidadId, desde, motivo = "", quien, cuando, hoy, id } = {}) {
-  const no = ahoraSi({ quien, cuando, hoy }); if (no) return { ok: false, dice: no };
+export function adscribir({ eventos = [], persona: p, unidadId, desde, motivo = "", quien, cuando, hoy, id, permitido } = {}) {
+  const no = ahoraSi({ quien, cuando, hoy, permitido }); if (no) return { ok: false, dice: no };
   if (!esFecha(desde)) return { ok: false, dice: "Falta desde cuándo." };
   const quienEs = persona(p); if (!quienEs) return { ok: false, dice: "Falta la persona." };
   const org = organizacionEn(eventos, desde), u = org.porId.get(unidadId);
@@ -185,8 +189,8 @@ export function adscribir({ eventos = [], persona: p, unidadId, desde, motivo = 
   return { ok: true, evento: hecho(T_ADSCRIPCION, { persona: quienEs, unidadId, desde, motivo: texto(motivo), anterior: previo ? { unidadId: previo.unidadId, nombre: previo.nombre, desde: previo.desde } : null }, { quien, cuando, hoy, id }), dice: `${quienEs.nombre} queda en ${u.nombre} desde el ${desde}.` };
 }
 
-export function quitarAdscripcion({ eventos = [], personaId, hasta, motivo, quien, cuando, hoy, id } = {}) {
-  const no = ahoraSi({ quien, cuando, hoy }); if (no) return { ok: false, dice: no };
+export function quitarAdscripcion({ eventos = [], personaId, hasta, motivo, quien, cuando, hoy, id, permitido } = {}) {
+  const no = ahoraSi({ quien, cuando, hoy, permitido }); if (no) return { ok: false, dice: no };
   if (!esFecha(hasta)) return { ok: false, dice: "Falta su último día en el equipo." };
   const eq = organizacionEn(eventos, hasta).dePersona(personaId).equipo;
   if (!eq) return { ok: false, dice: "Esa persona no tiene equipo en esa fecha." };
@@ -195,8 +199,8 @@ export function quitarAdscripcion({ eventos = [], personaId, hasta, motivo, quie
 }
 
 // Colaborar un tiempo con otro equipo. NO cambia el equipo habitual, y no asigna trabajo ni horas: sólo lo dice.
-export function apoyar({ eventos = [], persona: p, unidadId, desde, hasta, motivo, quien, cuando, hoy, id } = {}) {
-  const no = ahoraSi({ quien, cuando, hoy }); if (no) return { ok: false, dice: no };
+export function apoyar({ eventos = [], persona: p, unidadId, desde, hasta, motivo, quien, cuando, hoy, id, permitido } = {}) {
+  const no = ahoraSi({ quien, cuando, hoy, permitido }); if (no) return { ok: false, dice: no };
   if (!esFecha(desde) || !esFecha(hasta)) return { ok: false, dice: "Faltan las fechas del apoyo." };
   if (hasta < desde) return { ok: false, dice: "El apoyo no puede terminar antes de empezar." };
   const quienEs = persona(p); if (!quienEs) return { ok: false, dice: "Falta la persona." };
@@ -208,7 +212,7 @@ export function apoyar({ eventos = [], persona: p, unidadId, desde, hasta, motiv
 }
 
 // Un hecho capturado por error se cancela, con motivo: queda tachado en el historial y deja de contar.
-export const cancelarHecho = (evento, { motivo, quien, cuando }) => (!PUEDE_CONFIGURAR.includes(quien?.rol) ? { ok: false, dice: "La organización la corrige un administrador." } : cancelarEvento(evento, { motivo, quien, cuando }));
+export const cancelarHecho = (evento, { motivo, quien, cuando, permitido }) => { const no = negado(quien, permitido, "La organización la corrige quien tiene ese permiso."); return no ? { ok: false, dice: no } : cancelarEvento(evento, { motivo, quien, cuando }); };
 
 /* ── El historial: qué se registró, cuándo, quién y por qué ── */
 export function historialDe(eventos, { unidadId, personaId } = {}) {
@@ -226,7 +230,7 @@ export function historialDe(eventos, { unidadId, personaId } = {}) {
     default: return `${P(e)} apoya a ${U(d.unidadId)} hasta el ${d.hasta}.`;
   } };
   const toca = (e) => { const d = e.datos; if (unidadId) return d.unidadId === unidadId || d.dependeDe === unidadId || d.antes?.dependeDe === unidadId; if (personaId) return d.persona?.id === personaId || d.personaId === personaId || d.anterior?.id === personaId; return true; };
-  return todas.filter(toca).sort((a, b) => String(b.capturado).localeCompare(String(a.capturado))).map(e => ({ evento: e.id, tipo: e.tipo, vale: e.datos.hasta ? sumarDias(e.datos.hasta, 1) : e.datos.desde, registrado: e.capturado, quien: e.quien?.nombre || "", dice: dice(e), motivo: e.datos.motivo || "", retroactivo: !!e.datos.retroactivo,
+  return todas.filter(toca).sort((a, b) => String(b.capturado).localeCompare(String(a.capturado))).map(e => ({ evento: e.id, tipo: e.tipo, vale: e.datos.hasta ? sumarDias(e.datos.hasta, 1) : e.datos.desde, registrado: e.capturado, quien: e.quien?.nombre || "", dice: dice(e), motivo: e.datos.motivo || "", retroactivo: !!e.datos.retroactivo, validacion: validacionDe(e),
     cancelado: estaVigente(e) ? null : { motivo: e.cancelado?.motivo || "", por: e.cancelado?.por?.nombre || "" } }));
 }
 
@@ -239,8 +243,8 @@ export const ARRANQUE_PROVISIONAL = [
   { clave: "agronomicas", nombre: "Operaciones agronómicas", clase: "area", dependeDe: "direccion" },
   { clave: "riegos", nombre: "Riegos", clase: "equipo", dependeDe: "agronomicas" },
 ];
-export function estructuraProvisional({ eventos = [], desde, quien, cuando, hoy } = {}) {
-  const no = ahoraSi({ quien, cuando, hoy }); if (no) return { ok: false, dice: no };
+export function estructuraProvisional({ eventos = [], desde, quien, cuando, hoy, permitido } = {}) {
+  const no = ahoraSi({ quien, cuando, hoy, permitido }); if (no) return { ok: false, dice: no };
   if (!esFecha(desde)) return { ok: false, dice: "Falta desde cuándo." };
   if (deOrg(eventos).some(e => e.tipo === T_UNIDAD)) return { ok: false, dice: "Ya hay unidades dadas de alta: la estructura de arranque sólo se propone cuando no hay ninguna." };
   const uid = (c) => `org-${c}`;

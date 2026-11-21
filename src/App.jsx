@@ -108,7 +108,8 @@ import { destinoDe as destinoDeAviso, estadoDelAparato, CLASES_DE_AVISO } from "
 import { activarAvisos, desactivarAvisos, avisoDePrueba, misPreferenciasDeAvisos, guardarPreferenciasDeAvisos, quitarAvisosDe, suscripcionDeEsteAparato } from "./avisosRed.js";
 import { idConAsistente, abrirConAsistente, esConAsistente, misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro, hallazgosDe, antecedentes, temasDe, deDondeSalio, comoEvidencia, admiteArchivos, carpetaDe, pedirConsulta, conversacionesDe as todasLasConversaciones, PERMISO_EVIDENCIA, PERMISO_SUPERVISION } from "./mensajeria.js";
 import { planDelDia as planMandadoDe, loQueLeToca, quitarAsignacion, cambiarAsignacion } from "./asignaciones.js";
-import { organizacionEn, superiorDe, crearUnidad, cambiarUnidad, cerrarUnidad, nombrarResponsable, quitarResponsable, adscribir, quitarAdscripcion, apoyar, cancelarHecho, historialDe as historialDeOrg, estructuraProvisional, CLASES as CLASES_DE_UNIDAD, PUEDE_CONFIGURAR as PUEDE_CONFIGURAR_ORG, LO_QUE_NO_ES as LO_QUE_NO_ES_EL_MAPA, T_UNIDAD as T_UNIDAD_ORG } from "./organizacion.js";
+import { catalogoEn as catalogoDeActividades, porLigar as actividadesPorLigar, guardarActividad, ligarTexto as ligarTextoDeActividad, ponerRequisito, DE_FABRICA as ACTIVIDADES_DE_FABRICA, AMBITOS as AMBITOS_DE_ACTIVIDAD, CLASES_DE_REQUISITO } from "./actividades.js";
+import { organizacionEn, superiorDe, crearUnidad, cambiarUnidad, cerrarUnidad, nombrarResponsable, quitarResponsable, adscribir, quitarAdscripcion, apoyar, cancelarHecho, historialDe as historialDeOrg, estructuraProvisional, CLASES as CLASES_DE_UNIDAD, OPERACION as OPERACION_ORG, LO_QUE_NO_ES as LO_QUE_NO_ES_EL_MAPA, T_UNIDAD as T_UNIDAD_ORG } from "./organizacion.js";
 import { jornadaDe, cerrarJornada, reabrirJornada, cierreDe as cierreDeJornada, diferenciasDelCierre as diferenciasDeJornada, tareasParaManana, MOTIVOS as MOTIVOS_DE_JORNADA, ESTADOS as ESTADOS_DE_JORNADA, ROLES_QUE_CIERRAN as ROLES_QUE_CIERRAN_JORNADA } from "./jornada.js";
 import { repartirElDia, aQueSeVaCadaQuien, quienNoTieneNada, chocanLasTareas, indicacionParaElTrabajador, comoVaElDia } from "./plan.js";
 import { loQueVaAFaltar } from "./prediccion.js";
@@ -8460,12 +8461,13 @@ function Organizacion({ data, add, upd, session, onClose }) {
   const [dice, setDice] = useState(null);    // { ok, txt }
   const eventos = data.eventos || [];
   const quien = { id: session.id, nombre: session.nombre, rol: session.role };
-  const puede = PUEDE_CONFIGURAR_ORG.includes(session.role);
+  // ¿Se le ofrece capturar? Lo decide la base al recibir cada hecho; esto sólo evita ofrecer lo que va a rechazar.
+  const permitido = puedeOp(OPERACION_ORG), puede = seOfrece(session, OPERACION_ORG);
   // La gente que la app conoce: el catálogo de personal, encargados y agrónomos, y quien está viendo la pantalla.
   const gente = useMemo(() => { const m = new Map(); for (const p of [...(data.trabajadores || []), ...(data.encargados || []), ...(data.agronomos || []), { id: session.id, nombre: session.nombre }]) if (p?.id && p.nombre && p.activo !== false && !m.has(p.id)) m.set(p.id, { id: p.id, nombre: p.nombre }); return [...m.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")); }, [data.trabajadores, data.encargados, data.agronomos, session.id, session.nombre]);
   const org = useMemo(() => organizacionEn(eventos, fecha, { personas: gente }), [eventos, fecha, gente]);
   const hayAlgo = eventos.some(e => e.tipo === T_UNIDAD_ORG);
-  const ctx = () => ({ eventos, quien, cuando: new Date().toISOString(), hoy });
+  const ctx = () => ({ eventos, quien, cuando: new Date().toISOString(), hoy, permitido });
   const guarda = (r) => { if (!r.ok) { setDice({ ok: false, txt: r.dice }); return false; } for (const e of r.eventos || [r.evento]) add("eventos", e); setDice({ ok: true, txt: r.dice }); setF(null); return true; };
   const abre = (modo, extra = {}) => { setDice(null); setF({ modo, desde: hoy, hasta: hoy, motivo: "", nombre: "", clase: "equipo", dependeDe: "", personaId: "", provisional: true, ...extra }); };
   const P = (id) => gente.find(g => g.id === id);
@@ -8483,7 +8485,7 @@ function Organizacion({ data, add, upd, session, onClose }) {
   };
   const error = (h) => {
     const motivo = window.prompt("¿Por qué fue un error? El registro queda tachado en el historial."); if (motivo === null) return;
-    const ev = eventos.find(e => e.id === h.evento), r = ev ? cancelarHecho(ev, { motivo, quien, cuando: new Date().toISOString() }) : { ok: false, dice: "No se encontró ese registro." };
+    const ev = eventos.find(e => e.id === h.evento), r = ev ? cancelarHecho(ev, { motivo, quien, cuando: new Date().toISOString(), permitido }) : { ok: false, dice: "No se encontró ese registro." };
     if (!r.ok) { setDice({ ok: false, txt: r.dice }); return; } upd("eventos", r.evento); setDice({ ok: true, txt: "Quedó tachado. Ya no cuenta." });
   };
   const TITULO = { unidad: "Nueva área o equipo", cambiar: "Cambiar nombre o de quién depende", validar: "Dar por validada esta unidad", cerrar: "Cerrar esta unidad", responsable: "Nombrar responsable", "sin-responsable": "Dejar sin responsable", persona: "Agregar a alguien a este equipo", sale: "Sacar del equipo", apoyo: "Apoyo temporal de otro equipo" };
@@ -8516,6 +8518,51 @@ function Organizacion({ data, add, upd, session, onClose }) {
       </div>
     </div>
   );
+  /* ── El catálogo de actividades y lo que pide cada una (`src/actividades.js`) ── */
+  const [fa, setFa] = useState(null);        // { modo: "actividad" | "ligar" | "requisito", ... }
+  const [actAbierta, setActAbierta] = useState(null);
+  const catalogo = useMemo(() => catalogoDeActividades(eventos, hoy), [eventos, hoy]);
+  const sinLigar = useMemo(() => actividadesPorLigar({ eventos, actividades: data.actividades || [], catalogo }), [eventos, data.actividades, catalogo]);
+  const guardaAct = (r) => { if (!r.ok) { setDice({ ok: false, txt: r.dice }); return; } add("eventos", r.evento); setDice({ ok: true, txt: r.dice }); setFa(null); };
+  const aplicaAct = () => {
+    const c = ctx();
+    if (fa.modo === "actividad") return guardaAct(guardarActividad({ ...c, actividadId: fa.actividadId, nombre: fa.nombre, ambito: fa.ambito, activa: fa.activa, motivo: fa.motivo }));
+    if (fa.modo === "ligar") return guardaAct(ligarTextoDeActividad({ ...c, escrito: fa.escrito, actividadId: fa.actividadId || null, motivo: fa.motivo }));
+    if (fa.modo === "requisito") return guardaAct(ponerRequisito({ ...c, requisitoId: fa.requisitoId, actividadId: fa.actividadId, clase: fa.clase, descripcion: fa.descripcion, norma: fa.clase === "legal" ? fa.norma : "", aplicabilidad: fa.validada ? "validada" : "por_validar", validadoPor: fa.validadoPor, obliga: fa.obliga, motivo: fa.motivo }));
+    if (fa.modo === "quitar-requisito") return guardaAct(ponerRequisito({ ...c, requisitoId: fa.requisitoId, actividadId: fa.actividadId, activo: false, motivo: fa.motivo }));
+  };
+  const formAct = fa && (
+    <div className="card org-form" style={{ padding: 12, borderColor: "var(--accent)" }}>
+      <div className="card-title">{{ actividad: fa.actividadId ? "Cambiar la actividad" : "Nueva actividad", ligar: `¿Qué actividad es «${fa.escrito}»?`, requisito: fa.requisitoId ? "Cambiar el requisito" : "Nuevo requisito", "quitar-requisito": "Quitar el requisito" }[fa.modo]}</div>
+      {fa.modo === "actividad" && <>
+        <input className="inp" aria-label="Nombre de la actividad" placeholder="Nombre de la actividad" value={fa.nombre} onChange={e => setFa(x => ({ ...x, nombre: e.target.value }))} style={{ marginBottom: 6 }} />
+        <select className="inp" aria-label="De qué es" value={fa.ambito} onChange={e => setFa(x => ({ ...x, ambito: e.target.value }))} style={{ marginBottom: 6 }}>{Object.entries(AMBITOS_DE_ACTIVIDAD).map(([k, n]) => <option key={k} value={k}>{n}</option>)}</select>
+        {fa.actividadId && <label className="text-xs" style={{ display: "flex", gap: 6, marginBottom: 6 }}><input type="checkbox" aria-label="Se sigue ofreciendo" checked={!!fa.activa} onChange={e => setFa(x => ({ ...x, activa: e.target.checked }))} />Se sigue ofreciendo en las pantallas</label>}
+      </>}
+      {fa.modo === "ligar" && (
+        <select className="inp" aria-label="Actividad del catálogo" value={fa.actividadId} onChange={e => setFa(x => ({ ...x, actividadId: e.target.value }))} style={{ marginBottom: 6 }}>
+          <option value="">Escoge la actividad del catálogo</option>
+          {catalogo.actividades.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+        </select>
+      )}
+      {fa.modo === "requisito" && <>
+        <select className="inp" aria-label="Clase de requisito" value={fa.clase} disabled={!!fa.requisitoId} onChange={e => setFa(x => ({ ...x, clase: e.target.value }))} style={{ marginBottom: 4 }}>{Object.entries(CLASES_DE_REQUISITO).map(([k, c]) => <option key={k} value={k}>{c.nombre}</option>)}</select>
+        <div className="text-xs text-muted" style={{ marginBottom: 6 }}>{CLASES_DE_REQUISITO[fa.clase].dice}</div>
+        <input className="inp" aria-label="Qué se pide" placeholder="Qué se pide" value={fa.descripcion} onChange={e => setFa(x => ({ ...x, descripcion: e.target.value }))} style={{ marginBottom: 6 }} />
+        {fa.clase === "legal" && <>
+          <input className="inp" aria-label="Norma" placeholder="Qué norma lo pide (nombre y artículo o numeral)" value={fa.norma} onChange={e => setFa(x => ({ ...x, norma: e.target.value }))} style={{ marginBottom: 6 }} />
+          <label className="text-xs" style={{ display: "flex", gap: 6, marginBottom: 6 }}><input type="checkbox" aria-label="Aplicabilidad validada" checked={!!fa.validada} onChange={e => setFa(x => ({ ...x, validada: e.target.checked }))} />Ya se validó que esa norma aplica a esta actividad</label>
+          {fa.validada && <input className="inp" aria-label="Quién lo validó" placeholder="Quién lo validó (nombre y cargo)" value={fa.validadoPor} onChange={e => setFa(x => ({ ...x, validadoPor: e.target.value }))} style={{ marginBottom: 6 }} />}
+        </>}
+        {fa.clase === "interno" && <label className="text-xs" style={{ display: "flex", gap: 6, marginBottom: 6 }}><input type="checkbox" aria-label="El rancho lo pide como obligatorio" checked={!!fa.obliga} onChange={e => setFa(x => ({ ...x, obliga: e.target.checked }))} />El rancho lo pide como obligatorio (no sólo recomendado)</label>}
+      </>}
+      {(fa.modo !== "actividad" || fa.actividadId) && (fa.modo !== "requisito" || fa.requisitoId) && <input className="inp" aria-label="Motivo" placeholder="Motivo" value={fa.motivo} onChange={e => setFa(x => ({ ...x, motivo: e.target.value }))} style={{ marginBottom: 6 }} />}
+      <div style={{ display: "flex", gap: 6 }}>
+        <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => { setFa(null); setDice(null); }}>Dejarlo como estaba</button>
+        <button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={aplicaAct}>Guardar</button>
+      </div>
+    </div>
+  );
   const fechaBonita = (x) => fechaLarga(new Date(`${x}T12:00:00`));
   return (
     <div className="organizacion">
@@ -8526,15 +8573,16 @@ function Organizacion({ data, add, upd, session, onClose }) {
       <div className="section-pad">
         <div className="alert alert-blue org-aviso" style={{ marginBottom: 10 }}>{LO_QUE_NO_ES_EL_MAPA}</div>
         <div className="tabs-pill" style={{ padding: "0 0 12px" }}>
-          {[["mapa", "El mapa"], ["gente", "La gente"], ["historial", "Historial"]].map(([k, l]) => <button key={k} className={`tab-pill${tab === k ? " active" : ""}`} onClick={() => { setTab(k); setDice(null); setF(null); }}>{l}</button>)}
+          {[["mapa", "El mapa"], ["gente", "La gente"], ["actividades", "Actividades"], ["historial", "Historial"]].map(([k, l]) => <button key={k} className={`tab-pill${tab === k ? " active" : ""}`} onClick={() => { setTab(k); setDice(null); setF(null); }}>{l}</button>)}
         </div>
-        {tab !== "historial" && (
+        {(tab === "mapa" || tab === "gente") && (
           <div className="card" style={{ padding: 12 }}>
             <label className="text-xs text-muted">Ver cómo estaba el día<input className="inp" type="date" aria-label="Fecha de la organización" value={fecha} onChange={e => setFecha(e.target.value || hoy)} /></label>
             {fecha !== hoy && <div className="text-xs" style={{ marginTop: 6, color: "var(--gold)" }}>Estás viendo la organización del {fechaBonita(fecha)}, no la de hoy. <button className="btn-ghost" style={{ textDecoration: "underline" }} onClick={() => setFecha(hoy)}>Volver a hoy</button></div>}
           </div>
         )}
         {dice && <div className={`alert alert-${dice.ok ? "green" : "red"} org-dice`}>{dice.txt}</div>}
+        <PorValidar data={data} tipos={Object.keys(OPERACION_DE).filter(t => OPERACION_DE[t] === OPERACION_ORG)} nota="Capturado en este aparato y todavía no llega a la base. Mientras la base no compruebe el permiso de la cuenta, no aparece en el mapa. Sube solo en cuanto haya señal." />
 
         {tab === "mapa" && <>
           {!hayAlgo && (
@@ -8580,7 +8628,7 @@ function Organizacion({ data, add, upd, session, onClose }) {
           ))}
           {puede && fecha === hoy && hayAlgo && <button className="btn btn-outline" style={{ marginTop: 6 }} onClick={() => { setAbierta(null); abre("unidad"); }}>Nueva área o equipo</button>}
           {f && f.modo === "unidad" && !abierta && formulario}
-          {!puede && <div className="text-xs text-muted" style={{ marginTop: 8 }}>La organización la captura un administrador.</div>}
+          {!puede && <div className="text-xs text-muted org-sin-permiso" style={{ marginTop: 8 }}>Tu cuenta puede ver la organización, pero no capturarla. Ese permiso («{OPERACIONES[OPERACION_ORG]}») se otorga cuenta por cuenta en Arranque → Cuentas, y no viene con ningún perfil.</div>}
           {org.avisos.length > 0 && (
             <div className="card" style={{ padding: 12, marginTop: 10 }}>
               <div className="card-title" style={{ color: "var(--gold)" }}>Lo que falta decir ({org.avisos.length})</div>
@@ -8606,6 +8654,60 @@ function Organizacion({ data, add, upd, session, onClose }) {
           ); })}
         </>}
 
+        {tab === "actividades" && <>
+          <div className="card org-cat-aviso" style={{ padding: 12 }}>
+            <div className="text-sm">Una sola lista de actividades para todas las pantallas. De arranque sólo trae las que ya se ofrecían; lo demás lo agrega una persona.</div>
+            <div className="text-xs text-muted" style={{ marginTop: 4 }}>Los requisitos son informativos por ahora: <b>todavía no impiden ninguna asignación</b>. Un requisito legal no cuenta hasta que alguien documente qué norma lo pide y valide que aplica; la app no decide qué es de ley.</div>
+          </div>
+          {sinLigar.length > 0 && (
+            <div className="card org-por-ligar" style={{ padding: 12 }}>
+              <div className="card-title" style={{ color: "var(--gold)" }}>Por ligar ({sinLigar.length})</div>
+              <div className="text-xs text-muted" style={{ marginBottom: 4 }}>Así se escribió en los registros y no está en el catálogo. No se adivina: di a qué actividad corresponde, o dala de alta.</div>
+              {sinLigar.map(x => (
+                <div key={x.clave} className="flex-b" style={{ gap: 8, padding: "4px 0" }}>
+                  <div className="text-sm">«{x.escrito}» <span className="text-xs text-muted">· {x.veces} vez(ces) · {x.donde.join(", ")}</span></div>
+                  {puede && <div style={{ display: "flex", gap: 4 }}><button className="btn-ghost text-xs" style={{ textDecoration: "underline" }} onClick={() => { setDice(null); setFa({ modo: "ligar", escrito: x.escrito, actividadId: "", motivo: "" }); }}>Es una que ya está</button><button className="btn-ghost text-xs" style={{ textDecoration: "underline" }} onClick={() => { setDice(null); setFa({ modo: "actividad", nombre: x.escrito, ambito: "campo", activa: true, motivo: "" }); }}>Es nueva</button></div>}
+                </div>
+              ))}
+            </div>
+          )}
+          {fa && (fa.modo === "ligar" || (fa.modo === "actividad" && !fa.actividadId)) && formAct}
+          {Object.entries(AMBITOS_DE_ACTIVIDAD).map(([amb, nombreAmb]) => { const suyas = catalogo.actividades.filter(a => a.ambito === amb); return suyas.length === 0 ? null : (
+            <div key={amb} className="card" style={{ padding: 12 }}>
+              <div className="card-title">{nombreAmb}</div>
+              {suyas.map(a => (
+                <div key={a.id} className="org-actividad" style={{ borderTop: "1px solid var(--border-soft)", padding: "8px 0" }}>
+                  <div className="flex-b" style={{ gap: 8, cursor: "pointer" }} onClick={() => { setActAbierta(actAbierta === a.id ? null : a.id); setFa(null); setDice(null); }}>
+                    <div className="text-sm" style={{ textDecoration: a.activa ? undefined : "line-through" }}><b>{a.nombre}</b></div>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>{!a.activa && <span className="badge">Ya no se ofrece</span>}{a.requisitos.length === 0 ? <span className="text-xs text-muted">Sin requisitos</span> : a.requisitos.map(r => <span key={r.id} className={`badge${r.clase === "legal" && r.aplicabilidad !== "validada" ? " badge-gold" : ""}`}>{CLASES_DE_REQUISITO[r.clase].nombre}</span>)}</div>
+                  </div>
+                  {actAbierta === a.id && (
+                    <div style={{ marginTop: 6 }}>
+                      {catalogo.equivalencias.filter(q => q.actividadId === a.id).length > 0 && <div className="text-xs text-muted">También se escribe: {catalogo.equivalencias.filter(q => q.actividadId === a.id).map(q => `«${q.escrito}»`).join(", ")}</div>}
+                      {a.requisitos.map(r => (
+                        <div key={r.id} className="org-requisito" style={{ padding: "4px 0" }}>
+                          <div className="text-sm">{r.descripcion}</div>
+                          <div className="text-xs text-muted">{CLASES_DE_REQUISITO[r.clase].nombre} · {r.estado}{r.norma ? ` · ${r.norma}` : ""}{r.validadoPor ? ` · validó: ${r.validadoPor}` : ""}</div>
+                          {puede && <div style={{ display: "flex", gap: 8 }}><button className="btn-ghost text-xs" style={{ textDecoration: "underline" }} onClick={() => { setDice(null); setFa({ modo: "requisito", requisitoId: r.id, actividadId: a.id, clase: r.clase, descripcion: r.descripcion, norma: r.norma, validada: r.aplicabilidad === "validada", validadoPor: r.validadoPor, obliga: r.obliga, motivo: "" }); }}>Cambiar</button><button className="btn-ghost text-xs" style={{ textDecoration: "underline" }} onClick={() => { setDice(null); setFa({ modo: "quitar-requisito", requisitoId: r.id, actividadId: a.id, motivo: "" }); }}>Quitar</button></div>}
+                        </div>
+                      ))}
+                      {puede && (
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                          <button className="btn btn-outline btn-sm" onClick={() => { setDice(null); setFa({ modo: "requisito", actividadId: a.id, clase: "experiencia", descripcion: "", norma: "", validada: false, validadoPor: "", obliga: false, motivo: "" }); }}>Agregar requisito</button>
+                          <button className="btn btn-outline btn-sm" onClick={() => { setDice(null); setFa({ modo: "actividad", actividadId: a.id, nombre: a.nombre, ambito: a.ambito, activa: a.activa, motivo: "" }); }}>Cambiar</button>
+                        </div>
+                      )}
+                      {fa && fa.actividadId === a.id && fa.modo !== "ligar" && formAct}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ); })}
+          {puede && <button className="btn btn-outline" style={{ marginTop: 6 }} onClick={() => { setActAbierta(null); setDice(null); setFa({ modo: "actividad", nombre: "", ambito: "campo", activa: true, motivo: "" }); }}>Nueva actividad</button>}
+          {!puede && <div className="text-xs text-muted" style={{ marginTop: 8 }}>Tu cuenta puede ver el catálogo, pero no cambiarlo.</div>}
+        </>}
+
         {tab === "historial" && (
           <div className="card" style={{ padding: 12 }}>
             <div className="card-title">Todo lo que se ha registrado</div>
@@ -8614,6 +8716,8 @@ function Organizacion({ data, add, upd, session, onClose }) {
               <div key={h.evento} className="org-hecho" style={{ borderTop: "1px solid var(--border-soft)", padding: "8px 0" }}>
                 <div className="text-sm" style={{ textDecoration: h.cancelado ? "line-through" : undefined }}>{h.dice}</div>
                 <div className="text-xs text-muted">Vale desde el {h.vale} · lo registró {h.quien || "alguien"} el {fechaLocal(new Date(h.registrado))}{h.retroactivo ? " · se capturó después de la fecha en que vale" : ""}{h.motivo ? ` — «${h.motivo}»` : ""}</div>
+                {h.validacion === "pendiente" && <div className="text-xs" style={{ color: "var(--gold)" }}>Por validar: todavía no llega a la base, así que aún no cuenta.</div>}
+                {h.validacion === "rechazado" && <div className="text-xs" style={{ color: "var(--red)" }}>Rechazado por la base: la cuenta que lo subió no tenía el permiso. No cuenta.</div>}
                 {h.cancelado ? <div className="text-xs" style={{ color: "var(--gold)" }}>Tachado por {h.cancelado.por}: «{h.cancelado.motivo}»</div> : puede && <button className="btn-ghost text-xs" style={{ textDecoration: "underline" }} onClick={() => error(h)}>Fue un error</button>}
               </div>
             ))}
@@ -8997,21 +9101,23 @@ exigirValidacion(supabaseListo);
 // Lo que la base dijo que puede la cuenta con la que está conectado este aparato. Sirve para no ofrecer
 // lo que la base va a rechazar; quien decide es la base, al recibir cada operación.
 let PERMISOS = null;
-const puedeOp = (op) => (!supabaseListo ? undefined : !!PERMISOS && (PERMISOS.rol === "superadmin" || (PERMISOS.operaciones || []).includes(op)));
+// Las «sólo otorgadas» (mensajería, organización) no valen por ser superadministrador: la cuenta debe tenerlas dadas.
+const puedeOp = (op) => (!supabaseListo ? undefined : !!PERMISOS && ((PERMISOS.rol === "superadmin" && !SOLO_OTORGADOS.includes(op)) || (PERMISOS.operaciones || []).includes(op)));
 // ¿Se ofrece el botón? Con base: el permiso de la cuenta. Sin base (un aparato suelto): el perfil con que se entró.
 const seOfrece = (session, op) => { const p = puedeOp(op); return p === undefined ? session.role === "admin" : p; };
-const NOMBRE_DE_OPERACION = { salario_minimo: "Salario mínimo oficial", bono_personal: "Bono otorgado", pago_bono: "Pago de bono", cierre_semana: "Cierre de la semana", reapertura_semana: "Reapertura de la semana", confirmacion_pagos: "Confirmación de pagos", prestacion_determinada: "Prestación determinada", prestacion_saldo_inicial: "Saldo inicial de prestaciones",
+const NOMBRE_DE_OPERACION = { org_unidad: "Alta de área o equipo", org_unidad_cambio: "Cambio en un área o equipo", org_unidad_cierre: "Cierre de un área o equipo", org_cargo: "Responsable de una unidad", org_cargo_fin: "Fin de un responsable", org_adscripcion: "Persona en un equipo", org_adscripcion_fin: "Salida de un equipo", org_apoyo: "Apoyo temporal", act_actividad: "Actividad del catálogo", act_equivalencia: "Equivalencia de actividad", act_requisito: "Requisito de una actividad", salario_minimo: "Salario mínimo oficial", bono_personal: "Bono otorgado", pago_bono: "Pago de bono", cierre_semana: "Cierre de la semana", reapertura_semana: "Reapertura de la semana", confirmacion_pagos: "Confirmación de pagos", prestacion_determinada: "Prestación determinada", prestacion_saldo_inicial: "Saldo inicial de prestaciones",
   cierre_mes: "Cierre de mes", reapertura_mes: "Reapertura de mes", prestamo_autorizacion: "Autorización de un préstamo", prestamo_rechazo: "Rechazo de un préstamo", prestamo_entrega: "Entrega de un préstamo", baja_personal: "Baja de personal", pago_baja: "Pago de un finiquito o liquidación", pago_personal: "Pago", pago_prestacion: "Pago de una prestación", abono_prestamo: "Abono a un préstamo", recibo_personal: "Recibo", decision_jornada: "Decisión sobre cómo se paga un día", horas_reconocidas: "Horas reconocidas", ajuste: "Cambio de una regla" };
 // Lo capturado que todavía no cuenta: lo que no ha llegado a la base, y lo que la base no autorizó.
-function PorValidar({ data }) {
-  const s = data.sinValidar || { pendientes: [], rechazados: [] };
+function PorValidar({ data, tipos, nota }) {
+  const todo = data.sinValidar || { pendientes: [], rechazados: [] }, es = (e) => !tipos || tipos.includes(e.tipo);
+  const s = { pendientes: todo.pendientes.filter(es), rechazados: todo.rechazados.filter(es) };
   if (s.pendientes.length === 0 && s.rechazados.length === 0) return null;
   const que = (e) => `${NOMBRE_DE_OPERACION[e.tipo] || e.tipo} del ${e.fecha}${e.datos?.monto != null ? ` · ${fmt(e.datos.monto)}` : ""}${e.datos?.a?.nombre || e.datos?.nombre ? ` · ${e.datos?.a?.nombre || e.datos?.nombre}` : ""} · lo capturó ${e.quien?.nombre || "alguien"}`;
   const recientes = [...s.rechazados].sort((a, b) => b.capturado.localeCompare(a.capturado)).slice(0, 20);
   return (<>
     {s.pendientes.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}>
       <div className="card-title">Por validar ({s.pendientes.length})</div>
-      <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Capturado en este aparato y todavía no llega a la base. Mientras la base no compruebe el permiso de la cuenta, no cuenta: no baja lo pendiente de pago, no cierra la semana ni cambia ninguna regla. Sube solo en cuanto haya señal.</div>
+      <div className="text-xs text-muted" style={{ marginBottom: 6 }}>{nota || "Capturado en este aparato y todavía no llega a la base. Mientras la base no compruebe el permiso de la cuenta, no cuenta: no baja lo pendiente de pago, no cierra la semana ni cambia ninguna regla. Sube solo en cuanto haya señal."}</div>
       {s.pendientes.map(e => <div key={e.id} className="text-xs">{que(e)}</div>)}
     </div>}
     {recientes.length > 0 && <div className="card" style={{ borderColor: "var(--red)" }}>
@@ -9441,13 +9547,13 @@ function ReglasDelRancho({ data, add, session, claves }) {
   );
 }
 
-const ACTIVIDADES_DE_CAMPO = ["Preparación de suelo", "Siembra", "Fertilización", "Riego", "Control de plagas", "Deshierbe", "Cosecha", "Limpieza"];
 // Las cuadrillas se registran en UNA sola pantalla (Cuadrillas). En el registro
 // de actividades del administrador y en el registro masivo ya no se ofrecen: lo
 // que se capturó ahí antes se conserva y se sigue leyendo.
+// Las actividades de campo de fábrica salen del catálogo único (`src/actividades.js`): ya no hay una lista aparte aquí.
+const ACTIVIDADES_DE_CAMPO = ACTIVIDADES_DE_FABRICA.filter(a => a.ambito === "campo").map(a => a.nombre);
 const CUADRILLAS_SOLO_EN_SU_PANTALLA = true;
 const AVISO_CUADRILLAS = "Las cuadrillas se registran en la pantalla Cuadrillas (menú, grupo Gente): ahí se anota quién vino, cómo cobran y cómo llegaron, una sola vez.";
-const ACTIVIDADES_DE_VEHICULO = ["Traslado de personal", "Acarreo de cosecha", "Acarreo de insumos", "Mantenimiento del vehículo"];
 
 // A dónde va cada quien hoy. Se escoge a la gente que ya checó, se dice parcela
 // y labor, y con UNA captura queda toda la cuadrilla. Cambiar de parcela o de
@@ -9469,7 +9575,8 @@ function Reparto({ data, add, session, onNav, onClose }) {
   const elegidos = Object.keys(sel).filter(id => sel[id] && adentro.has(id));
   const tocar = (id) => setSel(x => ({ ...x, [id]: !x[id] }));
   const marcarVarios = (ids, si) => setSel(x => ({ ...x, ...Object.fromEntries(ids.map(id => [id, si])) }));
-  const actividades = [...new Set([...ACTIVIDADES_DE_CAMPO, ...ACTIVIDADES_DE_VEHICULO, ...(data.eventos || []).filter(e => e.tipo === "asignacion").map(e => e.datos.actividad)])].sort((a, b) => a.localeCompare(b));
+  // Las actividades salen del catálogo único (lo de fábrica es lo que esta pantalla ya ofrecía, más lo que se haya agregado).
+  const actividades = [...new Set([...catalogoDeActividades(data.eventos, hoy).nombres(["campo", "vehiculo"]), ...(data.eventos || []).filter(e => e.tipo === "asignacion").map(e => e.datos.actividad)])].sort((a, b) => a.localeCompare(b));
   const aIso = (hhmm) => new Date(`${hoy}T${hhmm}:00`).toISOString();
   const quien = quienDe(session);
 
@@ -9636,7 +9743,7 @@ function CuadrillasDelDia({ data, add, upd, session, onClose }) {
   const parcela = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "Parcela que no está en este aparato";
   const deHoy = (data.eventos || []).filter(e => e.tipo === "cuadrilla_dia" && e.fecha === dia).sort((a, b) => a.capturado.localeCompare(b.capturado));
   const trasladosHoy = (data.eventos || []).filter(e => e.tipo === "traslado_cuadrilla" && e.fecha === dia && estaVigente(e));
-  const actividades = [...new Set([...ACTIVIDADES_DE_CAMPO, ...(data.eventos || []).filter(e => e.tipo === "cuadrilla_dia").map(e => e.datos.actividad)])].sort((a, b) => a.localeCompare(b));
+  const actividades = [...new Set([...catalogoDeActividades(data.eventos, today()).nombres(["campo"]), ...(data.eventos || []).filter(e => e.tipo === "cuadrilla_dia").map(e => e.datos.actividad)])].sort((a, b) => a.localeCompare(b));
   const elegida = form && catalogo.find(c => c.id === form.cuadrillaId);
   const esInd = form?.cuadrillaId === "__ind__";
   const idCq = form ? (esInd ? "independientes" : form.cuadrillaId === "__otra__" ? `sin-catalogo:${form.otra.trim().toLowerCase()}` : form.cuadrillaId) : "";
@@ -10847,7 +10954,7 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
   const fileRef = useRef(null);
   const editFileRef = useRef(null);
   const emojis = ["🌽", "🌾", "🫘", "🌶️", "🧅", "🥕", "🌱", "🍅", "🫑", "🌿"];
-  const tiposAct = ["Preparación de suelo", "Siembra", "Fertilización", "Riego", "Control de plagas", "Deshierbe", "Cosecha", "Limpieza", "Otro"];
+  const tiposAct = [...ACTIVIDADES_DE_FABRICA.filter(a => a.ambito === "campo").map(a => a.nombre), "Otro"];
   const editP = data.parcelas.find(x => x.id === editId);
 
   const handleFoto = (e, parcelaId) => {

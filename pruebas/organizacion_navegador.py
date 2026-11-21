@@ -13,6 +13,7 @@ res = []
 def caso(n, ok, det=""): res.append(ok); print(("PASA  " if ok else "FALLA ") + n + (" — " + str(det)[:600] if det else ""))
 plano = lambda t: t.replace("\n", " | ")
 HOY, MANANA = "2026-11-23", "2026-11-24"
+g["SEMILLA"].update({"actividades": [{"id": "a-inv", "tipo": "Pizca", "fecha": HOY, "parcelaId": "", "registradoPor": {"tipo": "planta", "id": "t-prueba"}, "horas_trab": 8, "costoTotal": 0}]})
 datos = lambda pg: pg.evaluate("() => { const d = window.__agroDatos; return { act: d.actividades.length, egr: d.egresos.length, ind: (d.indicaciones || []).length, ev: (d.eventos || []).map(e => ({ tipo: e.tipo, datos: e.datos, estado: e.estado })) }; }")
 ir = lambda pg, p: (pg.evaluate("p => window.__agroIr(p)", "home"), pg.wait_for_timeout(250), pg.evaluate("p => window.__agroIr(p)", p), pg.wait_for_timeout(500))
 unidad = lambda pg, nombre: pg.locator(".org-unidad").filter(has=pg.locator("b", has_text=nombre)).first
@@ -68,9 +69,32 @@ with sync_playwright() as p:
     d = datos(pg); h = plano(pg.locator(".org-hecho").first.inner_text())
     caso("queda tachado con su motivo, sigue guardado y deja de contar", len(d["ev"]) == n and "Tachado por" in h and "«Se capturó por error»" in h and sum(1 for e in d["ev"] if e["estado"] == "cancelado") == 1, h)
 
+    # ── 5 bis. El catálogo único de actividades ──
+    pg.get_by_role("button", name="Actividades").click(); pg.wait_for_timeout(400); t = pg.locator(".organizacion").inner_text()
+    caso("el catálogo trae sólo las doce actividades que ya se ofrecían, sin ningún requisito", pg.locator(".org-actividad").count() == 12 and t.count("Sin requisitos") == 12 and "todavía no impiden ninguna asignación" in t and "la app no decide qué es de ley" in t, pg.locator(".org-actividad").count())
+    caso("lo que está escrito en los registros y no se reconoce sale «por ligar», sin adivinar", "Por ligar (1)" in t and "«Pizca»" in t and "Actividades registradas" in t, plano(pg.locator(".org-por-ligar").inner_text()) if pg.locator(".org-por-ligar").count() else t[:300])
+    pg.get_by_role("button", name="Es una que ya está").click(); pg.get_by_label("Actividad del catálogo").select_option("act-cosecha"); pg.get_by_role("button", name="Guardar").click(); pg.wait_for_timeout(400)
+    caso("se liga con una decisión de una persona y deja de estar pendiente", "«Pizca» se entiende como Cosecha" in pg.locator(".org-dice").inner_text() and pg.locator(".org-por-ligar").count() == 0, pg.locator(".org-dice").inner_text())
+    fila = pg.locator(".org-actividad").filter(has=pg.locator("b", has_text="Control de plagas")); fila.locator("b").first.click(); pg.wait_for_timeout(200)
+    pg.get_by_role("button", name="Agregar requisito").click(); pg.get_by_label("Clase de requisito").select_option("legal"); pg.get_by_label("Qué se pide").fill("Capacitación para manejo de plaguicidas")
+    pg.get_by_label("Aplicabilidad validada").check(); pg.get_by_role("button", name="Guardar").click(); pg.wait_for_timeout(300)
+    caso("un requisito legal no se da por validado sin decir qué norma lo pide", "QUÉ norma" in pg.locator(".org-dice").inner_text(), pg.locator(".org-dice").inner_text())
+    pg.get_by_label("Aplicabilidad validada").uncheck(); pg.get_by_role("button", name="Guardar").click(); pg.wait_for_timeout(400)
+    t = plano(fila.inner_text())
+    caso("queda «por validar» y se avisa que no restringe nada", "Por validar: falta documentar la norma" in t and "No restringe nada" in pg.locator(".org-dice").inner_text(), t)
+    pg.get_by_role("button", name="Nueva actividad").click(); pg.get_by_label("Nombre de la actividad").fill("Poda inventada"); pg.get_by_role("button", name="Guardar").click(); pg.wait_for_timeout(400)
+    ir(pg, "organizacion"); pg.get_by_role("button", name="Historial").click(); pg.wait_for_timeout(300)
+    d = datos(pg)
     # ── 6. No tocó nada de la operación ni de los permisos ──
-    caso("no se creó ninguna tarea, actividad ni gasto, y todos los hechos son de la organización", d["act"] == antes["act"] and d["egr"] == antes["egr"] and d["ind"] == antes["ind"] and all(e["tipo"].startswith("org_") for e in d["ev"]), {e["tipo"] for e in d["ev"]})
+    caso("no se creó ninguna tarea, actividad ni gasto, y todos los hechos son de la organización", d["act"] == antes["act"] and d["egr"] == antes["egr"] and d["ind"] == antes["ind"] and all(e["tipo"].startswith(("org_", "act_")) for e in d["ev"]), {e["tipo"] for e in d["ev"]})
     ir(pg, "reparto"); caso("Equipos de trabajo sigue igual: el mapa no asignó a nadie a ningún lado", not g["trono"](pg) and pg.locator(".rep-ficha").count() == 0)
+    # ── 6 bis. La misma lista en Equipos de trabajo (hace falta alguien que haya checado para ver el reparto) ──
+    ir(pg, "checador")
+    for dgt in "5503": pg.locator(".chk-teclas button", has_text=dgt).first.click()
+    pg.locator(".chk-teclas button.ok").click(); pg.wait_for_timeout(400); pg.clock.run_for(13000)
+    ir(pg, "reparto"); pg.get_by_role("button", name="Marcar todos").click(); pg.wait_for_timeout(200)
+    ops = pg.get_by_label("Qué van a hacer").locator("option").all_inner_texts()
+    caso("la actividad nueva ya se ofrece en Equipos de trabajo, junto con las de siempre: es la misma lista", "Poda inventada" in ops and "Riego" in ops and "Traslado de personal" in ops and "Pizca" not in ops, ops)
     # ── 7. Sólo un administrador ──
     g["sembrar"](pg); g["entrar"](pg, "Encargado", "5501"); pg.wait_for_timeout(400); ir(pg, "organizacion")
     caso("el encargado no tiene la pantalla de Organización", pg.locator(".organizacion").count() == 0 and pg.locator(".login-bg").count() == 0)

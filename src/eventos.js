@@ -86,7 +86,10 @@ export const OPERACION_DE = {
   pago_personal: "autorizar_pagos", pago_prestacion: "autorizar_pagos", pago_baja: "autorizar_pagos", abono_prestamo: "autorizar_pagos", prestamo_entrega: "autorizar_pagos", recibo_personal: "autorizar_pagos",
   prestamo_autorizacion: "autorizar_prestamos", prestamo_rechazo: "autorizar_prestamos",
   decision_jornada: "decidir_asistencia", horas_reconocidas: "decidir_asistencia",
-  ajuste: "cambiar_reglas", salario_minimo: "cambiar_reglas", bono_personal: "autorizar_pagos", pago_bono: "autorizar_pagos", bono_revision: "autorizar_pagos",
+  ajuste: "cambiar_reglas", salario_minimo: "cambiar_reglas", bono_personal: "autorizar_pagos", pago_bono: "autorizar_pagos", bono_revision: "autorizar_pagos",  // La organización y el catálogo de actividades (hoja 52): los captura sólo quien tiene el permiso OTORGADO.
+  org_unidad: "configurar_organizacion", org_unidad_cambio: "configurar_organizacion", org_unidad_cierre: "configurar_organizacion", org_cargo: "configurar_organizacion", org_cargo_fin: "configurar_organizacion",
+  org_adscripcion: "configurar_organizacion", org_adscripcion_fin: "configurar_organizacion", org_apoyo: "configurar_organizacion",
+  act_actividad: "configurar_organizacion", act_equivalencia: "configurar_organizacion", act_requisito: "configurar_organizacion",
 };
 export const OPERACIONES = {
   cerrar_semana: "Cerrar y reabrir la semana, y confirmar sus pagos",
@@ -99,8 +102,10 @@ export const OPERACIONES = {
   // Mensajería (hoja 46). Estos dos NO vienen con ser superadministrador: hay que otorgarlos a la cuenta.
   ver_evidencia: "Ver los mensajes que sustentan un registro, sin participar en la conversación (queda anotado)",
   supervisar_conversaciones: "Abrir por excepción una conversación completa en la que no participa (con motivo, 24 horas, queda anotado)",
+  // Organización (hoja 52). Tampoco viene con ser superadministrador. No da ninguna facultad de mando ni permiso de dinero.
+  configurar_organizacion: "Capturar la organización (áreas, equipos, responsables) y el catálogo de actividades y sus requisitos",
 };
-export const SOLO_OTORGADOS = ["ver_evidencia", "supervisar_conversaciones"];
+export const SOLO_OTORGADOS = ["ver_evidencia", "supervisar_conversaciones", "configurar_organizacion"];
 // Sin servidor (un aparato que no está conectado a ninguna nube, o las pruebas) no hay quién valide:
 // ahí mandan las reglas de la app. Con servidor, se exige el sello. Lo prende la app al arrancar.
 let conServidor = false;
