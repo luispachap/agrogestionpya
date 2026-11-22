@@ -37,9 +37,9 @@
    "resultado": "26 de 26"
   },
   {
-   "que": "Todo junto: lo anterior, compilación y 40 recorridos en navegador",
+   "que": "Todo junto: lo anterior, compilación y 41 recorridos en navegador",
    "con": "sh pruebas/todo.sh",
-   "resultado": "Todo pasa (sobre la versión publicada, `14bf671`)"
+   "resultado": "Todo pasa (sobre la versión publicada, `ff5ea42`)"
   },
   {
    "que": "Producción cerrada sin sesión",
@@ -54,7 +54,7 @@
   {
    "que": "Lo publicado es exactamente lo probado, byte por byte",
    "con": "pruebas/real_identico.py",
-   "resultado": "18 de 18 archivos idénticos a `14bf671`"
+   "resultado": "18 de 18 archivos idénticos a `ff5ea42`"
   },
   {
    "que": "Producción igual a la base probada",
@@ -69,10 +69,10 @@
   {
    "que": "Asistencia con dos teléfonos, semana cerrada y pago hecho",
    "con": "pruebas/auditoria_ausencias_navegador.py",
-   "resultado": "36 de 36"
+   "resultado": "37 de 37"
   },
   {
-   "que": "Campo: rancho vacío, parcelas, cultivos, calendario y cosechas con dos teléfonos (posterior a la publicación)",
+   "que": "Campo: rancho vacío, parcelas, cultivos, calendario y cosechas con dos teléfonos",
    "con": "pruebas/auditoria_campo_navegador.py",
    "resultado": "63 de 63"
   }
@@ -912,7 +912,7 @@
    "que": "Un cultivo sólo se podía dar de alta subiendo una hoja de Excel: en un rancho que arranca vacío (como producción) nadie podía crear «Ajo», y sin cultivo no hay calendario, temporadas ni resultado por cultivo",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "«Nuevo cultivo» en la misma pantalla (administrador o agrónomo): nombre, días a la cosecha y unidad; no se repite, y el mismo cultivo desde dos teléfonos es uno solo"
   },
   {
@@ -921,7 +921,7 @@
    "que": "«Crear parcela» y «Crear rancho» no hacían nada si faltaba un dato y no decían cuál; una parcela creada justo después de su rancho nacía SIN rancho; se podían repetir nombres; y se podía eliminar una parcela con siembras, cosechas o gastos (lo registrado se quedaba apuntando a nada)",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "dice qué falta, la parcela siempre nace en su rancho, no se repite, y lo que tiene registros no se elimina (dice qué tiene)"
   },
   {
@@ -930,7 +930,7 @@
    "que": "Lo cosechado se anota dentro de un registro por parcela: dos personas anotando desde dos teléfonos, una sin señal, y el segundo que subía dejaba fuera lo del primero; y si los dos anotaban la PRIMERA cosecha de la parcela quedaban dos registros de cosecha y la pantalla sólo leía uno",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "los cortes se unen por identificador y la cosecha de cada parcela tiene identidad propia: probado con dos teléfonos sin señal en las dos situaciones"
   },
   {
@@ -939,7 +939,7 @@
    "que": "Un hecho «de nombre propio» que lleva dentro el identificador de otra cosa (el gasto de una solicitud comprada, la entrada de una compra recibida, el gasto de una salida de caja) recibía marca de nacimiento como si fuera un registro cualquiera: capturado en dos teléfonos sin señal, la base rechazaba el segundo y la app lo reubicaba como otro — o sea, se duplicaba. El recorrido no lo veía porque usaba identificadores cortos, de mentira",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "sólo lleva marca el identificador hecho al momento; el recorrido de identidad ahora usa identificadores como los reales. En producción desde la hoja 56 (unas horas, con la base vacía)"
   },
   {
@@ -948,7 +948,7 @@
    "que": "Al cerrar una estiba y ponerle su peso en el mismo instante, la corrección subía sin su marca de nacimiento y la base la rechazaba: la estiba quedaba «sin subir» para siempre (los demás teléfonos no veían su peso ni su calibre)",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "lo recién creado conserva su marca aunque se corrija en el mismo instante; todos los recorridos de auditoría ahora fallan si la base rechaza algo. En producción desde la hoja 56 (unas horas, con la base vacía)"
   },
   {
@@ -957,7 +957,7 @@
    "que": "Un registro de cosecha se borraba con un toque, sin motivo ni rastro",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "se cancela con motivo, queda a la vista tachado con quién y por qué, deja de contar y no revive al sincronizar"
   },
   {
@@ -966,7 +966,7 @@
    "que": "La fecha de cosecha real aceptaba cualquier texto (o una fecha anterior a la siembra), y de esa fecha salen los costos de la temporada",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": ""
   },
   {
@@ -975,7 +975,7 @@
    "que": "El rendimiento de una variedad se enseñaba sin los ajustes de cosecha (1,450 kg) mientras el rendimiento por hectárea sí los contaba (1,400)",
    "nivel": "P3",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": ""
   },
   {
@@ -1017,12 +1017,12 @@
   {
    "que": "La app en app.agroselectos.com",
    "estado": "publicado",
-   "detalle": "Versión `14bf671`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio."
+   "detalle": "Versión `ff5ea42`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio."
   },
   {
    "que": "Campo (alta de cultivos, parcelas que no se eliminan con registros, cosechas que no se pisan ni se borran) y dos correcciones de identidad: hechos de nombre propio sin marca y estibas recién cerradas que no subían",
-   "estado": "sin_publicar",
-   "detalle": "Corregido y probado; se publica al pasar la batería completa (corrección ordinaria)."
+   "estado": "publicado",
+   "detalle": "22 de noviembre; corrección ordinaria, publicada tras la batería completa."
   },
   {
    "que": "Cobros parciales de un embarque desde dos teléfonos (no se pisan; cada cobro con autor, hora y su venta ligada)",
