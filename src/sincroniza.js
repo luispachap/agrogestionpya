@@ -11,11 +11,11 @@
 //   · Si la nube trae una tabla VACÍA, lo local no se toca (precaución).
 //   · Un crédito no se escoge: se UNE (los abonos de los dos lados), y si a la nube le faltaba algo se vuelve a subir.
 // ════════════════════════════════════════════════════════════════════════
-import { ganaAlSincronizar, unirCredito, leFaltanAbonos } from "./calculos.js";
+import { ganaAlSincronizar, UNIONES_DE_REGISTROS } from "./calculos.js";
 
 // Tablas donde dos versiones del mismo registro no se escogen: se UNEN, porque cada una puede traer algo que la otra
 // no (los abonos de un crédito capturados en dos aparatos). `falta(a, b)` dice si a `a` le falta algo de `b`.
-const UNIONES = { creditos: { unir: unirCredito, falta: leFaltanAbonos } };
+const UNIONES = UNIONES_DE_REGISTROS;
 
 export function mezclarConNube(local, nube) {
   const next = { ...(local || {}) };

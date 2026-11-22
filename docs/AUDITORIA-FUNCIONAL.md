@@ -23,6 +23,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | Respaldo y restauración, de punta a punta en local | `sh pruebas/respaldo_local/ensayo.sh` | 26 de 26 |
 | Todo junto: lo anterior, compilación y 37 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada) |
 | Entregas del almacén con dos teléfonos (recorrido agregado después de publicar; no cambia la app) | `pruebas/auditoria_entregas_navegador.py` | 13 de 13 |
+| Cobros de un embarque desde dos teléfonos (corrección posterior a la publicación) | `pruebas/auditoria_cobros_navegador.py` | 9 de 9 |
 | Producción cerrada sin sesión | `pruebas/real_sin_sesion.py` | 6 de 6 |
 | El sitio publicado, en Android y iPhone imitados | `pruebas/real_sitio.py` | 18 de 18 |
 | Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos |
@@ -35,6 +36,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | La app en app.agroselectos.com | **Publicado** | Versión `c5c244f`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio. |
 | Las correcciones del almacén: la compra de una solicitud entra como movimiento; la misma compra no sale dos veces; aplicar no es dinero que sale; mermas al costo de su día; lo recibido sin precio; alta de artículos | **Publicado** | 22 de noviembre, autorizado por Luis. |
 | Integridad histórica de costos e identidad única: costo guardado al capturar, identificadores que no se repiten entre teléfonos, quién capturó cada registro, aviso de capturas repetidas | **Publicado** | 22 de noviembre, en la misma publicación. |
+| Cobros parciales de un embarque desde dos teléfonos: ya no se pisan | **Sin publicar** | Corregido y probado después de la última publicación; pide autorización de Luis. |
 | Bodega: corrida que no se pierde al salir, ventas sin dinero fuera del flujo, ajuste de ajo terminado con motivo | **Publicado** | 22 de noviembre. |
 | Caja chica (clases de salida), abonos a créditos (cancelar en vez de borrar, flujo, dos teléfonos) | **Publicado** | 22 de noviembre. |
 | Banco, Socios y ¿Alcanza? fuera del perfil de encargado | **Instalado en la base** | Hoja 54 en la base y publicado en la app. |
@@ -43,7 +45,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
 
-## Defectos encontrados al usar los módulos (26: 23 corregidos, 0 de ellos sin publicar; 3 abiertos)
+## Defectos encontrados al usar los módulos (26: 24 corregidos, 1 de ellos sin publicar; 2 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -63,7 +65,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | 14 | Deudas / Proveedores | El proveedor se guarda distinto en cada pantalla (texto / ficha) | P2 | Abierto |
 | 15 | Caja chica / Almacén | Una compra de almacén pagada de caja (o capturada en Finanzas) y además metida con costo en Inventario salía dos veces del flujo. Reproducido: $10,000 por una compra de $5,000 | P1 | Corregido y publicado: Inventario → Entradas propone el gasto que coincide y una persona dice «es la misma compra»; Finanzas avisa cuántas hay |
 | 16 | Corrida de ajo | Los cortes, conteos y cajas de plástico de la corrida se pueden borrar sin motivo; y la configuración se guarda con un nombre fijo, no por espacio | P2 | Abierto |
-| 17 | Consignaciones | Los cobros de un embarque viven dentro del embarque: dos teléfonos cobrando el mismo podrían pisarse (mismo patrón que los abonos) | P2 | Abierto: sin reproducir |
+| 17 | Consignaciones | Los cobros de un embarque viven dentro del embarque: dos teléfonos cobrando parte del mismo, uno sin señal, dejaban al embarque con un solo cobro ($9,000 en vez de $15,000; las dos ventas sí quedaban) | P1 | Corregido **sin publicar**: reproducido y corregido: los cobros se unen por identificador, igual que los abonos de un crédito |
 | 18 | Solicitudes de compra | Al registrar la compra de un artículo que ya existía, la existencia NO subía (5 + 4 seguían siendo 5) y el costo de lo ya consumido cambiaba hacia atrás (el resultado pasó de $2,500 a $7,294 sin que nadie gastara) | P0 | Corregido y publicado: la mercancía entra como movimiento del almacén, con identificador fijo por solicitud (dos teléfonos no la meten doble) |
 | 19 | Conteo y mermas | Una merma o un faltante se valuaba al costo de HOY: una compra posterior más cara le cambiaba el importe a una merma vieja, y con él el resultado de un mes ya visto | P1 | Corregido y publicado: vale lo que costaba el día que pasó, y ese costo queda escrito en el propio registro al capturarlo |
 | 20 | Aplicaciones / Finanzas | Aplicar un producto que ya estaba en el almacén contaba otra vez como dinero que salió (una vez al comprarlo y otra al aplicarlo) | P1 | Corregido y publicado |
@@ -114,7 +116,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | 25 | Estibas | **PARCIAL** | auditoria_bodega 46 | Alta masiva de barbecho desde la parcela, limpio que consume barbecho, saldos, rastreo hasta la parcela, etiquetas, otro teléfono | Re-limpia, alta individual, estiba sin origen, cierre manual de una estiba, imprimir |
 | 26 | Ajo terminado | **APROBADO** | auditoria_bodega 46 | Entra solo al cerrar estiba; entrada manual; ajuste con motivo obligatorio e historial; baja al embarcar; recarga; nube | — |
 | 27 | Salida de camión | **PARCIAL** | auditoria_bodega 46 | Embarque a cliente: tarima pesada, folio, formato, baja del terminado, queda pendiente de cobro, no es venta todavía | Salida a nuestra bodega, varias tarimas y calibres, estiba de origen, cargar más de lo que hay, remisión impresa |
-| 28 | Consignaciones | **PARCIAL** | auditoria_bodega 46 | Pendiente de cobro, cobrar en dinero, nace una sola venta, llega a resultados y flujo, el encargado no entra | Pago parcial, pago a cuenta de una deuda (la regla del flujo sí está probada en cálculo), dos teléfonos |
+| 28 | Consignaciones | **PARCIAL** | auditoria_bodega 46 · auditoria_cobros 9 | Pendiente de cobro, cobrar en dinero, nace una sola venta, llega a resultados y flujo, el encargado no entra; pagos parciales desde dos teléfonos sin señal: los dos cobros quedan en el embarque, dos ventas, el flujo cuadra | Pago a cuenta de una deuda en pantalla (la regla del flujo sí está probada en cálculo) |
 | 29 | Comercialización | **PARCIAL** | auditoria_bodega 46 | Enseña la venta con su cliente y el precio por kilo | Sólo se comprobó una venta; faltan varios clientes y periodos |
 | 30 | Mano de obra | NO VERIFICADO | antes: cuadrillas | — | Falta la auditoría completa |
 | 31 | Finanzas | **APROBADO** | auditoria_dinero 37 · auditoria_identidad 18 | Gasto general y de parcela, venta, cancelar con motivo, bitácora, flujo y resultados, recarga, otro teléfono, tres perfiles; doble toque, dos teléfonos sin señal con el mismo gasto, aviso de repetidos, quién capturó | — |
@@ -188,7 +190,6 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 - En producción quedan los datos de la prueba de avisos (1 conversación, 3 mensajes). Hay que retirarlos.
 - Defecto 14 (Deudas / Proveedores): El proveedor se guarda distinto en cada pantalla (texto / ficha).
 - Defecto 16 (Corrida de ajo): Los cortes, conteos y cajas de plástico de la corrida se pueden borrar sin motivo; y la configuración se guarda con un nombre fijo, no por espacio.
-- Defecto 17 (Consignaciones): Los cobros de un embarque viven dentro del embarque: dos teléfonos cobrando el mismo podrían pisarse (mismo patrón que los abonos).
 
 ## Riesgos que quedan aunque todo pase
 

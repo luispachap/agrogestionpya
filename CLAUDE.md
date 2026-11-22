@@ -804,6 +804,8 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   bitácora (y la venta del abono en especie). `saldoCredito` y el flujo no cuentan lo cancelado; un abono sin `tipo`
   es de dinero. **Dos versiones de un crédito se UNEN** (`unirCredito`: abonos de los dos lados; cancelado gana), al
   subir (`guardarRegistro` lee la nube antes) y al bajar (`mezclarConNube` → `porSubir`). No vuelvas a escoger una.
+  Lo mismo los cobros de un embarque (`unirEmbarque`): toda colección cuyo registro lleva una lista que crece desde
+  varios teléfonos se da de alta en `UNIONES_DE_REGISTROS` (`calculos.js`).
 - **Respaldo automático: PREPARADO, SIN ESTRENAR** (`herramientas/respaldo/`, `docs/RESPALDO-AUTOMATICO.md`). Corre en
   un repositorio PRIVADO aparte (este es público) y toma de aquí sus herramientas. `respaldar.sh` sólo lee;
   `restaurar.sh` se niega contra producción y contra un proyecto con tablas, y comprueba con `huellas.sql`

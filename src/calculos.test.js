@@ -463,3 +463,17 @@ test("un_gasto_tecleado_en_finanzas_queda_con_quien_lo_capturo_y_no_se_le_cambia
   assert.equal(conAutor("parcelas", { id: "p1" }, sesion).registradoPor, undefined, "un catálogo no lo necesita");
   assert.equal(conAutor("egresos", { id: "e1" }, null).registradoPor, undefined, "sin sesión no se inventa un autor");
 });
+
+import { unirEmbarque, leFaltanCobros } from "./calculos.js";
+test("dos_telefonos_cobrando_parte_del_mismo_embarque_no_se_pisan", () => {
+  const base = { id: "emb1", folio: "E-1", estadoCobro: "pendiente", liquidaciones: [], montoCobrado: 0 };
+  const a = { ...base, liquidaciones: [{ id: "liqA", fecha: "2026-11-19", monto: 3000 }], montoCobrado: 3000 };
+  const b = { ...base, liquidaciones: [{ id: "liqB", fecha: "2026-11-19", monto: 2000 }], montoCobrado: 2000 };
+  const u = unirEmbarque(a, b);
+  assert.deepEqual(u.liquidaciones.map(l => l.id), ["liqA", "liqB"]); assert.equal(u.montoCobrado, 5000); assert.equal(u.estadoCobro, "pendiente");
+  assert.deepEqual(unirEmbarque(b, a).liquidaciones.map(l => l.id), ["liqA", "liqB"], "da igual cuál llegue primero");
+  assert.equal(unirEmbarque(u, a).montoCobrado, 5000, "unir otra vez no duplica");
+  assert.equal(leFaltanCobros(a, u), true); assert.equal(leFaltanCobros(u, a), false);
+  assert.equal(unirEmbarque(a, { ...b, estadoCobro: "cobrado" }).estadoCobro, "cobrado", "si uno lo dio por cobrado, queda cobrado");
+  assert.deepEqual(unirEmbarque(base, { ...base, placas: "X" }), base, "sin cobros no hay nada que unir: gana el más reciente, como siempre");
+});

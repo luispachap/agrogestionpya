@@ -509,3 +509,23 @@ export function conAutor(sec, item, sesion) {
   if (!COLECCIONES_CON_AUTOR.includes(sec) || !item || item.registradoPor || !sesion?.id) return item;
   return { ...item, registradoPor: { rol: sesion.role || sesion.rol || "", id: sesion.id, nombre: sesion.nombre || "" } };
 }
+
+// LOS COBROS DE UN EMBARQUE TAMPOCO SE PISAN. Cada cobro vive dentro de su embarque (`liquidaciones`): si dos teléfonos
+// cobraban parte del mismo, uno sin señal, el que subía después dejaba al embarque sin el cobro del otro (el ingreso sí
+// quedaba, y el embarque decía que se había cobrado menos). Igual que los abonos de un crédito: se UNEN por identificador.
+export function unirEmbarque(gana, otro) {
+  if (!gana) return otro;
+  if (!otro) return gana;
+  const porId = new Map();
+  for (const l of [...(otro.liquidaciones || []), ...(gana.liquidaciones || [])]) if (l && l.id != null) porId.set(l.id, l);
+  const liquidaciones = [...porId.values()].sort((x, y) => String(x.fecha || "").localeCompare(String(y.fecha || "")) || String(x.id).localeCompare(String(y.id)));
+  if (!liquidaciones.length) return gana;
+  const cobrado = gana.estadoCobro === "cobrado" || otro.estadoCobro === "cobrado";
+  return { ...gana, liquidaciones, montoCobrado: sumarDinero(liquidaciones.map(l => Number(l.monto) || 0)), estadoCobro: cobrado ? "cobrado" : (gana.estadoCobro || otro.estadoCobro) };
+}
+export function leFaltanCobros(a, b) {
+  const ids = new Set((a?.liquidaciones || []).map(l => l.id));
+  return (b?.liquidaciones || []).some(l => !ids.has(l.id)) || (b?.estadoCobro === "cobrado" && a?.estadoCobro !== "cobrado");
+}
+// Las colecciones cuyos registros llevan una lista que crece desde varios teléfonos: se unen, nunca se escoge uno.
+export const UNIONES_DE_REGISTROS = { creditos: { unir: unirCredito, falta: leFaltanAbonos }, embarques: { unir: unirEmbarque, falta: leFaltanCobros } };
