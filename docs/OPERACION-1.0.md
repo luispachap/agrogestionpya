@@ -57,6 +57,7 @@ Lo que **no** hace falta para empezar: saldos de bancos, socios, corrida de ajo,
 | Ya que llegaron | Encargado | Equipos de trabajo | Marca a la gente, escoge parcela y actividad → **Asignar desde ahorita** |
 | Si alguien cambia de parcela o de actividad | Encargado | Equipos de trabajo | Lo vuelve a asignar: es otra asignación, la anterior no se borra |
 | Si pasa algo | Quien sea, con cuenta | Mensajes → AgroGestión | Lo dice («Se descompuso la bomba del pozo») y toca **Guardar** |
+| Si sale dinero de la caja | Encargado | Caja chica → + Movimiento | Dice cuánto y **qué fue**: gasto de una parcela, gasto general, compra para el almacén, préstamo, pago a un trabajador, traspaso, o «todavía no sé» |
 | Si se aplica algo | Agrónomo o administración | Aplicaciones → + Nueva | Parcela, producto, dosis y **quién lo aplicó** (si no se marca, la app lo advierte) |
 | Al salir | Cada trabajador | Checador | Teclea su PIN otra vez |
 | Al final | Encargado | El día → Jornada | Revisa plan contra lo que pasó → **Cerrar la jornada** |
@@ -69,6 +70,9 @@ Lo que hay que saber:
 - **Lo que corresponde pagar se calcula solo** de lo checado y lo asignado. No se captura otra vez.
 - **Pagar no es un costo.** El costo nació el día que se trabajó.
 - **Comprar para el almacén no es gasto:** es inventario. Se vuelve costo cuando se usa.
+- **No toda salida de caja chica es gasto.** El fondo que entra tampoco es ingreso: el gasto se cuenta cuando se usa.
+  Un préstamo o un pago que salió de la caja se registra en su pantalla (Préstamos, Pagos al personal) y en la caja
+  sólo se liga. Lo que nadie ha dicho qué fue queda «por clasificar»: sale en el flujo de efectivo, no en resultados.
 
 ## 4. Sin señal
 
@@ -123,9 +127,12 @@ El archivo trae todo lo capturado (catálogos, movimientos, eventos, mensajes). 
 
 Lo que el respaldo **no** resuelve y hay que saber:
 
-- El plan gratuito de Supabase **no hace copias automáticas** de la base. La única copia fuera de la base es el
-  archivo semanal y lo que guarda cada aparato.
-- Al restaurar, los pagos y cierres vuelven a quedar autorizados **con la cuenta de quien restaura**.
+- El plan gratuito de Supabase **no hace copias automáticas** de la base. Está preparado un respaldo de cada noche,
+  cifrado, que no cuesta (`docs/RESPALDO-AUTOMATICO.md`); **todavía no está funcionando**: faltan los pasos de Luis
+  y el ensayo de restauración. Mientras tanto, la única copia fuera de la base es este archivo.
+- Al restaurar, los pagos, cierres y demás decisiones **conservan quién los autorizó y cuándo**, y quedan marcados
+  como restaurados, con quién restauró y cuándo. La app pide el motivo, y la restauración queda anotada. Nadie puede
+  usar una restauración para inventar una autorización: la base firma cada sello y sólo acepta los que ella puso.
 - Una semana sin respaldo es una semana que depende de que la base no falle.
 
 ## 7. La prueba que falta: ustedes, en el rancho

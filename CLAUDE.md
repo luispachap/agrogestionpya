@@ -625,6 +625,16 @@ Usuarios reales de la app:
   (`claseDeInsumo`, `resultado.js`): `destinoInsumo` = inventario · produccion ·
   general · otro; sin decir → **por clasificar** (ni gasto ni inventario; en el
   flujo sí). Se clasifica en Finanzas → Resultados.
+- **`src/caja.js`: NO TODA SALIDA DE CAJA CHICA ES GASTO (Luis, 21 nov).** Cada salida dice qué fue (`clase`) y de eso
+  depende a dónde se carga, usando lo que ya existía: `gasto_parcela` y `gasto_general` dejan un gasto ligado
+  (`egresoDeCaja`, id fijo `eg-<movimiento>`, `cajachicaId`; el general SIN parcela → gastos generales);
+  `inventario` deja un gasto de «insumos» con `destinoInsumo: inventario` (no es gasto hasta que se use);
+  `prestamo` y `pago_personal` NO crean nada: se LIGAN (`eventoId`, `revisarLiga`: mismo importe, vigente, libre) a la
+  entrega o al pago que vive en su pantalla; `traspaso` no cuenta; `otro` = por clasificar. **El fondo que entra a la
+  caja es un traspaso: ni ingreso ni gasto.** El flujo lee `salidasDeCajaAlFlujo`: una salida se cuenta UNA vez — por
+  su gasto, por su evento, o aquí como `caja_por_clasificar` / `caja_por_ligar`; nunca desaparece. Una salida de antes
+  sin clase ni parcela es «por clasificar». Lo pendiente sale en Caja chica y en Finanzas → Resultados
+  (`pendientesDeCaja`). **La caja no crea préstamos ni pagos**, y de un movimiento sólo se corrige el concepto.
 - **Bonos y salario integrado**: `integra` es `si` | `no` | `revisar` (por
   defecto `revisar`; la app no lo decide por el nombre del bono). Decidirlo
   después es `bono_revision` (sensible, hoja 42), con fundamento.
@@ -782,6 +792,16 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
 - **Producción = lo probado**: `node pruebas/base/paridad.mjs --consulta` da las huellas de la base de pruebas y la
   consulta de sólo lectura para producción. Deben coincidir las siete. Después de instalar una hoja, vuelve a compararlas.
 - Ya no hay aviso de «PINs de fábrica»: no existen. No lo regreses.
+- **Restaurar no reescribe la historia (hoja 53, instalada el 21 nov).** Cada sello de evento lleva una firma
+  (`sello_firma`, `firma_de_sello`) hecha con una llave que ninguna cuenta lee (`sellos_llave`; tampoco la de
+  servicio). Restaurar se ABRE con motivo (`abrir_restauracion`, superadministrador, una hora, queda en
+  `restauraciones`) y sólo recupera el sello original si la firma coincide; lo restaurado queda marcado (`restaurado`,
+  `restaurado_por`). La app manda el sello con `conSelloOriginal` y sube sólo lo que falta (`soloFaltantes`).
+- **Respaldo automático: PREPARADO, SIN ESTRENAR** (`herramientas/respaldo/`, `docs/RESPALDO-AUTOMATICO.md`). Corre en
+  un repositorio PRIVADO aparte (este es público) y toma de aquí sus herramientas. `respaldar.sh` sólo lee;
+  `restaurar.sh` se niega contra producción y contra un proyecto con tablas, y comprueba con `huellas.sql`
+  (estructura + cada tabla), `archivos.mjs comprobar` y `ataques.sql`. **No se declara resuelto hasta el ensayo real.**
+  `huellas.sql` se genera de las consultas de `pruebas/base/paridad.mjs`: si cambian, se vuelve a generar.
 
 ## Cómo verificar tu trabajo
 
@@ -792,7 +812,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **223 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **224 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

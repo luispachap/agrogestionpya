@@ -31,6 +31,7 @@
 import { sumarDinero, vivos } from "./calculos.js";
 import { costoAFinanzas } from "./almacen.js";
 import { vigentes } from "./eventos.js";
+import { salidasDeCajaAlFlujo } from "./caja.js";
 
 const S = (l) => sumarDinero(l);
 const n = (x) => Number(x) || 0;
@@ -96,7 +97,10 @@ export function resultadoDelRancho({ ingresos = [], egresos = [], entradas_inv =
 // Lo que entró y salió de dinero, mes por mes.
 //   eventos    todos (pagos al personal, de prestaciones, de bajas y de bonos; entregas de préstamos; abonos)
 //   prestamos  los de la tabla de antes (los que nacen de eventos ya vienen por su entrega y se ignoran aquí)
-export function flujoDeEfectivo({ ingresos = [], egresos = [], compras = [], entradas_inv = [], creditos = [], eventos = [], prestamos = [], hoy = "" }) {
+//   cajachica  los movimientos de caja chica. El fondo que entra y los traspasos NO son flujo del rancho (el dinero
+//              sólo cambió de bolsa). Una salida se cuenta UNA vez: por su gasto ligado, por el pago o préstamo al que
+//              está ligada, o —si no tiene ninguno— aquí, como «por clasificar» o «por ligar» (src/caja.js).
+export function flujoDeEfectivo({ ingresos = [], egresos = [], compras = [], entradas_inv = [], creditos = [], eventos = [], prestamos = [], cajachica = [], hoy = "" }) {
   const meses = new Map();
   const reg = (fecha, lado, clase, monto) => {
     if (!(monto > 0)) return;
@@ -124,10 +128,12 @@ export function flujoDeEfectivo({ ingresos = [], egresos = [], compras = [], ent
     else if (e.tipo === "abono_prestamo" && !e.datos?.semana) reg(e.fecha, "ingresos", "abonos_prestamos", m);
   }
   for (const p of vivos(prestamos)) if (!p._deEventos) reg(p.fecha, "egresos", "prestamos_entregados", n(p.monto));
+  for (const c of salidasDeCajaAlFlujo(cajachica, { egresos, eventos })) reg(c.fecha, "egresos", c.clase, c.monto);
   const lista = [...meses.values()].sort((a, b) => a.mes.localeCompare(b.mes));
   let acumulado = 0;
   for (const m of lista) { m.neto = sumarDinero(m.ingresos, -m.egresos); acumulado = sumarDinero(acumulado, m.neto); m.acumulado = acumulado; }
   return { meses: lista, ingresos: S(lista.map(m => m.ingresos)), egresos: S(lista.map(m => m.egresos)), neto: acumulado };
 }
 export const NOMBRE_DE_FLUJO = { ventas: "ingresos capturados", creditos: "créditos recibidos", abonos_prestamos: "abonos de préstamos al personal", gastos: "gastos capturados", compras: "compras del personal", almacen: "compras para el almacén",
-  abonos_creditos: "abonos a créditos", pagos_personal: "pagos al personal", pagos_prestaciones: "pagos de prestaciones", pagos_bajas: "pagos de bajas", pagos_bonos: "pagos de bonos", prestamos_entregados: "préstamos entregados al personal" };
+  abonos_creditos: "abonos a créditos", pagos_personal: "pagos al personal", pagos_prestaciones: "pagos de prestaciones", pagos_bajas: "pagos de bajas", pagos_bonos: "pagos de bonos", prestamos_entregados: "préstamos entregados al personal",
+  caja_por_clasificar: "salidas de caja chica por clasificar", caja_por_ligar: "salidas de caja chica por ligar a su préstamo o pago" };

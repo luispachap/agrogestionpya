@@ -56,6 +56,7 @@ import { fuentesPorDia, cotejar } from "./cotejo.js";
 import MapaAgricola from "./Mapa.jsx";
 import { limitesDe, conPoligonos } from "./mapa.js";
 import { resultadoDelRancho, flujoDeEfectivo, NOMBRE_DE_FLUJO, DESTINOS_DE_INSUMO, insumosPorClasificar } from "./resultado.js";
+import { CLASES_DE_SALIDA, ORDEN_DE_CLASES, nombreDeClase, claseDeSalida, revisarSalida, egresoDeCaja, estadoDeSalida, pendientesDeCaja, eventosParaLigar, revisarLiga, saldoDeCaja } from "./caja.js";
 // El resultado y el flujo del rancho: TODAS las pantallas los sacan de aquí, para que digan lo mismo.
 // Cada ajuste de valuación sigue a su consumo: a la parcela, al uso general, o al vehículo (que lo lleva en su propia cuenta).
 const ajustesPorDestino = (lista) => ({ ajustesValuacion: sumarDinero(lista.filter(a => a.destino?.tipo === "parcela").map(a => a.diferencia)), ajustesGenerales: sumarDinero(lista.filter(a => a.destino?.tipo !== "parcela" && a.destino?.tipo !== "vehiculo").map(a => a.diferencia)) });
@@ -66,7 +67,7 @@ const almacenEnDinero = (data) => {
 };
 const resultadoDe = (data) => resultadoDelRancho({ ingresos: data.ingresos, egresos: data.egresos, entradas_inv: data.entradas_inv || [], actividades: data.actividadesContables || data.actividades || [], indirectos: data.indirectos,
   compras: repartoDeCompras(data.compras || [], data.almacen?.recibidas || []), almacen: almacenEnDinero(data) });
-const flujoDe = (data) => flujoDeEfectivo({ ingresos: data.ingresos, egresos: data.egresos, compras: data.compras || [], entradas_inv: data.entradas_inv || [], creditos: data.creditos || [], eventos: data.eventos || [], prestamos: data.prestamos || [], hoy: today() });
+const flujoDe = (data) => flujoDeEfectivo({ ingresos: data.ingresos, egresos: data.egresos, compras: data.compras || [], entradas_inv: data.entradas_inv || [], creditos: data.creditos || [], eventos: data.eventos || [], prestamos: data.prestamos || [], cajachica: data.cajachica || [], hoy: today() });
 import { T_SALARIO_MINIMO, ZONAS as ZONAS_SM, catalogoDe as catalogoSM, salarioMinimoEn, capturarSalarioMinimo, alertaDeSalarioMinimo } from "./salariosMinimos.js";
 import { T_BAJA, T_PAGO_BAJA, CAUSAS_DE_BAJA, CONCEPTOS_DE_BAJA, NOMBRE_DE as NOMBRE_DE_BAJA, proponerBaja, registrarBaja, pagarBaja, bajasDe, pagosDeBaja, renglonesDeBajas } from "./bajas.js";
 import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, generarSQLCuentas, exportarPolizas, HOJAS } from "./excelLoader";
@@ -12681,7 +12682,7 @@ function CuadHistorial({ data, upd, session, onLogout }) {
   );
 }
 
-const NOMBRE_DE_GASTO = { almacen_uso_general: "insumos de uso general del rancho", almacen_mermas: "mermas y faltantes del almacén", almacen_ajustes: "ajustes de valuación de insumos sin parcela", bonos: "bonos al personal", maquinaria_diferencia: "maquinaria: diferencia entre cuota y costo real", vehiculos: "vehículos: usos que no fueron para una parcela", compras_personal: "compras hechas por el personal", bodega_general: "trabajos generales de bodega", laboral_bajas: "laborales por bajas (prima de antigüedad e indemnizaciones)", servicios: "servicios", maquinaria: "renta de maquinaria", mano_obra: "mano de obra externa", transporte: "transporte", administrativo: "administrativo", financiero: "financiero", caja_chica: "caja chica", otro: "otros" };
+const NOMBRE_DE_GASTO = { caja_chica: "gastos generales pagados de caja chica",  almacen_uso_general: "insumos de uso general del rancho", almacen_mermas: "mermas y faltantes del almacén", almacen_ajustes: "ajustes de valuación de insumos sin parcela", bonos: "bonos al personal", maquinaria_diferencia: "maquinaria: diferencia entre cuota y costo real", vehiculos: "vehículos: usos que no fueron para una parcela", compras_personal: "compras hechas por el personal", bodega_general: "trabajos generales de bodega", laboral_bajas: "laborales por bajas (prima de antigüedad e indemnizaciones)", servicios: "servicios", maquinaria: "renta de maquinaria", mano_obra: "mano de obra externa", transporte: "transporte", administrativo: "administrativo", financiero: "financiero", caja_chica: "caja chica", otro: "otros" };
 // El cierre de mes: la foto de los costos. Lo que cambie después se ve como ajuste posterior; la foto no se toca.
 function CierreDeMes({ data, add, session }) {
   const hoy = today(), mesPasado = sumarDias(`${hoy.slice(0, 7)}-01`, -1).slice(0, 7);
@@ -13423,6 +13424,12 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
               </div>)}
               <div className="text-xs text-muted" style={{ marginTop: 6 }}>Si entró al almacén, además hay que darle entrada ahí (con su cantidad) para que la existencia y el costo promedio lo sepan. Si fue para una parcela o un vehículo en particular, corrígelo en el gasto.</div>
             </div>}
+            {(() => { const p = pendientesDeCaja(data.cajachica || [], { egresos: data.egresos || [], eventos: data.eventos || [] }); return (p.porClasificar.length + p.porLigar.length) > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}>
+              <div className="card-title">Caja chica por resolver</div>
+              {p.porClasificar.length > 0 && <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm">Salidas que nadie ha dicho qué fueron ({p.porClasificar.length})<div className="text-xs text-muted">ya están en el flujo de efectivo (el dinero salió); no están en estos resultados hasta que se clasifiquen</div></span><b>{fmt(p.montoPorClasificar)}</b></div>}
+              {p.porLigar.length > 0 && <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm">Préstamos o pagos que salieron de la caja, sin ligar a su registro ({p.porLigar.length})<div className="text-xs text-muted">no son gasto; si el préstamo o el pago ya está registrado y no se ligan, el flujo los cuenta dos veces</div></span><b>{fmt(p.montoPorLigar)}</b></div>}
+              <div className="text-xs text-muted" style={{ marginTop: 6 }}>Se resuelven en la pantalla Caja chica.</div>
+            </div>; })()}
             <div className="card">
               <div className="card-title">Resultado por cultivo</div>
               {(() => { const g = sumarDinero((data.actividadesContables || data.actividades || []).filter(a => a.esBodega && a.cultivoBodega === "__general__").map(a => (a.costoMO || 0) + (a.costoMaq || 0) + (a.costoInsumos || 0))); return g > 0 ? <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Los trabajos generales de bodega ({fmt(g)}) no se reparten entre los cultivos: son gasto general y salen aparte en el cierre de mes.</div> : null; })()}
@@ -14702,30 +14709,64 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
 function EncargadoCaja({ data, add, upd, del, cancelar, reactivar, session }) {
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  const FORM0 = { tipo: "salida", concepto: "", monto: 0, fecha: today(), parcelaId: "" };
+  const FORM0 = { tipo: "salida", clase: "", concepto: "", monto: 0, fecha: today(), parcelaId: "", eventoId: "" };
   const [form, setForm] = useState(FORM0);
+  const [aviso, setAviso] = useState("");
+  const [resolver, setResolver] = useState({});      // lo que se está escogiendo para una salida pendiente: { [id]: { clase, parcelaId } }
 
   const movs = [...(data.cajachica || [])].sort((a, b) => b.fecha.localeCompare(a.fecha));
-  const saldo = vivos(data.cajachica).reduce((s, c) => s + (c.tipo === "entrada" ? c.monto : -c.monto), 0);
+  const saldo = saldoDeCaja(data.cajachica);
   const totalEntradas = vivos(data.cajachica).filter(c => c.tipo === "entrada").reduce((s, c) => s + c.monto, 0);
   const totalSalidas = vivos(data.cajachica).filter(c => c.tipo === "salida").reduce((s, c) => s + c.monto, 0);
+  // No toda salida es gasto (src/caja.js): cada una dice qué fue, y de eso depende a dónde se carga.
+  const ctx = { egresos: data.egresos || [], eventos: data.eventos || [], cajachica: data.cajachica || [] };
+  const pend = pendientesDeCaja(data.cajachica || [], ctx);
+  const quien = { rol: session.role || "encargado", id: session.id, nombre: session.nombre || "" };
+  const nombreDe = (id) => [...(data.trabajadores || []), ...(data.encargados || [])].find(t => t.id === id)?.nombre || "";
+  const etiquetaDe = (e) => { const n = e.nombre || nombreDe(e.trabajadorId); return `${e.fecha} · ${fmt(e.monto)}${n ? " · " + n : ""}`; };
+  const nombreDeParcela = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "";
 
   const guardar = () => {
-    if (!form.concepto || !form.monto) { alert("Falta concepto o monto"); return; }
+    const monto = parseFloat(form.monto) || 0;
     const ccId = `cc${Date.now()}`;
-    add("cajachica", { ...form, id: ccId, monto: parseFloat(form.monto) || 0, registradoPor: session.id });
-    // INTEGRACIÓN: si el gasto fue para una parcela, también entra al costo del
-    // cultivo como egreso ligado (antes, los gastos de caja nunca llegaban a los reportes).
-    if (form.tipo === "salida" && form.parcelaId) {
-      add("egresos", {
-        id: `eg${Date.now()}`, fecha: form.fecha,
-        concepto: `Caja chica: ${form.concepto}`, categoria: "caja_chica",
-        monto: parseFloat(form.monto) || 0, parcelaId: form.parcelaId,
-        cajachicaId: ccId,
-        registradoPor: { rol: session.role || "encargado", id: session.id, nombre: session.nombre || "" },
-      });
+    if (form.tipo === "entrada") {
+      if (!form.concepto || !monto) { setAviso("Falta concepto o monto."); return; }
+      add("cajachica", { id: ccId, tipo: "entrada", concepto: form.concepto, monto, fecha: form.fecha, registradoPor: session.id });
+      setAviso(""); setForm(FORM0); setShowForm(false); return;
     }
-    setForm(FORM0); setShowForm(false);
+    const falta = revisarSalida({ ...form, monto });
+    if (falta) { setAviso(falta); return; }
+    const mov = { id: ccId, tipo: "salida", clase: form.clase, concepto: form.concepto, monto, fecha: form.fecha, registradoPor: session.id, ...(form.clase === "gasto_parcela" ? { parcelaId: form.parcelaId } : {}) };
+    if (form.eventoId && CLASES_DE_SALIDA[form.clase].liga) {
+      const no = revisarLiga(mov, form.eventoId, ctx);
+      if (no) { setAviso(no); return; }
+      mov.eventoId = form.eventoId;
+    }
+    add("cajachica", mov);
+    // Si es un gasto (de una parcela, general o una compra para el almacén) deja su gasto ligado: por ahí llega a los
+    // reportes, una sola vez. Un préstamo, un pago o un traspaso NO crean gasto.
+    const eg = egresoDeCaja(mov, quien);
+    if (eg) add("egresos", eg);
+    setAviso(""); setForm(FORM0); setShowForm(false);
+  };
+  // Decir después qué fue una salida que quedó por clasificar. El importe, la fecha y el concepto no cambian.
+  const clasificar = (c) => {
+    const r = resolver[c.id] || {};
+    const falta = revisarSalida({ clase: r.clase, concepto: c.concepto, monto: c.monto, parcelaId: r.parcelaId });
+    if (falta) { setAviso(falta); return; }
+    const { parcelaId: _antes, ...resto } = c;
+    const nuevo = { ...resto, clase: r.clase, ...(r.clase === "gasto_parcela" ? { parcelaId: r.parcelaId } : {}), clasificadoPor: { id: session.id, nombre: session.nombre || "", fecha: today() } };
+    const eg = egresoDeCaja(nuevo, quien);
+    if (eg && (data.egresos || []).some(e => e.id === eg.id)) { setAviso("El gasto de esta salida ya existe y está cancelado. Reactívalo en Movimientos en vez de crear otro."); return; }
+    upd("cajachica", nuevo);
+    if (eg) add("egresos", eg);
+    setAviso(""); setResolver(x => ({ ...x, [c.id]: undefined }));
+  };
+  const ligar = (c, eventoId) => {
+    const no = revisarLiga(c, eventoId, ctx);
+    if (no) { setAviso(no); return; }
+    upd("cajachica", { ...c, eventoId, ligadoPor: { id: session.id, nombre: session.nombre || "", fecha: today() } });
+    setAviso("");
   };
 
   return (
@@ -14739,20 +14780,26 @@ function EncargadoCaja({ data, add, upd, del, cancelar, reactivar, session }) {
           <div className="stat-card wide">
             <div className="stat-label">Saldo disponible en caja</div>
             <div className="stat-val" style={{ fontSize: 28, color: saldo >= 0 ? "var(--safe)" : "var(--red)" }}>{fmt(saldo)}</div>
-            <div className="stat-sub">Para gastos operativos, sueldos y consumibles</div>
+            <div className="stat-sub">Lo que entró menos todo lo que salió, sea gasto o no</div>
           </div>
         </div>
         <div className="stat-row">
           <div className="stat-card"><div className="stat-label">Total recibido</div><div className="stat-val" style={{ fontSize: 16, color: "var(--safe)" }}>{fmt(totalEntradas)}</div></div>
-          <div className="stat-card"><div className="stat-label">Total gastado</div><div className="stat-val" style={{ fontSize: 16, color: "var(--red)" }}>{fmt(totalSalidas)}</div></div>
+          <div className="stat-card"><div className="stat-label">Total que salió</div><div className="stat-val" style={{ fontSize: 16, color: "var(--red)" }}>{fmt(totalSalidas)}</div></div>
         </div>
 
+        {aviso && <div className="card" role="alert" style={{ borderColor: "var(--red)", color: "var(--red)" }}>{aviso}</div>}
+        {(pend.porClasificar.length > 0 || pend.porLigar.length > 0) && <div className="card" style={{ borderColor: "var(--gold)" }}>
+          <div className="card-title">Por resolver</div>
+          {pend.porClasificar.length > 0 && <div className="text-sm">{pend.porClasificar.length} salida(s) por <b>{fmt(pend.montoPorClasificar)}</b> que nadie ha dicho qué fueron. El dinero ya salió y está en el flujo de efectivo; no están en los resultados hasta que alguien lo diga.</div>}
+          {pend.porLigar.length > 0 && <div className="text-sm" style={{ marginTop: 4 }}>{pend.porLigar.length} salida(s) por <b>{fmt(pend.montoPorLigar)}</b> anotadas como préstamo o pago a un trabajador y sin ligar a su registro. Si ese préstamo o ese pago ya está registrado, líguenlo aquí abajo para que no se cuente dos veces.</div>}
+        </div>}
         {showForm && (
           <div className="card ab">
             <div className="card-title">Nuevo movimiento de caja</div>
             <div className="form-group"><label className="form-label">Tipo</label>
               <div className="option-grid" style={{ marginBottom: 0 }}>
-                {[["entrada", "⬇️", "Entrada", "Recibí dinero"], ["salida", "⬆️", "Salida", "Gasté dinero"]].map(([v, ic, lb, sb]) => (
+                {[["entrada", "⬇️", "Entrada", "Fondo que recibí"], ["salida", "⬆️", "Salida", "Salió dinero"]].map(([v, ic, lb, sb]) => (
                   <div key={v} className={`option-card${form.tipo === v ? " active" : ""}`} onClick={() => setForm(f => ({ ...f, tipo: v }))}>
                     <span className="oc-icon"><Ic e={ic} /></span><span className="oc-label">{lb}</span><span className="oc-sub">{sb}</span>
                   </div>
@@ -14760,14 +14807,34 @@ function EncargadoCaja({ data, add, upd, del, cancelar, reactivar, session }) {
               </div>
             </div>
             <div className="form-group"><label className="form-label">Concepto</label><input className="inp" placeholder={form.tipo === "entrada" ? "Ej: Fondo recibido de administración" : "Ej: Compra de diésel, refacción, pago de un día de trabajo..."} value={form.concepto} onChange={e => setForm(f => ({ ...f, concepto: e.target.value }))} /></div>
+            {form.tipo === "entrada" && <div className="text-xs text-muted" style={{ marginBottom: 8 }}>El fondo que entra a la caja (o su reposición) no es un ingreso ni un gasto: es dinero del rancho que cambió de lugar. El gasto se cuenta cuando se usa.</div>}
             {form.tipo === "salida" && (
-              <div className="form-group"><label className="form-label">¿Fue para una parcela? (opcional — entra al costo del cultivo)</label>
-                <select className="inp" value={form.parcelaId || ""} onChange={e => setForm(f => ({ ...f, parcelaId: e.target.value }))}>
-                  <option value="">No / gasto general de caja</option>
+              <div className="form-group"><label className="form-label">¿Qué fue esta salida?</label>
+                <select className="inp" aria-label="Qué fue esta salida" value={form.clase} onChange={e => setForm(f => ({ ...f, clase: e.target.value, parcelaId: "", eventoId: "" }))}>
+                  <option value="">Escoge una…</option>
+                  {ORDEN_DE_CLASES.map(c => <option key={c} value={c}>{CLASES_DE_SALIDA[c].nombre}</option>)}
+                </select>
+                {form.clase && <div className="text-xs text-muted" style={{ marginTop: 4 }}>{CLASES_DE_SALIDA[form.clase].ayuda}</div>}
+              </div>
+            )}
+            {form.tipo === "salida" && form.clase === "gasto_parcela" && (
+              <div className="form-group"><label className="form-label">¿De qué parcela?</label>
+                <select className="inp" aria-label="De qué parcela" value={form.parcelaId || ""} onChange={e => setForm(f => ({ ...f, parcelaId: e.target.value }))}>
+                  <option value="">Escoge la parcela…</option>
                   {(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}{p.cultivo ? ` · ${p.cultivo}` : ""}</option>)}
                 </select>
               </div>
             )}
+            {form.tipo === "salida" && CLASES_DE_SALIDA[form.clase]?.liga && (() => {
+              const hay = eventosParaLigar(form.clase, ctx);
+              return <div className="form-group"><label className="form-label">{form.clase === "prestamo" ? "¿Cuál préstamo entregado?" : "¿Cuál pago registrado?"}</label>
+                <select className="inp" aria-label="Registro al que se liga" value={form.eventoId || ""} onChange={e => { const ev = hay.find(x => x.id === e.target.value); setForm(f => ({ ...f, eventoId: e.target.value, ...(ev ? { monto: ev.monto } : {}) })); }}>
+                  <option value="">Todavía no está registrado (queda por ligar)</option>
+                  {hay.map(e => <option key={e.id} value={e.id}>{etiquetaDe(e)}</option>)}
+                </select>
+                <div className="text-xs text-muted" style={{ marginTop: 4 }}>Ligarla evita que el mismo dinero se cuente dos veces: una por la caja y otra por {form.clase === "prestamo" ? "el préstamo" : "el pago"}.</div>
+              </div>;
+            })()}
             <div className="form-group"><label className="form-label">Monto</label><input type="number" className="inp" value={form.monto || ""} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} /></div>
             <div className="form-group"><label className="form-label">Fecha</label><input type="date" className="inp" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} max={today()} /></div>
             <button className="btn btn-accent" onClick={guardar}>Guardar movimiento</button>
@@ -14782,7 +14849,32 @@ function EncargadoCaja({ data, add, upd, del, cancelar, reactivar, session }) {
               <div className="li-icon" style={{ background: c.tipo === "entrada" ? "rgba(132,192,1,.12)" : "rgba(224,82,82,.1)" }}><Ic e={c.tipo === "entrada" ? "⬇️" : "⬆️"} /></div>
               <div className="li-body">
                 <div className="li-title" style={estiloCancelado(c)}>{c.concepto}</div>
-                <div className="li-sub" style={estiloCancelado(c)}>{c.fecha}</div>
+                <div className="li-sub" style={estiloCancelado(c)}>{c.fecha}{c.tipo === "salida" ? ` · ${nombreDeClase(claseDeSalida(c))}${c.parcelaId && nombreDeParcela(c.parcelaId) ? " · " + nombreDeParcela(c.parcelaId) : ""}` : " · Fondo recibido"}</div>
+                {(() => {
+                  // Lo que falta decir de esta salida se resuelve aquí mismo, sin tocar su importe ni su fecha.
+                  const e = !estaCancelado(c) && estadoDeSalida(c, ctx);
+                  if (!e || !e.pendiente) return null;
+                  if (e.pendiente === "por_ligar") {
+                    const hay = eventosParaLigar(e.clase, { ...ctx, propio: c.id });
+                    return <div style={{ marginTop: 4 }}>
+                      <div className="text-xs" style={{ color: "var(--gold)" }}>Por ligar a su {e.clase === "prestamo" ? "préstamo" : "pago"}</div>
+                      {hay.length > 0
+                        ? <select className="inp" aria-label={`Ligar ${c.concepto}`} value="" onChange={ev => ev.target.value && ligar(c, ev.target.value)}><option value="">Ligar con…</option>{hay.map(x => <option key={x.id} value={x.id}>{etiquetaDe(x)}</option>)}</select>
+                        : <div className="text-xs text-muted">Todavía no hay {e.clase === "prestamo" ? "un préstamo entregado" : "un pago registrado"} con qué ligarla. Se registra en {e.clase === "prestamo" ? "Préstamos" : "Pagos al personal"}.</div>}
+                    </div>;
+                  }
+                  const r = resolver[c.id] || {};
+                  return <div style={{ marginTop: 4 }}>
+                    <div className="text-xs" style={{ color: "var(--gold)" }}>Por clasificar</div>
+                    <select className="inp" aria-label={`Qué fue ${c.concepto}`} value={r.clase || ""} onChange={ev => setResolver(x => ({ ...x, [c.id]: { clase: ev.target.value, parcelaId: "" } }))}>
+                      <option value="">¿Qué fue?</option>{ORDEN_DE_CLASES.filter(k => k !== "otro").map(k => <option key={k} value={k}>{CLASES_DE_SALIDA[k].nombre}</option>)}
+                    </select>
+                    {r.clase === "gasto_parcela" && <select className="inp" style={{ marginTop: 4 }} aria-label={`Parcela de ${c.concepto}`} value={r.parcelaId || ""} onChange={ev => setResolver(x => ({ ...x, [c.id]: { ...r, parcelaId: ev.target.value } }))}>
+                      <option value="">Escoge la parcela…</option>{(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    </select>}
+                    {r.clase && <button className="btn btn-sm" style={{ marginTop: 4 }} onClick={() => clasificar(c)}>Guardar qué fue</button>}
+                  </div>;
+                })()}
                 <SelloCancelado registro={c} seccion="cajachica" reactivar={reactivar} />
               </div>
               <div className="li-right" style={{ display: "flex", alignItems: "center", gap: 6 }}>

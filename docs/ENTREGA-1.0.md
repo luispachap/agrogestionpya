@@ -5,21 +5,24 @@ La guía para operar está en `docs/OPERACION-1.0.md`.
 
 ## Conclusión: NO LISTO todavía
 
-No por lo que falló hoy —eso está corregido y probado— sino por tres cosas que no dependen de mí:
+Actualizado el 21 de noviembre, medianoche. Lo corregido está publicado y probado; lo que falta no se resuelve con
+más pruebas mías:
 
-1. **Las correcciones de hoy no están publicadas.** En app.agroselectos.com sigue la versión anterior, con las fallas
-   P0 y P1 de abajo. Publicar pide la autorización de Luis.
-2. **Producción está vacía.** Una sola cuenta, cero personal, cero parcelas y la fecha de inicio sin declarar. No hay
-   nada que «entregar funcionando» hasta que entren ustedes.
-3. **Nada se ha probado en el rancho.** Todo lo de abajo es con datos inventados, en navegadores que imitan teléfonos
-   y contra una nube de imitación. Yo no puedo entrar a producción con una cuenta ni tocar un teléfono.
+1. **El respaldo automático está preparado pero sin estrenar.** No existe todavía ni un respaldo real ni una
+   restauración ensayada. Mientras no se haga el ensayo, **operar dinero en producción depende de que la base no
+   falle** (`docs/RESPALDO-AUTOMATICO.md`). Faltan cuatro secretos y un repositorio privado, que sólo puede poner Luis.
+2. **Nada se ha probado en el rancho.** Todo es con datos inventados, navegadores que imitan teléfonos y una nube de
+   imitación. La prueba del domingo (`docs/PRUEBA-DEL-DOMINGO.md`) es la primera con teléfonos de verdad.
+3. **La auditoría funcional de los 67 módulos va en 3.** Finanzas, Movimientos y Caja chica están recorridos como
+   usuario; los otros 64 siguen en el inventario como NO VERIFICADOS hasta recorrerlos. Ninguno queda fuera.
+4. **Producción está vacía.** Una cuenta, cero personal, fecha de inicio sin declarar.
 
-**Qué lo vuelve LISTO, en este orden:** (a) autorizar la publicación de la versión candidata; (b) hacer el domingo la
-prueba de 12 pasos de `OPERACION-1.0.md` §7 en sus teléfonos; (c) corregir lo que esa prueba destape.
+**Qué lo vuelve LISTO:** (a) el respaldo real y su restauración ensayada; (b) la prueba del domingo y corregir lo
+que destape; (c) terminar la auditoría funcional — sigue aunque pase del lunes.
 
 **Qué se puede prometer para el lunes:** la operación diaria (alta de personal, checar, plan, reparto, cambios,
-incidencias, aplicaciones, almacén básico, cierre de jornada, pagos) si la prueba del domingo pasa.
-**Qué no:** que los 67 módulos estén validados. Los de la clase C no lo están.
+incidencias, aplicaciones, almacén básico, cierre de jornada, pagos) si la prueba del domingo pasa, y capturando
+dinero sólo cuando el respaldo esté ensayado.
 
 ## Alcance de la versión 1.0
 
@@ -111,23 +114,24 @@ recordatorios de Seguridad de la etapa anterior; dos pruebas con falsas alarmas.
 
 | Qué | Resultado |
 |---|---|
-| Pruebas de cálculo y reglas (`npm test`) | 1,221 de 1,221 |
-| Base aislada, atacada directo (`npm run test:base`) | 116 de 116 |
+| Pruebas de cálculo y reglas (`npm test`) | 1,242 de 1,242 |
+| Base aislada, atacada directo (`npm run test:base`) | 144 de 144 (16 de restauración, 12 del respaldo automático) |
 | Función de lectura con IA, sin red ni gasto | 12 de 12 |
-| Compilación | 223 módulos; el lector de PDF sale aparte |
-| Recorridos en navegador de la batería (29) | Todos pasan; `entrega` 62, `sinsenal` 10 |
-| Recorridos fuera de la batería (7: mensajes, lo dicho, rayas, mapa, satélite) | Todos pasan |
+| Compilación | 224 módulos; el lector de PDF sale aparte |
+| Recorridos en navegador de la batería (30) | Todos pasan; `entrega` 68, `sinsenal` 10, `auditoria_dinero` 37 |
 | Producción sin sesión | 6 de 6: no se lee, no se escribe, no se llama nada |
 | Sitio publicado en Android y iPhone imitados | 18 de 18 |
-| Producción contra la base de pruebas | 7 huellas iguales: 187 reglas, 50 funciones, 70 tablas, 173 candados, 200 permisos, 36 operaciones sensibles, quién puede llamar cada función |
+| Producción contra la base de pruebas, después de instalar la hoja 53 | 7 huellas iguales: 188 reglas, 52 funciones, 72 tablas, 173 candados, 200 permisos, 36 operaciones sensibles, quién puede llamar cada función |
 
 Lo que **no** se pudo ejecutar: una sesión real en producción, un teléfono real, señal real del rancho, correos de
 invitación reales, la cámara para credenciales y el toque de un aviso.
 
 ## Riesgos que quedan, aunque todo pase
 
-- **Sin copias automáticas.** El plan gratuito no respalda la base. La copia es el archivo semanal.
-- **Las fotos no van en el respaldo.**
+- **Sin copias automáticas TODAVÍA.** El respaldo de cada noche está preparado (`docs/RESPALDO-AUTOMATICO.md`) y
+  sin estrenar. Hasta el ensayo real, la única copia es el archivo que se baja a mano.
+- **Las fotos no van en el respaldo manual.** En el automático sí.
+- **Recuperar en otro proyecto tiene un paso sin ensayar:** decirle a la base copiada su nombre nuevo.
 - **El teléfono ligado guarda lo que ve la cuenta del encargado.** Por eso nunca se liga la de un administrador.
 - **El PIN no es identidad.** Lo que mueve dinero se hace con cuenta, y la base lo exige.
 - **La base se pausa** si pasan varios días sin uso (plan gratuito). Se reactiva sin perder nada.
@@ -138,7 +142,10 @@ invitación reales, la cámara para credenciales y el toque de un aviso.
 
 | Qué | Dónde está |
 |---|---|
-| Quién aplicó y catálogo ampliado | **Publicado** en app.agroselectos.com (`dd4bea5`) |
-| Correcciones P0, P1 y P2 de este cierre | En la rama `produccion/base-vigente`, **sin publicar** |
-| Función de borrado puesta al día | **Instalada** en la base de producción |
+| Correcciones P0, P1 y P2 del cierre | **Publicado** (`d3e0498`) |
+| Restaurar conserva quién autorizó y cuándo; nadie inventa autorizaciones (hoja 53 + firma) | **Instalada** en la base y **publicado** (`a7b8e4a`), 21 nov |
+| Caja chica: sólo se corrige el concepto; cancelar arrastra su gasto; gasto de parcela ya no sale como general | **Publicado** (`a7b8e4a`) |
+| Caja chica: clases de salida (gasto general, de parcela, inventario, préstamo, pago, traspaso, por clasificar) | En la rama, probado; **se publica al terminar su batería** |
+| Respaldo automático | Herramientas en la rama; **sin estrenar** |
+| Punto de regreso de la app | Despliegue anterior `dpl_CC6uu3f4HAEHXh45S6FYP3PDE5Yg` (`d3e0498`) |
 | Permiso de organización | Sin otorgar: lo hace Luis para su cuenta |
