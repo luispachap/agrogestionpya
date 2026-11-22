@@ -823,6 +823,21 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   resultado y no en el flujo (`ventasSinDinero`).
 - **Banco, Socios y ¿Alcanza? NO son del encargado** (Luis, 22 nov; hoja 54 instalada): fuera de su menú y de sus
   pantallas, y la base le niega `estados_cuenta`, `titulares`, `bolsas` y `aportaciones`. No se los regreses.
+- **Tampoco son de Finanzas por serlo (hoja 55, instalada)**: la base sólo deja CONSULTAR esas cuatro tablas a una
+  cuenta de Finanzas con el permiso `consultar_banco_y_socios` otorgado (sólo otorgado, se da en Arranque → Cuentas).
+- **Una compra entra al almacén como MOVIMIENTO, nunca escribiendo la existencia** (22 nov): «Registrar la compra» de
+  una solicitud escribía existencia y promedio ya calculados con `aplicarLote`, que no pasa por las protecciones de
+  `upd` — lo comprado no subía y el costo de lo consumido cambiaba hacia atrás. Ahora usa `movimientoDeSiempre` con
+  identificadores fijos por solicitud y renglón. **`aplicarLote` no es para `inventario` ni para `eventos`.**
+- **La misma compra no sale dos veces del flujo** (`gastosDeLaMismaCompra`, `ligarEntradaAGasto`, `resultado.js`): una
+  entrada con costo en Inventario y un gasto de insumos del mismo importe (±3 días) se PROPONEN como la misma compra
+  en Inventario → Entradas; una persona lo dice. No se liga solo.
+- **Usar lo del almacén no es dinero que sale** (`esConsumoDeAlmacen`): el gasto que nace de una aplicación con
+  producto del inventario (`deInventario`, `aplicacionId`, `indicacionId`) es costo y NO va al flujo.
+- **Una merma o un faltante vale lo del día en que pasó** (`costoEntonces`), como un consumo; lo recibido sin precio
+  no se valúa al promedio (`valorDelInventario` lo deja fuera hasta valuarlo); alta de artículo: `revisarArticulo`.
+- Recorridos de auditoría nuevos: `auditoria_pagos` (40), `auditoria_almacen` (45), `auditoria_semana` (26),
+  `auditoria_agronomo` (20). Todos con cuentas, nube de imitación, recarga y segundo aparato.
 
 ## Cómo verificar tu trabajo
 
