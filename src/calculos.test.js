@@ -433,3 +433,17 @@ test("la_distancia_entre_zacatecas_y_aguascalientes_es_la_de_la_carretera_en_lin
   assert.ok(d > 95 && d < 110, `dio ${d} km`);
   assert.equal(distKm(22.77, -102.58, 22.77, -102.58), 0);
 });
+
+// ── El sueldo del alta vale desde el día del alta (cierre de la versión 1.0) ──
+import { sueldoDeAlta as sueldoDeAlta_ } from "./calculos.js";
+test("el_sueldo_con_que_se_da_de_alta_a_alguien_no_sale_como_estimado", () => {
+  const nueva = sueldoDeAlta_({ id: "t9", nombre: "PERSONA INVENTADA", sueldo_dia: 350 }, "2026-11-23");
+  assert.deepEqual(nueva.historialSueldo, [{ desde: "2026-11-23", sueldo_dia: 350, anterior: 350 }]);
+  assert.deepEqual(sueldoVigente(nueva, "2026-11-23"), { sueldo: 350, origen: "historial", estimado: false });
+  // lo anterior al alta sigue siendo una estimación: no se inventa desde cuándo ganaba eso
+  assert.equal(sueldoVigente(nueva, "2026-11-01").estimado, true);
+  // quien ya trae historial, o no trae sueldo, se queda como venía
+  const con = { id: "t8", sueldo_dia: 400, historialSueldo: [{ desde: "2026-01-01", sueldo_dia: 400, anterior: 380 }] };
+  assert.equal(sueldoDeAlta_(con, "2026-11-23"), con);
+  assert.equal(sueldoDeAlta_({ id: "t7", sueldo_dia: 0 }, "2026-11-23").historialSueldo, undefined);
+});

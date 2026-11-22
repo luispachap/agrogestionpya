@@ -57,3 +57,25 @@ test("con_el_telefono_ligado_la_cuenta_sube_pero_no_abre_pantallas_sola", () => 
   assert.equal(abrePantallasSola({ cuentaId: "u-enc" }), false);
   assert.equal(abrePantallasSola(null), true);
 });
+
+// ── Lo de otros aparatos llega sin tener que salir y volver a entrar (cierre de la versión 1.0) ──
+import { tocaBajar, CADA_CUANTO_BAJAR_MS } from "./sincroniza.js";
+test("lo_que_capturo_otro_aparato_se_vuelve_a_bajar_cada_rato_y_no_solo_al_entrar", () => {
+  const t0 = 1_000_000;
+  assert.equal(tocaBajar({ ahora: t0, ultima: 0 }), true, "la primera vez, siempre");
+  assert.equal(tocaBajar({ ahora: t0 + 60_000, ultima: t0 }), false, "recién bajado no se repite");
+  assert.equal(tocaBajar({ ahora: t0 + CADA_CUANTO_BAJAR_MS, ultima: t0 }), true, "pasado el rato, sí");
+  assert.equal(tocaBajar({ ahora: t0 + CADA_CUANTO_BAJAR_MS * 3, ultima: t0, enLinea: false }), false, "sin señal no hay de dónde");
+  assert.equal(tocaBajar({ ahora: t0 + CADA_CUANTO_BAJAR_MS * 3, ultima: t0, visible: false }), false, "con la app escondida no gasta datos");
+});
+
+import { esFallaDeRed } from "./sincroniza.js";
+test("con_mala_senal_una_subida_sin_respuesta_no_gasta_intentos_pero_un_rechazo_de_la_base_si", () => {
+  assert.equal(esFallaDeRed(new TypeError("Failed to fetch")), true);
+  assert.equal(esFallaDeRed({ message: "NetworkError when attempting to fetch resource." }), true);
+  assert.equal(esFallaDeRed({ message: "Load failed" }), true);                       // así lo dice Safari
+  assert.equal(esFallaDeRed({ code: "42501", message: "new row violates row-level security policy" }), false);
+  assert.equal(esFallaDeRed({ code: "23505", message: "duplicate key" }), false);
+  assert.equal(esFallaDeRed({ status: 401, message: "JWT expired" }), false);
+  assert.equal(esFallaDeRed(null), false);
+});

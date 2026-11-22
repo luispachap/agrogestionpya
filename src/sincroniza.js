@@ -34,6 +34,27 @@ export function mezclarConNube(local, nube) {
   return { datos: next, quitados };
 }
 
+// ¿Toca volver a bajar los catálogos y registros de la nube? Antes sólo se bajaban al ENTRAR: lo que otro aparato
+// capturaba después (el plan del día, una persona recién dada de alta, una aplicación) no llegaba hasta salir y volver
+// a entrar. Ahora se vuelve a bajar cada cierto rato mientras la app está a la vista y con señal, y al regresar a ella.
+export const CADA_CUANTO_BAJAR_MS = 5 * 60 * 1000;
+export function tocaBajar({ ahora, ultima, visible = true, enLinea = true, cada = CADA_CUANTO_BAJAR_MS }) {
+  if (!enLinea || !visible) return false;      // sin señal no hay de dónde; escondida, no gasta datos
+  if (!ultima) return true;
+  return ahora - ultima >= cada;
+}
+
+// ¿Falló por la RED (no hubo respuesta) o porque la base lo RECHAZÓ? Sin respuesta no es culpa del registro: con mala
+// señal cinco intentos se queman en un minuto y el registro se apartaba hasta que alguien picara «reintentar». Una
+// falla de red no gasta intentos: se vuelve a intentar sola. Un rechazo de la base (trae código) sí cuenta.
+export function esFallaDeRed(e) {
+  if (!e) return false;
+  if (e.code || e.status || e.statusCode) return false;                       // la base contestó: es un rechazo
+  const m = String(e.message || e || "").toLowerCase();
+  return e.name === "TypeError" || e.name === "AbortError" || /failed to fetch|networkerror|network request failed|load failed|fetch failed|timeout|timed out|err_|conexi/.test(m);
+}
+export const CADA_CUANTO_REINTENTAR_MS = 30 * 1000;
+
 // ¿Se intenta subir ahora? Subir sin cuenta ligada sólo sirve para que la
 // base lo rechace y la app lo cuente como "falló": cinco rechazos y el
 // registro se apartaba. Ahora, sin cuenta, la cola ESPERA sin gastar intentos.

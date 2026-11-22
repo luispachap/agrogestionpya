@@ -155,6 +155,26 @@ const activos = (lista) => (Array.isArray(lista) ? lista : []).filter(p => p && 
 const conPin = (data) => Object.entries(CATALOGO_POR_ROL).filter(([rol]) => rol !== "externo").flatMap(([rol, cat]) => activos(data?.[cat]).map(p => ({ rol, p })));
 
 /**
+ * Antes de dar de alta (o de cambiarle el PIN) a alguien: que tenga nombre y que su PIN sirva.
+ * Un PIN repetido deja SIN ENTRAR a los dos que lo comparten, así que no se guarda; sin PIN sí se puede dar de alta
+ * (checa con credencial o lo registra su encargado), pero se avisa. `propioId` es la persona que se está editando.
+ * @returns {{ok:boolean, falta?:string, dice:string, aviso?:string}}
+ */
+export function revisarAlta({ nombre, pin, sueldo_dia } = {}, data, { propioId = null, pideSueldo = true } = {}) {
+  const n = String(nombre || "").trim();
+  if (n.length < 3) return { ok: false, falta: "nombre", dice: "Escribe el nombre completo de la persona." };
+  const mismo = conPin(data).find(x => x.p.id !== propioId && String(x.p.nombre || "").trim().toLowerCase() === n.toLowerCase());
+  if (mismo) return { ok: false, falta: "nombre", dice: `Ya hay alguien dado de alta como ${mismo.p.nombre}. Si es otra persona con el mismo nombre, agrégale algo que la distinga (segundo apellido o apodo).` };
+  if (pideSueldo && !(Number(sueldo_dia) > 0)) return { ok: false, falta: "sueldo", dice: "Falta lo que gana por día. Si cobra sólo por destajo, pon lo que se le paga un día normal: se puede cambiar después." };
+  const p = String(pin ?? "").trim();
+  if (p === "") return { ok: true, dice: "", aviso: `${n} queda sin PIN: no podrá entrar a la app ni checar con PIN hasta que se le ponga uno.` };
+  if (!/^\d{4,8}$/.test(p)) return { ok: false, falta: "pin", dice: "El PIN es de 4 a 8 números, sin letras ni espacios." };
+  const otro = conPin(data).find(x => x.p.id !== propioId && x.p.pin != null && String(x.p.pin).trim() === p);
+  if (otro) return { ok: false, falta: "pin", dice: `Ese PIN ya lo tiene ${otro.p.nombre}. Dos personas con el mismo PIN no pueden entrar ninguna de las dos: escoge otro.` };
+  return { ok: true, dice: "" };
+}
+
+/**
  * ¿De quién es este PIN? Se busca en todos los catálogos a la vez.
  * Si lo tienen dos personas NO se escoge una: se dice, y se le pide entrar con su credencial (que sí dice quién es).
  */

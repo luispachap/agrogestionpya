@@ -29,7 +29,7 @@ import { juntarFuentes, indirectoDe, costoCompleto, capturadoDespues } from "./i
 import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarraDe, barraDe, necesitaMenu, alternarInicio, alternarBarra, moverEnInicio, volverALoDeFabrica, anotarUso, masUsadas, ancladasConDatos, TOPE_BARRA, ENFOQUES, PERFILES_CON_ENFOQUE, faltaEnfoque, elegirEnfoque, alternarGrupo, mezclarPrefs, sellarAcomodo, mismoAcomodo } from "./menu.js";
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
-import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo, caminoDeEntrada, quienEntraConPin, entrarConCredencial, puertaDeAsistencia } from "./acceso.js";
+import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo, caminoDeEntrada, quienEntraConPin, entrarConCredencial, puertaDeAsistencia, revisarAlta } from "./acceso.js";
 import { estadoDeIA, consultasDeConversacion, consultarConversacion, verEvidencia, directorioDeCuentas, migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde, horaDelServidor, cuandoSelle, misPermisos, permisosDeTodos, cambiarPermiso } from "./dataApi";
 import { desfaseDe, selloDeReloj, estadoDelReloj } from "./reloj.js";
 // Pagos al personal: ausencias, lo que corresponde, lo entregado, lo pendiente y los recibos.
@@ -105,7 +105,7 @@ import {
 // El día: el clima de copiloto, el reparto de tareas y lo que se va a acabar.
 import { traerPronostico, planDelDia, alertasDelClima, riegoNecesario, describirEdad } from "./clima.js";
 import { destinoDe as destinoDeAviso, estadoDelAparato, CLASES_DE_AVISO } from "./avisos.js";
-import { activarAvisos, desactivarAvisos, avisoDePrueba, misPreferenciasDeAvisos, guardarPreferenciasDeAvisos, quitarAvisosDe, suscripcionDeEsteAparato } from "./avisosRed.js";
+import { conLimite, activarAvisos, desactivarAvisos, avisoDePrueba, misPreferenciasDeAvisos, guardarPreferenciasDeAvisos, quitarAvisosDe, suscripcionDeEsteAparato } from "./avisosRed.js";
 import { idConAsistente, abrirConAsistente, esConAsistente, misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro, hallazgosDe, antecedentes, temasDe, deDondeSalio, comoEvidencia, admiteArchivos, carpetaDe, pedirConsulta, conversacionesDe as todasLasConversaciones, PERMISO_EVIDENCIA, PERMISO_SUPERVISION } from "./mensajeria.js";
 import { planDelDia as planMandadoDe, loQueLeToca, quitarAsignacion, cambiarAsignacion } from "./asignaciones.js";
 import { conQuienes, quienesDe, textoDe as textoDeQuienes, CLASES as CLASES_CON_QUIENES } from "./ejecucion.js";
@@ -140,7 +140,7 @@ import {
   fechaLocal, mesLocal, sumarDias, mesAnterior, diasEntre,
   saldoCredito, diasParaVencer, cubetaVencimiento, CUBETAS_VENCIMIENTO,
   estaCancelado, vivos, marcarCancelado, ganaAlSincronizar,
-  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente,
+  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta,
 } from "./calculos";
 // El lector de papeles: la cascada de gratis a caro (QR y XML sin costo,
 // patrón aprendido para lo ya conocido, IA sólo para un formato nuevo).
@@ -160,7 +160,7 @@ import {
 } from "./almacenArchivos.js";
 import { revisarConteoInicial, revisarSaldoInicial } from "./arranque.js";
 import { marcarEspacio, llavesQueSeReinician, loDeAntes, sobreDeRespaldo, revisarRespaldo, LLAVES_ANTERIORES } from "./espacio.js";
-import { mezclarConNube, planDeSubida, puedeLigarTelefono, vinculoDe, abrePantallasSola } from "./sincroniza.js";
+import { esFallaDeRed, CADA_CUANTO_REINTENTAR_MS, tocaBajar, mezclarConNube, planDeSubida, puedeLigarTelefono, vinculoDe, abrePantallasSola } from "./sincroniza.js";
 import { revisarHorometro, compararConsumo, consumoPorHora } from "./maquinaria.js";
 
 // Aplicar el tema guardado (oscuro/claro) antes del primer render.
@@ -1229,17 +1229,8 @@ function genAlertas(data) {
       });
     }
   }
-  // Seguridad: PINs de fábrica de dirección aún activos (cualquiera podría entrar)
-  const cfgSeg = (data.config_seguridad || [])[0] || {};
-  const sinPinPropio = ["admin", "dueno", "finanzas"].filter(r => !cfgSeg["pin_" + r]);
-  if (sinPinPropio.length > 0) {
-    al.push({
-      tipo: "red",
-      titulo: "PINs de fábrica activos",
-      desc: `Cambia el PIN de: ${sinPinPropio.join(", ")} — cualquiera que conozca la app podría entrar`,
-      sec: "seguridad",
-    });
-  }
+  // (Aquí había un aviso rojo de «PINs de fábrica activos». Ya no existe ningún PIN de fábrica —sin PIN propio no se
+  // entra por PIN, se entra con cuenta—, así que el aviso era una falsa alarma y las falsas alarmas enseñan a ignorarlas.)
   // Asistencias sin actividad (vino pero su costo no está aplicado), últimos 14 días
   const hace14 = (() => { const d = new Date(hoyStr + "T12:00:00"); d.setDate(d.getDate() - 14); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
   const actKeys = new Set();
@@ -2373,6 +2364,8 @@ function useOffline() {
         else await guardarRegistro(op.sec, op.payload);
         exitosas.add(op.id);
       } catch (e) {
+        // Sin respuesta (mala señal) no es un rechazo: no gasta intentos y se reintenta sola más tarde.
+        if (esFallaDeRed(e)) { console.warn(`Cola: sin respuesta al subir ${op.sec}; se reintenta sola.`); break; }
         const intentos = (op.intentos || 0) + 1;
         nuevosIntentos.set(op.id, intentos);
         if (intentos >= MAX_INTENTOS) aApartar.push({ ...op, intentos, ultimoError: e?.message || "desconocido" });
@@ -2404,11 +2397,14 @@ function useOffline() {
     });
   }, [setFallidas, setPending]);
 
-  // Cuando vuelve la conexión y hay pendientes, procesar la cola (una vez).
+  // Cuando vuelve la conexión y hay pendientes, procesar la cola; y mientras quede algo, reintentar cada medio minuto.
+  // Antes sólo se reintentaba al cambiar la señal o al capturar algo más: con señal mala (el teléfono cree que tiene
+  // y las subidas fallan) lo capturado se quedaba en el teléfono sin volver a intentarse.
   useEffect(() => {
     if (online && pending.length > 0) {
       const t = setTimeout(() => { procesarCola(); }, 1500);
-      return () => clearTimeout(t);
+      const cada = setInterval(() => { procesarCola(); }, CADA_CUANTO_REINTENTAR_MS);
+      return () => { clearTimeout(t); clearInterval(cada); };
     }
   }, [online, pending.length, procesarCola]);
 
@@ -2740,10 +2736,15 @@ function ElDia({ data, add, upd, session, onClose }) {
   const sinNada = reparto ? quienNoTieneNada({ tareas: reparto.tareas, personas: gente }) : null;
   const porPersona = reparto ? aQueSeVaCadaQuien(reparto.tareas) : [];
 
+  const yaMandada = (tarea, paraId) => (data.indicaciones || []).some(i => i.tipo === "tarea" && i.estado === "mandada" && i.fecha === tarea.fecha
+    && i.asignadoA === paraId && (i.parcelaId || null) === (tarea.parcela?.id || null) && (i.que || "") === (tarea.que || ""));
   const mandarTarea = (tarea) => {
     const ind = indicacionParaElTrabajador(tarea);
     if (!ind.mandable) { alert(ind.porque); return; }
-    for (const m of ind.mensajes) {
+    // La misma tarea no se manda dos veces a la misma persona (un doble toque duplicaba el plan).
+    const porMandar = ind.mensajes.filter(m => !yaMandada(tarea, m.paraId));
+    if (porMandar.length === 0) { alert("Esa tarea ya está en el plan. Si cambió algo, usa «Cambiar» en el plan mandado."); return; }
+    for (const m of porMandar) {
       add("indicaciones", {
         tipo: "tarea", estado: "mandada", fecha: tarea.fecha,
         parcelaId: tarea.parcela?.id || null, asignadoA: m.paraId,
@@ -2754,7 +2755,7 @@ function ElDia({ data, add, upd, session, onClose }) {
         registradoPor: { rol: session.role, id: session.id, nombre: session.nombre },
       });
     }
-    alert(`Le llegó a ${ind.mensajes.map(m => m.para).join(", ")}.`);
+    alert(`Le llegó a ${porMandar.map(m => m.para).join(", ")}.`);
   };
 
   /* ── El plan mandado: se puede ver el de hoy o el de mañana, y cambiarlo ── */
@@ -2976,7 +2977,9 @@ function ElDia({ data, add, upd, session, onClose }) {
                       {t.ambiguos.map(a => `Dijo "${a.dijo}" y puede ser: ${a.candidatos.map(c => c.nombre).join(" o ")}.`).join(" ")}
                     </div>
                   )}
-                  <button className="btn btn-accent btn-sm mt-2" onClick={() => mandarTarea(t)}>Mandarla</button>
+                  {(() => { const para = indicacionParaElTrabajador(t).mensajes || []; return para.length > 0 && para.every(m => yaMandada(t, m.paraId))
+                    ? <div className="text-xs mt-2 plan-ya-mandada" style={{ color: "var(--safe)", fontWeight: 700 }}>✓ Ya está en el plan</div>
+                    : <button className="btn btn-accent btn-sm mt-2" onClick={() => mandarTarea(t)}>Mandarla</button>; })()}
                 </div>
               ))}
 
@@ -7265,7 +7268,8 @@ function AppInner() {
   // Cerrar sesión: limpia la sesión local y, si era cuenta real, también en Supabase.
   const cerrarSesion = useCallback(async () => {
     // Este aparato deja de recibir los avisos de la cuenta que se va: un teléfono que cambia de manos no hereda avisos.
-    if (session && session.cuenta) { try { await desactivarAvisos(); } catch { /* sin avisos que quitar */ } }
+    // Con límite: sin señal (o sin el trabajador de servicio listo) quitar los avisos no puede impedir salir.
+    if (session && session.cuenta) { try { await conLimite(desactivarAvisos(), 4000); } catch { /* sin avisos que quitar */ } }
     if (session && session.cuenta && supabaseListo) {
       // Un encargado puede dejar su cuenta ligada para que su gente capture
       // con PIN y lo capturado suba. Sólo encargados: nunca la cuenta de un
@@ -7281,7 +7285,9 @@ function AppInner() {
       if (ligar) setVinculo(vinculoDe(session));
       else {
         setVinculo(null);
-        try { await supabase.auth.signOut(); } catch { /* ignorar */ }
+        // Con mala señal el aviso al servidor puede tardar: se espera poco y, pase lo que pase, la sesión se quita de ESTE aparato.
+        try { await conLimite(supabase.auth.signOut(), 5000); } catch { /* ignorar */ }
+        try { await conLimite(supabase.auth.signOut({ scope: "local" }), 2000); } catch { /* ignorar */ }
         ponPermisos(null);     // sin cuenta en el aparato, no hay permiso de nadie que recordar
       }
     }
@@ -7295,9 +7301,20 @@ function AppInner() {
   // Se guarda para poder decirlo en pantalla: un dato que falta no es un cero,
   // y no haber mirado no es estar limpio.
   const [avisosLectura, setAvisosLectura] = useState({ fallas: [], topes: [], cuando: null });
+  // Lo de los demás aparatos se vuelve a bajar solo cada cierto rato y al regresar a la app (`tocaBajar`), no sólo al entrar.
+  const [ronda, setRonda] = useState(0);
+  const ultimaBajada = useRef(0);
+  useEffect(() => {
+    if (!supabaseListo || !session) return;
+    const revisar = () => { if (tocaBajar({ ahora: Date.now(), ultima: ultimaBajada.current, visible: document.visibilityState !== "hidden", enLinea: navigator.onLine !== false })) setRonda(n => n + 1); };
+    const t = setInterval(revisar, 60 * 1000);
+    document.addEventListener("visibilitychange", revisar); window.addEventListener("online", revisar);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", revisar); window.removeEventListener("online", revisar); };
+  }, [session?.id, session?.cuenta]);
   useEffect(() => {
     if (!supabaseListo || !session) return;
     let activo = true;
+    ultimaBajada.current = Date.now();
     (async () => {
       setSincronizando(true);
       try {
@@ -7357,7 +7374,7 @@ function AppInner() {
       }
     })();
     return () => { activo = false; };
-  }, [session?.id, session?.cuenta]);
+  }, [session?.id, session?.cuenta, ronda]);
 
   // Los eventos se bajan aparte y sólo lo nuevo: desde la marca del último que
   // este aparato ya tiene. Corre al entrar y luego cada dos minutos, para que la
@@ -7437,7 +7454,7 @@ function AppInner() {
     return () => { navigator.serviceWorker?.removeEventListener?.("message", oir); document.removeEventListener("visibilitychange", alVolver); window.removeEventListener("focus", alVolver); };
   }, [setPage]);
   // Sólo en desarrollo: las pruebas leen aquí lo calculado para cruzar una pantalla contra otra.
-  useEffect(() => { if (import.meta.env.DEV) window.__agroDatos = data; }, [data]);
+  useEffect(() => { if (import.meta.env.DEV) { window.__agroDatos = data; window.__agroCuentas = () => ({ resultado: resultadoDe(data), flujo: flujoDe(data) }); } }, [data]);
 
   // Botón "atrás" del navegador/teléfono: retrocede dentro de la app en vez de salir.
   // Cuando se entra a una página que no es "home", se agrega una entrada al historial;
@@ -7577,6 +7594,8 @@ function AppInner() {
 
   const add = useCallback((sec, item) => {
     if (sec === "actividades") item = sellarSueldoDelDia(item, trabajadoresRef.current);
+    // El sueldo con que se da de alta a alguien vale desde ese día (si no, todo lo suyo salía como «sueldo estimado»).
+    if (sec === "trabajadores" || sec === "encargados") item = sueldoDeAlta(item, today());
     // Quién lo ordenó, capturó, ejecutó y confirmó van aparte, sin suponer a nadie. No cambia pagos ni costos.
     if (CLASES_CON_QUIENES.includes(sec)) item = conQuienes(sec, item, { sesion: sesionRef.current, catalogos: catalogosRef.current });
     if (sec === "inventario") item = paraGuardarArticulo(item);
@@ -11493,7 +11512,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
               <div key={k} className="form-group"><label className="form-label">{l}</label><input type={t} className="inp" value={encForm[k]} onChange={e => setEncForm(f => ({ ...f, [k]: t === "number" ? (parseFloat(e.target.value) || 0) : e.target.value }))} /></div>
             ))}
             <div className="text-xs text-muted mb-3">El encargado puede asignar tareas, ver actividades del personal, registrar préstamos, manejar caja chica y reportar incidencias. También es personal con sueldo: puede registrar sus propias actividades y recibir bonificaciones.</div>
-            <button className="btn btn-accent" onClick={() => { if (!encForm.nombre) { alert("Falta el nombre"); return; } add("encargados", { ...encForm, id: `en${Date.now()}`, categoria: "encargado", sueldo_dia: encForm.sueldo_dia || 0 }); setEncForm({ nombre: "", pin: "", sueldo_dia: 0 }); setShowAdd(false); }}>Guardar</button>
+            <button className="btn btn-accent" onClick={() => { const r = revisarAlta({ ...encForm, sueldo_dia: encForm.sueldo_dia || encForm.sueldo }, data, { pideSueldo: false }); if (!r.ok) { alert(r.dice); return; } if (r.aviso && !window.confirm(r.aviso + "\n\n¿Guardar así?")) return; add("encargados", { ...encForm, id: `en${Date.now()}`, categoria: "encargado", sueldo_dia: encForm.sueldo_dia || 0 }); setEncForm({ nombre: "", pin: "", sueldo_dia: 0 }); setShowAdd(false); }}>Guardar</button>
           </div>
         </div>
       )}
@@ -11510,7 +11529,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
               </select>
               <div className="text-xs text-muted mt-2">El puesto define la interfaz de registro: tractorista, dronero, etc.</div>
             </div>
-            <button className="btn btn-accent" onClick={() => { add("trabajadores", { ...tForm, id: `t${Date.now()}` }); setShowAdd(false); }}>Guardar</button>
+            <button className="btn btn-accent" onClick={() => { const r = revisarAlta(tForm, data); if (!r.ok) { alert(r.dice); return; } if (r.aviso && !window.confirm(r.aviso + "\n\n¿Guardar así?")) return; add("trabajadores", { ...tForm, nombre: tForm.nombre.trim(), pin: String(tForm.pin || "").trim(), id: `t${Date.now()}` }); setTForm({ nombre: "", categoria: "jornalero", sueldo_dia: 350, pin: "", codigoNomina: "" }); setShowAdd(false); }}>Guardar</button>
           </div>
         </div>
       )}
@@ -11521,7 +11540,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
             {[["Nombre", "text", "nombre"], ["Responsable", "text", "responsable"], ["Miembros", "number", "miembros"], ["Flete/día", "number", "flete_dia"], ["PIN", "text", "pin"]].map(([l, t, k]) => (
               <div key={k} className="form-group"><label className="form-label">{l}</label><input type={t} className="inp" value={cqForm[k]} onChange={e => setCqForm(f => ({ ...f, [k]: t === "number" ? parseFloat(e.target.value) || 0 : e.target.value }))} /></div>
             ))}
-            <button className="btn btn-accent" onClick={() => { add("cuadrillas", { ...cqForm, id: `cq${Date.now()}` }); setShowAdd(false); }}>Guardar</button>
+            <button className="btn btn-accent" onClick={() => { const r = revisarAlta(cqForm, data, { pideSueldo: false }); if (!r.ok) { alert(r.dice); return; } add("cuadrillas", { ...cqForm, id: `cq${Date.now()}` }); setCqForm({ nombre: "", responsable: "", miembros: 1, flete_dia: 0, pin: "" }); setShowAdd(false); }}>Guardar</button>
           </div>
         </div>
       )}
@@ -11740,7 +11759,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
       {editItem && (
         <EditorRegistro
           seccion={editItem.seccion} registro={editItem.registro} titulo={editItem.titulo}
-          campos={editItem.campos} upd={upd} del={del} onClose={() => setEditItem(null)}
+          campos={editItem.campos} upd={upd} del={del} onClose={() => setEditItem(null)} revisar={revisaFicha(data, editItem.seccion)}
         />
       )}
     </div>
@@ -14473,7 +14492,7 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
     add("eventos", r.evento); setPaso(null); setPasoDice("");
   };
   const guardarCuad = () => {
-    if (!cuadForm.nombre) { alert("Falta el nombre"); return; }
+    const r = revisarAlta(cuadForm, data, { pideSueldo: false }); if (!r.ok) { alert(r.dice); return; }
     add("cuadrillas", { ...cuadForm, id: `cq${Date.now()}`, miembros: parseInt(cuadForm.miembros) || 1, flete_dia: parseFloat(cuadForm.flete_dia) || 0 });
     setCuadForm(FC0); setShowCuad(false);
   };
@@ -14645,7 +14664,7 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
       {editItem && (
         <EditorRegistro
           seccion={editItem.seccion} registro={editItem.registro} titulo={editItem.titulo}
-          campos={editItem.campos} upd={upd} del={del} onClose={() => setEditItem(null)}
+          campos={editItem.campos} upd={upd} del={del} onClose={() => setEditItem(null)} revisar={revisaFicha(data, editItem.seccion)}
         />
       )}
     </div>
@@ -14968,7 +14987,7 @@ function AdminProveedores({ data, add, upd, del, cancelar, reactivar, onBack }) 
       {editItem && (
         <EditorRegistro
           seccion={editItem.seccion} registro={editItem.registro} titulo={editItem.titulo}
-          campos={editItem.campos} upd={upd} del={del} onClose={() => setEditItem(null)}
+          campos={editItem.campos} upd={upd} del={del} onClose={() => setEditItem(null)} revisar={revisaFicha(data, editItem.seccion)}
         />
       )}
     </div>
@@ -16616,7 +16635,12 @@ function PanelParcelas({ data, add, del, session, onClose, onNav }) {
 /* ════════════ EDITOR UNIVERSAL DE REGISTROS — ADMIN ════════════ */
 /* Permite al administrador editar cualquier registro de cualquier
    colección. Recibe la colección, el registro y los campos editables. */
-function EditorRegistro({ seccion, registro, campos, titulo, upd, del, onClose }) {
+// Al editar la ficha de una persona se revisa lo mismo que al darla de alta: nombre y que su PIN no lo tenga nadie más.
+const revisaFicha = (data, seccion) => (r) => {
+  if (!["trabajadores", "encargados", "cuadrillas", "agronomos"].includes(seccion)) return null;
+  const x = revisarAlta(r, data, { propioId: r.id, pideSueldo: false }); return x.ok ? null : x.dice;
+};
+function EditorRegistro({ seccion, registro, campos, titulo, upd, del, onClose, revisar }) {
   const [form, setForm] = useState({ ...registro });
 
   const guardar = () => {
@@ -16624,6 +16648,8 @@ function EditorRegistro({ seccion, registro, campos, titulo, upd, del, onClose }
     campos.forEach(([k, , tipo]) => {
       if (tipo === "number" && limpio[k] !== undefined && limpio[k] !== "") limpio[k] = parseFloat(limpio[k]) || 0;
     });
+    const dice = revisar ? revisar(limpio) : null;
+    if (dice) { alert(dice); return; }
     upd(seccion, limpio);
     onClose();
   };
@@ -23712,7 +23738,7 @@ function PanelSeguridad({ data, add, upd, session, onClose }) {
                 <label className="form-label">
                   {r.label} · {configurado
                     ? <span style={{ color: "var(--safe)" }}>PIN propio configurado ✓</span>
-                    : <span style={{ color: "var(--red)" }}><Ic e="⚠️" /> PIN de fábrica (cámbialo ya)</span>}
+                    : <span className="text-muted">sin PIN: sólo entra con su cuenta (correo y contraseña)</span>}
                 </label>
                 <input type="password" inputMode="numeric" className="inp" placeholder="Nuevo PIN (6 a 10 dígitos)" value={pins[r.k]} onChange={e => setPins(p => ({ ...p, [r.k]: e.target.value }))} />
               </div>

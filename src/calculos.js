@@ -359,6 +359,14 @@ export function sueldoVigente(trabajador, fecha) {
   return { sueldo: parseFloat(trabajador.sueldo_dia) || 0, origen: "catalogo_actual", estimado: true };
 }
 
+// Al dar de ALTA a alguien, el sueldo que se le pone vale desde ese día: se anota como el primer renglón de su
+// historial. Sin esto, todo lo que trabajara salía marcado como «sueldo estimado» aunque el sueldo fuera el suyo.
+export function sueldoDeAlta(persona, hoy) {
+  const s = parseFloat(persona && persona.sueldo_dia) || 0;
+  if (!persona || !(s > 0) || (persona.historialSueldo || []).length > 0) return persona;
+  return { ...persona, historialSueldo: [{ desde: hoy, sueldo_dia: s, anterior: s }] };
+}
+
 // Al cambiarle el sueldo a alguien se ANOTA el cambio: desde qué día, cuánto,
 // y cuánto ganaba antes. Si el sueldo no cambió, no se anota nada.
 export function anotarCambioDeSueldo(antes, despues, hoy) {

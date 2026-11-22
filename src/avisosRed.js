@@ -5,8 +5,13 @@ import { CLASES_DE_AVISO, estadoDelAparato } from "./avisos.js";
 const aBytes = (b64) => { const s = atob((b64 + "=".repeat((4 - (b64.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(s, (c) => c.charCodeAt(0)); };
 const aTexto = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
+// `navigator.serviceWorker.ready` NUNCA contesta si el aparato no tiene el trabajador de servicio listo (primer arranque,
+// modo privado, navegador viejo). Esperarlo sin límite dejaba colgado hasta el botón de «Salir». Aquí se espera un rato y ya.
+export const conLimite = (promesa, ms, siNo = null) => Promise.race([promesa, new Promise((ok) => setTimeout(() => ok(siNo), ms))]);
+const registro = (ms = 1500) => { try { return conLimite(navigator.serviceWorker.ready, ms, null); } catch { return Promise.resolve(null); } };
+
 export async function suscripcionDeEsteAparato() {
-  try { const reg = await navigator.serviceWorker.ready; return await reg.pushManager.getSubscription(); } catch { return null; }
+  try { const reg = await registro(); return reg ? await reg.pushManager.getSubscription() : null; } catch { return null; }
 }
 
 // Activar los avisos en ESTE aparato para la cuenta que tiene la sesión abierta.
@@ -19,7 +24,8 @@ export async function activarAvisos() {
   if (!llave) { await supabase.functions.invoke("avisar", { body: { prueba: true } }).catch(() => {}); ({ data: llave } = await supabase.rpc("llave_publica_de_avisos")); }
   if (!llave) return { ok: false, dice: "El servidor todavía no tiene listas las llaves de los avisos. Intenta en un minuto." };
   try {
-    const reg = await navigator.serviceWorker.ready;
+    const reg = await registro(8000);
+    if (!reg) return { ok: false, dice: "Este navegador todavía no termina de instalar AgroGestión. Cierra la app, vuelve a abrirla e inténtalo otra vez." };
     let sus = await reg.pushManager.getSubscription();
     // Si el aparato estaba suscrito con otra llave (otra instalación), se vuelve a suscribir.
     if (sus && aTexto(sus.options.applicationServerKey || new ArrayBuffer(0)) !== llave) { await sus.unsubscribe(); sus = null; }
@@ -61,5 +67,5 @@ export async function guardarPreferenciasDeAvisos(datos) {
 
 // Al leer una conversación se quitan del teléfono los avisos de esa conversación: lo leído no sigue como pendiente.
 export async function quitarAvisosDe(tag) {
-  try { const reg = await navigator.serviceWorker.ready; (await reg.getNotifications({ tag })).forEach(n => n.close()); } catch { /* sin avisos que quitar */ }
+  try { const reg = await registro(); if (reg) (await reg.getNotifications({ tag })).forEach(n => n.close()); } catch { /* sin avisos que quitar */ }
 }

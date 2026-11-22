@@ -154,3 +154,35 @@ test("registrar_asistencia_desde_la_entrada_solo_en_un_aparato_que_dejo_un_encar
   assert.equal(puertaDeAsistencia(null).ok, false); assert.match(puertaDeAsistencia(null).dice, /checador de la nave/);
   assert.deepEqual(puertaDeAsistencia({ cuentaId: "u-enc", nombre: "Migue", desde: "2026-11-20" }), { ok: true, quien: { id: "u-enc", nombre: "Migue", rol: "encargado" } });
 });
+
+// ── El alta de personal: lo que se revisa antes de guardar (cierre de la versión 1.0) ──
+import { revisarAlta } from "./acceso.js";
+const ranchoDeAlta = { trabajadores: [{ id: "t1", nombre: "ANA INVENTADA", pin: "4101" }], encargados: [{ id: "e1", nombre: "ENCARGADO INVENTADO", pin: "5501" }], cuadrillas: [], agronomos: [] };
+test("un_pin_que_ya_tiene_otra_persona_no_se_guarda_porque_dejaria_sin_entrar_a_las_dos", () => {
+  const r = revisarAlta({ nombre: "BETO INVENTADO", pin: "4101", sueldo_dia: 350 }, ranchoDeAlta);
+  assert.equal(r.ok, false); assert.equal(r.falta, "pin"); assert.match(r.dice, /ANA INVENTADA/);
+  // también contra los encargados: el PIN se busca en todos los catálogos a la vez
+  assert.equal(revisarAlta({ nombre: "BETO INVENTADO", pin: "5501", sueldo_dia: 350 }, ranchoDeAlta).ok, false);
+  // y es justo el caso que dejaba fuera a los dos
+  const conLosDos = { ...ranchoDeAlta, trabajadores: [...ranchoDeAlta.trabajadores, { id: "t2", nombre: "BETO INVENTADO", pin: "4101" }] };
+  assert.equal(quienEntraConPin("4101", conLosDos).motivo, "repetido");
+});
+test("sin_nombre_no_se_da_de_alta_y_el_pin_es_de_cuatro_a_ocho_numeros", () => {
+  assert.equal(revisarAlta({ nombre: "  ", pin: "4102", sueldo_dia: 350 }, ranchoDeAlta).falta, "nombre");
+  assert.equal(revisarAlta({ nombre: "BETO INVENTADO", pin: "12", sueldo_dia: 350 }, ranchoDeAlta).falta, "pin");
+  assert.equal(revisarAlta({ nombre: "BETO INVENTADO", pin: "41a2", sueldo_dia: 350 }, ranchoDeAlta).falta, "pin");
+  assert.equal(revisarAlta({ nombre: "BETO INVENTADO", pin: "4102", sueldo_dia: 0 }, ranchoDeAlta).falta, "sueldo");
+  assert.equal(revisarAlta({ nombre: "BETO INVENTADO", pin: "4102", sueldo_dia: 350 }, ranchoDeAlta).ok, true);
+});
+test("la_misma_persona_no_se_da_de_alta_dos_veces_con_el_mismo_nombre", () => {
+  const r = revisarAlta({ nombre: " ana inventada ", pin: "4109", sueldo_dia: 350 }, ranchoDeAlta);
+  assert.equal(r.ok, false); assert.equal(r.falta, "nombre");
+});
+test("sin_pin_se_puede_dar_de_alta_pero_se_avisa_que_no_podra_entrar", () => {
+  const r = revisarAlta({ nombre: "BETO INVENTADO", pin: "", sueldo_dia: 350 }, ranchoDeAlta);
+  assert.equal(r.ok, true); assert.match(r.aviso, /sin PIN/);
+});
+test("al_editar_su_propia_ficha_su_pin_y_su_nombre_no_chocan_consigo_misma", () => {
+  assert.equal(revisarAlta({ id: "t1", nombre: "ANA INVENTADA", pin: "4101" }, ranchoDeAlta, { propioId: "t1", pideSueldo: false }).ok, true);
+  assert.equal(revisarAlta({ id: "t1", nombre: "ANA INVENTADA", pin: "5501" }, ranchoDeAlta, { propioId: "t1", pideSueldo: false }).ok, false);
+});
