@@ -25,7 +25,7 @@
 //    la ley pida. Lo dice el propio recibo.
 // ════════════════════════════════════════════════════════════════════════
 import { nuevoEvento, vigentes, corregirEvento, rastroDe, negado } from "./eventos.js";
-import { sumarDinero, sueldoVigente, sumarDias } from "./calculos.js";
+import { sumarDinero, sueldoVigente, sumarDias, fmt } from "./calculos.js";
 
 export const T_AUSENCIA = "ausencia", T_PAGO = "pago_personal", T_RECIBO = "recibo_personal", T_HORAS = "horas_reconocidas";
 const PUEDE = ["admin", "encargado"];
@@ -212,7 +212,7 @@ export function abonar({ permitido, prestamos, monto, semana = null, nota = "", 
     resto = sumarDinero(resto, -abono);
   }
   if (eventos.length === 0) return { ok: false, dice: "Esa persona no tiene saldo de préstamo al que abonarle." };
-  return { ok: true, eventos, abonado: sumarDinero(eventos.map(e => e.datos.monto)), sobrante: resto, avisos: resto > 0 ? [`Sobraron ${resto}: no se abona más de lo que debe.`] : [] };
+  return { ok: true, eventos, abonado: sumarDinero(eventos.map(e => e.datos.monto)), sobrante: resto, avisos: resto > 0 ? [`Sobraron ${fmt(resto)}: no se abona más de lo que debe.`] : [] };
 }
 // Lo abonado por una persona con cargo a UNA semana. (Lee también los abonos que antes se anotaban dentro del préstamo.)
 export const abonosDeSemana = (eventos, prestamos, trabajadorId, desde, hasta) => abonosDe(eventos).filter(e => e.datos.trabajadorId === trabajadorId && e.datos.semana?.desde === desde && e.datos.semana?.hasta === hasta).map(e => ({ id: e.id, fecha: e.fecha, monto: e.datos.monto, prestamoId: e.datos.prestamoId }))

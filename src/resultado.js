@@ -52,6 +52,11 @@ export function claseDeInsumo(e) {
   return "por_clasificar";
 }
 export const esCompraDeAlmacen = (e) => claseDeInsumo(e) === "inventario";
+// USAR LO QUE YA ESTABA EN EL ALMACÉN NO ES DINERO QUE SALE. Al registrar una aplicación (o completar una tarea de
+// aplicación) con un producto del inventario, la app carga su costo a la parcela con un gasto de «insumos». Ese gasto es
+// COSTO (va al resultado), pero el dinero salió cuando se compró el producto: contarlo otra vez en el flujo hacía que
+// cada bulto saliera dos veces, una al comprarlo y otra al aplicarlo.
+export const esConsumoDeAlmacen = (e) => !!e && e.categoria === "insumos" && !!(e.deInventario || e.aplicacionId || e.indicacionId);
 // LA MISMA COMPRA NO SALE DOS VECES DEL FLUJO. Una entrada con costo capturada en Inventario cuenta, ella sola, como
 // dinero que salió. Si esa compra además está como gasto de insumos (pagada de la caja chica o capturada en Finanzas),
 // el mismo dinero salía dos veces y «lo comprado para el almacén» se inflaba. No se adivina: se PROPONE el gasto que
@@ -139,7 +144,7 @@ export function flujoDeEfectivo({ ingresos = [], egresos = [], compras = [], ent
     if (COBROS_SIN_DINERO.includes(g.metodo)) { sinDinero = sumarDinero(sinDinero, n(g.monto)); continue; }
     reg(g.fecha, "ingresos", "ventas", n(g.monto));
   }
-  for (const e of vivos(egresos)) reg(e.fecha, "egresos", esCompraDeAlmacen(e) ? "almacen" : "gastos", n(e.monto));
+  for (const e of vivos(egresos)) if (!esConsumoDeAlmacen(e)) reg(e.fecha, "egresos", esCompraDeAlmacen(e) ? "almacen" : "gastos", n(e.monto));
   // La compra del personal sale completa el día que se hizo. Lo que de ella entra al almacén NO sale otra vez.
   for (const c of compras) if (c.estado === "aprobada") reg(c.fecha, "egresos", "compras", n(c.monto));
   for (const e of entradas_inv) reg(e.fecha, "egresos", "almacen", costoAFinanzas(e));

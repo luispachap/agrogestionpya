@@ -14,7 +14,7 @@
 //  Sólo cierra quien tiene ESE permiso (lo asigna un administrador a una cuenta, y lo comprueba la base).
 // ════════════════════════════════════════════════════════════════════════
 import { nuevoEvento, vigentes, negado } from "./eventos.js";
-import { sumarDinero } from "./calculos.js";
+import { sumarDinero, fmt } from "./calculos.js";
 
 export const T_CIERRE = "cierre_semana", T_REAPERTURA = "reapertura_semana", T_CONFIRMACION = "confirmacion_pagos";
 const limpio = (s) => String(s || "").trim();
@@ -74,7 +74,7 @@ export function confirmarPagos({ eventos, desde, hasta, renglones, nota = "", qu
   if (s.estado !== "cerrada") return { ok: false, dice: "Primero se cierra el cálculo de la semana; los pagos se confirman después, aparte." };
   const foto = (renglones || []).map(r => ({ a: { tipo: r.a.tipo, id: r.a.id, nombre: r.a.nombre }, neto: r.neto, entregado: r.entregado, pendiente: r.pendiente }));
   const pendiente = sumarDinero(foto.filter(r => r.pendiente > 0).map(r => r.pendiente));
-  if (pendiente > 0.004 && !limpio(nota)) return { ok: false, dice: `Todavía faltan ${pendiente} por entregar. Se puede confirmar así, pero hay que anotar por qué.` };
+  if (pendiente > 0.004 && !limpio(nota)) return { ok: false, dice: `Todavía faltan ${fmt(pendiente)} por entregar. Se puede confirmar así, pero hay que anotar por qué.` };
   return { ok: true, evento: nuevoEvento({ tipo: T_CONFIRMACION, cuando, fecha, quien, azar, origen: s.cierre.id, relacion: "confirma",
     datos: { desde, hasta, cierre: s.cierre.id, nota: limpio(nota), renglones: foto, entregado: sumarDinero(foto.map(r => r.entregado)), pendiente } }) };
 }

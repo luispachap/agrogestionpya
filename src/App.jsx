@@ -1053,7 +1053,7 @@ function completarIndicacion({ tarea, datosActividad, data, add, upd, setInv, se
       fecha: actividad.fecha,
       concepto: `Aplicación ${tarea.titulo || ""} — ${parcela ? parcela.nombre : "parcela"}`.trim(),
       categoria: "insumos", monto: costoInsumo, parcelaId: tarea.parcelaId,
-      actividadId, indicacionId: tarea.id,
+      actividadId, indicacionId: tarea.id, deInventario: true,
       registradoPor: { rol: session.role, id: session.id, nombre: session.nombre },
     });
   }
@@ -17539,7 +17539,7 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
       add("egresos", {
         fecha: form.fecha, concepto: `${form.tipo} — ${parcelaSel?.nombre || "parcela"}`,
         categoria: "insumos", monto: costoAplicacion, parcelaId: form.parcelaId,
-        aplicacionId: apId, registradoPor: { rol: "agronomo", id: session.id, nombre: session.nombre },
+        aplicacionId: apId, deInventario: true, registradoPor: { rol: "agronomo", id: session.id, nombre: session.nombre },
       });
     }
     setForm(F0); setShowForm(false); setAvisoSinAplicador(false);
@@ -17888,6 +17888,7 @@ function AgronomoCompras({ data, add, upd, del, setInv, session, onClose }) {
     let nombreInsumo = "";
     if (insumoId === "__nuevo__") {
       if (!compraForm.nuevoNombre.trim()) { alert("Escribe el nombre del nuevo insumo"); return; }
+      { const rv = revisarArticulo({ nombre: compraForm.nuevoNombre, unidad: compraForm.unidad }, data.inventario); if (!rv.ok) { alert(rv.dice); return; } }
       const nuevo = add("inventario", {
         nombre: compraForm.nuevoNombre, cat: compraForm.cat, unidad: compraForm.unidad,
         existencia: cant, costo_unit: costo / cant, minimo: 0, emoji: "🧪",
@@ -19188,6 +19189,7 @@ function ConfirmarCompraModal({ solicitud, data, add, upd, setInv, aplicarLote, 
       const cant = parseFloat(l.cantidad) || 0;
       if (cant <= 0) { alert("Cada producto necesita una cantidad mayor a cero."); return; }
       if (l.insumoId === "__nuevo__" && !l.nombreNuevo.trim()) { alert("Escribe el nombre del insumo nuevo."); return; }
+      if (l.insumoId === "__nuevo__") { const rv = revisarArticulo({ nombre: l.nombreNuevo, unidad: l.unidad }, data.inventario); if (!rv.ok) { alert(rv.dice); return; } }
     }
     if (guardando) return;
     setGuardando(true);

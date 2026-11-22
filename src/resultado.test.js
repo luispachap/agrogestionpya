@@ -116,3 +116,14 @@ test("solo_se_propone_el_gasto_que_de_verdad_puede_ser_la_misma_compra", () => {
   const sinClasificar = ligarEntradaAGasto(entrada, eg("a", { destinoInsumo: undefined }));
   assert.equal(claseDeInsumo(sinClasificar.egreso), "inventario", "al ligarlo queda dicho que entró al almacén");
 });
+
+test("aplicar_un_producto_que_ya_estaba_en_el_almacen_es_costo_pero_no_es_dinero_que_sale_otra_vez", () => {
+  const compra = { id: "c1", fecha: "2026-11-10", monto: 5000, categoria: "insumos", destinoInsumo: "inventario", concepto: "Urea" };
+  const aplicacion = { id: "a1", fecha: "2026-11-19", monto: 1500, categoria: "insumos", parcelaId: "p1", aplicacionId: "ap1", concepto: "Fertilización — Parcela 1" };
+  const deTarea = { id: "a2", fecha: "2026-11-20", monto: 500, categoria: "insumos", parcelaId: "p1", indicacionId: "t1", actividadId: "x1" };
+  const directo = { id: "d1", fecha: "2026-11-21", monto: 250, categoria: "insumos", parcelaId: "p1", concepto: "Foliar comprado y aplicado el mismo día" };
+  const f = flujoDeEfectivo({ egresos: [compra, aplicacion, deTarea, directo] });
+  assert.equal(f.egresos, 5250, "salen la compra y lo que se compró para usarse directo; aplicar lo del almacén no");
+  const r = resultadoDelRancho({ egresos: [compra, aplicacion, deTarea, directo] });
+  assert.equal(r.egresos, 2250, "al resultado sí van los tres usos (la compra para el almacén no es gasto)");
+});
