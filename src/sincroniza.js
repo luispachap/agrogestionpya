@@ -17,10 +17,15 @@ import { ganaAlSincronizar, UNIONES_DE_REGISTROS } from "./calculos.js";
 // no (los abonos de un crédito capturados en dos aparatos). `falta(a, b)` dice si a `a` le falta algo de `b`.
 const UNIONES = UNIONES_DE_REGISTROS;
 
-export function mezclarConNube(local, nube) {
+// Dos registros DISTINTOS con el mismo identificador (cada uno con su marca de nacimiento, `_nace`). La base ya no dejó
+// que el de este teléfono pisara al de la nube (hoja 56); aquí se termina de resolver sin perder ninguno: el de la nube
+// se queda con el identificador, y el de este teléfono se REUBICA con uno nuevo (anotando de cuál venía) y se sube.
+const sonDistintos = (a, b) => !!(a && b && a._nace && b._nace && a._nace !== b._nace);
+const otroIdentificador = (id) => `${id}r${Math.random().toString(36).slice(2, 9).padEnd(7, "0")}`;
+export function mezclarConNube(local, nube, { nuevoId = otroIdentificador } = {}) {
   const next = { ...(local || {}) };
   let quitados = 0;
-  const porSubir = [];
+  const porSubir = [], reubicados = [];
   for (const [tabla, filasNube] of Object.entries(nube || {})) {
     if (!Array.isArray(filasNube)) continue;          // _fallas, _topes
     if (filasNube.length === 0) continue;             // nube vacía: no tocar lo local
@@ -33,6 +38,12 @@ export function mezclarConNube(local, nube) {
         continue;
       }
       const rl = porId[rn.id];
+      if (sonDistintos(rl, rn)) {
+        const movido = { ...rl, id: nuevoId(rl.id), _reubicadoDe: rl.id };
+        porId[rn.id] = rn; porId[movido.id] = movido;
+        porSubir.push({ tabla, registro: movido }); reubicados.push({ tabla, de: rl.id, a: movido.id });
+        continue;
+      }
       const u = UNIONES[tabla];
       if (rl && u) {
         const gana = ganaAlSincronizar(rl, rn);
@@ -46,7 +57,7 @@ export function mezclarConNube(local, nube) {
     }
     next[tabla] = Object.values(porId);
   }
-  return { datos: next, quitados, porSubir };
+  return { datos: next, quitados, porSubir, reubicados };
 }
 
 // ¿Toca volver a bajar los catálogos y registros de la nube? Antes sólo se bajaban al ENTRAR: lo que otro aparato

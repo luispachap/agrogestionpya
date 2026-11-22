@@ -79,3 +79,20 @@ test("con_mala_senal_una_subida_sin_respuesta_no_gasta_intentos_pero_un_rechazo_
   assert.equal(esFallaDeRed({ status: 401, message: "JWT expired" }), false);
   assert.equal(esFallaDeRed(null), false);
 });
+
+test("dos_registros_distintos_con_el_mismo_identificador_no_se_pierde_ninguno_el_de_este_telefono_se_reubica", () => {
+  const mio = { id: "eg1", monto: 99999, concepto: "el mío", _nace: "bbb", _actualizado: "2026-11-19T10:00:05Z" };
+  const deLaNube = { id: "eg1", monto: 111, concepto: "el del otro teléfono", _nace: "aaa", _actualizado: "2026-11-19T10:00:00Z" };
+  const m = mezclarConNube({ egresos: [mio] }, { egresos: [deLaNube] }, { nuevoId: (id) => id + "-otro" });
+  assert.deepEqual(m.datos.egresos.map(e => [e.id, e.monto]).sort(), [["eg1", 111], ["eg1-otro", 99999]]);
+  assert.deepEqual(m.reubicados, [{ tabla: "egresos", de: "eg1", a: "eg1-otro" }]);
+  const subir = m.porSubir.find(x => x.registro.id === "eg1-otro");
+  assert.equal(subir.registro._nace, "bbb"); assert.equal(subir.registro._reubicadoDe, "eg1");
+  const otraVez = mezclarConNube(m.datos, { egresos: [deLaNube, subir.registro] }, { nuevoId: (id) => id + "-otro" });
+  assert.equal(otraVez.datos.egresos.length, 2, "ya resuelto, no se vuelve a mover"); assert.deepEqual(otraVez.reubicados, []);
+});
+test("el_mismo_registro_o_uno_de_antes_sin_marca_se_mezcla_como_siempre", () => {
+  const a = { id: "eg1", monto: 1, _nace: "aaa", _actualizado: "2026-11-19T10:00:00Z" }, b = { ...a, monto: 2, _actualizado: "2026-11-19T11:00:00Z" };
+  assert.deepEqual(mezclarConNube({ egresos: [a] }, { egresos: [b] }).datos.egresos.map(e => e.monto), [2]);
+  assert.equal(mezclarConNube({ egresos: [{ id: "x", monto: 1 }] }, { egresos: [{ id: "x", monto: 2, _nace: "n", _actualizado: "2026-11-19T11:00:00Z" }] }).reubicados.length, 0);
+});

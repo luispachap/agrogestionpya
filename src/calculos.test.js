@@ -477,3 +477,16 @@ test("dos_telefonos_cobrando_parte_del_mismo_embarque_no_se_pisan", () => {
   assert.equal(unirEmbarque(a, { ...b, estadoCobro: "cobrado" }).estadoCobro, "cobrado", "si uno lo dio por cobrado, queda cobrado");
   assert.deepEqual(unirEmbarque(base, { ...base, placas: "X" }), base, "sin cobros no hay nada que unir: gana el más reciente, como siempre");
 });
+
+import { conNacimiento, conservarNacimiento, esIdentificadorOcupado } from "./calculos.js";
+test("un_registro_capturado_nace_con_su_marca_y_no_la_pierde_al_corregirlo", () => {
+  const g = conNacimiento({ id: "eg1763500000000ab12cd3", monto: 700 }, () => "m1");
+  assert.equal(g._nace, "m1");
+  assert.equal(conNacimiento(g, () => "m2")._nace, "m1", "la marca se pone una sola vez");
+  assert.equal(conNacimiento({ id: "ev-pagoperson-mwo1jkid-gd9cpwo" }, () => "m3")._nace, "m3", "un evento capturado también");
+  for (const id of ["eg-sol-s1-0", "alm_entrada-compra-co1-0", "unico", "eg-cc1", "p1"]) assert.equal(conNacimiento({ id }, () => "x")._nace, undefined, `${id}: nombre propio, sin marca`);
+  assert.equal(conservarNacimiento({ id: "a", monto: 1 }, { id: "a", _nace: "m1" })._nace, "m1");
+  assert.equal(conservarNacimiento({ id: "a", _nace: "m9" }, { id: "a", _nace: "m1" })._nace, "m9", "no inventa: si trae otra, la base decide");
+  assert.equal(esIdentificadorOcupado({ message: 'identificador_ocupado: ya existe otro registro con el identificador "x" en egresos.' }), true);
+  assert.equal(esIdentificadorOcupado({ message: "permission denied" }), false);
+});

@@ -529,3 +529,23 @@ export function leFaltanCobros(a, b) {
 }
 // Las colecciones cuyos registros llevan una lista que crece desde varios teléfonos: se unen, nunca se escoge uno.
 export const UNIONES_DE_REGISTROS = { creditos: { unir: unirCredito, falta: leFaltanAbonos }, embarques: { unir: unirEmbarque, falta: leFaltanCobros } };
+
+// LA MARCA DE NACIMIENTO (`_nace`). La parte al azar del identificador hace una coincidencia casi imposible, pero eso lo
+// decide el teléfono. La que de verdad cuida es la BASE (hoja 56): cada registro capturado nace con esta marca, que
+// viaja con él para siempre; si a un identificador ocupado llega un registro con OTRA marca, la base lo rechaza y el
+// guardado queda intacto. Sólo la llevan los identificadores hechos al momento (`unico()` o los de un evento); los de
+// nombre propio (recibir una compra, comprar una solicitud, una configuración) son «el mismo hecho» a propósito.
+const HECHO_AL_MOMENTO = /\d{13}[a-z0-9]{7}|^ev-[a-z0-9]+-[a-z0-9]+-[a-z0-9]{7}$/;
+// La marca sale del generador de azar del sistema (no del mismo que usa el identificador): si dos teléfonos coinciden
+// en el identificador, que coincidan además en esto no es cosa de suerte.
+export const marcaNueva = () => {
+  try { const b = new Uint8Array(12); globalThis.crypto.getRandomValues(b); return Array.from(b, x => x.toString(16).padStart(2, "0")).join(""); }
+  catch { return `${Math.random().toString(36).slice(2, 12)}${Math.random().toString(36).slice(2, 12)}`; }
+};
+export function conNacimiento(item, marca = marcaNueva) {
+  if (!item || item._nace || !HECHO_AL_MOMENTO.test(String(item.id || ""))) return item;
+  return { ...item, _nace: marca() };
+}
+// Al corregir un registro, su marca no se pierde aunque la pantalla lo haya vuelto a armar sin ella.
+export const conservarNacimiento = (item, guardado) => (item && !item._nace && guardado?._nace ? { ...item, _nace: guardado._nace } : item);
+export const esIdentificadorOcupado = (e) => /identificador_ocupado/.test(String(e?.message || e || ""));

@@ -49,6 +49,7 @@
     "52-organizacion-con-permiso",
     "53-restaurar-conserva-quien-autorizo",
     "54-banco-y-socios-no-son-del-encargado",
-    "55-banco-y-socios-con-autorizacion-expresa"
+    "55-banco-y-socios-con-autorizacion-expresa",
+    "56-un-identificador-no-se-pisa"
   ]
 }

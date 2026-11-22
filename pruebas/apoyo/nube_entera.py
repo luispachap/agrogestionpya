@@ -25,7 +25,7 @@ def firma(fila, llave="llave-de-la-nube-de-mentira"):
 class Nube:
     def __init__(self, cuentas, inicio="2026-11-01"):
         self.cuentas = {c["ficha"]: c for c in cuentas}; self.porCorreo = {c["correo"]: c for c in cuentas}
-        self.t = {}; self.subidas = []; self.rechazos = []; self.otorgados = {}; self.inicio = inicio; self.caida = False; self.depura = None; self.restaurando = set(); self.restauraciones = []; self.sin_hoja_53 = False; self.reloj = None
+        self.t = {}; self.subidas = []; self.rechazos = []; self.ocupados = []; self.otorgados = {}; self.inicio = inicio; self.caida = False; self.depura = None; self.restaurando = set(); self.restauraciones = []; self.sin_hoja_53 = False; self.reloj = None
     def ahora(self):
         return (self.reloj() if self.reloj else datetime.datetime.now(datetime.timezone.utc)).isoformat().replace("+00:00", "Z")
     def quien(self, r):
@@ -97,6 +97,10 @@ class Nube:
         for f in entran:
             if not isinstance(f, dict) or "id" not in f: continue
             if solo_faltantes and f["id"] in filas: continue          # lo que ya está no se toca
+            # Igual que la hoja 56: un identificador ocupado por OTRO registro (otra marca de nacimiento) no se pisa.
+            ya = filas.get(f["id"]); nace = lambda x: (x.get("datos") or {}).get("_nace") if isinstance(x.get("datos"), dict) else None
+            if ya and nace(ya) and nace(f) != nace(ya):
+                self.ocupados.append((tabla, f["id"], c["rol"])); return J({"code": "23505", "message": f'identificador_ocupado: ya existe otro registro con el identificador "{f["id"]}" en {tabla}. No se sobrescribió.'}, 409)
             self.subidas.append((tabla, f["id"], c["rol"]))
             g = self.sellar(f, c) if tabla == "eventos" else {**f, "actualizado": f.get("actualizado") or self.ahora()}
             filas[g["id"]] = g; salen.append(g)

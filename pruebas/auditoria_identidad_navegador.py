@@ -141,6 +141,35 @@ with sync_playwright() as p:
     subio(A); recarga(A)
     caso("después de recargar no vuelve a preguntar", "Capturas que parecen repetidas" not in (ir(A, "contabilidad"), tab(A, "Resultados"), A.locator("body").inner_text())[2])
 
+    # ══ 5. Un choque de identificadores, FORZADO: la base no deja que uno pise al otro ══
+    # Se congela la hora en los dos teléfonos y se le quita el azar al identificador (no a la marca de nacimiento),
+    # para que dos gastos DISTINTOS nazcan con el mismo identificador. En la vida real no se puede provocar.
+    recarga(C)
+    for pg in (A, C):
+        pg.clock.pause_at(f"{HOY}T23:30:00-06:00"); pg.wait_for_timeout(200)
+        pg.evaluate("() => { Math.random = () => 0.123456789; }")
+    nube.caida = True
+    egreso(A, "GASTO DE UN TELEFONO INVENTADO", 111); egreso(C, "GASTO DEL OTRO TELEFONO INVENTADO", 99999)
+    gA = next(e for e in datos(A)["egresos"] if e["concepto"] == "GASTO DE UN TELEFONO INVENTADO"); gC = next(e for e in datos(C)["egresos"] if e["concepto"] == "GASTO DEL OTRO TELEFONO INVENTADO")
+    caso("(preparación) los dos gastos nacieron con el MISMO identificador y distinta marca de nacimiento", gA["id"] == gC["id"] and gA.get("_nace") and gC.get("_nace") and gA["_nace"] != gC["_nace"], [gA["id"], gC["id"], gA.get("_nace"), gC.get("_nace")])
+    nube.caida = False
+    A.clock.resume(); A.wait_for_timeout(300); avanza(A, 2 / 60); subio(A)
+    C.clock.resume(); C.wait_for_timeout(300); avanza(C, 2 / 60); subio(C, 20); C.wait_for_timeout(1500)
+    n = nube.t["egresos"][gA["id"]]; dn = n.get("datos") or {}
+    caso("en la nube queda el PRIMERO, intacto: $111, no los $99,999 del segundo", float(n.get("monto") or dn.get("monto") or 0) == 111 and (n.get("concepto") or dn.get("concepto")) == "GASTO DE UN TELEFONO INVENTADO", [n.get("monto"), n.get("concepto"), dn.get("_nace")])
+    caso("la base RECHAZÓ el segundo (no lo perdió en silencio ni lo encimó)", len(nube.ocupados) >= 1 and nube.ocupados[0][0] == "egresos", nube.ocupados)
+    t = plano(C.locator("body").inner_text())
+    caso("el segundo teléfono lo dice: un registro sin subir", "sin subir" in t, t[:300])
+    C.locator(".sync-bar", has_text="sin subir").first.click(); C.wait_for_timeout(500)
+    caso("y explica por qué: ya existe otro registro con ese identificador, no se sobrescribió y lo suyo sigue en el teléfono", any("mismo identificador" in d and "No se sobrescribió" in d and "sube solo" in d for d in C.dialogos[-2:]), C.dialogos[-2:])
+    caso("lo suyo sigue guardado en su teléfono", any(e["concepto"] == "GASTO DEL OTRO TELEFONO INVENTADO" for e in datos(C)["egresos"]))
+    avanza(C, 6 / 60); recarga(C); avanza(C, 2 / 60); subio(C); avanza(A, 8 / 60); recarga(A)
+    dos = lambda pg: sorted((e["concepto"], e["monto"]) for e in datos(pg)["egresos"] if "TELEFONO INVENTADO" in e["concepto"])
+    caso("en la siguiente sincronización el segundo se reubica con un identificador nuevo y sube: NINGUNO se pierde, en los dos teléfonos", dos(A) == dos(C) == [("GASTO DE UN TELEFONO INVENTADO", 111), ("GASTO DEL OTRO TELEFONO INVENTADO", 99999)], [dos(A), dos(C)])
+    mov = next(e for e in datos(C)["egresos"] if e["concepto"] == "GASTO DEL OTRO TELEFONO INVENTADO")
+    caso("el reubicado dice de qué identificador venía, conserva su autor y ya no hay nada «sin subir»", mov.get("_reubicadoDe") == gA["id"] and mov["id"] != gA["id"] and (mov.get("registradoPor") or {}).get("nombre") == "ADMIN DE PRUEBA" and "sin subir" not in C.locator("body").inner_text(), [mov["id"], mov.get("_reubicadoDe")])
+    caso("y en la nube están los dos, cada uno con su identificador", len([1 for k, v in nube.t["egresos"].items() if "TELEFONO INVENTADO" in str(v)]) == 2)
+
     caso("ninguna pantalla tronó", not errs, errs[:3])
     b.close()
 print(f"\n{sum(res)} de {len(res)}")

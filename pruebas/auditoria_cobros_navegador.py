@@ -75,12 +75,25 @@ with sync_playwright() as p:
     caso("al volver la señal el embarque tiene LOS DOS cobros en los dos teléfonos: $15,000", [len(eA["liquidaciones"]), eA["montoCobrado"], len(eC["liquidaciones"]), eC["montoCobrado"]] == [2, 15000, 2, 15000], [[l["monto"] for l in eA["liquidaciones"]], eA["montoCobrado"], [l["monto"] for l in eC["liquidaciones"]], eC["montoCobrado"]])
     caso("y en la nube también", len((n.get("datos") or n).get("liquidaciones") or []) == 2, (n.get("datos") or n).get("liquidaciones"))
     ing = [i for i in datos(A)["ingresos"] if i.get("embarqueId") == "emb1"]; cA, cC = A.evaluate(CUENTAS), C.evaluate(CUENTAS)
+    L = eA["liquidaciones"]; por_id = {i["id"]: i for i in datos(A)["ingresos"]}
+    caso("cada cobro tiene identidad, importe, fecha, quién lo capturó y cuándo", len({l["id"] for l in L}) == 2 and all(l["monto"] in (9000, 6000) and l["fecha"] == HOY and (l.get("registradoPor") or {}).get("nombre") == "ADMIN DE PRUEBA" and (l.get("capturado") or "").startswith("2026-11-19T") for l in L), L)
+    caso("y rastro propio: cada cobro apunta a SU venta y esa venta apunta de regreso a su cobro, con el mismo importe y autor", all(por_id.get(l["ingresoId"], {}).get("liquidacionId") == l["id"] and por_id[l["ingresoId"]]["monto"] == l["monto"] and (por_id[l["ingresoId"]].get("registradoPor") or {}).get("nombre") == "ADMIN DE PRUEBA" for l in L), [[l["id"], l.get("ingresoId")] for l in L])
+    caso("los dos teléfonos tienen exactamente los mismos dos cobros", sorted(l["id"] for l in eA["liquidaciones"]) == sorted(l["id"] for l in eC["liquidaciones"]))
+    caso("la base no tuvo que rechazar nada: no hubo identificadores encimados", nube.ocupados == [], nube.ocupados)
     caso("nacieron dos ventas, una por cobro, con identificador distinto, y suman lo cobrado", sorted(i["monto"] for i in ing) == [6000, 9000] and len({i["id"] for i in ing}) == 2, [[i["id"], i["monto"]] for i in ing])
     caso("entraron $15,000 al flujo, una vez, y los dos teléfonos dan la misma cuenta", cA["entra"] == c0["entra"] + 15000 and cA["entra"] == cC["entra"], [c0["entra"], cA["entra"], cC["entra"]])
     ir(A, "consignaciones"); t = plano(A.locator("body").inner_text())
     caso("Consignaciones dice lo que lleva cobrado: $15,000 en 2 pagos", "$15,000" in t and "2 pago" in t, t[:500])
     ir(A, "contabilidad"); A.locator(".tab-pill", has_text="Resultados").click(); A.wait_for_timeout(400)
     caso("dos cobros distintos del mismo embarque NO se toman por una captura repetida", "Capturas que parecen repetidas" not in A.locator("body").inner_text())
+
+    # Un doble toque al registrar un cobro deja UNO; y el último pago (no parcial) lo deja cobrado sin perder los anteriores.
+    ir(A, "consignaciones"); A.get_by_role("button", name="Liquidar").first.click(); A.wait_for_timeout(300)
+    campo(A, "Monto que pagó").fill("1000"); A.get_by_role("button", name="Registrar pago").dblclick(); A.wait_for_timeout(900)
+    subio(A); eF = emb(A)
+    caso("un doble toque registra UN cobro, y el embarque queda cobrado con sus tres pagos: $16,000", len(eF["liquidaciones"]) == 3 and eF["montoCobrado"] == 16000 and eF["estadoCobro"] == "cobrado" and len([i for i in datos(A)["ingresos"] if i.get("embarqueId") == "emb1"]) == 3, [[l["monto"] for l in eF["liquidaciones"]], eF["montoCobrado"], eF["estadoCobro"]])
+    avanza(C, 6 / 60); recarga(C); eG = emb(C)
+    caso("y el otro teléfono lo ve igual", [len(eG["liquidaciones"]), eG["montoCobrado"], eG["estadoCobro"]] == [3, 16000, "cobrado"], [len(eG["liquidaciones"]), eG["montoCobrado"], eG["estadoCobro"]])
 
     caso("ninguna pantalla tronó", not errs, errs[:3])
     b.close()

@@ -1,4 +1,4 @@
-import { unico, conAutor } from "./calculos.js";
+import { unico, conAutor, conNacimiento, conservarNacimiento, esIdentificadorOcupado } from "./calculos.js";
 import { quizaRepetidos, marcarDistintos } from "./repetidos.js";
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component, createContext, useContext } from "react";
 import { createPortal } from "react-dom";
@@ -2371,6 +2371,8 @@ function useOffline() {
       } catch (e) {
         // Sin respuesta (mala señal) no es un rechazo: no gasta intentos y se reintenta sola más tarde.
         if (esFallaDeRed(e)) { console.warn(`Cola: sin respuesta al subir ${op.sec}; se reintenta sola.`); break; }
+        // La base encontró OTRO registro con ese identificador y no lo sobrescribió: reintentar no cambia nada. Se aparta ya, y se dice.
+        if (esIdentificadorOcupado(e)) { aApartar.push({ ...op, intentos: (op.intentos || 0) + 1, ultimoError: e.message, ocupado: true }); continue; }
         const intentos = (op.intentos || 0) + 1;
         nuevosIntentos.set(op.id, intentos);
         if (intentos >= MAX_INTENTOS) aApartar.push({ ...op, intentos, ultimoError: e?.message || "desconocido" });
@@ -2413,7 +2415,8 @@ function useOffline() {
     }
   }, [online, pending.length, procesarCola]);
 
-  return { online, pending, fallidas, queue, justSynced, procesarCola, reintentarFallidas, sinCuenta };
+  const soltarOcupadas = useCallback((llaves) => setFallidas(f => f.filter(op => !(op.ocupado && llaves.has(op.sec + "/" + op.payload?.id)))), [setFallidas]);
+  return { online, pending, fallidas, queue, justSynced, procesarCola, reintentarFallidas, sinCuenta, soltarOcupadas };
 }
 
 /* ════════════ ERROR BOUNDARY ════════════ */
@@ -7229,7 +7232,7 @@ function AppInner() {
   }, []);
   const [page, setPageRaw] = useState("home");
   const [navParam, setNavParam] = useState(null);
-  const { online, pending, fallidas, queue, justSynced, reintentarFallidas, procesarCola, sinCuenta } = useOffline();
+  const { online, pending, fallidas, queue, justSynced, reintentarFallidas, procesarCola, sinCuenta, soltarOcupadas } = useOffline();
   // El cajón de fotos del teléfono se abre antes que nada.
   useEffect(() => { abrirAlmacen(); }, []);
   // ¿Este teléfono quedó ligado a la cuenta de un encargado para que su gente capture?
@@ -7375,8 +7378,10 @@ function AppInner() {
         // en la nube (alguien lo borró) se quita de este teléfono.
         // Lo que se UNIÓ y la nube no tenía completo (abonos de un crédito capturados en este aparato) se vuelve a subir.
         const porSubir = new Map();
-        setData(prev => { const m = mezclarConNube(prev, datosNube); for (const x of m.porSubir || []) porSubir.set(x.tabla + "/" + x.registro.id, x); return m.datos; });
-        setTimeout(() => { for (const x of porSubir.values()) replicarRef.current?.("upd", x.tabla, x.registro); }, 50);
+        const movidos = new Set();
+        setData(prev => { const m = mezclarConNube(prev, datosNube); for (const x of m.porSubir || []) porSubir.set(x.tabla + "/" + x.registro.id, x); for (const r of m.reubicados || []) movidos.add(r.tabla + "/" + r.de); return m.datos; });
+        // Lo que la base había rechazado por identificador ocupado ya se reubicó con uno nuevo: deja de estar «sin subir».
+        setTimeout(() => { for (const x of porSubir.values()) replicarRef.current?.("upd", x.tabla, x.registro); if (movidos.size) soltarOcupadas(movidos); }, 50);
         bajarEventosRef.current?.().then(r => {
           if (activo && r && !r.ok) setAvisosLectura(a => ({ ...(a || {}), fallas: [...((a && a.fallas) || []), { tabla: "eventos", mensaje: r.mensaje || "no se pudo leer" }], topes: (a && a.topes) || [], cuando: new Date().toISOString() }));
         });
@@ -7566,7 +7571,7 @@ function AppInner() {
       if (visto && dif === 0 && costoN > 0 && costoN !== (Number(visto.costo_unit) || 0) && fijarCostoRef.current) fijarCostoRef.current(visto, costoN);
       item = paraGuardarArticulo(item, inventarioRef.current.find(a => a.id === item.id));
     }
-    const it = marcarTocado(apartarArchivosRef.current ? apartarArchivosRef.current(sec, item) : item);
+    const it = marcarTocado(conservarNacimiento(apartarArchivosRef.current ? apartarArchivosRef.current(sec, item) : item, (Array.isArray(crudoRef.current?.[sec]) ? crudoRef.current[sec] : []).find(x => x.id === item.id)));
     setData(d => {
       const col = Array.isArray(d[sec]) ? d[sec] : [];
       return { ...d, [sec]: col.some(x => x.id === it.id) ? col.map(x => x.id === it.id ? it : x) : [...col, it] };
@@ -7586,6 +7591,8 @@ function AppInner() {
   // El catálogo tal como está guardado (sin lo que le suman los movimientos al enseñarlo).
   const inventarioRef = useRef([]);
   inventarioRef.current = rawData.inventario || [];
+  // Lo guardado tal cual, para que una corrección conserve la marca de nacimiento del registro (`conservarNacimiento`).
+  const crudoRef = useRef({}); crudoRef.current = rawData;
   const inventarioVistoRef = useRef([]);          // el mismo catálogo, como se ve en pantalla (con los movimientos sumados)
   inventarioVistoRef.current = data.inventario || [];
   const moverInvRef = useRef(null);
@@ -7627,7 +7634,7 @@ function AppInner() {
     item = apartarArchivos(sec, item);
     // Cada evento nace diciendo cuánto difería el reloj de este teléfono del servidor (o que no se ha podido cotejar).
     if (sec === "eventos" && !item.reloj) item = { ...item, reloj: selloDeReloj(relojRef.current, Date.now()) };
-    const ni = marcarTocado({ ...item, id: item.id || `${sec[0]}${unico()}${Math.floor(Math.random() * 1000)}` });
+    const ni = marcarTocado(conNacimiento({ ...item, id: item.id || `${sec[0]}${unico()}${Math.floor(Math.random() * 1000)}` }));
     // Un evento con el mismo identificador es el MISMO evento: un doble toque no lo mete dos veces. Y en las demás
     // colecciones, el mismo identificador es el mismo registro: se queda uno (el último), nunca dos renglones.
     setData(d => { const lista = Array.isArray(d[sec]) ? d[sec] : []; if (!lista.some(x => x.id === ni.id)) return { ...d, [sec]: [...lista, ni] }; return sec === "eventos" ? d : { ...d, [sec]: lista.map(x => x.id === ni.id ? ni : x) }; });
@@ -7759,9 +7766,9 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
     const resueltos = ops.map(o => {
       if (o.tipo === "add") {
         const ni = { ...o.item, id: o.item.id || `${o.sec[0]}${unico()}${Math.floor(Math.random() * 100000)}` };
-        return { ...o, item: marcarTocado(ni) };
+        return { ...o, item: marcarTocado(conAutor(o.sec, conNacimiento(ni), sesionRef.current)) };
       }
-      return { ...o, item: marcarTocado(o.item) };
+      return { ...o, item: marcarTocado(conservarNacimiento(o.item, (Array.isArray(crudoRef.current?.[o.sec]) ? crudoRef.current[o.sec] : []).find(x => x.id === o.item.id))) };
     });
     // Un solo setData que aplica todo
     setData(d => {
@@ -7993,7 +8000,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
         {justSynced && <div className="online-bar"><span><Ic e="✅" /></span><span>Datos sincronizados correctamente</span></div>}
         {fallidas && fallidas.length > 0 && (
           <div className="sync-bar" style={{ background: "rgba(232,90,82,.12)", color: "var(--red)", cursor: "pointer" }}
-               onClick={() => { if (confirm(`Hay ${fallidas.length} registro(s) que no se pudieron subir a la nube (quizá faltó crear una tabla en Supabase, o hubo un problema de red). No se han perdido. ¿Reintentar ahora?`)) reintentarFallidas(); }}>
+               onClick={() => { const oc = fallidas.filter(f => f.ocupado); if (oc.length) { alert(`${oc.length} registro(s) no subieron porque en la nube ya existe OTRO registro con el mismo identificador (${oc.map(f => f.sec).join(", ")}). No se sobrescribió nada y lo tuyo sigue guardado en este teléfono: en la siguiente sincronización se le da un identificador nuevo y sube solo. Si el aviso sigue mañana, avisa al administrador.`); if (oc.length === fallidas.length) return; } if (confirm(`Hay ${fallidas.length} registro(s) que no se pudieron subir a la nube (quizá faltó crear una tabla en Supabase, o hubo un problema de red). No se han perdido. ¿Reintentar ahora?`)) reintentarFallidas(); }}>
             <span><Ic e="⚠️" /></span><span>{fallidas.length} registro(s) sin subir — toca para reintentar</span>
           </div>
         )}
@@ -20574,9 +20581,13 @@ function InventarioTerminado({ data, add, upd, session, onClose }) {
 function liquidarEmbarque(data, add, upd, { embarque, monto, fecha, forma, creditoId, nota, parcial, registradoPor }) {
   const m = parseFloat(monto) || 0;
   if (m <= 0) return;
+  // Cada cobro es un hecho propio: su identificador, su importe, su fecha, quién lo capturó y cuándo, y a qué venta
+  // (y a qué abono, si fue contra una deuda) dio lugar. El ingreso apunta de regreso al cobro.
+  const ingresoId = `ing${unico()}`, abonoId = forma === "deuda" && creditoId ? `ab${unico()}` : "";
   const liq = {
     id: `liq${unico()}`, fecha: fecha || today(), monto: m, forma,
     creditoId: creditoId || "", nota: nota || "",
+    registradoPor: registradoPor || null, capturado: new Date().toISOString(), ingresoId, ...(abonoId ? { abonoId } : {}),
   };
   // 1) Registrar la liquidación dentro del embarque. Si es pago PARCIAL,
   //    el embarque sigue pendiente (el cliente debe el resto); si no, queda cobrado.
@@ -20589,7 +20600,7 @@ function liquidarEmbarque(data, add, upd, { embarque, monto, fecha, forma, credi
   });
   // 2) Generar el ingreso (venta real, ahora que se conoce el precio)
   add("ingresos", {
-    id: `ing${unico()}`, fecha: liq.fecha,
+    id: ingresoId, fecha: liq.fecha, liquidacionId: liq.id, ...(registradoPor ? { registradoPor } : {}),
     concepto: `Liquidación embarque ${embarque.folio}${embarque.cliente ? " · " + embarque.cliente : ""}`,
     categoria: "venta_cosecha", cultivo: embarque.cultivo || "",
     monto: m, cantidad: embarque.totalNeto || 0, unidad: "kg",
@@ -20601,8 +20612,8 @@ function liquidarEmbarque(data, add, upd, { embarque, monto, fecha, forma, credi
     const cr = (data.creditos || []).find(c => c.id === creditoId);
     if (cr) {
       const nuevosAbonos = [...(cr.abonos || []), {
-        id: `ab${unico()}`, fecha: liq.fecha, tipo: "cosecha", monto: m,
-        nota: `Embarque ${embarque.folio}`,
+        id: abonoId, fecha: liq.fecha, tipo: "cosecha", monto: m,
+        nota: `Embarque ${embarque.folio}`, embarqueId: embarque.id, liquidacionId: liq.id,
       }];
       upd("creditos", {
         ...cr,
