@@ -95,3 +95,50 @@ test("banco_y_socios_ni_el_agronomo_ni_quien_no_tiene_perfil_ni_sin_sesion", asy
     assert.ok(!r.ok || r.filas.length === 0, `${q} lee ${t}`);
   }
 });
+
+// ── Banco y Socios: Finanzas sólo con autorización expresa (decisión de Luis, 22 nov; hoja 55) ──
+import { CUENTAS, verdad } from "./base.mjs";
+test("banco_y_socios_pertenecer_a_finanzas_no_da_acceso_a_nada", async () => {
+  for (const t of BANCO_Y_SOCIOS) {
+    const lee = await como(db, "finanzas", `select id from ${t}`);
+    assert.ok(!lee.ok || lee.filas.length === 0, `${t}: finanzas lee ${lee.filas.length} sin autorización`);
+    const mete = await como(db, "finanzas", `insert into ${t} (id, datos) values ('x-fin-${t}', $1::jsonb)`, [D({ nombre: "intento" })]);
+    assert.ok(!mete.ok || mete.afectadas === 0, `${t}: finanzas captura`);
+  }
+});
+
+test("banco_y_socios_nadie_se_autoriza_solo_y_solo_un_superadministrador_lo_otorga", async () => {
+  const solo = await como(db, "finanzas", "select otorgar_permiso($1::uuid, 'consultar_banco_y_socios')", [CUENTAS.finanzas]);
+  assert.equal(solo.ok, false, "finanzas no se lo da a sí mismo");
+  const directo = await como(db, "finanzas", "insert into permisos_operacion (usuario, operacion, otorgado_por) values ($1, 'consultar_banco_y_socios', $1)", [CUENTAS.finanzas]);
+  assert.ok(!directo.ok || directo.afectadas === 0, "ni escribiendo directo en la tabla de permisos");
+  const lee = await como(db, "finanzas", "select id from bolsas");
+  assert.ok(!lee.ok || lee.filas.length === 0);
+});
+
+test("banco_y_socios_con_la_autorizacion_expresa_finanzas_consulta_pero_no_captura_y_al_revocarla_deja_de_ver", async () => {
+  const da = await como(db, "luis", "select otorgar_permiso($1::uuid, 'consultar_banco_y_socios')", [CUENTAS.finanzas]);
+  assert.ok(da.ok, da.error);
+  const quien = await verdad(db, "select otorgado_por::text from permisos_operacion where usuario = $1 and operacion = 'consultar_banco_y_socios' and revocado is null", [CUENTAS.finanzas]);
+  assert.equal(quien[0].otorgado_por, CUENTAS.luis, "queda anotado quién lo autorizó");
+  for (const t of BANCO_Y_SOCIOS) {
+    const lee = await como(db, "finanzas", `select id from ${t}`);
+    assert.ok(lee.ok && lee.filas.length >= 1, `${t}: con autorización no lo ve`);
+    const mete = await como(db, "finanzas", `insert into ${t} (id, datos) values ('y-fin-${t}', $1::jsonb)`, [D({ nombre: "intento" })]);
+    assert.ok(!mete.ok || mete.afectadas === 0, `${t}: con autorización captura`);
+    const cambia = await como(db, "finanzas", `update ${t} set datos = $1::jsonb where id is not null`, [D({ nombre: "cambiado" })]);
+    assert.ok(!cambia.ok || cambia.afectadas === 0, `${t}: con autorización cambia`);
+  }
+  const quita = await como(db, "luis", "select revocar_permiso($1::uuid, 'consultar_banco_y_socios')", [CUENTAS.finanzas]);
+  assert.ok(quita.ok, quita.error);
+  const ya = await como(db, "finanzas", "select id from estados_cuenta");
+  assert.ok(!ya.ok || ya.filas.length === 0, "revocada, deja de ver");
+});
+
+test("banco_y_socios_la_autorizacion_no_le_abre_nada_a_un_encargado_ni_a_un_agronomo", async () => {
+  for (const q of ["encargado", "agronomo"]) {
+    const da = await como(db, "luis", "select otorgar_permiso($1::uuid, 'consultar_banco_y_socios')", [CUENTAS[q]]);
+    assert.ok(da.ok, da.error);
+    for (const t of BANCO_Y_SOCIOS) { const r = await como(db, q, `select id from ${t}`); assert.ok(!r.ok || r.filas.length === 0, `${q} lee ${t}`); }
+  }
+});

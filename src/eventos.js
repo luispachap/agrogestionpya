@@ -104,8 +104,10 @@ export const OPERACIONES = {
   supervisar_conversaciones: "Abrir por excepción una conversación completa en la que no participa (con motivo, 24 horas, queda anotado)",
   // Organización (hoja 52). Tampoco viene con ser superadministrador. No da ninguna facultad de mando ni permiso de dinero.
   configurar_organizacion: "Capturar la organización (áreas, equipos, responsables) y el catálogo de actividades y sus requisitos",
+  // Banco y Socios (hoja 55). Pertenecer a Finanzas no lo da: se otorga a la cuenta. Sólo consulta, y sólo vale para Finanzas o Administración.
+  consultar_banco_y_socios: "Consultar Banco y Socios (estados de cuenta, bolsas y la cuenta entre socios), sin capturar. Sólo vale para cuentas de Finanzas o de Administración",
 };
-export const SOLO_OTORGADOS = ["ver_evidencia", "supervisar_conversaciones", "configurar_organizacion"];
+export const SOLO_OTORGADOS = ["ver_evidencia", "supervisar_conversaciones", "configurar_organizacion", "consultar_banco_y_socios"];
 // Sin servidor (un aparato que no está conectado a ninguna nube, o las pruebas) no hay quién valide:
 // ahí mandan las reglas de la app. Con servidor, se exige el sello. Lo prende la app al arrancar.
 let conServidor = false;
