@@ -19,7 +19,7 @@ SOLO_OTORGADOS = json.loads(subprocess.run(["node", "-e", "import('./src/eventos
 class Nube:
     def __init__(self, cuentas, inicio="2026-11-01"):
         self.cuentas = {c["ficha"]: c for c in cuentas}; self.porCorreo = {c["correo"]: c for c in cuentas}
-        self.t = {}; self.subidas = []; self.rechazos = []; self.otorgados = {}; self.inicio = inicio; self.caida = False; self.depura = None; self.reloj = None
+        self.t = {}; self.subidas = []; self.rechazos = []; self.otorgados = {}; self.inicio = inicio; self.caida = False; self.depura = None; self.restaurando = set(); self.restauraciones = []; self.sin_hoja_53 = False; self.reloj = None
     def ahora(self):
         return (self.reloj() if self.reloj else datetime.datetime.now(datetime.timezone.utc)).isoformat().replace("+00:00", "Z")
     def quien(self, r):
@@ -27,13 +27,22 @@ class Nube:
     def sellar(self, f, c):
         viejo = self.t.setdefault("eventos", {}).get(f["id"])
         fila = {k: v for k, v in f.items() if k in ("id", "tipo", "fecha", "estado", "datos")}
+        # Igual que la hoja 53: el sello original viaja al lado del evento sólo para restaurar, y nunca se guarda dentro.
+        sello = (fila.get("datos") or {}).get("_selloOriginal") if isinstance(fila.get("datos"), dict) else None
+        if isinstance(fila.get("datos"), dict): fila["datos"] = {k: v for k, v in fila["datos"].items() if k != "_selloOriginal"}
+        if not viejo and isinstance(sello, dict) and c["rol"] == "superadmin" and c["id"] in self.restaurando:
+            fila.update(recibido=sello.get("recibido") or self.ahora(), validacion=None, validacion_dice=None, validado_rol=None, validado_por=None, actualizado=self.ahora(), restaurado=self.ahora(), restaurado_por=c["id"])
+            if SENSIBLES.get(f.get("tipo")) and sello.get("validacion") in ("autorizado", "rechazado"):
+                fila.update(validacion=sello["validacion"], validacion_dice=sello.get("dice"), validado_por=sello.get("por"), validado_rol=sello.get("rol"), validado=sello.get("cuando"))
+                return fila
+            if not SENSIBLES.get(f.get("tipo")): return fila
         if viejo: fila = {**viejo, "estado": f.get("estado", viejo.get("estado")), "datos": f.get("datos", viejo.get("datos"))}
         else: fila.update(recibido=self.ahora(), validacion=None, validacion_dice=None, validado_rol=None)
         fila["actualizado"] = self.ahora()
         op = SENSIBLES.get(f.get("tipo"))
         if op and not viejo:
             ok = op in self.otorgados.get(c["id"], []) or (c["rol"] == "superadmin" and op not in SOLO_OTORGADOS)
-            fila.update(validacion="autorizado" if ok else "rechazado", validacion_dice=None if ok else "sin_permiso", validado_rol=c["rol"], validado_por=c["id"])
+            fila.update(validacion="autorizado" if ok else "rechazado", validacion_dice=None if ok else "sin_permiso", validado_rol=c["rol"], validado_por=c["id"], validado=self.ahora())
         return fila
     def __call__(self, route):
         r = route.request; ruta = r.url.split(NUBE)[1].split("?")[0]
@@ -52,6 +61,10 @@ class Nube:
         if ruta.startswith("/storage/"): return J({"Key": "x"}) if c else J({"message": "no"}, 401)
         if ruta == "/rest/v1/rpc/mis_permisos": return J({"rol": c["rol"], "operaciones": self.otorgados.get(c["id"], [])} if c else None)
         if ruta == "/rest/v1/rpc/hora_del_servidor": return J(self.ahora())
+        if ruta == "/rest/v1/rpc/abrir_restauracion":
+            if not c or c["rol"] != "superadmin": return J({"code": "P0001", "message": "Sólo un superadministrador puede restaurar un respaldo"}, 400)
+            if self.sin_hoja_53: return J({"code": "PGRST202", "message": "Could not find the function public.abrir_restauracion(p_motivo) in the schema cache"}, 404)
+            self.restaurando.add(c["id"]); self.restauraciones.append({"abierta_por": c["id"], "motivo": cuerpo.get("p_motivo"), "desde": self.ahora(), "eventos": 0}); return J(self.ahora())
         if ruta.startswith("/rest/v1/rpc/"): return J(None)
         if ruta == "/rest/v1/perfiles":
             objeto = "vnd.pgrst.object" in (r.headers.get("accept") or "")
@@ -60,6 +73,7 @@ class Nube:
         if ruta == "/rest/v1/operacion": return J({"espacio": E, "inicio_operaciones": self.inicio, "declarado_el": None, "nota": None})
         if not ruta.startswith("/rest/v1/"): return J({})
         tabla = ruta.split("/")[-1]; filas = self.t.setdefault(tabla, {})
+        if tabla == "restauraciones": return J(self.restauraciones if c else [])
         if r.method == "GET":
             if self.depura and tabla in self.depura: print("   [nube]", tabla, "cuenta:", c and c["rol"], "filas:", len(filas), (r.headers.get("authorization") or "")[-12:], flush=True)
             if not c: return J([])

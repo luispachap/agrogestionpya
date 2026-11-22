@@ -30,7 +30,7 @@ import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarra
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
 import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo, caminoDeEntrada, quienEntraConPin, entrarConCredencial, puertaDeAsistencia, revisarAlta, debeCerrarse } from "./acceso.js";
-import { estadoDeIA, consultasDeConversacion, consultarConversacion, verEvidencia, directorioDeCuentas, migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde, horaDelServidor, cuandoSelle, misPermisos, permisosDeTodos, cambiarPermiso } from "./dataApi";
+import { abrirRestauracion, leerRestauraciones, estadoDeIA, consultasDeConversacion, consultarConversacion, verEvidencia, directorioDeCuentas, migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde, horaDelServidor, cuandoSelle, misPermisos, permisosDeTodos, cambiarPermiso } from "./dataApi";
 import { desfaseDe, selloDeReloj, estadoDelReloj } from "./reloj.js";
 // Pagos al personal: ausencias, lo que corresponde, lo entregado, lo pendiente y los recibos.
 import { registrarAusencia, justificarFalta, ausenciasDe, semanaDe, leToca, DIAS_DE_SIEMPRE, cuentasDeCuadrillas, registrarPago, pagosA, saldoDe, emitirRecibo, recibosDe, reciboAlDia,
@@ -159,6 +159,7 @@ import {
   subirArchivosPendientes, archivosSinSubir,
 } from "./almacenArchivos.js";
 import { revisarConteoInicial, revisarSaldoInicial } from "./arranque.js";
+import { conSelloOriginal } from "./filas.js";
 import { marcarEspacio, llavesQueSeReinician, loDeAntes, sobreDeRespaldo, revisarRespaldo, soloLoCapturado, LLAVES_ANTERIORES } from "./espacio.js";
 import { esFallaDeRed, CADA_CUANTO_REINTENTAR_MS, tocaBajar, mezclarConNube, planDeSubida, puedeLigarTelefono, vinculoDe, abrePantallasSola } from "./sincroniza.js";
 import { revisarHorometro, compararConsumo, consumoPorHora } from "./maquinaria.js";
@@ -16710,6 +16711,9 @@ function RespaldoDatos({ data, crudos, setData, pendientes = 0, onClose }) {
   const [msg, setMsg] = useState(null);
   const fileRef = useRef(null);
   const [subiendo, setSubiendo] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const [restauraciones, setRestauraciones] = useState([]);
+  useEffect(() => { let vivo = true; leerRestauraciones().then(l => { if (vivo) setRestauraciones(l); }); return () => { vivo = false; }; }, [subiendo]);
   // Lo que se respalda es lo CAPTURADO (las colecciones como se guardan), no las cuentas ya hechas: ésas se recalculan.
   const COLECCIONES = [...new Set([...Object.keys(INITIAL).filter(k => Array.isArray(INITIAL[k])), ...TABLAS_NUBE, "eventos"])];
 
@@ -16734,6 +16738,7 @@ function RespaldoDatos({ data, crudos, setData, pendientes = 0, onClose }) {
   const importar = e => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    try { e.target.value = ""; } catch { /* da igual */ }   // para poder escoger el mismo archivo otra vez
     const reader = new FileReader();
     reader.onload = async ev => {
       try {
@@ -16746,18 +16751,24 @@ function RespaldoDatos({ data, crudos, setData, pendientes = 0, onClose }) {
           return;
         }
         const obj = soloLoCapturado(rev.datos, COLECCIONES);
+        if (supabaseListo && motivo.trim().length < 5) { setMsg({ tipo: "err", txt: "Antes de restaurar escribe por qué se restaura: queda anotado junto con tu cuenta." }); return; }
         if (!confirm(`${rev.dice}\n\n¿Reemplazar TODOS los datos de este aparato con los del respaldo y volver a subirlos a la nube? Lo que ya esté en la nube no se duplica.`)) return;
         setData(prev => ({ ...prev, ...Object.fromEntries(COLECCIONES.map(c => [c, []])), ...obj }));
         if (!supabaseListo) { setMsg({ tipo: "ok", txt: "Datos restaurados en este aparato." }); return; }
         // Y a la nube: registro por registro con su mismo identificador, así que lo que ya estaba no se repite.
+        // Antes se ABRE la restauración: es lo que deja que un pago o un cierre perdido conserve a quien lo autorizó.
         setSubiendo(true); let subidos = 0; const fallas = [];
+        const abierta = await abrirRestauracion(motivo.trim());
+        if (!abierta.ok && !window.confirm(`No se pudo abrir la restauración (${abierta.dice}).\n\nSi sigues, los pagos, cierres y demás autorizaciones que se hubieran PERDIDO en la base quedarán a nombre de tu cuenta y con la fecha de hoy, no a nombre de quien los autorizó.\n\n¿Subir de todos modos?`)) {
+          setSubiendo(false); setMsg({ tipo: "err", txt: "Restaurado sólo en este aparato. No se subió nada a la nube." }); return;
+        }
         for (const c of TABLAS_NUBE) {
           if (!Array.isArray(obj[c]) || obj[c].length === 0) continue;
-          try { subidos += await subirColeccion(c, obj[c]); } catch (err) { fallas.push(`${c} (${err?.message || "sin detalle"})`); }
+          try { subidos += await subirColeccion(c, c === "eventos" ? obj[c].map(conSelloOriginal) : obj[c]); } catch (err) { fallas.push(`${c} (${err?.message || "sin detalle"})`); }
         }
         setSubiendo(false);
         setMsg(fallas.length === 0
-          ? { tipo: "ok", txt: `Datos restaurados en este aparato y ${subidos} registro(s) puestos en la nube.` }
+          ? { tipo: "ok", txt: `Datos restaurados en este aparato y ${subidos} registro(s) puestos en la nube.${abierta.ok ? " Lo que se había perdido conserva a quien lo autorizó y queda marcado como restaurado." : " Ojo: lo que se había perdido quedó autorizado a nombre de tu cuenta."}` }
           : { tipo: "err", txt: `Restaurado en este aparato, pero NO todo subió a la nube. Subieron ${subidos} registro(s); faltó: ${fallas.join("; ")}. No borres el archivo de respaldo.` });
       } catch (err) {
         setSubiendo(false);
@@ -16809,6 +16820,10 @@ function RespaldoDatos({ data, crudos, setData, pendientes = 0, onClose }) {
           <div className="card-title">Restaurar desde un respaldo</div>
           <div className="text-xs text-muted mb-3">Sólo se aceptan respaldos de esta misma operación. Los de cuando la app estaba a prueba no se cargan.</div>
           <div className="text-xs text-muted mb-3">Carga un archivo de respaldo: reemplaza los datos de este aparato por los del archivo y los vuelve a poner en la nube. Es para recuperar la información si se perdió; no hace falta para cambiar de teléfono (para eso basta entrar con tu cuenta).</div>
+          {supabaseListo && <div className="form-group"><label className="form-label" htmlFor="motivo-restauracion">Por qué se restaura</label>
+            <input id="motivo-restauracion" className="inp" aria-label="Por qué se restaura" placeholder="Ej: se perdieron los registros del 19 de noviembre" value={motivo} onChange={e => setMotivo(e.target.value)} />
+            <div className="text-xs text-muted" style={{ marginTop: 4 }}>Restaurar no cambia quién autorizó cada pago o cierre: lo conserva, y deja anotado quién restauró, cuándo y por qué.</div></div>}
+          {restauraciones.length > 0 && <div className="text-xs text-muted mb-3 restauraciones-hechas"><b>Restauraciones hechas:</b>{restauraciones.map((r, i) => <div key={i}>{String(r.desde).slice(0, 10)} · «{r.motivo}» · {r.eventos} evento(s) recuperaron su autorización</div>)}</div>}
           <input ref={fileRef} type="file" accept="application/json,.json" onChange={importar} style={{ display: "none" }} />
           <button className="btn btn-outline" disabled={subiendo} onClick={() => fileRef.current && fileRef.current.click()}><Ic e="📤" /> {subiendo ? "Subiendo a la nube…" : "Elegir archivo de respaldo"}</button>
         </div>

@@ -321,3 +321,20 @@ export async function directorioDeCuentas() {
   const { data, error } = await supabase.rpc("directorio_de_cuentas");
   return error ? [] : data || [];
 }
+
+// ------------------------------------------------------------
+//  RESTAURAR UN RESPALDO sin reescribir la historia (hoja 53)
+//  Abrir una restauración es lo que deja que los eventos perdidos recuperen a quien los autorizó. Sólo un
+//  superadministrador, con motivo; dura una hora y queda anotada. Si la base todavía no tiene la hoja, se dice.
+// ------------------------------------------------------------
+export async function abrirRestauracion(motivo) {
+  if (!supabaseListo) return { ok: false, dice: "Sin conexión a la base." };
+  const { data, error } = await supabase.rpc("abrir_restauracion", { p_motivo: motivo });
+  if (error) return { ok: false, sinHoja: /does not exist|Could not find|schema cache|PGRST202/i.test(error.message || "") || error.code === "PGRST202" || error.code === "42883", dice: error.message || "No se pudo abrir la restauración." };
+  return { ok: true, hasta: data };
+}
+export async function leerRestauraciones() {
+  if (!supabaseListo) return [];
+  const { data, error } = await supabase.from("restauraciones").select("abierta_por, motivo, desde, eventos").order("desde", { ascending: false }).limit(20);
+  return error ? [] : (data || []);
+}

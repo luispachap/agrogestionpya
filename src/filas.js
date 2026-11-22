@@ -81,12 +81,21 @@ const MAP_COL = {
   cat:          "categoria",
 };
 // Lo que sólo la base puede decir de un registro. Nunca se sube, y al bajar sólo se cree lo que venga en su columna.
-export const DEL_SERVIDOR = ["_recibido", "_validacion", "_validacionDice", "_validadoPor", "_validadoRol", "_validado", "_cambioRechazado"];
+export const DEL_SERVIDOR = ["_recibido", "_validacion", "_validacionDice", "_validadoPor", "_validadoRol", "_validado", "_cambioRechazado", "_restaurado", "_restauradoPor"];
 const inv = obj => Object.fromEntries(Object.entries(obj).map(([k, v]) => [v, k]));
 const MAP_COL_INV = inv(MAP_COL);
 
 const aSql = k => MAP_COL[k] || k;
 const aApp = k => MAP_COL_INV[k] || k;
+
+// Para RESTAURAR un respaldo: el sello que la base le había puesto a un evento viaja a su lado (`_selloOriginal`) para
+// que la base, si hay una restauración abierta, lo recupere tal cual en vez de sellarlo a nombre de quien restaura.
+// Fuera de una restauración la base lo ignora: mandarlo no autoriza nada.
+export function conSelloOriginal(evento) {
+  if (!evento || typeof evento !== "object") return evento;
+  const sello = { validacion: evento._validacion || null, dice: evento._validacionDice || null, por: evento._validadoPor || null, rol: evento._validadoRol || null, cuando: evento._validado || null, recibido: evento._recibido || null };
+  return sello.recibido || sello.validacion ? { ...evento, _selloOriginal: sello } : evento;
+}
 
 // ------------------------------------------------------------
 //  Convertir un objeto de la app → fila SQL
@@ -114,7 +123,7 @@ export function filaAObjeto(fila) {
   // borrado es la lápida: alguien lo borró.
   // recibido: la hora en que el servidor recibió un evento. La pone la base, no el teléfono.
   // validacion…: el sello de lo sensible (hoja 37). También lo pone la base.
-  const { datos, actualizado, creado_por, subido_por, borrado, recibido, validacion, validacion_dice, validado_por, validado_rol, validado, cambio_rechazado, ...resto } = fila || {};
+  const { datos, actualizado, creado_por, subido_por, borrado, recibido, validacion, validacion_dice, validado_por, validado_rol, validado, cambio_rechazado, restaurado, restaurado_por, ...resto } = fila || {};
   const obj = {};
   for (const [k, v] of Object.entries(resto)) {
     if (v === null || v === undefined) continue;
@@ -134,6 +143,9 @@ export function filaAObjeto(fila) {
   if (validado_rol) obj._validadoRol = validado_rol;
   if (validado) obj._validado = validado;
   if (cambio_rechazado) obj._cambioRechazado = cambio_rechazado;
+  // Restaurado de un respaldo (hoja 53): conserva quién autorizó, y aquí queda dicho quién lo restauró y cuándo.
+  if (restaurado) obj._restaurado = restaurado;
+  if (restaurado_por) obj._restauradoPor = restaurado_por;
   return obj;
 }
 

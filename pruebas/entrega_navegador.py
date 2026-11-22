@@ -236,20 +236,24 @@ with sync_playwright() as p:
         malas = recorre(P, PANTALLAS[rol]) if ok else [("no entró", [])]
         caso(f"{rol}: entra con su cuenta y sus {len(PANTALLAS[rol])} pantallas abren con los datos del día", ok and not malas and foto(P)["trabajadores"] == 3, malas[:3])
         P.context.close()
-    vacia = N.Nube([ADM]); ctxV = b.new_context(viewport={"width": 390, "height": 820}, timezone_id="America/Mexico_City", service_workers="block")
+    ADM2 = N.cuenta(6, "admin2@prueba.invalid", "OTRO ADMIN DE PRUEBA", "superadmin")
+    vacia = N.Nube([ADM, ADM2]); ctxV = b.new_context(viewport={"width": 390, "height": 820}, timezone_id="America/Mexico_City", service_workers="block")
     ctxV.route("**/*", lambda r: r.continue_() if "localhost" in r.request.url else r.abort()); ctxV.route(N.NUBE + "/**", vacia)
     V = ctxV.new_page(); V.on("pageerror", lambda e: errs.append(str(e) + " @ " + (e.stack or "")[:400])); V.on("dialog", lambda d: d.accept())
-    V.goto(URL); V.wait_for_timeout(1500); entrar(V, ADM); V.wait_for_timeout(2500)
+    V.goto(URL); V.wait_for_timeout(1500); entrar(V, ADM2); V.wait_for_timeout(2500)
     malas = recorre(V, PANTALLAS["admin"])
     caso("y también con el rancho vacío, como está hoy producción", not malas, malas[:4])
     caso("abrir las pantallas no escribió nada en la nube", not vacia.cuantos() or set(vacia.cuantos()) <= {"preferencias"}, vacia.cuantos())
+    propias_ = lambda q: {k: v for k, v in q.items() if k not in ("preferencias",)}
     # ══ Respaldo y recuperación: con SÓLO el archivo se rehace todo, en el aparato y en la nube ══
     ir(C, "respaldo")
     with C.expect_download() as dl: C.get_by_role("button", name="Descargar respaldo").click()
     ruta = dl.value.path(); resp = json.loads(open(ruta, encoding="utf8").read())
     caso("el respaldo trae lo capturado (y nada de cuentas ya hechas, que se vuelven a calcular)", len(resp["eventos"]) == fA["eventos"] and len(resp["trabajadores"]) == 3 and len(resp["egresos"]) == 2 and not [k for k in resp if k in ("actividadesContables", "almacen", "indirectos", "salidasInv")] and resp["inventario"][0]["existencia"] == 20, sorted(resp)[:12])
     caso("la pantalla de respaldo ya no ofrece borrar datos ni poner el inventario en cero", C.get_by_text("Borrar TODO").count() == 0 and C.get_by_text("Poner inventario en cero").count() == 0 and C.get_by_text("Reiniciar datos").count() == 0)
-    ir(V, "respaldo"); V.locator('input[type="file"]').set_input_files(ruta)
+    ir(V, "respaldo"); V.locator('input[type="file"]').set_input_files(ruta); V.wait_for_timeout(600)
+    caso("restaurar pide decir por qué, y sin eso no hace nada", "escribe por qué se restaura" in V.locator(".alert").first.inner_text() and not propias_(vacia.cuantos()), V.locator(".alert").first.inner_text()[:120])
+    V.get_by_label("Por qué se restaura").fill("Ensayo: se perdió toda la base"); V.locator('input[type="file"]').set_input_files(ruta)
     for _ in range(40):
         V.wait_for_timeout(500)
         if V.locator(".alert").count() and "restaurad" in V.locator(".alert").first.inner_text().lower(): break
@@ -258,12 +262,17 @@ with sync_playwright() as p:
     caso("restaurar en un rancho vacío deja TODO igual: mismos registros, mismos costos, mismo valor del almacén (no descuenta dos veces)", fR == fA and rR == rA, [dice, [(k, fA[k], fR.get(k)) for k in fA if fA[k] != fR.get(k)], rR["inventario"], rA["inventario"]])
     propias = lambda q: {k: v for k, v in q.items() if k not in ("preferencias",)}
     caso("y lo vuelve a poner en la nube completo", propias(vacia.cuantos()) == propias(nube.cuantos()), [vacia.cuantos(), nube.cuantos(), dice])
+    pagoO = [e for e in nube.t["eventos"].values() if e["tipo"] == "pago_personal"][0]; pagoR = [e for e in vacia.t["eventos"].values() if e["tipo"] == "pago_personal"][0]
+    caso("el pago restaurado sigue AUTORIZADO POR QUIEN LO AUTORIZÓ y con su fecha, no por quien restauró", pagoR["validacion"] == "autorizado" and pagoR["validado_por"] == ADM["id"] == pagoO["validado_por"] and pagoR.get("validado") == pagoO.get("validado") and pagoR["datos"]["quien"]["nombre"] == "ADMIN DE PRUEBA", {k: pagoR.get(k) for k in ("validacion", "validado_por", "validado", "restaurado_por")})
+    caso("y queda dicho quién lo restauró, cuándo y por qué", pagoR.get("restaurado_por") == ADM2["id"] and vacia.restauraciones and vacia.restauraciones[0]["motivo"] == "Ensayo: se perdió toda la base" and vacia.restauraciones[0]["abierta_por"] == ADM2["id"], vacia.restauraciones[:1])
+    caso("los eventos conservan la hora en que la base los recibió", all(vacia.t["eventos"][i].get("recibido") == e.get("recibido") for i, e in nube.t["eventos"].items()))
+    caso("el sello original no se guardó dentro de ningún evento", not [e for e in vacia.t["eventos"].values() if "_selloOriginal" in (e.get("datos") or {})])
     ctxW = b.new_context(viewport={"width": 390, "height": 820}, timezone_id="America/Mexico_City", service_workers="block")
     ctxW.route("**/*", lambda r: r.continue_() if "localhost" in r.request.url else r.abort()); ctxW.route(N.NUBE + "/**", vacia)
     W = ctxW.new_page(); W.on("pageerror", lambda e: errs.append(str(e))); W.goto(URL); W.wait_for_timeout(1500); entrar(W, ADM); W.wait_for_timeout(4500)
     fW = foto(W); rW = W.evaluate(RES)
     caso("otro aparato que entra a esa nube recuperada ve exactamente la misma operación", fW == fA and rW == rA, [(k, fA[k], fW.get(k)) for k in fA if fA[k] != fW.get(k)])
-    V.locator('input[type="file"]').set_input_files(ruta); V.wait_for_timeout(5000)
+    V.get_by_label("Por qué se restaura").fill("Ensayo: otra vez el mismo archivo"); V.locator('input[type="file"]').set_input_files(ruta); V.wait_for_timeout(5000)
     caso("restaurar dos veces el mismo archivo no duplica nada", propias(vacia.cuantos()) == propias(nube.cuantos()) and foto(V) == fA, vacia.cuantos())
     ctxW.close()
     ctxV.close()
