@@ -338,3 +338,13 @@ test("lo_tecleado_a_mano_no_cuenta_su_mano_de_obra_si_ese_dia_ya_salio_del_checa
   assert.equal(u.actividades[0].costoMO, 0); assert.equal(u.actividades[0].costoTotal, 900, "la maquinaria que traía sigue contando");
   assert.equal(u.actividades[1].costoMO, 400, "otro día no se toca"); assert.equal(u.total, 400);
 });
+
+import { decisionesEncontradas } from "./cuadrillas.js";
+test("dos_decisiones_distintas_para_el_mismo_dia_se_ensenan_las_dos_y_se_dice_cual_vale", () => {
+  const ev = (id, pago, quien, capturado, mas = {}) => ({ id, tipo: "decision_jornada", estado: "vigente", fecha: "2026-11-19", capturado, quien: { id: quien, nombre: quien }, datos: { trabajadorId: "t1", situacion: "abandono", pago, motivo: `porque ${quien}` }, ...mas });
+  const d = decisionesEncontradas([ev("a", "medio", "Luis", "2026-11-19T17:00:00Z"), ev("b", "completo", "Migue", "2026-11-19T17:12:00Z")]);
+  assert.equal(d.length, 1); assert.equal(d[0].vale, "b");
+  assert.deepEqual(d[0].decisiones.map(x => [x.pago, x.quien, x.motivo]), [["medio", "Luis", "porque Luis"], ["completo", "Migue", "porque Migue"]]);
+  assert.deepEqual(decisionesEncontradas([ev("a", "medio", "Luis", "2026-11-19T17:00:00Z"), ev("b", "medio", "Migue", "2026-11-19T17:12:00Z")]), [], "si decidieron lo mismo no hay nada que aclarar");
+  assert.deepEqual(decisionesEncontradas([ev("a", "medio", "Luis", "2026-11-19T17:00:00Z"), ev("b", "completo", "Migue", "2026-11-19T17:12:00Z", { estado: "cancelado" })]), [], "cancelada la que sobra, se acaba el aviso");
+});

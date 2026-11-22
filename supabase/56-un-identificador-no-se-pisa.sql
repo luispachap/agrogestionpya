@@ -21,7 +21,7 @@
 -- ============================================================
 
 create or replace function cuidar_identidad()
-returns trigger language plpgsql
+returns trigger language plpgsql set search_path = public
 as $$
 declare vieja text; nueva text;
 begin

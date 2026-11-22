@@ -12,7 +12,7 @@ import {
 } from "./checador.js";
 // Cuadrillas: a dónde se mandó a cada quien, y la mano de obra que sale de ahí.
 import {
-  asignar, terminar, anotarTareas, aclararTiempo, CAUSAS_SIN_ASIGNAR, repartoActual, manoDeObra, agrupar, actividadesDeManoDeObra, capturasDobles, unaSolaManoDeObra, decidirJornada, PAGO_DE_JORNADA,
+  asignar, terminar, anotarTareas, aclararTiempo, CAUSAS_SIN_ASIGNAR, repartoActual, manoDeObra, decisionesEncontradas, agrupar, actividadesDeManoDeObra, capturasDobles, unaSolaManoDeObra, decidirJornada, PAGO_DE_JORNADA,
   ajusteVigente, cambiarAjuste, AJUSTES, horasDe, acumular,
 } from "./cuadrillas.js";
 // Cuadrillas: los grupos eventuales que llegan juntos, con su responsable y su transporte.
@@ -23064,6 +23064,18 @@ function PanelAsistencia({ data, add, upd, session, ini, fin, semanas, mo, cerra
   return (<>
     {cerrada && <div className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">Esta semana ya está cerrada. Lo que registres aquí no cambia el cierre: saldrá como diferencia contra él, hasta que alguien la reabra y la cierre otra vez.</div></div>}
     <button className="btn btn-accent" style={{ width: "100%", marginBottom: 12 }} onClick={() => { setAus({ trabajadorId: "", desde: hoy, hasta: hoy, clase: "", paga: "", causa: "", autorizo: "" }); setDice(""); }}>Registrar permiso, descanso, vacaciones o falta</button>
+    {(() => { const enc = decisionesEncontradas(data.eventos || [], { desde: ini, hasta: fin }); const nombreDe = (id) => (data.trabajadores || []).find(t => t.id === id)?.nombre || (data.encargados || []).find(t => t.id === id)?.nombre || "—";
+      return enc.length > 0 && <div className="card" style={{ borderColor: "var(--red)" }}>
+        <div className="card-title">Dos decisiones distintas para el mismo día</div>
+        <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Dos personas decidieron cómo se paga la misma salida, cada una en su teléfono. Las dos están guardadas y se está aplicando la última. Pónganse de acuerdo y cancelen la que no vale.</div>
+        {enc.map(c => <div key={`${c.trabajadorId}-${c.fecha}`} style={{ padding: "6px 0", borderTop: "1px solid var(--border)" }}>
+          <div className="text-sm"><b>{nombreDe(c.trabajadorId)}</b> · {c.fecha}</div>
+          {c.decisiones.map(d => <div key={d.ev} className="flex-b" style={{ gap: 8, marginTop: 4 }}>
+            <span className="text-xs">{PAGO_DE_JORNADA[d.pago] || d.pago}{d.ev === c.vale ? " (es la que se está aplicando)" : ""} — {d.quien}: «{d.motivo}»</span>
+            {seOfrece(session, "decidir_asistencia") && <button className="btn btn-outline btn-sm" style={{ flex: "0 0 auto" }} aria-label={`Cancelar la decisión de ${d.quien}`} onClick={() => { const motivo = prompt("¿Por qué se cancela esta decisión?"); if (!motivo || !motivo.trim()) return; const ev = (data.eventos || []).find(x => x.id === d.ev); const r = ev && cancelarEvento(ev, { motivo: motivo.trim(), quien: quienDe(session), cuando: new Date().toISOString() }); if (r?.ok) upd("eventos", r.evento); else if (r?.dice) alert(r.dice); }}>Cancelar ésta</button>}
+          </div>)}
+        </div>)}
+      </div>; })()}
     {mo.salidasPorRevisar.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}>
       <div className="card-title">Salieron antes: por revisar</div>
       <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Mientras nadie decida, su día se paga completo. No hay descuento automático.</div>

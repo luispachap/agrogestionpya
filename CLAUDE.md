@@ -839,7 +839,7 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
 - **Una merma o un faltante vale lo del día en que pasó** (`costoEntonces`), como un consumo; lo recibido sin precio
   no se valúa al promedio (`valorDelInventario` lo deja fuera hasta valuarlo); alta de artículo: `revisarArticulo`.
 - Recorridos de auditoría: `auditoria_pagos` (40), `auditoria_almacen` (45), `auditoria_semana` (26),
-  `auditoria_agronomo` (23), `auditoria_identidad` (18). Todos con cuentas, nube de imitación, recarga y segundo aparato.
+  `auditoria_agronomo` (23), `auditoria_identidad` (27), `auditoria_entregas` (13). Todos con cuentas, nube de imitación, recarga y segundo aparato.
 - **UNA SOLA FUENTE DEL ESTADO (Luis, 22 nov): `docs/ESTADO.json`.** `node herramientas/estado.mjs` genera de ahí
   `docs/AUDITORIA-FUNCIONAL.md` y `docs/tablero-de-cierre.html` (lo que se publica como tablero). **No escribas cifras,
   módulos aprobados, pendientes ni «publicado» en ningún otro documento**, ni edites a mano los generados:
@@ -855,6 +855,18 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   renglones con el mismo identificador y estampa quién capturó (`conAutor`). Lo que no se puede saber si es lo mismo
   (dos gastos, entradas, ingresos o aplicaciones iguales el mismo día) se AVISA en Finanzas → Resultados
   (`src/repetidos.js`, `quizaRepetidos`); una persona cancela el que sobra o dice «son distintos». Nada se quita solo.
+- **UN IDENTIFICADOR OCUPADO NO SE PISA (hoja 56, instalada el 22 nov).** El azar del teléfono no es la protección: la
+  BASE lo es. Todo registro con identificador hecho al momento nace con una marca (`_nace`, `conNacimiento`; `upd` y
+  `aplicarLote` la conservan con `conservarNacimiento`); el candado `a_cuidar_identidad` (todas las tablas con `datos`,
+  también `eventos`) rechaza con `identificador_ocupado` cualquier registro que llegue a un identificador ocupado con
+  otra marca o sin ella. La cola lo aparta de inmediato y lo dice; al bajar, `mezclarConNube` REUBICA el registro de
+  este teléfono con otro identificador (`_reubicadoDe`) y lo sube: ninguno se pierde. Los identificadores de nombre
+  propio NO llevan marca (son «el mismo hecho» a propósito). **Si una pantalla vuelve a armar un registro existente,
+  que pase por `upd`**, o pierde la marca y la base lo rechaza.
+- **Cada cobro de un embarque es un hecho propio**: identificador, importe, fecha, `registradoPor`, `capturado`,
+  `ingresoId` (y `abonoId`); la venta lleva `liquidacionId`. Recorrido: `auditoria_cobros` (15).
+- **Dos decisiones distintas del mismo día no se aplican calladas** (`decisionesEncontradas`, `cuadrillas.js`):
+  Asistencia enseña las dos con quién y por qué y deja cancelar la que no vale. Recorrido: `auditoria_ausencias` (19).
 
 ## Cómo verificar tu trabajo
 

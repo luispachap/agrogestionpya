@@ -274,6 +274,18 @@ export function decisionesDeJornada(eventos) {
   for (const e of vigentes(eventos).filter(x => x.tipo === TIPO_DECISION).sort((a, b) => a.capturado.localeCompare(b.capturado))) m.set(`${e.datos.trabajadorId}|${e.fecha}`, e);
   return m;
 }
+// DOS DECISIONES DISTINTAS PARA EL MISMO DÍA. Dos administradores pueden decidir cómo se paga la misma salida, cada uno
+// en su teléfono y sin saber del otro. Las dos quedan guardadas y vale la última que se tomó; pero aplicarla callada
+// deja a uno creyendo que se pagó medio día y al otro que completo. Se enseñan las dos, con quién y por qué.
+export function decisionesEncontradas(eventos, { desde, hasta } = {}) {
+  const por = new Map();
+  for (const e of vigentes(eventos).filter(x => x.tipo === TIPO_DECISION && (!desde || x.fecha >= desde) && (!hasta || x.fecha <= hasta)).sort((a, b) => a.capturado.localeCompare(b.capturado))) {
+    const k = `${e.datos.trabajadorId}|${e.fecha}`; if (!por.has(k)) por.set(k, []); por.get(k).push(e);
+  }
+  return [...por.values()].filter(l => new Set(l.map(e => e.datos.pago)).size > 1).map(l => ({
+    trabajadorId: l[0].datos.trabajadorId, fecha: l[0].fecha, vale: l[l.length - 1].id,
+    decisiones: l.map(e => ({ ev: e.id, pago: e.datos.pago, situacion: e.datos.situacion, motivo: e.datos.motivo, quien: e.quien?.nombre || "", capturado: e.capturado })) }));
+}
 export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } = {}) {
   const { tramos, avisos } = tramosDeTrabajo(eventos, { desde, hasta, hoy, ahora });
   const horasJornada = ajusteVigente(eventos, "horas_jornada").valor;
