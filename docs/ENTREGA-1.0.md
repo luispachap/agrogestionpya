@@ -34,7 +34,8 @@ Tres clases, según qué tan probado está cada módulo:
 - **B · Con prueba propia.** Cada módulo tiene su recorrido en navegador y sus pruebas de cálculo, pero no pasó por
   el recorrido integral con cuentas.
 - **C · Sólo abre.** La pantalla abre sin tronar, vacía y con datos. Su funcionamiento no se validó en este cierre.
-  **Queda fuera del compromiso de la 1.0.**
+  **No está excluido** (decisión de Luis, 21 nov): sigue en la auditoría funcional de los 67 módulos
+  (`docs/AUDITORIA-FUNCIONAL.md`) y ahí se dice cuál ya se recorrió y cuál no.
 
 | Módulo (pantallas) | Clase | Prueba ejecutada | Resultado | Riesgo pendiente |
 |---|---|---|---|---|
@@ -71,7 +72,7 @@ Tres clases, según qué tan probado está cada módulo:
 
 ## Lo que se encontró hoy
 
-Todo lo marcado «corregido» tiene prueba con nombre y está en la rama, **sin publicar**.
+Todo lo marcado «corregido» tiene prueba con nombre y **ya está publicado** (`d3e0498`). Lo que destapó después la auditoría funcional está en `docs/AUDITORIA-FUNCIONAL.md`.
 
 ### P0 — ponían en riesgo datos, dinero o seguridad
 
