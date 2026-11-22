@@ -10,14 +10,33 @@
 //  · Los ICONOS no necesitan red nunca: van dibujados dentro
 //    del propio código de la app (SVG).
 // ============================================================
-const CACHE_APP = "agrogestion-v2";
+const CACHE_APP = "agrogestion-v3";
 const CACHE_EXT = "agrogestion-ext-v2";
 const PRECACHE = ["/", "/index.html", "/manifest.json", "/icon-192.png", "/icon-512.png"];
 
+// Lo que la app necesita para ARRANCAR (su código y su hoja de estilos) se guarda desde la instalación. Antes sólo se
+// guardaba la portada: quien abría la app una sola vez con señal y luego se iba al campo encontraba la pantalla en blanco.
+const piezasDe = (html) => [...new Set([...String(html).matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]))];
+// El orden importa: primero las piezas y HASTA EL FINAL la portada. Si la señal se cae a media bajada de una versión
+// nueva, la portada guardada sigue siendo la anterior, que tiene todas sus piezas: nunca queda una portada sin su código.
+async function guardarLoNecesario(portada) {
+  const c = await caches.open(CACHE_APP);
+  try { await c.addAll(PRECACHE.filter((u) => u !== "/" && u !== "/index.html")); } catch { /* se reintenta en otra visita */ }
+  try {
+    const resp = portada || await fetch("/index.html", { cache: "no-store" });
+    if (!resp || !resp.ok) return;
+    const piezas = piezasDe(await resp.clone().text());
+    await Promise.all(piezas.map((u) => c.match(u, { ignoreVary: true }).then((ya) => ya || c.add(u))));
+    await c.put("/index.html", resp.clone()); await c.put("/", resp);
+    // Las piezas de arranque de versiones anteriores ya no sirven: se quitan para no llenar el teléfono.
+    for (const req of await c.keys()) { const ruta = new URL(req.url).pathname; if (/^\/assets\/index-/.test(ruta) && !piezas.includes(ruta)) await c.delete(req); }
+  } catch { /* sin señal: lo guardado de antes se queda como estaba */ }
+}
+// Con señal mala, esperar a la red sin límite deja la app sin abrir: se le da un rato y, si no contesta, se usa lo guardado.
+const conLimite = (promesa, ms) => new Promise((ok, mal) => { const t = setTimeout(() => mal(new Error("tardó")), ms); promesa.then((r) => { clearTimeout(t); ok(r); }, (e) => { clearTimeout(t); mal(e); }); });
+
 self.addEventListener("install", (e) => {
-  e.waitUntil(
-    caches.open(CACHE_APP).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting())
-  );
+  e.waitUntil(guardarLoNecesario().then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (e) => {
@@ -55,21 +74,36 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // Navegación (abrir la app): red primero, caer al index guardado
+  // Navegación (abrir la app): red primero, pero sin esperar de más; si no hay señal o tarda, el index guardado.
   if (request.mode === "navigate") {
-    e.respondWith(
-      fetch(request)
-        .then((resp) => {
-          const copia = resp.clone();
-          caches.open(CACHE_APP).then((c) => c.put("/index.html", copia));
-          return resp;
-        })
-        .catch(() => caches.match("/index.html").then((r) => r || caches.match("/")))
-    );
+    e.respondWith((async () => {
+      const red = fetch(request).then((resp) => {
+        if (resp && resp.ok) guardarLoNecesario(resp.clone());
+        return resp;
+      });
+      red.catch(() => {});
+      const guardado = await caches.match("/index.html", { ignoreVary: true }) || await caches.match("/", { ignoreVary: true });
+      try { return await (guardado ? conLimite(red, 4000) : red); } catch { return guardado || Response.error(); }
+    })());
     return;
   }
 
-  // Assets propios (JS/CSS/imagenes del build): red primero con respaldo en caché
+  // Piezas del build (/assets/…): llevan su huella en el nombre y nunca cambian, así que lo guardado vale siempre.
+  // Primero lo guardado; si no está, la red (y se guarda). Así abrir la app no depende de la señal.
+  if (url.pathname.startsWith("/assets/")) {
+    e.respondWith((async () => {
+      const c = await caches.open(CACHE_APP);
+      // Sin fijarse en «Vary»: la misma pieza se pide con y sin encabezado de origen y es el mismo archivo.
+      const hit = await c.match(url.pathname, { ignoreVary: true, ignoreSearch: true });
+      if (hit) return hit;
+      const resp = await fetch(request);
+      if (resp && resp.ok) c.put(url.pathname, resp.clone());
+      return resp;
+    })());
+    return;
+  }
+
+  // Lo demás propio (iconos, manifiesto): red primero con respaldo en caché
   e.respondWith(
     fetch(request)
       .then((resp) => {
