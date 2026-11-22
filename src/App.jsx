@@ -8108,9 +8108,6 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "personal" && <EncargadoPersonal data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} session={session} />}
               {page === "caja" && <EncargadoCaja data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} session={session} />}
               {page === "papeles" && <BuzonPapeles data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
-              {page === "banco" && <EstadoDeCuenta data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
-              {page === "socios" && <SociosYBolsas data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
-              {page === "aldia" && <AlDia data={data} onClose={() => setPage("home")} />}
               {page === "ganado" && <Ganado data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "bitacora" && <Bitacora data={data} onClose={() => setPage("home")} />}
               {page === "vales" && <AlmacenVales data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}

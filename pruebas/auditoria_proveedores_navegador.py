@@ -125,6 +125,16 @@ with sync_playwright() as p:
     caso("al encargado no se le abre Deudas ni Proveedores (que la base no le da los créditos se prueba aparte, contra la base)", "FERTILIZANTE A CREDITO" not in H.locator("body").inner_text())
     H.evaluate("p => window.__agroIr(p)", "proveedores"); H.wait_for_timeout(600)
     caso("ni pidiendo Proveedores por su nombre", "Registrar crédito" not in H.locator("body").inner_text() and "DEUDA TOTAL" not in H.locator("body").inner_text().upper())
+    # Banco, Socios y ¿Alcanza? no son del encargado (decisión de Luis, 22 nov). En la base se prueba aparte (hoja 54).
+    H.evaluate("p => window.__agroIr(p)", "home"); H.wait_for_timeout(300); inicio = H.locator(".section-pad, .app").first.inner_text()
+    H.locator(".bn-item", has_text="Menú").click(); H.wait_for_timeout(400); menu = plano(H.locator("body").inner_text())
+    caso("el menú del encargado no ofrece Banco, Socios ni ¿Alcanza?: en Dinero sólo le quedan Caja chica y Papeles", "Banco" not in menu and "Socios" not in menu and "¿Alcanza?" not in menu and "Dinero | 2 |" in menu, menu[600:1500])
+    abiertas = []
+    for pag in ["banco", "socios", "aldia"]:
+        H.evaluate("p => window.__agroIr(p)", "home"); H.wait_for_timeout(250); antes = H.locator("body").inner_text()
+        H.evaluate("p => window.__agroIr(p)", pag); H.wait_for_timeout(500); t = H.locator("body").inner_text()
+        if any(x in t for x in ["Estado de cuenta", "Subir estado", "Quién puso", "Titular", "NO SÉ TU SALDO", "alcanza"]) : abiertas.append(pag)
+    caso("y aunque pida esas pantallas por su nombre, no se le abren", abiertas == [], abiertas)
     D = telefono(DIR, "iPhone 13"); D.evaluate("p => window.__agroIr(p)", "proveedores"); D.wait_for_timeout(600)
     caso("dirección (iPhone imitado) no tiene cómo registrar créditos ni abonos", D.get_by_role("button", name="Registrar crédito").count() == 0 and D.get_by_role("button", name="+ Registrar abono").count() == 0)
     A.wait_for_timeout(500); G.reload(); G.wait_for_timeout(3500); A.reload(); A.wait_for_timeout(3500)
