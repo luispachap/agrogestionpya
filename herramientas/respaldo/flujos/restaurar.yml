@@ -1,0 +1,45 @@
+# Va en el repositorio PRIVADO de respaldos, en .github/workflows/restaurar.yml
+# Restaura un respaldo en OTRO proyecto (nuevo y vacío) y comprueba que quedó igual. Nunca toca producción.
+name: Restaurar un respaldo en otro proyecto
+on:
+  workflow_dispatch:
+    inputs:
+      dia:
+        description: "Día del respaldo (AAAA-MM-DD). Vacío = el más reciente"
+        required: false
+      confirmo:
+        description: "Escribe: EN UN PROYECTO NUEVO Y VACIO"
+        required: true
+permissions:
+  contents: read
+jobs:
+  restaurar:
+    if: ${{ inputs.confirmo == 'EN UN PROYECTO NUEVO Y VACIO' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Las herramientas del respaldo (del repositorio de la app)
+        uses: actions/checkout@v4
+        with:
+          repository: luispachap/agrogestionpya
+          ref: produccion/base-vigente
+          path: _app
+          sparse-checkout: |
+            herramientas/respaldo
+      - name: Cliente de la base (misma versión que el servidor)
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsS -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: Restaurar y comprobar
+        env:
+          DESTINO_BASE_URL: ${{ secrets.DESTINO_BASE_URL }}
+          DESTINO_PROYECTO_URL: ${{ secrets.DESTINO_PROYECTO_URL }}
+          DESTINO_LLAVE_SERVICIO: ${{ secrets.DESTINO_LLAVE_SERVICIO }}
+          CLAVE_RESPALDO: ${{ secrets.CLAVE_RESPALDO }}
+          BASE_URL: ${{ secrets.BASE_URL }}
+          DIA: ${{ inputs.dia }}
+        run: sh _app/herramientas/respaldo/restaurar.sh "$GITHUB_WORKSPACE" "$DIA"

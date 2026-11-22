@@ -170,7 +170,7 @@ export function sinRepetir(eventos) {
 // que dice, así que no hay "cuál versión gana": sólo importa si alguno de los
 // dos ya dejó de estar vigente. Devuelve también cuáles son nuevos o cambiaron,
 // para guardar sólo ésos.
-export const SELLOS = ["_recibido", "_validacion", "_validacionDice", "_validadoPor", "_validadoRol", "_validado", "_cambioRechazado", "_restaurado", "_restauradoPor"];
+export const SELLOS = ["_recibido", "_validacion", "_validacionDice", "_validadoPor", "_validadoRol", "_validado", "_cambioRechazado", "_restaurado", "_restauradoPor", "_selloFirma"];
 export function juntarEventos(locales, deLaNube) {
   const porId = new Map((locales || []).filter(e => e?.id).map(e => [e.id, e]));
   const cambiaron = [];

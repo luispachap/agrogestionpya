@@ -16776,7 +16776,7 @@ function RespaldoDatos({ data, crudos, setData, pendientes = 0, onClose }) {
         }
         for (const c of TABLAS_NUBE) {
           if (!Array.isArray(obj[c]) || obj[c].length === 0) continue;
-          try { subidos += await subirColeccion(c, c === "eventos" ? obj[c].map(conSelloOriginal) : obj[c], { soloFaltantes: true }); } catch (err) { fallas.push(`${c} (${err?.message || "sin detalle"})`); }
+          try { subidos += await subirColeccion(c, c === "eventos" ? obj[c].map(conSelloOriginal) : obj[c], { soloFaltantes: true }); } catch (err) { subidos += err?.subidos || 0; fallas.push(`${c} (${err?.message || "sin detalle"})`); }
         }
         setSubiendo(false);
         setMsg(fallas.length === 0

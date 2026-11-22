@@ -1,0 +1,51 @@
+# Va en el repositorio PRIVADO de respaldos, en .github/workflows/respaldo.yml
+# Cada noche saca la copia cifrada de AgroGestión y la guarda en este mismo repositorio.
+name: Respaldo de AgroGestión
+on:
+  schedule:
+    - cron: "17 9 * * *"     # 3:17 de la mañana en Zacatecas, todos los días
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: respaldo
+  cancel-in-progress: false
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Las herramientas del respaldo (del repositorio de la app)
+        uses: actions/checkout@v4
+        with:
+          repository: luispachap/agrogestionpya
+          ref: produccion/base-vigente
+          path: _app
+          sparse-checkout: |
+            herramientas/respaldo
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Cliente de la base (misma versión que el servidor)
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsS -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: Respaldar
+        env:
+          BASE_URL: ${{ secrets.BASE_URL }}
+          PROYECTO_URL: ${{ secrets.PROYECTO_URL }}
+          LLAVE_SERVICIO: ${{ secrets.LLAVE_SERVICIO }}
+          CLAVE_RESPALDO: ${{ secrets.CLAVE_RESPALDO }}
+        run: sh _app/herramientas/respaldo/respaldar.sh "$GITHUB_WORKSPACE"
+      - name: Guardar en el repositorio
+        run: |
+          rm -rf _app
+          git config user.name "Respaldo de AgroGestión"
+          git config user.email "respaldo@users.noreply.github.com"
+          git add -A base archivos ULTIMO.md
+          git commit -q -m "Respaldo del $(date -u +%F)" || echo "Nada nuevo que guardar."
+          git push -q

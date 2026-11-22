@@ -4,10 +4,11 @@ import { conSelloOriginal, objetoAFila, filaAObjeto } from "./filas.js";
 
 test("al_restaurar_el_sello_original_viaja_al_lado_del_evento_y_nunca_como_columna", () => {
   const delRespaldo = { id: "e1", tipo: "pago_personal", fecha: "2026-11-19", estado: "vigente", datos: { monto: 500 }, quien: { id: "c-migue", nombre: "QUIEN CAPTURÓ" },
-    _recibido: "2026-11-19T12:00:05Z", _validacion: "autorizado", _validadoPor: "c-migue", _validadoRol: "superadmin", _validado: "2026-11-19T12:00:05Z" };
+    _recibido: "2026-11-19T12:00:05Z", _validacion: "autorizado", _validadoPor: "c-migue", _validadoRol: "superadmin", _validado: "2026-11-19T12:00:05Z", _selloFirma: "firma-de-la-base" };
   const fila = objetoAFila("eventos", conSelloOriginal(delRespaldo));
-  assert.deepEqual(fila.datos._selloOriginal, { validacion: "autorizado", dice: null, por: "c-migue", rol: "superadmin", cuando: "2026-11-19T12:00:05Z", recibido: "2026-11-19T12:00:05Z" });
-  for (const col of ["validacion", "validado_por", "validado", "recibido", "restaurado", "_validacion"]) assert.equal(col in fila, false, col + " no se manda como columna: la base no lo aceptaría");
+  assert.deepEqual(fila.datos._selloOriginal, { validacion: "autorizado", dice: null, por: "c-migue", rol: "superadmin", cuando: "2026-11-19T12:00:05Z", recibido: "2026-11-19T12:00:05Z", firma: "firma-de-la-base" });
+  assert.equal(conSelloOriginal({ ...delRespaldo, _selloFirma: undefined })._selloOriginal, undefined, "sin la firma de la base no hay sello que restaurar");
+  for (const col of ["validacion", "validado_por", "validado", "recibido", "restaurado", "sello_firma", "_validacion", "_selloFirma"]) assert.equal(col in fila, false, col + " no se manda como columna: la base no lo aceptaría");
   assert.equal(fila.datos.quien.nombre, "QUIEN CAPTURÓ", "quien lo capturó va dentro del evento, como siempre");
 });
 test("un_evento_que_nunca_subio_no_lleva_sello_que_restaurar", () => {

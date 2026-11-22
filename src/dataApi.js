@@ -216,13 +216,24 @@ export async function subirColeccion(tabla, registros, { soloFaltantes = false }
   if (!registros || registros.length === 0) return 0;
   const filas = registros.map(r => objetoAFila(tabla, r));
   // Subir en lotes de 100 para no rebasar límites
-  let total = 0;
+  let total = 0; const rechazados = []; let motivo = "";
   for (let i = 0; i < filas.length; i += 100) {
     const lote = filas.slice(i, i + 100);
     const { error } = await supabase.from(tabla).upsert(lote, { onConflict: "id", ignoreDuplicates: soloFaltantes });
+    if (error && soloFaltantes) {
+      // Al restaurar, un renglón que la base no acepta no debe tirar a los otros noventa y nueve: se va uno por uno.
+      let primero = error.message || "la base no lo aceptó";
+      for (const fila of lote) {
+        const r = await supabase.from(tabla).upsert([fila], { onConflict: "id", ignoreDuplicates: true });
+        if (r.error) { rechazados.push(fila.id); primero = r.error.message || primero; } else total += 1;
+      }
+      motivo = primero;
+      continue;
+    }
     if (error) throw error;
     total += lote.length;
   }
+  if (rechazados.length > 0) { const e = new Error(`${rechazados.length} de ${filas.length} no entraron (${motivo})`); e.subidos = total; e.rechazados = rechazados; throw e; }
   return total;
 }
 

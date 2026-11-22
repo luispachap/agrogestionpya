@@ -28,7 +28,7 @@ test("las_hojas_no_siembran_ni_un_solo_registro_de_operacion", async () => {
     if (n > 0) conDatos.push(`${t}=${n}`);
   }
   // Lo único que trae de nacimiento son REGLAS (permisos, topes, el renglón de operación), no datos.
-  assert.deepEqual(conDatos.map(x => x.split("=")[0]).sort(), ["avisos_llaves", "limites", "operacion", "operaciones_sensibles", "permisos_rol"]);   // avisos_llaves: un renglón de configuración con un secreto al azar, sin llaves ni datos
+  assert.deepEqual(conDatos.map(x => x.split("=")[0]).sort(), ["avisos_llaves", "limites", "operacion", "operaciones_sensibles", "permisos_rol", "sellos_llave"]);   // avisos_llaves y sellos_llave: un renglón de configuración cada una, con un secreto al azar; ni llaves de nadie ni datos
   assert.equal(Number((await limpia.query("select count(*) n from perfiles")).rows[0].n), 0, "ni cuentas ni PIN de antes");
 });
 

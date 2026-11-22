@@ -16,6 +16,12 @@ _raiz = pathlib.Path(__file__).parent.parent.parent
 SENSIBLES = json.loads(subprocess.run(["node", "-e", "import('./src/eventos.js').then(m => console.log(JSON.stringify(m.OPERACION_DE)))"], cwd=_raiz, capture_output=True, text=True).stdout or "{}")
 SOLO_OTORGADOS = json.loads(subprocess.run(["node", "-e", "import('./src/eventos.js').then(m => console.log(JSON.stringify(m.SOLO_OTORGADOS)))"], cwd=_raiz, capture_output=True, text=True).stdout or "[]")
 
+import hashlib
+def firma(fila, llave="llave-de-la-nube-de-mentira"):
+    """Como la hoja 53: la firma amarra el evento entero (qué es, lo que dice, su estado) con su sello."""
+    datos = {k: v for k, v in (fila.get("datos") or {}).items() if k not in ("_actualizado", "_selloOriginal")}
+    return hashlib.sha256("|".join([llave, str(fila.get("id")), str(fila.get("tipo")), str(fila.get("estado")), json.dumps(datos, sort_keys=True), str(fila.get("validacion")), str(fila.get("validacion_dice")), str(fila.get("validado_por")), str(fila.get("validado_rol")), str(fila.get("validado")), str(fila.get("recibido"))]).encode()).hexdigest()
+
 class Nube:
     def __init__(self, cuentas, inicio="2026-11-01"):
         self.cuentas = {c["ficha"]: c for c in cuentas}; self.porCorreo = {c["correo"]: c for c in cuentas}
@@ -31,11 +37,9 @@ class Nube:
         sello = (fila.get("datos") or {}).get("_selloOriginal") if isinstance(fila.get("datos"), dict) else None
         if isinstance(fila.get("datos"), dict): fila["datos"] = {k: v for k, v in fila["datos"].items() if k != "_selloOriginal"}
         if not viejo and isinstance(sello, dict) and c["rol"] == "superadmin" and c["id"] in self.restaurando:
-            fila.update(recibido=sello.get("recibido") or self.ahora(), validacion=None, validacion_dice=None, validado_rol=None, validado_por=None, actualizado=self.ahora(), restaurado=self.ahora(), restaurado_por=c["id"])
-            if SENSIBLES.get(f.get("tipo")) and sello.get("validacion") in ("autorizado", "rechazado"):
-                fila.update(validacion=sello["validacion"], validacion_dice=sello.get("dice"), validado_por=sello.get("por"), validado_rol=sello.get("rol"), validado=sello.get("cuando"))
-                return fila
-            if not SENSIBLES.get(f.get("tipo")): return fila
+            cand = {**fila, "recibido": sello.get("recibido"), "validacion": sello.get("validacion"), "validacion_dice": sello.get("dice"), "validado_por": sello.get("por"), "validado_rol": sello.get("rol"), "validado": sello.get("cuando")}
+            if sello.get("firma") and sello.get("firma") == firma(cand):          # sólo el sello que la propia nube firmó
+                cand.update(actualizado=self.ahora(), restaurado=self.ahora(), restaurado_por=c["id"], sello_firma=sello["firma"]); return cand
         if viejo: fila = {**viejo, "estado": f.get("estado", viejo.get("estado")), "datos": f.get("datos", viejo.get("datos"))}
         else: fila.update(recibido=self.ahora(), validacion=None, validacion_dice=None, validado_rol=None)
         fila["actualizado"] = self.ahora()
@@ -43,6 +47,7 @@ class Nube:
         if op and not viejo:
             ok = op in self.otorgados.get(c["id"], []) or (c["rol"] == "superadmin" and op not in SOLO_OTORGADOS)
             fila.update(validacion="autorizado" if ok else "rechazado", validacion_dice=None if ok else "sin_permiso", validado_rol=c["rol"], validado_por=c["id"], validado=self.ahora())
+        if not viejo or viejo.get("estado") == "vigente": fila["sello_firma"] = firma(fila)
         return fila
     def __call__(self, route):
         r = route.request; ruta = r.url.split(NUBE)[1].split("?")[0]
