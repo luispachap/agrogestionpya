@@ -198,6 +198,9 @@ with sync_playwright() as p:
     caso("al encargado no se le abre Consignaciones (cobrar no es suyo)", G.get_by_role("button", name="Liquidar").count() == 0 and "Registrar pago" not in G.locator("body").inner_text())
     H = telefono(DIR, "iPhone 13"); H.evaluate("p => window.__agroIr(p)", "embarque"); H.wait_for_timeout(500)
     caso("dirección (iPhone imitado) no tiene cómo embarcar ni cerrar estibas", H.get_by_role("button", name="+ Agregar tarima al camión").count() == 0)
+    ir(A, "rendimiento-parcelas"); t = plano(A.locator("body").inner_text()); sinsubir = "sin subir" in t
+    caso("Rendimiento por parcela se llena solo con la corrida: la parcela de origen, sus cajas y sus calibres", "PARCELA UNO" in t and "Aún no hay corridas" not in t, t[:700])
+    caso("después de toda la corrida no quedó nada sin subir ni rechazado por la base (antes, la estiba recién cerrada no subía su peso)", subio(A) and not nube.ocupados and "sin subir" not in plano(A.locator("body").inner_text()), nube.ocupados[:4])
     caso("ninguna pantalla tronó", not errs, errs[:2])
     b.close()
 print(f"\n{sum(res)}/{len(res)} pasan"); sys.exit(0 if all(res) else 1)

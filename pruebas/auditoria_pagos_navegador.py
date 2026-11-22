@@ -201,6 +201,7 @@ with sync_playwright() as p:
     F = aparato(FIN, "17:05"); hora(F); ir(F, "nomina"); F.wait_for_timeout(500); t = plano(F.locator("body").inner_text())
     caso("Finanzas (sin permiso otorgado) ve Pagos al personal y no se le ofrece pagar", "ANA INVENTADA" in t and F.get_by_role("button", name="Registrar pago").count() == 0, t[:300])
 
+    caso("la base no rechazó ningún registro por identificador ocupado", not nube.ocupados, nube.ocupados[:4])
     caso("ninguna pantalla tronó", not errs, errs[:3])
     b.close()
 print(f"\n{sum(res)} de {len(res)}")

@@ -490,3 +490,71 @@ test("un_registro_capturado_nace_con_su_marca_y_no_la_pierde_al_corregirlo", () 
   assert.equal(esIdentificadorOcupado({ message: 'identificador_ocupado: ya existe otro registro con el identificador "x" en egresos.' }), true);
   assert.equal(esIdentificadorOcupado({ message: "permission denied" }), false);
 });
+
+import { revisarCultivo } from "./calculos.js";
+test("un_cultivo_se_da_de_alta_desde_la_app_con_nombre_y_duracion_y_no_se_repite", () => {
+  assert.equal(revisarCultivo({ nombre: " ", duracionDias: 240 }).ok, false);
+  assert.match(revisarCultivo({ nombre: "Ajo" }).dice, /cuántos días/);
+  assert.equal(revisarCultivo({ nombre: "Ajo", duracionDias: 5 }).ok, false);
+  const r = revisarCultivo({ nombre: "  Ajo  morado ", duracionDias: 240, unidadCosecha: "caja" });
+  assert.equal(r.ok, true); assert.equal(r.cultivo.id, "cul_ajo_morado"); assert.equal(r.cultivo.nombre, "Ajo morado"); assert.equal(r.cultivo.unidadCosecha, "caja");
+  assert.deepEqual(r.cultivo.fenologia, [], "sin etapas inventadas: se dejan vacías");
+  assert.match(revisarCultivo({ nombre: "AJO MORADO", duracionDias: 240 }, [r.cultivo]).dice, /Ya está dado de alta/);
+  assert.match(revisarCultivo({ nombre: "Maíz", duracionDias: 150 }, [{ nombre: "maiz" }]).dice, /Ya está/, "con o sin acento es el mismo");
+  assert.equal(revisarCultivo({ nombre: "Maíz", duracionDias: 150 }).cultivo.id, "cul_maiz", "el mismo cultivo desde dos teléfonos lleva el mismo identificador");
+});
+
+import { revisarRancho, revisarParcela, usoDeParcela } from "./calculos.js";
+test("una_parcela_no_nace_sin_rancho_sin_nombre_ni_repetida_y_dice_que_falta", () => {
+  assert.match(revisarRancho({ nombre: "", hectareas: 10 }).dice, /nombre/);
+  assert.match(revisarRancho({ nombre: "San Felipe", hectareas: 10 }, [{ id: "r1", nombre: "san felipe" }]).dice, /Ya hay/);
+  assert.equal(revisarRancho({ id: "r1", nombre: "San Felipe", hectareas: 10 }, [{ id: "r1", nombre: "San Felipe" }]).ok, true, "editarse a sí mismo no es repetirse");
+  const R = [{ id: "r1", nombre: "A" }, { id: "r2", nombre: "B" }];
+  assert.match(revisarParcela({ nombre: "P1", cultivo: "Ajo", hectareas: 2 }, [], []).dice, /Primero da de alta un rancho/);
+  assert.match(revisarParcela({ nombre: " ", cultivo: "Ajo", hectareas: 2 }, [], R).dice, /nombre/);
+  assert.match(revisarParcela({ nombre: "P1", cultivo: "", hectareas: 2 }, [], R).dice, /cultivo/);
+  assert.match(revisarParcela({ nombre: "P1", cultivo: "Ajo", hectareas: 0 }, [], R).dice, /hectáreas/);
+  assert.equal(revisarParcela({ nombre: "P1", cultivo: "Ajo", hectareas: 2, ranchoId: "" }, [], R).ranchoId, "r1", "sin rancho escogido toma el que la pantalla enseña (el primero), nunca vacío");
+  assert.match(revisarParcela({ nombre: "p1", cultivo: "Ajo", hectareas: 2, ranchoId: "r1" }, [{ id: "x", nombre: "P1", ranchoId: "r1" }], R).dice, /ya hay una parcela/);
+  assert.equal(revisarParcela({ nombre: "P1", cultivo: "Ajo", hectareas: 2, ranchoId: "r2" }, [{ id: "x", nombre: "P1", ranchoId: "r1" }], R).ok, true, "el mismo nombre en otro rancho sí");
+});
+test("una_parcela_con_algo_registrado_no_se_elimina", () => {
+  assert.equal(usoDeParcela({ parcelas: [{ id: "p1" }] }, "p1").usada, false);
+  const u = usoDeParcela({ actividades: [{ parcelaId: "p1" }, { parcelaId: "p2" }], egresos: [{ parcelaId: "p1" }], eventos: [{ datos: { parcelaId: "p1" } }] }, "p1");
+  assert.equal(u.usada, true); assert.match(u.dice, /1 actividades, 1 gastos, 1 registros de trabajo/);
+});
+
+test("un_hecho_de_nombre_propio_no_lleva_marca_aunque_traiga_dentro_el_identificador_de_otra_cosa", () => {
+  const sol = "s1763500000000ab12cd3", mov = "c1763500000000zz99yy8412", compra = "co1763500000000qq11ww2";
+  for (const id of [`eg-sol-${sol}-0`, `ei-sol-${sol}-0`, `inv-sol-${sol}-0`, `alm_entrada-solicitud-${sol}-0`, `eg-${mov}`, `alm_entrada-compra-${compra}-1`, "cul_ajo"])
+    assert.equal(conNacimiento({ id }, () => "x")._nace, undefined, `${id}: es el mismo hecho en todos los teléfonos`);
+  for (const id of [sol, mov, compra, "var_cul_ajo_1763500000000ab12cd3", "eg1763500000000ab12cd3", "cr1763500000000ab12cd3999"])
+    assert.equal(conNacimiento({ id }, () => "x")._nace, "x", `${id}: hecho al momento, lleva marca`);
+});
+
+import { unirCosecha, leFaltaCosecha, idDeCosecha, UNIONES_DE_REGISTROS as UNIONES_C } from "./calculos.js";
+test("lo_cosechado_que_anotan_dos_telefonos_en_la_misma_parcela_se_une_y_no_se_pisa", () => {
+  const base = { id: idDeCosecha("p1"), parcelaId: "p1", unidad: "kg", registros: [{ id: "a", fecha: "2026-11-18", cantidad: 100 }], ajustes: [] };
+  const uno = { ...base, registros: [...base.registros, { id: "b", fecha: "2026-11-19", cantidad: 250 }] };
+  const otro = { ...base, registros: [...base.registros, { id: "c", fecha: "2026-11-19", cantidad: 400 }], ajustes: [{ id: "j", fecha: "2026-11-19", delta: -20, motivo: "merma" }] };
+  const u = unirCosecha(uno, otro);
+  assert.deepEqual(u.registros.map(r => r.id), ["a", "b", "c"]); assert.equal(u.registros.reduce((n, r) => n + r.cantidad, 0), 750);
+  assert.deepEqual(u.ajustes.map(r => r.id), ["j"]);
+  assert.deepEqual(unirCosecha(otro, uno).registros.map(r => r.id), ["a", "b", "c"], "da lo mismo quién gane");
+  assert.equal(leFaltaCosecha(uno, u), true); assert.equal(leFaltaCosecha(u, uno), false);
+  assert.equal(UNIONES_C.cosechas.unir, unirCosecha);
+  assert.equal(idDeCosecha("p1763500000000ab12cd3"), "cos-p1763500000000ab12cd3");
+  assert.equal(conNacimiento({ id: idDeCosecha("p1763500000000ab12cd3") }, () => "x")._nace, undefined, "es LA cosecha de esa parcela en todos los teléfonos");
+});
+
+import { registrosVivos, cancelarRegistroDeCosecha, totalCosecha as totalCos } from "./calculos.js";
+test("un_registro_de_cosecha_se_cancela_con_motivo_deja_de_contar_y_no_revive_al_sincronizar", () => {
+  const cos = { id: "cos-p1", parcelaId: "p1", registros: [{ id: "a", fecha: "2026-11-18", cantidad: 100 }, { id: "b", fecha: "2026-11-19", cantidad: 250 }], ajustes: [] };
+  assert.equal(cancelarRegistroDeCosecha(cos, "b", { motivo: "  ", quien: "Luis", cuando: "x" }).ok, false, "sin motivo no");
+  const r = cancelarRegistroDeCosecha(cos, "b", { motivo: "se anotó dos veces", quien: "Luis", cuando: "2026-11-19T20:00:00Z" });
+  assert.equal(r.ok, true); assert.equal(r.cosecha.registros.length, 2, "el registro se queda");
+  assert.equal(totalCos(r.cosecha), 100); assert.deepEqual(registrosVivos(r.cosecha).map(x => x.id), ["a"]);
+  assert.equal(cancelarRegistroDeCosecha(r.cosecha, "b", { motivo: "otra vez", quien: "Luis", cuando: "x" }).ok, false);
+  assert.equal(totalCos(unirCosecha(r.cosecha, cos)), 100, "el otro teléfono todavía lo tenía vivo: unir no lo revive");
+  assert.equal(totalCos(unirCosecha(cos, r.cosecha)), 100, "gane quien gane");
+});

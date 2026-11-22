@@ -195,6 +195,7 @@ with sync_playwright() as p:
     uA = art(A, "UREA INVENTADA"); uB = art(B, "UREA INVENTADA")
     caso("dos aparatos sin señal usaron 2 y 1: al volver la señal quedan 8 en los dos, ninguno pisó al otro", uA["existencia"] == 8 and uB["existencia"] == 8, [uA["existencia"], uB["existencia"]])
 
+    caso("la base no rechazó ningún registro por identificador ocupado", not nube.ocupados, nube.ocupados[:4])
     caso("ninguna pantalla tronó", not errs, errs[:3])
     b.close()
 print(f"\n{sum(res)} de {len(res)}")

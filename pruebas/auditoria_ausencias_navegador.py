@@ -179,6 +179,7 @@ with sync_playwright() as p:
     caso("y enseña cada cancelación con quién y por qué", th.count("Cancelada por ADMIN DE PRUEBA") == 3 and "CANCELADA SIN SABER DEL CIERRE INVENTADO" in th and "SE REVISO DESPUES INVENTADO" in th and "Se capturó mal" in th, th[:900])
     caso("las cuentas son las mismas en el aparato nuevo y en el de siempre, y el pago sigue siendo uno", cD["egresos"] == cA2["egresos"] and cD["sale"] == cA2["sale"] and len(de(D, "pago_personal")) == 1, [cD["egresos"], cA2["egresos"], cD["sale"], cA2["sale"]])
 
+    caso("la base no rechazó ningún registro por identificador ocupado", not nube.ocupados, nube.ocupados[:4])
     caso("ninguna pantalla tronó", not errs, errs[:3])
     b.close()
 print(f"\n{sum(res)} de {len(res)}")

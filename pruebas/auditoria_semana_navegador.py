@@ -156,6 +156,7 @@ with sync_playwright() as p:
     ra = de(A, "reapertura_semana")
     caso("reabierta con motivo, sellada; el cierre anterior sigue guardado", len(ra) == 1 and ra[0].get("_validacion") == "autorizado" and len(de(A, "cierre_semana")) == 1 and "Semana reabierta" in ci(A).inner_text(), plano(ci(A).inner_text())[:300])
 
+    caso("la base no rechazó ningún registro por identificador ocupado", not nube.ocupados, nube.ocupados[:4])
     caso("ninguna pantalla tronó", not errs, errs[:3])
     b.close()
 print(f"\n{sum(res)} de {len(res)}")

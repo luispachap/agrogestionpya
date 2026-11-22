@@ -108,6 +108,7 @@ with sync_playwright() as p:
     caso("y «Por revisar» dice qué pasó con esa entrega", "UREA INVENTADA" in t, t[:700])
     caso("usar no fue salida de dinero", cA["sale"] == c0["sale"], [c0["sale"], cA["sale"]])
 
+    caso("la base no rechazó ningún registro por identificador ocupado", not nube.ocupados, nube.ocupados[:4])
     caso("ninguna pantalla tronó", not errs, errs[:3])
     b.close()
 print(f"\n{sum(res)} de {len(res)}")

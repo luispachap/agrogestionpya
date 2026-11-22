@@ -140,6 +140,7 @@ with sync_playwright() as p:
     A.wait_for_timeout(500); G.reload(); G.wait_for_timeout(3500); A.reload(); A.wait_for_timeout(3500)
     mA = sorted(a["monto"] for a in A.evaluate(CRED)[0]["abonos"]); mG = sorted(a["monto"] for a in G.evaluate(CRED)[0]["abonos"])
     caso("y los dos teléfonos acaban viendo los mismos abonos, con el mismo saldo", mA == mG and 111 in mA and 222 in mA, [mA, mG])
+    caso("la base no rechazó ningún registro por identificador ocupado", not nube.ocupados, nube.ocupados[:4])
     caso("ninguna pantalla tronó", not errs, errs[:2])
     b.close()
 print(f"\n{sum(res)}/{len(res)} pasan"); sys.exit(0 if all(res) else 1)

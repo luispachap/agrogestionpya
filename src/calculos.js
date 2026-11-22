@@ -266,9 +266,19 @@ export function formatearTelefonoMX(tel) {
   return limpio; // confiar en lo que el usuario puso
 }
 
+// Un registro de cosecha NO se borra: se cancela con motivo y deja de contar. (Además, borrarlo ya no «pegaba»: al
+// unir con lo que otro teléfono tenía, el registro borrado volvía.)
+export const registrosVivos = (cos) => (cos?.registros || []).filter(r => r && !r.cancelado);
+export function cancelarRegistroDeCosecha(cos, regId, { motivo, quien, cuando }) {
+  if (!String(motivo || "").trim()) return { ok: false, dice: "Para cancelar un registro de cosecha hay que decir por qué." };
+  const reg = (cos?.registros || []).find(r => r.id === regId);
+  if (!reg) return { ok: false, dice: "Ese registro ya no está." };
+  if (reg.cancelado) return { ok: false, dice: "Ese registro ya estaba cancelado." };
+  return { ok: true, cosecha: { ...cos, registros: cos.registros.map(r => r.id === regId ? { ...r, cancelado: { motivo: String(motivo).trim(), por: quien || "", cuando } } : r) } };
+}
 export function totalCosecha(cos) {
   if (!cos) return 0;
-  const regs = (cos.registros || []).reduce((s, r) => s + (parseFloat(r.cantidad) || 0), 0);
+  const regs = registrosVivos(cos).reduce((s, r) => s + (parseFloat(r.cantidad) || 0), 0);
   const ajus = (cos.ajustes || []).reduce((s, a) => s + (parseFloat(a.delta) || 0), 0);
   return regs + ajus;
 }
@@ -528,14 +538,35 @@ export function leFaltanCobros(a, b) {
   return (b?.liquidaciones || []).some(l => !ids.has(l.id)) || (b?.estadoCobro === "cobrado" && a?.estadoCobro !== "cobrado");
 }
 // Las colecciones cuyos registros llevan una lista que crece desde varios teléfonos: se unen, nunca se escoge uno.
-export const UNIONES_DE_REGISTROS = { creditos: { unir: unirCredito, falta: leFaltanAbonos }, embarques: { unir: unirEmbarque, falta: leFaltanCobros } };
+// LA COSECHA DE UNA PARCELA TAMPOCO SE PISA. Lo cosechado se anota dentro del registro de cosecha de la parcela
+// (`registros`, `ajustes`, `usosSemilla`), y lo anotan varias personas desde varios teléfonos: el que subía después
+// dejaba fuera lo del otro. Se unen por identificador. Y el registro de la parcela lleva identificador de nombre propio
+// (`cos-<parcela>`): dos teléfonos que anotan la PRIMERA cosecha sin señal ya no dejan dos registros de la misma parcela.
+export const idDeCosecha = (parcelaId) => `cos-${parcelaId}`;
+const LISTAS_DE_COSECHA = ["registros", "ajustes", "usosSemilla"];
+const unirLista = (a, b) => { const m = new Map(); for (const x of [...(b || []), ...(a || [])]) if (x && x.id != null && !(m.get(x.id)?.cancelado && !x.cancelado)) m.set(x.id, x); /* lo cancelado gana */ return [...m.values()].sort((x, y) => String(x.fecha || "").localeCompare(String(y.fecha || "")) || String(x.id).localeCompare(String(y.id))); };
+export function unirCosecha(gana, otro) {
+  if (!gana) return otro;
+  if (!otro) return gana;
+  const u = { ...gana };
+  for (const k of LISTAS_DE_COSECHA) if ((gana[k] || []).length || (otro[k] || []).length) u[k] = unirLista(gana[k], otro[k]);
+  return u;
+}
+export function leFaltaCosecha(a, b) {
+  return LISTAS_DE_COSECHA.some(k => { const ids = new Set((a?.[k] || []).map(x => x.id)); return (b?.[k] || []).some(x => !ids.has(x.id)); });
+}
+export const UNIONES_DE_REGISTROS = { creditos: { unir: unirCredito, falta: leFaltanAbonos }, embarques: { unir: unirEmbarque, falta: leFaltanCobros }, cosechas: { unir: unirCosecha, falta: leFaltaCosecha } };
 
 // LA MARCA DE NACIMIENTO (`_nace`). La parte al azar del identificador hace una coincidencia casi imposible, pero eso lo
 // decide el teléfono. La que de verdad cuida es la BASE (hoja 56): cada registro capturado nace con esta marca, que
 // viaja con él para siempre; si a un identificador ocupado llega un registro con OTRA marca, la base lo rechaza y el
 // guardado queda intacto. Sólo la llevan los identificadores hechos al momento (`unico()` o los de un evento); los de
 // nombre propio (recibir una compra, comprar una solicitud, una configuración) son «el mismo hecho» a propósito.
-const HECHO_AL_MOMENTO = /\d{13}[a-z0-9]{7}|^ev-[a-z0-9]+-[a-z0-9]+-[a-z0-9]{7}$/;
+// OJO: el identificador ENTERO tiene que ser el hecho al momento (prefijo de letras + hora + azar). Uno de nombre propio
+// que lleva DENTRO el identificador de otra cosa (`eg-sol-<solicitud>-0`, `eg-<movimiento de caja>`,
+// `alm_entrada-compra-<compra>-0`) NO lleva marca: antes la llevaba, y entonces el mismo hecho capturado en dos teléfonos
+// sin señal se rechazaba y se reubicaba como si fuera otro — o sea, se duplicaba.
+const HECHO_AL_MOMENTO = /^[A-Za-z_]*\d{13}[a-z0-9]{7}\d{0,5}$|^ev-[a-z0-9]+-[a-z0-9]+-[a-z0-9]{7}$/;
 // La marca sale del generador de azar del sistema (no del mismo que usa el identificador): si dos teléfonos coinciden
 // en el identificador, que coincidan además en esto no es cosa de suerte.
 export const marcaNueva = () => {
@@ -549,3 +580,53 @@ export function conNacimiento(item, marca = marcaNueva) {
 // Al corregir un registro, su marca no se pierde aunque la pantalla lo haya vuelto a armar sin ella.
 export const conservarNacimiento = (item, guardado) => (item && !item._nace && guardado?._nace ? { ...item, _nace: guardado._nace } : item);
 export const esIdentificadorOcupado = (e) => /identificador_ocupado/.test(String(e?.message || e || ""));
+
+// ALTA DE UN CULTIVO desde la app. Antes sólo entraban por la hoja de Excel de catálogos: en un rancho que arranca
+// limpio nadie podía dar de alta «Ajo», y sin cultivo no hay calendario, ciclos ni resultado por cultivo.
+// El identificador sale del NOMBRE: dos teléfonos que dan de alta el mismo cultivo sin señal dejan uno solo.
+const sinAcentos = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/\s+/g, " ");
+export function revisarCultivo(form, cultivos = []) {
+  const nombre = String(form?.nombre || "").trim().replace(/\s+/g, " ");
+  if (!nombre) return { ok: false, dice: "Falta el nombre del cultivo." };
+  const otro = (cultivos || []).find(c => sinAcentos(c.nombre) === sinAcentos(nombre));
+  if (otro) return { ok: false, dice: `Ya está dado de alta ${otro.nombre}. Si es otra clase del mismo cultivo, agrégala como variedad.` };
+  const dias = Number(form?.duracionDias);
+  if (!Number.isInteger(dias) || dias < 20 || dias > 730) return { ok: false, dice: "Falta cuántos días dura de la siembra a la cosecha (entre 20 y 730). Con eso se calcula la fecha estimada de cosecha." };
+  const unidad = String(form?.unidadCosecha || "").trim() || "kg";
+  return { ok: true, cultivo: { id: `cul_${sinAcentos(nombre).replace(/[^a-z0-9]+/g, "_")}`, nombre, emoji: "🌱", duracionDias: dias, unidadCosecha: unidad, camasPorHa: 0, fenologia: [], variedades: [] } };
+}
+
+// ALTA DE RANCHOS Y PARCELAS. Antes «Crear» no hacía nada si faltaba un dato (y no decía cuál), dejaba crear una parcela
+// sin rancho y dos con el mismo nombre; y se podía ELIMINAR una parcela con actividades, siembras o gastos, que se
+// quedaban apuntando a nada.
+export function revisarRancho(form, ranchos = []) {
+  const nombre = String(form?.nombre || "").trim().replace(/\s+/g, " ");
+  if (!nombre) return { ok: false, dice: "Falta el nombre del rancho." };
+  const otro = (ranchos || []).find(r => r.id !== form.id && sinAcentos(r.nombre) === sinAcentos(nombre));
+  if (otro) return { ok: false, dice: `Ya hay un rancho que se llama ${otro.nombre}.` };
+  if (!(Number(form?.hectareas) > 0)) return { ok: false, dice: "Faltan las hectáreas del rancho." };
+  return { ok: true, nombre };
+}
+export function revisarParcela(form, parcelas = [], ranchos = []) {
+  const nombre = String(form?.nombre || "").trim().replace(/\s+/g, " ");
+  if (!(ranchos || []).length) return { ok: false, dice: "Primero da de alta un rancho: cada parcela pertenece a uno." };
+  const ranchoId = (ranchos || []).some(r => r.id === form?.ranchoId) ? form.ranchoId : ranchos[0].id;
+  if (!nombre) return { ok: false, dice: "Falta el nombre de la parcela." };
+  const otra = (parcelas || []).find(p => p.id !== form.id && p.ranchoId === ranchoId && sinAcentos(p.nombre) === sinAcentos(nombre));
+  if (otra) return { ok: false, dice: `En ese rancho ya hay una parcela que se llama ${otra.nombre}.` };
+  if (!String(form?.cultivo || "").trim()) return { ok: false, dice: "Falta el cultivo principal (el que tiene o va a tener)." };
+  if (!(Number(form?.hectareas) > 0)) return { ok: false, dice: "Faltan las hectáreas de la parcela." };
+  return { ok: true, nombre, ranchoId, cultivo: String(form.cultivo).trim() };
+}
+// Qué hay registrado sobre una parcela. Si hay algo, no se elimina.
+const COLECCIONES_CON_PARCELA = [["actividades", "actividades"], ["siembras", "siembras"], ["cosechas", "cosechas"], ["egresos", "gastos"], ["ingresos", "ingresos"], ["aplicaciones", "aplicaciones"], ["estibas", "estibas"], ["indicaciones", "tareas o indicaciones"], ["incidencias", "reportes"], ["cajachica", "movimientos de caja"]];
+export function usoDeParcela(data, parcelaId) {
+  const partes = [];
+  for (const [col, nombre] of COLECCIONES_CON_PARCELA) {
+    const n = (data?.[col] || []).filter(x => x && (x.parcelaId === parcelaId || (Array.isArray(x.parcelas) && x.parcelas.includes(parcelaId)) || (Array.isArray(x.parcelaIds) && x.parcelaIds.includes(parcelaId)))).length;
+    if (n) partes.push({ que: nombre, cuantos: n });
+  }
+  const ev = (data?.eventos || []).filter(e => e?.datos?.parcelaId === parcelaId).length;
+  if (ev) partes.push({ que: "registros de trabajo, almacén o mapa", cuantos: ev });
+  return { usada: partes.length > 0, partes, dice: partes.length ? `No se puede eliminar: tiene ${partes.map(p => `${p.cuantos} ${p.que}`).join(", ")}. Lo registrado se quedaría sin su parcela.` : "" };
+}

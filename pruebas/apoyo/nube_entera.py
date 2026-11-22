@@ -70,6 +70,12 @@ class Nube:
             if not c or c["rol"] != "superadmin": return J({"code": "P0001", "message": "Sólo un superadministrador puede restaurar un respaldo"}, 400)
             if self.sin_hoja_53: return J({"code": "PGRST202", "message": "Could not find the function public.abrir_restauracion(p_motivo) in the schema cache"}, 404)
             self.restaurando.add(c["id"]); self.restauraciones.append({"abierta_por": c["id"], "motivo": cuerpo.get("p_motivo"), "desde": self.ahora(), "eventos": 0}); return J(self.ahora())
+        if ruta == "/rest/v1/rpc/borrar_registro":
+            # Como la hoja 30: borrar no quita el renglón, le pone una lápida que los demás teléfonos bajan.
+            if not c: return J({"code": "42501", "message": "sin sesión"}, 401)
+            fila = self.t.get(cuerpo.get("p_tabla"), {}).get(str(cuerpo.get("p_id")))
+            if fila: fila["borrado"] = self.ahora(); fila["actualizado"] = self.ahora()
+            return J(bool(fila))
         if ruta.startswith("/rest/v1/rpc/"): return J(None)
         if ruta == "/rest/v1/perfiles":
             objeto = "vnd.pgrst.object" in (r.headers.get("accept") or "")
@@ -87,6 +93,12 @@ class Nube:
             if m:
                 desde = m.group(1).replace("%3A", ":").replace("%2B", "+")
                 lista = [x for x in lista if (x.get("actualizado") or "") >= desde]
+            # Como la base: `id=eq.<x>` devuelve ESE renglón, no el primero de la tabla (antes devolvía el primero, y una
+            # unión de registros leía el de otra parcela).
+            m = re.search(r"[?&]id=eq\.([^&]+)", r.url)
+            if m:
+                import urllib.parse
+                quiere = urllib.parse.unquote(m.group(1)); lista = [x for x in lista if str(x.get("id")) == quiere]
             if "vnd.pgrst.object" in (r.headers.get("accept") or ""): return J(lista[0] if lista else None)
             return J(lista)
         if not c:

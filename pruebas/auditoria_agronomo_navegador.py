@@ -114,6 +114,7 @@ with sync_playwright() as p:
     caso("…y la aplicación de la mañana sigue costando $1,300: lo ya registrado no se recalcula", len(eg) == 1 and eg[0]["monto"] == 1300 and cz["egresos"] == 1300, [eg[0]["monto"], cz["egresos"]])
     caso("el inventario vale lo que había más lo comprado: $14,200", cz["inv"]["valor"] == 14200, cz["inv"])
 
+    caso("la base no rechazó ningún registro por identificador ocupado", not nube.ocupados, nube.ocupados[:4])
     caso("ninguna pantalla tronó", not errs, errs[:3])
     b.close()
 print(f"\n{sum(res)} de {len(res)}")

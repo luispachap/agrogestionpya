@@ -149,6 +149,7 @@ with sync_playwright() as p:
     G = telefono(ENC); G.evaluate("p => window.__agroIr(p)", "contabilidad"); G.wait_for_timeout(500)
     caso("al encargado tampoco se le abre Finanzas", G.get_by_role("button", name="+ Movimiento").count() == 0 or "Finanzas" not in G.locator(".top-bar").first.inner_text())
     caso("nada quedó dos veces en la nube", len(nube.t["egresos"]) == 6 and len(nube.t["ingresos"]) == 1 and len(nube.t["cajachica"]) == 7 and len(nube.t["auditoria"]) == 3, {k: len(v) for k, v in nube.t.items() if v})
+    caso("la base no rechazó ningún registro por identificador ocupado", not nube.ocupados, nube.ocupados[:4])
     caso("ninguna pantalla tronó", not errs, errs[:2])
     b.close()
 print(f"\n{sum(res)}/{len(res)} pasan"); sys.exit(0 if all(res) else 1)

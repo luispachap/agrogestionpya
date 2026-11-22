@@ -2,7 +2,7 @@
 
 > **Generado desde `docs/ESTADO.json` con `node herramientas/estado.mjs`. No se edita a mano:** se cambia el archivo de estado y se vuelve a generar. Es la única fuente de las cifras, los módulos, los pendientes y lo publicado; el tablero de cierre sale de aquí mismo.
 
-Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte · 42 sin verificar.**
+Corte: domingo 22 de noviembre de 2026. **16 aprobados · 16 recorridos en parte · 35 sin verificar.**
 
 **Veredicto: NO LISTO** como sistema completo · listo para prueba de campo en la operación diaria. Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).
 
@@ -18,7 +18,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 
 | Qué | Con qué | Resultado |
 |---|---|---|
-| Reglas y cálculos | `npm test` | 1,281 de 1,281 |
+| Reglas y cálculos | `npm test` | 1,287 de 1,287 |
 | La base, armada desde cero y atacada por perfil | `npm run test:base` | 163 de 163 |
 | Respaldo y restauración, de punta a punta en local | `sh pruebas/respaldo_local/ensayo.sh` | 26 de 26 |
 | Todo junto: lo anterior, compilación y 40 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `14bf671`) |
@@ -28,12 +28,14 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | Producción igual a la base probada | `node pruebas/base/paridad.mjs --consulta` | 7 huellas iguales (última hoja instalada: 56) |
 | La base de producción rechaza pisar un identificador ocupado | `prueba directa que se deshace sola` | Otra marca: rechazado · sin marca: rechazado · misma marca: corrige |
 | Asistencia con dos teléfonos, semana cerrada y pago hecho | `pruebas/auditoria_ausencias_navegador.py` | 36 de 36 |
+| Campo: rancho vacío, parcelas, cultivos, calendario y cosechas con dos teléfonos (posterior a la publicación) | `pruebas/auditoria_campo_navegador.py` | 63 de 63 |
 
 ## Qué está publicado y qué no
 
 | Qué | Estado | Detalle |
 |---|---|---|
 | La app en app.agroselectos.com | **Publicado** | Versión `14bf671`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio. |
+| Campo (alta de cultivos, parcelas que no se eliminan con registros, cosechas que no se pisan ni se borran) y dos correcciones de identidad: hechos de nombre propio sin marca y estibas recién cerradas que no subían | **Sin publicar** | Corregido y probado; se publica al pasar la batería completa (corrección ordinaria). |
 | Cobros parciales de un embarque desde dos teléfonos (no se pisan; cada cobro con autor, hora y su venta ligada) | **Publicado** | 22 de noviembre, autorizado por Luis. |
 | Un identificador ocupado no se pisa: lo rechaza la base y el teléfono reubica su registro | **Instalado en la base** | Hoja 56 en la base y publicado en la app, 22 de noviembre. |
 | Asistencia: dos decisiones distintas para el mismo día quedan a la vista; historial de decisiones; una semana cerrada pide reabrirse para cambiarlas | **Publicado** | 22 de noviembre, autorizado por Luis. |
@@ -47,7 +49,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
 
-## Defectos encontrados al usar los módulos (29: 27 corregidos, 0 de ellos sin publicar; 2 abiertos)
+## Defectos encontrados al usar los módulos (39: 35 corregidos, 8 de ellos sin publicar; 4 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -80,6 +82,16 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | 27 | Todos los registros (base) | La unicidad de los identificadores dependía sólo del azar del teléfono: si dos registros DISTINTOS llegaban con el mismo identificador, la base dejaba que el segundo quedara encima del primero (y en los eventos, descartaba el segundo sin decir nada) | P1 | Corregido y publicado: hoja 56: cada registro capturado lleva una marca de nacimiento y la base rechaza cualquier otro registro en un identificador ocupado, en todas las tablas; el teléfono reubica solo su registro con otro identificador, así que ninguno se pierde. Probado con un choque forzado y atacando la base; comprobado también en producción con una prueba que se deshace sola |
 | 28 | Consignaciones | Un cobro de un embarque no decía quién lo capturó ni a qué hora, y no quedaba ligado a la venta que generó | P2 | Corregido y publicado: cada cobro lleva su identificador, importe, fecha, autor, hora de captura y la liga con su venta (y con su abono, si fue a cuenta de una deuda); la venta apunta de regreso al cobro |
 | 29 | Pagos al personal (Asistencia) | Si dos administradores decidían distinto cómo se paga la misma salida antes de tiempo, cada uno en su teléfono, se aplicaba la última sin avisarle a nadie (uno creía medio día y el otro completo) | P1 | Corregido y publicado: Asistencia enseña las dos decisiones con quién, cuándo y por qué, dice cuál se está aplicando (la misma en todos los teléfonos) y deja cancelar, con motivo, la que no vale. Siempre vale una sola: nunca dos pagos ni dos cargos. Hay un historial de decisiones donde las canceladas se quedan con quién las canceló y por qué. Con la semana cerrada no se decide ni se cancela sin reabrirla; lo que llegue de otro teléfono sin señal sale como diferencia contra el cierre, diciendo quién y por qué |
+| 30 | Cultivos y variedades, Calendario | Un cultivo sólo se podía dar de alta subiendo una hoja de Excel: en un rancho que arranca vacío (como producción) nadie podía crear «Ajo», y sin cultivo no hay calendario, temporadas ni resultado por cultivo | P1 | Corregido **sin publicar**: «Nuevo cultivo» en la misma pantalla (administrador o agrónomo): nombre, días a la cosecha y unidad; no se repite, y el mismo cultivo desde dos teléfonos es uno solo |
+| 31 | Parcelas | «Crear parcela» y «Crear rancho» no hacían nada si faltaba un dato y no decían cuál; una parcela creada justo después de su rancho nacía SIN rancho; se podían repetir nombres; y se podía eliminar una parcela con siembras, cosechas o gastos (lo registrado se quedaba apuntando a nada) | P1 | Corregido **sin publicar**: dice qué falta, la parcela siempre nace en su rancho, no se repite, y lo que tiene registros no se elimina (dice qué tiene) |
+| 32 | Cosechas | Lo cosechado se anota dentro de un registro por parcela: dos personas anotando desde dos teléfonos, una sin señal, y el segundo que subía dejaba fuera lo del primero; y si los dos anotaban la PRIMERA cosecha de la parcela quedaban dos registros de cosecha y la pantalla sólo leía uno | P1 | Corregido **sin publicar**: los cortes se unen por identificador y la cosecha de cada parcela tiene identidad propia: probado con dos teléfonos sin señal en las dos situaciones |
+| 33 | Todos los registros (identidad) | Un hecho «de nombre propio» que lleva dentro el identificador de otra cosa (el gasto de una solicitud comprada, la entrada de una compra recibida, el gasto de una salida de caja) recibía marca de nacimiento como si fuera un registro cualquiera: capturado en dos teléfonos sin señal, la base rechazaba el segundo y la app lo reubicaba como otro — o sea, se duplicaba. El recorrido no lo veía porque usaba identificadores cortos, de mentira | P1 | Corregido **sin publicar**: sólo lleva marca el identificador hecho al momento; el recorrido de identidad ahora usa identificadores como los reales. En producción desde la hoja 56 (unas horas, con la base vacía) |
+| 34 | Estibas, Corrida de ajo | Al cerrar una estiba y ponerle su peso en el mismo instante, la corrección subía sin su marca de nacimiento y la base la rechazaba: la estiba quedaba «sin subir» para siempre (los demás teléfonos no veían su peso ni su calibre) | P1 | Corregido **sin publicar**: lo recién creado conserva su marca aunque se corrija en el mismo instante; todos los recorridos de auditoría ahora fallan si la base rechaza algo. En producción desde la hoja 56 (unas horas, con la base vacía) |
+| 35 | Cosechas | Un registro de cosecha se borraba con un toque, sin motivo ni rastro | P1 | Corregido **sin publicar**: se cancela con motivo, queda a la vista tachado con quién y por qué, deja de contar y no revive al sincronizar |
+| 36 | Calendario | La fecha de cosecha real aceptaba cualquier texto (o una fecha anterior a la siembra), y de esa fecha salen los costos de la temporada | P2 | Corregido **sin publicar** |
+| 37 | Comparar variedades | El rendimiento de una variedad se enseñaba sin los ajustes de cosecha (1,450 kg) mientras el rendimiento por hectárea sí los contaba (1,400) | P3 | Corregido **sin publicar** |
+| 38 | Calendario, Estado de parcelas | Las etapas de un cultivo (emergencia, bulbificación…) sólo entran por la hoja de Excel: un cultivo dado de alta en la app no tiene etapas y su «avance por fase» sale vacío | P2 | Abierto |
+| 39 | Cosechas | La cosecha se lleva una por parcela para siempre: el «costo por kilo» de la pantalla de Cosechas junta todas las temporadas de esa parcela (el resultado por temporada, en Finanzas y en Comparar variedades, sí separa por fechas) | P2 | Abierto |
 
 ## Lo que no se pudo ejecutar y por qué
 
@@ -107,22 +119,22 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | 11 | Tareas | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
 | 12 | Reportar | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
 | 13 | Mapa del rancho | NO VERIFICADO | antes: mapa, satelite | — | Falta la auditoría completa |
-| 14 | Parcelas | NO VERIFICADO | antes: entrega | — | Falta la auditoría completa |
-| 15 | Estado de parcelas | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 16 | Calendario | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 17 | Cosechas | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 18 | Rendimiento por parcela | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 19 | Variedades | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 20 | Comparar variedades | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
+| 14 | Parcelas | **APROBADO** | auditoria_campo 63 | Rancho que arranca vacío: alta de rancho y de parcelas (dice qué falta, no se repiten, la parcela nace en su rancho), corregir hectáreas, ubicación, renglón de su ciclo y foto (la foto no viaja dentro del registro), lo que tiene siembra o cosecha no se elimina y lo vacío sí, un rancho con parcelas no se elimina; recarga, otro teléfono, aparato nuevo; el agrónomo no la tiene | Escoger la ubicación en el mapa satelital (pide mapa real) |
+| 15 | Estado de parcelas | **PARCIAL** | auditoria_campo 63 | Enseña cada parcela con su temporada, en qué día del ciclo va, superficie y fecha de siembra; la que no tiene siembra lo dice; el agrónomo la ve | Avance por fase y semáforos (dependen de las etapas del cultivo: defecto 38) |
+| 16 | Calendario | **PARCIAL** | auditoria_campo 63 | Asignar un cultivo a una parcela en un mes: nombra la temporada, estima la cosecha, guarda variedad, superficie y de dónde salió la semilla; se pinta en el calendario; detalle de la siembra; darla por cosechada (fecha mal escrita o anterior a la siembra no entra); el encargado no lo tiene | Avance por fase (los cultivos dados de alta en la app no tienen etapas: defecto 38), editar y eliminar una siembra, semilla propia ligada a una cosecha |
+| 17 | Cosechas | **APROBADO** | auditoria_campo 63 | Anotar lo cosechado (pide cantidad y quién), total y rendimiento por hectárea, ajuste con motivo y autor, cancelar un registro con motivo (no revive), dos teléfonos sin señal en la misma parcela y en la primera cosecha de otra (nada se pisa ni se duplica), un gasto de Finanzas llega como costo por kilo, apartar semilla (entra al almacén a su costo, no más de lo disponible), mandar a bodega con transporte; encargado, recarga, aparato nuevo | El costo por kilo junta todas las temporadas de la parcela (defecto 39, abierto) |
+| 18 | Rendimiento por parcela | **APROBADO** | auditoria_bodega 48 | Se llena solo con la corrida: parcela de origen, cajas, kilos, kilos por hectárea y cajas por calibre | Varias parcelas y una corrida que mezcla parcelas (el reparto está probado en cálculo) |
+| 19 | Variedades | **APROBADO** | auditoria_campo 63 | Alta de cultivo desde la app (sin duración no entra, no se repite), variedades (repetida no entra), una variedad sembrada no se quita y una sin usar sí; el agrónomo da de alta otro cultivo y sube; aparato nuevo | — |
+| 20 | Comparar variedades | **APROBADO** | auditoria_campo 63 | Dos variedades en dos parcelas, cada una con su rendimiento (con ajustes y sin lo cancelado), su costo directo y su costo por hectárea | — |
 | 21 | Hoja de Fito | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
 | 22 | Dron | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
 | 23 | Ganado | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 24 | Corrida de ajo | **PARCIAL** | auditoria_bodega 46 · corridaViva.test | Corrida en vivo completa: tarima de limpio a la mesa, conteo por calibre, cierre de estiba con peso y folio, conteo físico, salir y volver, recargar, terminar el día con ajuste de la tarima, un solo reporte | Pestañas Calidad y Categorías aparte, modo revoltura, cambio de tarima a media corrida, tarima limpiada hoy, cortes de 15 minutos |
-| 25 | Estibas | **PARCIAL** | auditoria_bodega 46 | Alta masiva de barbecho desde la parcela, limpio que consume barbecho, saldos, rastreo hasta la parcela, etiquetas, otro teléfono | Re-limpia, alta individual, estiba sin origen, cierre manual de una estiba, imprimir |
-| 26 | Ajo terminado | **APROBADO** | auditoria_bodega 46 | Entra solo al cerrar estiba; entrada manual; ajuste con motivo obligatorio e historial; baja al embarcar; recarga; nube | — |
-| 27 | Salida de camión | **PARCIAL** | auditoria_bodega 46 | Embarque a cliente: tarima pesada, folio, formato, baja del terminado, queda pendiente de cobro, no es venta todavía | Salida a nuestra bodega, varias tarimas y calibres, estiba de origen, cargar más de lo que hay, remisión impresa |
-| 28 | Consignaciones | **PARCIAL** | auditoria_bodega 46 · auditoria_cobros 15 | Pendiente de cobro, cobrar en dinero, nace una sola venta, llega a resultados y flujo, el encargado no entra; pagos parciales desde dos teléfonos sin señal (los dos cobros quedan, cada uno con identidad, importe, fecha, autor y su venta ligada); doble toque registra un solo cobro; el último pago lo deja cobrado sin perder los anteriores | Pago a cuenta de una deuda en pantalla (la regla del flujo sí está probada en cálculo) |
-| 29 | Comercialización | **PARCIAL** | auditoria_bodega 46 | Enseña la venta con su cliente y el precio por kilo | Sólo se comprobó una venta; faltan varios clientes y periodos |
+| 24 | Corrida de ajo | **PARCIAL** | auditoria_bodega 48 · corridaViva.test | Corrida en vivo completa: tarima de limpio a la mesa, conteo por calibre, cierre de estiba con peso y folio, conteo físico, salir y volver, recargar, terminar el día con ajuste de la tarima, un solo reporte | Pestañas Calidad y Categorías aparte, modo revoltura, cambio de tarima a media corrida, tarima limpiada hoy, cortes de 15 minutos |
+| 25 | Estibas | **PARCIAL** | auditoria_bodega 48 | Alta masiva de barbecho desde la parcela, limpio que consume barbecho, saldos, rastreo hasta la parcela, etiquetas, otro teléfono; la estiba recién cerrada sube con su peso (la base no la rechaza) | Re-limpia, alta individual, estiba sin origen, cierre manual de una estiba, imprimir |
+| 26 | Ajo terminado | **APROBADO** | auditoria_bodega 48 | Entra solo al cerrar estiba; entrada manual; ajuste con motivo obligatorio e historial; baja al embarcar; recarga; nube | — |
+| 27 | Salida de camión | **PARCIAL** | auditoria_bodega 48 | Embarque a cliente: tarima pesada, folio, formato, baja del terminado, queda pendiente de cobro, no es venta todavía | Salida a nuestra bodega, varias tarimas y calibres, estiba de origen, cargar más de lo que hay, remisión impresa |
+| 28 | Consignaciones | **PARCIAL** | auditoria_bodega 48 · auditoria_cobros 15 | Pendiente de cobro, cobrar en dinero, nace una sola venta, llega a resultados y flujo, el encargado no entra; pagos parciales desde dos teléfonos sin señal (los dos cobros quedan, cada uno con identidad, importe, fecha, autor y su venta ligada); doble toque registra un solo cobro; el último pago lo deja cobrado sin perder los anteriores | Pago a cuenta de una deuda en pantalla (la regla del flujo sí está probada en cálculo) |
+| 29 | Comercialización | **PARCIAL** | auditoria_bodega 48 | Enseña la venta con su cliente y el precio por kilo | Sólo se comprobó una venta; faltan varios clientes y periodos |
 | 30 | Mano de obra | NO VERIFICADO | antes: cuadrillas | — | Falta la auditoría completa |
 | 31 | Finanzas | **APROBADO** | auditoria_dinero 37 · auditoria_identidad 27 | Gasto general y de parcela, venta, cancelar con motivo, bitácora, flujo y resultados, recarga, otro teléfono, tres perfiles; doble toque, dos teléfonos sin señal con el mismo gasto, aviso de repetidos, quién capturó; un choque forzado de identificadores: la base rechaza el segundo, el teléfono lo dice y lo reubica solo, ninguno se pierde | — |
 | 32 | Movimientos | **APROBADO** | auditoria_dinero 37 | Totales del periodo iguales a Finanzas; lo cancelado no cuenta y sigue visible | — |
@@ -193,8 +205,11 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 - Mientras una subida falla, la pantalla dice «Sincronizando…» en vez de decir que está reintentando.
 - El archivo principal pesa 2.7 MB: la primera carga con mala señal es lenta.
 - En producción quedan los datos de la prueba de avisos (1 conversación, 3 mensajes). Hay que retirarlos.
+- Eliminar una siembra del calendario avisa que sus costos quedan sin temporada, pero lo permite.
 - Defecto 14 (Deudas / Proveedores): El proveedor se guarda distinto en cada pantalla (texto / ficha).
 - Defecto 16 (Corrida de ajo): Los cortes, conteos y cajas de plástico de la corrida se pueden borrar sin motivo; y la configuración se guarda con un nombre fijo, no por espacio.
+- Defecto 38 (Calendario, Estado de parcelas): Las etapas de un cultivo (emergencia, bulbificación…) sólo entran por la hoja de Excel: un cultivo dado de alta en la app no tiene etapas y su «avance por fase» sale vacío.
+- Defecto 39 (Cosechas): La cosecha se lleva una por parcela para siempre: el «costo por kilo» de la pantalla de Cosechas junta todas las temporadas de esa parcela (el resultado por temporada, en Finanzas y en Comparar variedades, sí separa por fechas).
 
 ## Riesgos que quedan aunque todo pase
 

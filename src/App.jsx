@@ -1,4 +1,4 @@
-import { unico, conAutor, conNacimiento, conservarNacimiento, esIdentificadorOcupado } from "./calculos.js";
+import { unico, conAutor, conNacimiento, conservarNacimiento, esIdentificadorOcupado, revisarCultivo, revisarRancho, revisarParcela, usoDeParcela, idDeCosecha, registrosVivos, cancelarRegistroDeCosecha } from "./calculos.js";
 import { quizaRepetidos, marcarDistintos } from "./repetidos.js";
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component, createContext, useContext } from "react";
 import { createPortal } from "react-dom";
@@ -1609,7 +1609,7 @@ function registrarCosecha(data, add, upd, { parcelaId, cantidad, unidad, registr
   if (cosExist) {
     upd("cosechas", { ...cosExist, registros: [...(cosExist.registros || []), nuevoReg], unidad: cosExist.unidad || unidad });
   } else {
-    add("cosechas", { id: `cos${unico()}`, parcelaId, cultivo: p?.cultivo || "", unidad, registros: [nuevoReg], ajustes: [], notas: "" });
+    add("cosechas", { id: idDeCosecha(parcelaId), parcelaId, cultivo: p?.cultivo || "", unidad, registros: [nuevoReg], ajustes: [], notas: "" });
   }
 }
 
@@ -1811,7 +1811,7 @@ function resumenCiclo(data, ciclo) {
   // Cosecha del ciclo: registros dentro del rango
   let cosechaTotal = 0;
   (data.cosechas || []).forEach(c => {
-    (c.registros || []).forEach(r => { if (enRango(r.fecha)) cosechaTotal += parseFloat(r.cantidad) || 0; });
+    registrosVivos(c).forEach(r => { if (enRango(r.fecha)) cosechaTotal += parseFloat(r.cantidad) || 0; });
   });
   return {
     ciclo, costoActs, costoEgr, costoComp, costoEnt, costoTotal, ingresoTotal,
@@ -2082,18 +2082,20 @@ function reporteSiembra(data, siembraId) {
   let huboLigaSiembra = false;
   (data.cosechas || []).filter(c => c.parcelaId === si.parcelaId).forEach(c => {
     cosechaUnidad = c.unidad || cosechaUnidad;
-    (c.registros || []).forEach(r => {
+    registrosVivos(c).forEach(r => {
       if (r.siembraId === si.id) { huboLigaSiembra = true; }
     });
   });
   (data.cosechas || []).filter(c => c.parcelaId === si.parcelaId).forEach(c => {
     const u = c.unidad || "kg";
-    (c.registros || []).forEach(r => {
+    registrosVivos(c).forEach(r => {
       // Si hay registros ligados a esta siembra, contar solo esos; si no, por rango.
       const cuenta = huboLigaSiembra ? (r.siembraId === si.id) : enRango(r.fecha);
       if (cuenta) { cosechaTotal += parseFloat(r.cantidad) || 0; rendimiento[u] = (rendimiento[u] || 0) + (parseFloat(r.cantidad) || 0); }
     });
-    (c.ajustes || []).forEach(aj => { if (!huboLigaSiembra && enRango(aj.fecha)) cosechaTotal += parseFloat(aj.delta) || 0; });
+    // El ajuste cuenta en el total Y en lo que se enseña como rendimiento: antes la pantalla decía 1,450 kg y el
+    // rendimiento por hectárea salía de 1,400.
+    (c.ajustes || []).forEach(aj => { if (!huboLigaSiembra && enRango(aj.fecha)) { const d = parseFloat(aj.delta) || 0; cosechaTotal += d; rendimiento[u] = (rendimiento[u] || 0) + d; } });
   });
 
   // Reparto proporcional: actividades marcadas "a repartir" en esta parcela
@@ -7549,6 +7551,11 @@ function AppInner() {
   replicarRef.current = replicarANube;
   const marcarTocado = (item) => marcarEspacio({ ...item, _actualizado: new Date().toISOString() }, ESPACIO);
 
+  // La marca de nacimiento de lo que se acaba de crear en ESTE rato. Una pantalla que crea un registro y lo corrige en
+  // el mismo instante (cerrar una estiba y ponerle su peso) lo corregía antes de que el guardado trajera su marca: la
+  // corrección subía sin marca y la base la rechazaba por «identificador ocupado» (quedaba «sin subir» para siempre).
+  const marcasRef = useRef(new Map());
+  const guardadoDe = (sec, id) => (Array.isArray(crudoRef.current?.[sec]) ? crudoRef.current[sec] : []).find(x => x.id === id) || (marcasRef.current.has(`${sec}|${id}`) ? { _nace: marcasRef.current.get(`${sec}|${id}`) } : undefined);
   const upd = useCallback((sec, item) => {
     // Un cambio de sueldo se ANOTA (desde cuándo y cuánto ganaba antes): así
     // el costo de los meses pasados no se recalcula con el sueldo nuevo.
@@ -7571,7 +7578,7 @@ function AppInner() {
       if (visto && dif === 0 && costoN > 0 && costoN !== (Number(visto.costo_unit) || 0) && fijarCostoRef.current) fijarCostoRef.current(visto, costoN);
       item = paraGuardarArticulo(item, inventarioRef.current.find(a => a.id === item.id));
     }
-    const it = marcarTocado(conservarNacimiento(apartarArchivosRef.current ? apartarArchivosRef.current(sec, item) : item, (Array.isArray(crudoRef.current?.[sec]) ? crudoRef.current[sec] : []).find(x => x.id === item.id)));
+    const it = marcarTocado(conservarNacimiento(apartarArchivosRef.current ? apartarArchivosRef.current(sec, item) : item, guardadoDe(sec, item.id)));
     setData(d => {
       const col = Array.isArray(d[sec]) ? d[sec] : [];
       return { ...d, [sec]: col.some(x => x.id === it.id) ? col.map(x => x.id === it.id ? it : x) : [...col, it] };
@@ -7635,6 +7642,7 @@ function AppInner() {
     // Cada evento nace diciendo cuánto difería el reloj de este teléfono del servidor (o que no se ha podido cotejar).
     if (sec === "eventos" && !item.reloj) item = { ...item, reloj: selloDeReloj(relojRef.current, Date.now()) };
     const ni = marcarTocado(conNacimiento({ ...item, id: item.id || `${sec[0]}${unico()}${Math.floor(Math.random() * 1000)}` }));
+    if (ni._nace) marcasRef.current.set(`${sec}|${ni.id}`, ni._nace);
     // Un evento con el mismo identificador es el MISMO evento: un doble toque no lo mete dos veces. Y en las demás
     // colecciones, el mismo identificador es el mismo registro: se queda uno (el último), nunca dos renglones.
     setData(d => { const lista = Array.isArray(d[sec]) ? d[sec] : []; if (!lista.some(x => x.id === ni.id)) return { ...d, [sec]: [...lista, ni] }; return sec === "eventos" ? d : { ...d, [sec]: lista.map(x => x.id === ni.id ? ni : x) }; });
@@ -7766,9 +7774,10 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
     const resueltos = ops.map(o => {
       if (o.tipo === "add") {
         const ni = { ...o.item, id: o.item.id || `${o.sec[0]}${unico()}${Math.floor(Math.random() * 100000)}` };
-        return { ...o, item: marcarTocado(conAutor(o.sec, conNacimiento(ni), sesionRef.current)) };
+        const conMarca = conNacimiento(ni); if (conMarca._nace) marcasRef.current.set(`${o.sec}|${conMarca.id}`, conMarca._nace);
+        return { ...o, item: marcarTocado(conAutor(o.sec, conMarca, sesionRef.current)) };
       }
-      return { ...o, item: marcarTocado(conservarNacimiento(o.item, (Array.isArray(crudoRef.current?.[o.sec]) ? crudoRef.current[o.sec] : []).find(x => x.id === o.item.id))) };
+      return { ...o, item: marcarTocado(conservarNacimiento(o.item, guardadoDe(o.sec, o.item.id))) };
     });
     // Un solo setData que aplica todo
     setData(d => {
@@ -8097,7 +8106,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "compras" && <TrabCompras data={data} add={add} setInv={setInv} session={session} online={online} onLogout={() => setPage("home")} />}
               {page === "reporte" && <TrabReporte data={data} add={add} session={session} onLogout={() => setPage("home")} />}
               {page === "mas-funciones" && <AdminMasFunciones onNav={setPage} onClose={() => setPage("home")} />}
-              {page === "variedades" && <GestionVariedades data={data} upd={upd} session={session} onClose={() => setPage("home")} />}
+              {page === "variedades" && <GestionVariedades data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "reporte-variedades" && <ReporteVariedades data={data} onClose={() => setPage("home")} />}
               {page === "contpaqi" && <ExportarContPAQi data={data} upd={upd} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "embarque" && <EmbarqueAjo data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
@@ -8171,7 +8180,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "reporte" && <TrabReporte data={data} add={add} session={session} onLogout={cerrarSesion} />}
               {page === "solicitudes" && <SolicitudesCompra data={data} add={add} upd={upd} del={del} setInv={setInv} aplicarLote={aplicarLote} session={session} onClose={() => setPage("home")} />}
               {page === "operacion" && <PanelOperacion data={data} onClose={() => setPage("home")} />}
-              {page === "variedades" && <GestionVariedades data={data} upd={upd} session={session} onClose={() => setPage("home")} />}
+              {page === "variedades" && <GestionVariedades data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "reporte-variedades" && <ReporteVariedades data={data} onClose={() => setPage("home")} />}
               {page === "rendimiento-parcelas" && <RendimientoParcelas data={data} onClose={() => setPage("home")} />}
             </>}
@@ -11045,6 +11054,7 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
   const [fenForm, setFenForm] = useState({ mes: mesActual(), actividad: "Siembra", cultivo: "" });
   const [ranchoForm, setRanchoForm] = useState({ nombre: "", hectareas: 100, lat: "", lng: "" });
   const [editRancho, setEditRancho] = useState(null);
+  const [diceP, setDiceP] = useState("");
   const fileRef = useRef(null);
   const editFileRef = useRef(null);
   const emojis = ["🌽", "🌾", "🫘", "🌶️", "🧅", "🥕", "🌱", "🍅", "🫑", "🌿"];
@@ -11077,19 +11087,21 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
       <div className="top-bar"><button className="btn-ghost" onClick={onBack}>‹</button><h2>Ranchos & Parcelas</h2></div>
       <div className="tabs-pill">
         {["lista", "nueva parcela", "nuevo rancho"].map(t => (
-          <button key={t} className={`tab-pill${tab === t ? " active" : ""}`} onClick={() => { setTab(t); setEditId(null); }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>
+          <button key={t} className={`tab-pill${tab === t ? " active" : ""}`} onClick={() => { setTab(t); setEditId(null); setDiceP(""); }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>
         ))}
       </div>
 
       {tab === "lista" && !editId && (
         <div className="section-pad">
+          {data.ranchos.length === 0 && <div className="text-muted text-sm" style={{ textAlign: "center", padding: "24px 0" }}>Todavía no hay ranchos. Empieza por «Nuevo rancho» y después da de alta sus parcelas.</div>}
+          {data.ranchos.length > 0 && data.parcelas.length === 0 && <div className="text-muted text-sm" style={{ textAlign: "center", padding: "24px 0" }}>Ya hay rancho. Falta dar de alta sus parcelas en «Nueva parcela».</div>}
           {data.ranchos.map(r => (
             <div key={r.id} className="card">
               <div className="flex-b mb-3">
                 <div><div className="font-bold font-syne" style={{ fontSize: 16 }}><Ic e="🏡" /> {r.nombre}</div><div className="text-xs text-muted">{r.hectareas} ha · {data.parcelas.filter(p => p.ranchoId === r.id).length} parcelas</div></div>
               </div>
               {data.parcelas.filter(p => p.ranchoId === r.id).map(p => {
-                const costo = data.actividades.filter(a => a.parcelaId === p.id).reduce((s, a) => s + a.costoTotal, 0);
+                const costo = sumarDinero((data.actividadesContables || data.actividades || []).filter(a => a.parcelaId === p.id).map(a => a.costoTotal || 0));
                 return (
                   <div key={p.id} className="list-item" onClick={() => setEditId(p.id)} style={{ cursor: "pointer" }}>
                     <div className="li-icon"><Ic e={p.foto ? <Foto src={p.foto} alt="" /> : p.emoji} /></div>
@@ -11185,7 +11197,7 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
             <button className="btn btn-accent" onClick={() => addFeno(editId)}>+ Agregar al ciclo</button>
           </div>
           <div className="mt-3">
-            <button className="btn btn-danger" onClick={() => { if (confirm("¿Eliminar parcela?")) { del("parcelas", editId); setEditId(null); } }}><Ic e="🗑" /> Eliminar Parcela</button>
+            <button className="btn btn-danger" onClick={() => { const u = usoDeParcela(data, editId); if (u.usada) { alert(u.dice); return; } if (confirm("¿Eliminar parcela? No tiene nada registrado.")) { del("parcelas", editId); setEditId(null); } }}><Ic e="🗑" /> Eliminar Parcela</button>
           </div>
         </div>
       )}
@@ -11231,12 +11243,14 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
                 {emojis.map(em => <button key={em} className={`pill${form.emoji === em ? " active" : ""}`} style={{ padding: "8px 12px", fontSize: 20 }} onClick={() => setForm(f => ({ ...f, emoji: em }))}><Ic e={em} /></button>)}
               </div>
             </div>
+            {diceP && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{diceP}</div>}
             <button className="btn btn-accent" onClick={() => {
-              if (!form.nombre || !form.cultivo) return;
+              const r = revisarParcela(form, data.parcelas, data.ranchos);
+              if (!r.ok) { setDiceP(r.dice); return; }
               const lat = parseFloat(form.lat) || null;
               const lng = parseFloat(form.lng) || null;
-              add("parcelas", { ...form, lat, lng, id: `p${unico()}` });
-              setForm(FORM0);
+              add("parcelas", { ...form, nombre: r.nombre, cultivo: r.cultivo, ranchoId: r.ranchoId, lat, lng, id: `p${unico()}` });
+              setForm({ ...FORM0, ranchoId: r.ranchoId }); setDiceP("");
               setTab("lista");
             }}>Crear Parcela</button>
           </div>
@@ -11262,12 +11276,14 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
             </div>
             <button className="btn btn-outline btn-sm" style={{ width: "100%", marginBottom: 10 }} onClick={() => setMapaSel({ lat: ranchoForm.lat, lng: ranchoForm.lng, titulo: ranchoForm.nombre || "Nuevo rancho", aplicar: (la, ln) => setRanchoForm(f => ({ ...f, lat: la, lng: ln })) })}><Ic e="🛰️" /> Elegir en mapa satelital</button>
             <div className="text-xs text-muted mb-3" style={{ marginTop: -6 }}>Coordenadas GPS opcionales. Puedes obtenerlas en Google Maps.</div>
+            {diceP && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{diceP}</div>}
             <button className="btn btn-accent" onClick={() => {
-              if (!ranchoForm.nombre) return;
+              const r = revisarRancho(ranchoForm, data.ranchos);
+              if (!r.ok) { setDiceP(r.dice); return; }
               const lat = parseFloat(ranchoForm.lat) || null;
               const lng = parseFloat(ranchoForm.lng) || null;
-              add("ranchos", { ...ranchoForm, lat, lng, id: `r${unico()}` });
-              setRanchoForm({ nombre: "", hectareas: 100, lat: "", lng: "" });
+              add("ranchos", { ...ranchoForm, nombre: r.nombre, lat, lng, id: `r${unico()}` });
+              setRanchoForm({ nombre: "", hectareas: 100, lat: "", lng: "" }); setDiceP("");
             }}>Crear Rancho</button>
           </div>
           <div className="card">
@@ -11278,7 +11294,7 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
                 <div className="li-body"><div className="li-title">{r.nombre}</div><div className="li-sub">{r.hectareas} ha · {data.parcelas.filter(p => p.ranchoId === r.id).length} parcelas</div></div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button className="btn-ghost" style={{ padding: 4, fontSize: 14 }} onClick={() => setEditRancho(r)}><Ic e="✏️" /></button>
-                  <button className="btn-ghost" style={{ color: "var(--red)", padding: 4 }} onClick={() => { if (confirm("¿Eliminar rancho?")) del("ranchos", r.id); }}><Ic e="🗑" /></button>
+                  <button className="btn-ghost" style={{ color: "var(--red)", padding: 4 }} onClick={() => { const n = data.parcelas.filter(p => p.ranchoId === r.id).length; if (n) { alert(`No se puede eliminar: tiene ${n} parcela${n === 1 ? "" : "s"}. Un rancho con parcelas no se elimina.`); return; } if (confirm("¿Eliminar rancho? No tiene parcelas.")) del("ranchos", r.id); }}><Ic e="🗑" /></button>
                 </div>
               </div>
             ))}
@@ -11287,7 +11303,7 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
       )}
       {editRancho && (
         <EditorRegistro
-          seccion="ranchos" registro={editRancho} titulo={editRancho.nombre} upd={upd} del={del}
+          seccion="ranchos" registro={editRancho} titulo={editRancho.nombre} upd={upd}
           campos={[
             ["nombre", "Nombre del rancho", "text"],
             ["hectareas", "Hectáreas", "number"],
@@ -14223,10 +14239,9 @@ function MovimientoDetalle({ data, mov, upd, del, onClose }) {
     if (mov.tipo === "actividad" && mov.reg?.cosecha) {
       const cos = (data.cosechas || []).find(c => c.parcelaId === mov.reg.parcelaId);
       if (cos) {
-        const nuevosReg = (cos.registros || []).filter(r => r.actividadId !== mov.id);
-        if (nuevosReg.length !== (cos.registros || []).length) {
-          upd("cosechas", { ...cos, registros: nuevosReg });
-        }
+        // No se quita: se cancela (quitarlo no «pegaba» al sincronizar, y se perdía el rastro).
+        const cuando = new Date().toISOString();
+        if ((cos.registros || []).some(r => r.actividadId === mov.id && !r.cancelado)) upd("cosechas", { ...cos, registros: cos.registros.map(r => r.actividadId === mov.id && !r.cancelado ? { ...r, cancelado: { motivo: "Se eliminó la actividad de cosecha que lo generó", por: "quien eliminó la actividad", cuando } } : r) });
       }
     }
     del(tipoSec, mov.id);
@@ -15712,7 +15727,8 @@ function GestionCosechas({ data, add, upd, del, session, onClose }) {
         <h2>Cosechas</h2>
       </div>
       <div className="section-pad">
-        <div className="text-xs text-muted mb-3" style={{ paddingLeft: 4 }}>Rendimiento por parcela. Toca una para ver el detalle y ajustar.</div>
+        <div className="text-xs text-muted mb-3" style={{ paddingLeft: 4 }}>Rendimiento por parcela. Toca una para registrar lo cosechado, ver el detalle y ajustar.</div>
+        {parcelas.length === 0 && <div className="text-muted text-sm" style={{ textAlign: "center", padding: "32px 0" }}>Todavía no hay parcelas. La cosecha se registra por parcela: primero da de alta una en «Parcelas».</div>}
         {parcelas.map(p => {
           const r = reporteCosechaParcela(data, p.id);
           return (
@@ -15770,7 +15786,7 @@ function CosechaDetalle({ data, parcelaId, add, upd, session, onClose }) {
       upd("cosechas", { ...cos, ajustes: [...(cos.ajustes || []), ajuste] });
     } else {
       const p = data.parcelas.find(x => x.id === parcelaId);
-      add("cosechas", { id: `cos${unico()}`, parcelaId, cultivo: p?.cultivo || "", unidad: "kg", registros: [], ajustes: [ajuste], notas: "" });
+      add("cosechas", { id: idDeCosecha(parcelaId), parcelaId, cultivo: p?.cultivo || "", unidad: "kg", registros: [], ajustes: [ajuste], notas: "" });
     }
     setAjForm(FA0); setShowAjuste(false);
   };
@@ -15941,13 +15957,14 @@ function CosechaDetalle({ data, parcelaId, add, upd, session, onClose }) {
             <div key={reg.id} className="list-item">
               <div className="li-icon"><Ic e={reg.registradoPor?.tipo === "cuadrilla" ? "👥" : "👷"} /></div>
               <div className="li-body">
-                <div className="li-title">{nombreEjecutor(reg.registradoPor)}</div>
+                <div className="li-title" style={reg.cancelado ? { textDecoration: "line-through", opacity: .6 } : null}>{nombreEjecutor(reg.registradoPor)}</div>
                 <div className="li-sub">{reg.fecha}{reg.nota ? ` · ${reg.nota}` : ""}</div>
+                {reg.cancelado && <div className="li-sub" style={{ color: "var(--red)" }}>Cancelado por {reg.cancelado.por || "—"}: «{reg.cancelado.motivo}». No cuenta.</div>}
               </div>
               <div className="li-right" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div className="li-val">{fmtN(reg.cantidad)} {reg.unidad}</div>
-                <button className="btn-ghost" style={{ padding: 2, fontSize: 13, color: "var(--red)" }}
-                  onClick={() => { if (confirm("¿Eliminar este registro de cosecha?")) upd("cosechas", { ...cos, registros: cos.registros.filter(r => r.id !== reg.id) }); }}><Ic e="🗑" /></button>
+                <div className="li-val" style={reg.cancelado ? { textDecoration: "line-through", opacity: .6 } : null}>{fmtN(reg.cantidad)} {reg.unidad}</div>
+                {!reg.cancelado && <button className="btn-ghost" style={{ padding: 2, fontSize: 13, color: "var(--red)" }} aria-label={`Cancelar el registro de ${fmtN(reg.cantidad)} ${reg.unidad}`}
+                  onClick={() => { const motivo = prompt("¿Por qué se cancela este registro de cosecha? Queda escrito con tu nombre."); if (motivo == null) return; const r = cancelarRegistroDeCosecha(cos, reg.id, { motivo, quien: session?.nombre || "", cuando: new Date().toISOString() }); if (r.ok) upd("cosechas", r.cosecha); else alert(r.dice); }}><Ic e="🗑" /></button>}
               </div>
             </div>
           ))}
@@ -16124,7 +16141,7 @@ function ResumenSemanal({ data, onClose }) {
 
   // Cosecha de la semana
   let cosechaSemana = 0;
-  (data.cosechas || []).forEach(c => (c.registros || []).forEach(r => { if (enSemana(r.fecha)) cosechaSemana += parseFloat(r.cantidad) || 0; }));
+  (data.cosechas || []).forEach(c => registrosVivos(c).forEach(r => { if (enSemana(r.fecha)) cosechaSemana += parseFloat(r.cantidad) || 0; }));
 
   // Pendientes que requieren atención
   const incPend = (data.incidencias || []).filter(i => i.estado === "pendiente").length;
@@ -16396,8 +16413,12 @@ function CalendarioCultivos({ data, add, upd, del, session, onClose }) {
 
           {si.estado === "activa" && (
             <button className="btn btn-accent" onClick={() => {
-              const f = prompt("Fecha de cosecha real (AAAA-MM-DD):", today());
-              if (f) { upd("siembras", { ...si, estado: "finalizada", fechaCosechaReal: f }); setDetalleSiembra(null); }
+              const f = (prompt("Fecha de cosecha real (AAAA-MM-DD):", today()) || "").trim();
+              if (!f) return;
+              // Una fecha mal escrita partía los costos del ciclo: todo se calcula entre la siembra y esta fecha.
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(f) || isNaN(new Date(`${f}T12:00:00`).getTime())) { alert("Escribe la fecha como AAAA-MM-DD, por ejemplo " + today() + "."); return; }
+              if (f < si.fechaSiembra) { alert(`La cosecha no puede ser antes de la siembra (${si.fechaSiembra}).`); return; }
+              upd("siembras", { ...si, estado: "finalizada", fechaCosechaReal: f }); setDetalleSiembra(null);
             }}><Ic e="🌾" /> Marcar como cosechada</button>
           )}
           {si.estado === "finalizada" && (
@@ -19741,8 +19762,15 @@ function AdminMasFunciones({ onNav, onClose }) {
 /* Pantalla para definir las variedades de cada cultivo (ej. tipos de ajo:
    garra de tigre, acelerado, frío). Es solo un catálogo: no toca costos
    ni siembras todavía. Esa es la base sobre la que se construye lo demás. */
-function GestionVariedades({ data, upd, session, onClose }) {
+function GestionVariedades({ data, add, upd, session, onClose }) {
   const [cultivoSel, setCultivoSel] = useState(null); // id del cultivo abierto
+  const [nuevoCul, setNuevoCul] = useState(null);     // { nombre, duracionDias, unidadCosecha }
+  const [diceCul, setDiceCul] = useState("");
+  const guardarCultivo = () => {
+    const r = revisarCultivo(nuevoCul, data.cultivos || []);
+    if (!r.ok) { setDiceCul(r.dice); return; }
+    add("cultivos", r.cultivo); setNuevoCul(null); setDiceCul(""); setCultivoSel(r.cultivo.id);
+  };
   const [nuevaVar, setNuevaVar] = useState({ nombre: "", notas: "" });
   const puedeEditar = ["admin", "agronomo", "dueno"].includes(session.role);
 
@@ -19768,6 +19796,8 @@ function GestionVariedades({ data, upd, session, onClose }) {
 
   const quitarVariedad = (varId) => {
     if (!cultivo) return;
+    const usos = (data.siembras || []).filter(x => x.variedadId === varId).length;
+    if (usos > 0) { alert(`Esa variedad ya está en ${usos} siembra${usos === 1 ? "" : "s"} del calendario: no se quita, para no dejar esas siembras sin su variedad.`); return; }
     if (!confirm("¿Quitar esta variedad del cultivo?")) return;
     const variedades = (cultivo.variedades || []).filter(v => v.id !== varId);
     upd("cultivos", { ...cultivo, variedades });
@@ -19831,15 +19861,15 @@ function GestionVariedades({ data, upd, session, onClose }) {
     <div>
       <div className="top-bar">
         {onClose && <button className="btn-ghost" onClick={onClose}>‹</button>}
-        <h2>Variedades de cultivos</h2>
+        <h2>Cultivos y variedades</h2>
       </div>
       <div className="section-pad">
         <div className="text-xs text-muted mb-3" style={{ paddingLeft: 4 }}>
-          Elige un cultivo para ver y definir sus variedades. Por ejemplo, el ajo puede tener garra de tigre, acelerado, frío, etc.
+          Los cultivos del rancho y sus variedades. Toca uno para ver o agregar variedades (el ajo puede tener garra de tigre, acelerado, frío…).
         </div>
         {cultivos.length === 0 && (
           <div className="text-muted text-sm" style={{ textAlign: "center", padding: "32px 0" }}>
-            No hay cultivos cargados. Sube tu Excel de catálogos primero.
+            Todavía no hay cultivos. {puedeEditar ? "Da de alta el primero aquí abajo." : "Los da de alta un administrador o el agrónomo."}
           </div>
         )}
         {cultivos.map(c => {
@@ -19858,6 +19888,21 @@ function GestionVariedades({ data, upd, session, onClose }) {
             </div>
           );
         })}
+        {puedeEditar && !nuevoCul && <button className="btn btn-accent" style={{ width: "100%" }} onClick={() => { setNuevoCul({ nombre: "", duracionDias: "", unidadCosecha: "kg" }); setDiceCul(""); }}>Nuevo cultivo</button>}
+        {puedeEditar && nuevoCul && (
+          <div className="card" style={{ background: "rgba(228,178,63,.05)", border: "1px solid rgba(228,178,63,.2)" }}>
+            <div className="card-title">Nuevo cultivo</div>
+            <div className="form-group"><label className="form-label" htmlFor="cul-nombre">Nombre del cultivo</label>
+              <input id="cul-nombre" className="inp" placeholder="Ej: Ajo, Chile, Maíz" value={nuevoCul.nombre} onChange={e => setNuevoCul(v => ({ ...v, nombre: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label" htmlFor="cul-dias">Días de la siembra a la cosecha</label>
+              <input id="cul-dias" className="inp" inputMode="numeric" placeholder="Ej: 240" value={nuevoCul.duracionDias} onChange={e => setNuevoCul(v => ({ ...v, duracionDias: e.target.value === "" ? "" : parseInt(e.target.value.replace(/\D/g, ""), 10) || "" }))} />
+              <div className="text-xs text-muted" style={{ marginTop: 4 }}>Con esto el calendario calcula la fecha estimada de cosecha.</div></div>
+            <div className="form-group"><label className="form-label" htmlFor="cul-unidad">En qué se mide la cosecha</label>
+              <input id="cul-unidad" className="inp" placeholder="kg, caja, tonelada…" value={nuevoCul.unidadCosecha} onChange={e => setNuevoCul(v => ({ ...v, unidadCosecha: e.target.value }))} /></div>
+            {diceCul && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{diceCul}</div>}
+            <div style={{ display: "flex", gap: 8 }}><button className="btn btn-outline" style={{ flex: 1 }} onClick={() => { setNuevoCul(null); setDiceCul(""); }}>No</button><button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarCultivo}>Guardar cultivo</button></div>
+          </div>
+        )}
       </div>
     </div>
   );

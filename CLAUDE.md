@@ -863,6 +863,19 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   este teléfono con otro identificador (`_reubicadoDe`) y lo sube: ninguno se pierde. Los identificadores de nombre
   propio NO llevan marca (son «el mismo hecho» a propósito). **Si una pantalla vuelve a armar un registro existente,
   que pase por `upd`**, o pierde la marca y la base lo rechaza.
+- **La marca sólo la lleva el identificador HECHO AL MOMENTO, entero** (`HECHO_AL_MOMENTO`: letras + hora + azar). Uno de
+  nombre propio que lleva DENTRO otro identificador (`eg-sol-<solicitud>-0`, `eg-<movimiento>`, `cos-<parcela>`) NO: con
+  marca, el mismo hecho desde dos teléfonos se rechazaba, se reubicaba y quedaba duplicado. **En las pruebas usa
+  identificadores como los reales** (`so1763500000000ab12cd3`), no `so1`: con los cortos este defecto no se veía.
+- **Lo recién creado conserva su marca aunque se corrija en el mismo instante** (`marcasRef`, `guardadoDe` en `App.jsx`):
+  crear una estiba y ponerle peso subía la corrección sin marca y la base la rechazaba. Todo recorrido `auditoria_*`
+  termina comprobando `nube.ocupados` vacío.
+- **Campo (22 nov)**: los cultivos se dan de alta en la app (`revisarCultivo`; identificador por nombre); `revisarRancho`,
+  `revisarParcela`; **una parcela con algo registrado no se elimina** (`usoDeParcela`), ni un rancho con parcelas. **La
+  cosecha de una parcela es UN registro con identidad propia** (`idDeCosecha`) y sus listas (`registros`, `ajustes`,
+  `usosSemilla`) se UNEN entre teléfonos (`unirCosecha`); **un registro de cosecha no se borra: se cancela con motivo**
+  (`cancelarRegistroDeCosecha`; toda suma pasa por `registrosVivos`; lo cancelado gana al unir). Recorrido:
+  `auditoria_campo` (63). La nube de imitación ya respeta `id=eq.` y deja lápida al borrar.
 - **Cada cobro de un embarque es un hecho propio**: identificador, importe, fecha, `registradoPor`, `capturado`,
   `ingresoId` (y `abonoId`); la venta lleva `liquidacionId`. Recorrido: `auditoria_cobros` (15).
 - **Dos decisiones distintas del mismo día no se aplican calladas** (`decisionesEncontradas`, `cuadrillas.js`):

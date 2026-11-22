@@ -24,7 +24,7 @@
   {
    "que": "Reglas y cálculos",
    "con": "npm test",
-   "resultado": "1,281 de 1,281"
+   "resultado": "1,287 de 1,287"
   },
   {
    "que": "La base, armada desde cero y atacada por perfil",
@@ -70,6 +70,11 @@
    "que": "Asistencia con dos teléfonos, semana cerrada y pago hecho",
    "con": "pruebas/auditoria_ausencias_navegador.py",
    "resultado": "36 de 36"
+  },
+  {
+   "que": "Campo: rancho vacío, parcelas, cultivos, calendario y cosechas con dos teléfonos (posterior a la publicación)",
+   "con": "pruebas/auditoria_campo_navegador.py",
+   "resultado": "63 de 63"
   }
  ],
  "para_listo": [
@@ -209,58 +214,58 @@
   {
    "n": 14,
    "nombre": "Parcelas",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: entrega",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_campo 63",
+   "probado": "Rancho que arranca vacío: alta de rancho y de parcelas (dice qué falta, no se repiten, la parcela nace en su rancho), corregir hectáreas, ubicación, renglón de su ciclo y foto (la foto no viaja dentro del registro), lo que tiene siembra o cosecha no se elimina y lo vacío sí, un rancho con parcelas no se elimina; recarga, otro teléfono, aparato nuevo; el agrónomo no la tiene",
+   "falta": "Escoger la ubicación en el mapa satelital (pide mapa real)"
   },
   {
    "n": 15,
    "nombre": "Estado de parcelas",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "PARCIAL",
+   "prueba": "auditoria_campo 63",
+   "probado": "Enseña cada parcela con su temporada, en qué día del ciclo va, superficie y fecha de siembra; la que no tiene siembra lo dice; el agrónomo la ve",
+   "falta": "Avance por fase y semáforos (dependen de las etapas del cultivo: defecto 38)"
   },
   {
    "n": 16,
    "nombre": "Calendario",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "PARCIAL",
+   "prueba": "auditoria_campo 63",
+   "probado": "Asignar un cultivo a una parcela en un mes: nombra la temporada, estima la cosecha, guarda variedad, superficie y de dónde salió la semilla; se pinta en el calendario; detalle de la siembra; darla por cosechada (fecha mal escrita o anterior a la siembra no entra); el encargado no lo tiene",
+   "falta": "Avance por fase (los cultivos dados de alta en la app no tienen etapas: defecto 38), editar y eliminar una siembra, semilla propia ligada a una cosecha"
   },
   {
    "n": 17,
    "nombre": "Cosechas",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_campo 63",
+   "probado": "Anotar lo cosechado (pide cantidad y quién), total y rendimiento por hectárea, ajuste con motivo y autor, cancelar un registro con motivo (no revive), dos teléfonos sin señal en la misma parcela y en la primera cosecha de otra (nada se pisa ni se duplica), un gasto de Finanzas llega como costo por kilo, apartar semilla (entra al almacén a su costo, no más de lo disponible), mandar a bodega con transporte; encargado, recarga, aparato nuevo",
+   "falta": "El costo por kilo junta todas las temporadas de la parcela (defecto 39, abierto)"
   },
   {
    "n": 18,
    "nombre": "Rendimiento por parcela",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_bodega 48",
+   "probado": "Se llena solo con la corrida: parcela de origen, cajas, kilos, kilos por hectárea y cajas por calibre",
+   "falta": "Varias parcelas y una corrida que mezcla parcelas (el reparto está probado en cálculo)"
   },
   {
    "n": 19,
    "nombre": "Variedades",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_campo 63",
+   "probado": "Alta de cultivo desde la app (sin duración no entra, no se repite), variedades (repetida no entra), una variedad sembrada no se quita y una sin usar sí; el agrónomo da de alta otro cultivo y sube; aparato nuevo",
+   "falta": "—"
   },
   {
    "n": 20,
    "nombre": "Comparar variedades",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_campo 63",
+   "probado": "Dos variedades en dos parcelas, cada una con su rendimiento (con ajustes y sin lo cancelado), su costo directo y su costo por hectárea",
+   "falta": "—"
   },
   {
    "n": 21,
@@ -290,7 +295,7 @@
    "n": 24,
    "nombre": "Corrida de ajo",
    "estado": "PARCIAL",
-   "prueba": "auditoria_bodega 46 · corridaViva.test",
+   "prueba": "auditoria_bodega 48 · corridaViva.test",
    "probado": "Corrida en vivo completa: tarima de limpio a la mesa, conteo por calibre, cierre de estiba con peso y folio, conteo físico, salir y volver, recargar, terminar el día con ajuste de la tarima, un solo reporte",
    "falta": "Pestañas Calidad y Categorías aparte, modo revoltura, cambio de tarima a media corrida, tarima limpiada hoy, cortes de 15 minutos"
   },
@@ -298,15 +303,15 @@
    "n": 25,
    "nombre": "Estibas",
    "estado": "PARCIAL",
-   "prueba": "auditoria_bodega 46",
-   "probado": "Alta masiva de barbecho desde la parcela, limpio que consume barbecho, saldos, rastreo hasta la parcela, etiquetas, otro teléfono",
+   "prueba": "auditoria_bodega 48",
+   "probado": "Alta masiva de barbecho desde la parcela, limpio que consume barbecho, saldos, rastreo hasta la parcela, etiquetas, otro teléfono; la estiba recién cerrada sube con su peso (la base no la rechaza)",
    "falta": "Re-limpia, alta individual, estiba sin origen, cierre manual de una estiba, imprimir"
   },
   {
    "n": 26,
    "nombre": "Ajo terminado",
    "estado": "APROBADO",
-   "prueba": "auditoria_bodega 46",
+   "prueba": "auditoria_bodega 48",
    "probado": "Entra solo al cerrar estiba; entrada manual; ajuste con motivo obligatorio e historial; baja al embarcar; recarga; nube",
    "falta": "—"
   },
@@ -314,7 +319,7 @@
    "n": 27,
    "nombre": "Salida de camión",
    "estado": "PARCIAL",
-   "prueba": "auditoria_bodega 46",
+   "prueba": "auditoria_bodega 48",
    "probado": "Embarque a cliente: tarima pesada, folio, formato, baja del terminado, queda pendiente de cobro, no es venta todavía",
    "falta": "Salida a nuestra bodega, varias tarimas y calibres, estiba de origen, cargar más de lo que hay, remisión impresa"
   },
@@ -322,7 +327,7 @@
    "n": 28,
    "nombre": "Consignaciones",
    "estado": "PARCIAL",
-   "prueba": "auditoria_bodega 46 · auditoria_cobros 15",
+   "prueba": "auditoria_bodega 48 · auditoria_cobros 15",
    "probado": "Pendiente de cobro, cobrar en dinero, nace una sola venta, llega a resultados y flujo, el encargado no entra; pagos parciales desde dos teléfonos sin señal (los dos cobros quedan, cada uno con identidad, importe, fecha, autor y su venta ligada); doble toque registra un solo cobro; el último pago lo deja cobrado sin perder los anteriores",
    "falta": "Pago a cuenta de una deuda en pantalla (la regla del flujo sí está probada en cálculo)"
   },
@@ -330,7 +335,7 @@
    "n": 29,
    "nombre": "Comercialización",
    "estado": "PARCIAL",
-   "prueba": "auditoria_bodega 46",
+   "prueba": "auditoria_bodega 48",
    "probado": "Enseña la venta con su cliente y el precio por kilo",
    "falta": "Sólo se comprobó una venta; faltan varios clientes y periodos"
   },
@@ -900,6 +905,96 @@
    "estado": "corregido",
    "publicado": true,
    "nota": "Asistencia enseña las dos decisiones con quién, cuándo y por qué, dice cuál se está aplicando (la misma en todos los teléfonos) y deja cancelar, con motivo, la que no vale. Siempre vale una sola: nunca dos pagos ni dos cargos. Hay un historial de decisiones donde las canceladas se quedan con quién las canceló y por qué. Con la semana cerrada no se decide ni se cancela sin reabrirla; lo que llegue de otro teléfono sin señal sale como diferencia contra el cierre, diciendo quién y por qué"
+  },
+  {
+   "n": 30,
+   "modulo": "Cultivos y variedades, Calendario",
+   "que": "Un cultivo sólo se podía dar de alta subiendo una hoja de Excel: en un rancho que arranca vacío (como producción) nadie podía crear «Ajo», y sin cultivo no hay calendario, temporadas ni resultado por cultivo",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "«Nuevo cultivo» en la misma pantalla (administrador o agrónomo): nombre, días a la cosecha y unidad; no se repite, y el mismo cultivo desde dos teléfonos es uno solo"
+  },
+  {
+   "n": 31,
+   "modulo": "Parcelas",
+   "que": "«Crear parcela» y «Crear rancho» no hacían nada si faltaba un dato y no decían cuál; una parcela creada justo después de su rancho nacía SIN rancho; se podían repetir nombres; y se podía eliminar una parcela con siembras, cosechas o gastos (lo registrado se quedaba apuntando a nada)",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "dice qué falta, la parcela siempre nace en su rancho, no se repite, y lo que tiene registros no se elimina (dice qué tiene)"
+  },
+  {
+   "n": 32,
+   "modulo": "Cosechas",
+   "que": "Lo cosechado se anota dentro de un registro por parcela: dos personas anotando desde dos teléfonos, una sin señal, y el segundo que subía dejaba fuera lo del primero; y si los dos anotaban la PRIMERA cosecha de la parcela quedaban dos registros de cosecha y la pantalla sólo leía uno",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "los cortes se unen por identificador y la cosecha de cada parcela tiene identidad propia: probado con dos teléfonos sin señal en las dos situaciones"
+  },
+  {
+   "n": 33,
+   "modulo": "Todos los registros (identidad)",
+   "que": "Un hecho «de nombre propio» que lleva dentro el identificador de otra cosa (el gasto de una solicitud comprada, la entrada de una compra recibida, el gasto de una salida de caja) recibía marca de nacimiento como si fuera un registro cualquiera: capturado en dos teléfonos sin señal, la base rechazaba el segundo y la app lo reubicaba como otro — o sea, se duplicaba. El recorrido no lo veía porque usaba identificadores cortos, de mentira",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "sólo lleva marca el identificador hecho al momento; el recorrido de identidad ahora usa identificadores como los reales. En producción desde la hoja 56 (unas horas, con la base vacía)"
+  },
+  {
+   "n": 34,
+   "modulo": "Estibas, Corrida de ajo",
+   "que": "Al cerrar una estiba y ponerle su peso en el mismo instante, la corrección subía sin su marca de nacimiento y la base la rechazaba: la estiba quedaba «sin subir» para siempre (los demás teléfonos no veían su peso ni su calibre)",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "lo recién creado conserva su marca aunque se corrija en el mismo instante; todos los recorridos de auditoría ahora fallan si la base rechaza algo. En producción desde la hoja 56 (unas horas, con la base vacía)"
+  },
+  {
+   "n": 35,
+   "modulo": "Cosechas",
+   "que": "Un registro de cosecha se borraba con un toque, sin motivo ni rastro",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "se cancela con motivo, queda a la vista tachado con quién y por qué, deja de contar y no revive al sincronizar"
+  },
+  {
+   "n": 36,
+   "modulo": "Calendario",
+   "que": "La fecha de cosecha real aceptaba cualquier texto (o una fecha anterior a la siembra), y de esa fecha salen los costos de la temporada",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": ""
+  },
+  {
+   "n": 37,
+   "modulo": "Comparar variedades",
+   "que": "El rendimiento de una variedad se enseñaba sin los ajustes de cosecha (1,450 kg) mientras el rendimiento por hectárea sí los contaba (1,400)",
+   "nivel": "P3",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": ""
+  },
+  {
+   "n": 38,
+   "modulo": "Calendario, Estado de parcelas",
+   "que": "Las etapas de un cultivo (emergencia, bulbificación…) sólo entran por la hoja de Excel: un cultivo dado de alta en la app no tiene etapas y su «avance por fase» sale vacío",
+   "nivel": "P2",
+   "estado": "abierto",
+   "publicado": false,
+   "nota": ""
+  },
+  {
+   "n": 39,
+   "modulo": "Cosechas",
+   "que": "La cosecha se lleva una por parcela para siempre: el «costo por kilo» de la pantalla de Cosechas junta todas las temporadas de esa parcela (el resultado por temporada, en Finanzas y en Comparar variedades, sí separa por fechas)",
+   "nivel": "P2",
+   "estado": "abierto",
+   "publicado": false,
+   "nota": ""
   }
  ],
  "no_se_pudo": [
@@ -923,6 +1018,11 @@
    "que": "La app en app.agroselectos.com",
    "estado": "publicado",
    "detalle": "Versión `14bf671`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio."
+  },
+  {
+   "que": "Campo (alta de cultivos, parcelas que no se eliminan con registros, cosechas que no se pisan ni se borran) y dos correcciones de identidad: hechos de nombre propio sin marca y estibas recién cerradas que no subían",
+   "estado": "sin_publicar",
+   "detalle": "Corregido y probado; se publica al pasar la batería completa (corrección ordinaria)."
   },
   {
    "que": "Cobros parciales de un embarque desde dos teléfonos (no se pisan; cada cobro con autor, hora y su venta ligada)",
@@ -991,7 +1091,8 @@
   "El insumo aplicado cuenta una sola vez, pero en Resultados sale bajo «Gastos capturados» y no bajo «Insumos consumidos».",
   "Mientras una subida falla, la pantalla dice «Sincronizando…» en vez de decir que está reintentando.",
   "El archivo principal pesa 2.7 MB: la primera carga con mala señal es lenta.",
-  "En producción quedan los datos de la prueba de avisos (1 conversación, 3 mensajes). Hay que retirarlos."
+  "En producción quedan los datos de la prueba de avisos (1 conversación, 3 mensajes). Hay que retirarlos.",
+  "Eliminar una siembra del calendario avisa que sus costos quedan sin temporada, pero lo permite."
  ],
  "de_luis": [
   "Crear el repositorio privado de respaldos y sus tres secretos.",

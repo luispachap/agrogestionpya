@@ -80,9 +80,9 @@ with sync_playwright() as p:
     A.get_by_role("button", name="Registrar Entrada").click(); A.wait_for_timeout(700)
     idU = art(A, "UREA INVENTADA")["id"]
     subio(A)
-    nube.t.setdefault("compras", {})["co1"] = {"id": "co1", "fecha": HOY, "monto": 1200, "estado": "aprobada", "datos": {"trabajadorId": "t-x", "tipoTrab": "trabajador", "descripcion": "DOS BULTOS INVENTADOS", "proveedor": "LA CENTRAL INVENTADA",
+    nube.t.setdefault("compras", {})["co1763500000000qq11ww2"] = {"id": "co1763500000000qq11ww2", "fecha": HOY, "monto": 1200, "estado": "aprobada", "datos": {"trabajadorId": "t-x", "tipoTrab": "trabajador", "descripcion": "DOS BULTOS INVENTADOS", "proveedor": "LA CENTRAL INVENTADA",
         "afectaInventario": True, "items": [{"nombre": "UREA INVENTADA", "insumoId": idU, "cantidad": 2}], **E}, "actualizado": "2026-11-19T21:00:00Z"}
-    nube.t.setdefault("solicitudes_compra", {})["so1"] = {"id": "so1", "fecha": HOY, "estado": "pendiente", "datos": {"notas": "", "items": [{"nombre": "UREA INVENTADA", "cantidad": 4, "unidad": "bulto"}], "creadaPor": {"rol": "encargado", "id": "x", "nombre": "ENCARGADO DE PRUEBA"}, **E}, "actualizado": "2026-11-19T21:00:00Z"}
+    nube.t.setdefault("solicitudes_compra", {})["so1763500000000ab12cd3"] = {"id": "so1763500000000ab12cd3", "fecha": HOY, "estado": "pendiente", "datos": {"notas": "", "items": [{"nombre": "UREA INVENTADA", "cantidad": 4, "unidad": "bulto"}], "creadaPor": {"rol": "encargado", "id": "x", "nombre": "ENCARGADO DE PRUEBA"}, **E}, "actualizado": "2026-11-19T21:00:00Z"}
     avanza(A, 6 / 60); recarga(A)
     C = aparato(ADM, "15:10"); hora(C); recarga(C)
     caso("los dos teléfonos arrancan iguales: 10 bultos, una compra aprobada y una solicitud", all(art(pg, "UREA INVENTADA")["existencia"] == 10 and len(datos(pg)["compras"]) == 1 and len(datos(pg)["solicitudes_compra"]) == 1 for pg in (A, C)), [datos(C)["solicitudes_compra"], len(datos(C)["compras"])])
@@ -115,7 +115,7 @@ with sync_playwright() as p:
     diesel = [e for e in dA["egresos"] if e["concepto"] == "DIESEL INVENTADO"]
     caso("los dos gastos de diésel existen con identificador distinto: ninguno pisó al otro", len(diesel) == 2 and len({e["id"] for e in diesel}) == 2 and len([e for e in dC["egresos"] if e["concepto"] == "DIESEL INVENTADO"]) == 2, [e["id"] for e in diesel])
     caso("la recepción de la MISMA compra entró una sola vez (tiene identidad propia): +2 bultos, no +4", len([e for e in dA["eventos"] if e["tipo"] == "alm_entrada" and "compra-co1" in e["id"]]) == 1, [e["id"] for e in dA["eventos"] if e["tipo"] == "alm_entrada"])
-    caso("la compra de la MISMA solicitud entró una sola vez: +4 bultos, un gasto, una entrada", len([e for e in dA["eventos"] if "solicitud-so1" in e["id"]]) == 1 and len([e for e in dA["egresos"] if e.get("solicitudId") == "so1"]) == 1 and len([e for e in dA["entradas_inv"] if e["id"].startswith("ei-sol-so1")]) == 1, [[e["id"] for e in dA["egresos"]], [e["id"] for e in dA["entradas_inv"]]])
+    caso("la compra de la MISMA solicitud entró una sola vez: +4 bultos, un gasto, una entrada", len([e for e in dA["eventos"] if "solicitud-so1" in e["id"]]) == 1 and len([e for e in dA["egresos"] if e.get("solicitudId") == "so1763500000000ab12cd3"]) == 1 and len([e for e in dA["entradas_inv"] if e["id"].startswith("ei-sol-so1")]) == 1, [[e["id"] for e in dA["egresos"]], [e["id"] for e in dA["entradas_inv"]]])
     caso("en los dos teléfonos quedan 16 bultos, no 22", art(A, "UREA INVENTADA")["existencia"] == 16 and art(C, "UREA INVENTADA")["existencia"] == 16, [art(A, "UREA INVENTADA")["existencia"], art(C, "UREA INVENTADA")["existencia"]])
     pagos = [e for e in dA["eventos"] if e["tipo"] == "pago_personal"]
     caso("los dos pagos a Ana existen, sellados, con identificador distinto", len(pagos) == 2 and len({e["id"] for e in pagos}) == 2 and all(e.get("_validacion") == "autorizado" for e in pagos), [[e["id"], e.get("_validacion")] for e in pagos])
