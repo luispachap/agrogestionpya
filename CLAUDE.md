@@ -814,6 +814,13 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   (`sh pruebas/respaldo_local/ensayo.sh`, 26 comprobaciones, dos servidores PostgreSQL de verdad, herramienta de copia
   imitada). **Recuperar en otro proyecto no reescribe nada**: la app usa `VITE_ESPACIO_HEREDADO` (el espacio de antes)
   — sólo en una recuperación de producción, nunca en pruebas ni vistas previas.
+- **La corrida en vivo se guarda en el teléfono** (`src/corridaViva.js`, `LLAVES.corrida`): cajas contadas, tarimas en
+  la mesa, cortes, conteos y estibas cerradas del día. Salir de la pantalla o recargar la retoma (sólo la de HOY y sin
+  terminar); al terminar el día se borra. Si agregas estado nuevo a la corrida que deba sobrevivir, agrégalo a
+  `CAMPOS_DE_CORRIDA_VIVA` y al efecto que la guarda. Recorrido: `pruebas/auditoria_bodega_navegador.py` (46), una
+  corrida simulada completa de la parcela al cobro. **Ajustar el ajo terminado pide motivo.**
+- **Una venta cobrada en especie o «contra deuda» no es dinero que entra** (`COBROS_SIN_DINERO`): cuenta en el
+  resultado y no en el flujo (`ventasSinDinero`).
 - **Banco, Socios y ¿Alcanza? NO son del encargado** (Luis, 22 nov; hoja 54 instalada): fuera de su menú y de sus
   pantallas, y la base le niega `estados_cuenta`, `titulares`, `bolsas` y `aportaciones`. No se los regreses.
 
@@ -826,7 +833,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **224 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **225 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

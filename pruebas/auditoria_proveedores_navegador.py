@@ -78,7 +78,7 @@ with sync_playwright() as p:
     caso("dos abonos en dinero ($3,000 y $2,000): el saldo baja a $5,000 y el flujo dice que salieron $5,000", len(cr["abonos"]) == 2 and "$5,000" in t and f2["detalle"].get("abonos_creditos") == 5000, [t[:300], f2])
     abonar(A, 1000, especie=True)
     cr = A.evaluate(CRED)[0]; f3 = A.evaluate(FLUJO); ing = A.evaluate("() => window.__agroDatos.ingresos || []")
-    caso("un abono en especie de $1,000 baja la deuda a $4,000, deja una venta de $1,000 y NO es dinero que sale", len(cr["abonos"]) == 3 and len(ing) == 1 and ing[0]["monto"] == 1000 and ing[0].get("abonoId") and f3["detalle"].get("abonos_creditos") == 5000, [ing[:1], f3])
+    caso("un abono en especie de $1,000 baja la deuda a $4,000, deja una venta de $1,000 y NO es dinero que sale ni que entra", len(cr["abonos"]) == 3 and len(ing) == 1 and ing[0]["monto"] == 1000 and ing[0].get("abonoId") and f3["detalle"].get("abonos_creditos") == 5000 and f3["ingresos"] == 10000, [ing[:1], f3])
 
     # ── Un abono no se borra: se cancela con motivo ──
     A.pg_antes = len(A.dialogos)

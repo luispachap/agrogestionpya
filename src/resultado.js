@@ -94,6 +94,7 @@ export function resultadoDelRancho({ ingresos = [], egresos = [], entradas_inv =
   return { ingresos: totalIngresos, produccion, generales, lineas, costos: S(produccion.map(l => l.monto)), gastos: S(generales.map(l => l.monto)), egresos: totalEgresos, utilidad: sumarDinero(totalIngresos, -totalEgresos), inventario, porClasificar };
 }
 
+export const COBROS_SIN_DINERO = ["especie", "contra deuda"];
 // Lo que entró y salió de dinero, mes por mes.
 //   eventos    todos (pagos al personal, de prestaciones, de bajas y de bonos; entregas de préstamos; abonos)
 //   prestamos  los de la tabla de antes (los que nacen de eventos ya vienen por su entrega y se ignoran aquí)
@@ -108,7 +109,13 @@ export function flujoDeEfectivo({ ingresos = [], egresos = [], compras = [], ent
     if (!meses.has(k)) meses.set(k, { mes: k, ingresos: 0, egresos: 0, detalle: {} });
     const m = meses.get(k); m[lado] = sumarDinero(m[lado], monto); m.detalle[clase] = sumarDinero(m.detalle[clase] || 0, monto);
   };
-  for (const g of vivos(ingresos)) reg(g.fecha, "ingresos", "ventas", n(g.monto));
+  // Una venta cobrada en especie, o a cuenta de una deuda que se tenía con ese cliente, es venta (va al resultado)
+  // pero NO es dinero que entra: se cobró con mercancía o bajando una deuda. Contarla en el flujo lo inflaba.
+  let sinDinero = 0;
+  for (const g of vivos(ingresos)) {
+    if (COBROS_SIN_DINERO.includes(g.metodo)) { sinDinero = sumarDinero(sinDinero, n(g.monto)); continue; }
+    reg(g.fecha, "ingresos", "ventas", n(g.monto));
+  }
   for (const e of vivos(egresos)) reg(e.fecha, "egresos", esCompraDeAlmacen(e) ? "almacen" : "gastos", n(e.monto));
   // La compra del personal sale completa el día que se hizo. Lo que de ella entra al almacén NO sale otra vez.
   for (const c of compras) if (c.estado === "aprobada") reg(c.fecha, "egresos", "compras", n(c.monto));
@@ -134,7 +141,7 @@ export function flujoDeEfectivo({ ingresos = [], egresos = [], compras = [], ent
   const lista = [...meses.values()].sort((a, b) => a.mes.localeCompare(b.mes));
   let acumulado = 0;
   for (const m of lista) { m.neto = sumarDinero(m.ingresos, -m.egresos); acumulado = sumarDinero(acumulado, m.neto); m.acumulado = acumulado; }
-  return { meses: lista, ingresos: S(lista.map(m => m.ingresos)), egresos: S(lista.map(m => m.egresos)), neto: acumulado };
+  return { meses: lista, ingresos: S(lista.map(m => m.ingresos)), egresos: S(lista.map(m => m.egresos)), neto: acumulado, ventasSinDinero: sinDinero };
 }
 export const NOMBRE_DE_FLUJO = { ventas: "ingresos capturados", creditos: "créditos recibidos", abonos_prestamos: "abonos de préstamos al personal", gastos: "gastos capturados", compras: "compras del personal", almacen: "compras para el almacén",
   abonos_creditos: "abonos a créditos", pagos_personal: "pagos al personal", pagos_prestaciones: "pagos de prestaciones", pagos_bajas: "pagos de bajas", pagos_bonos: "pagos de bonos", prestamos_entregados: "préstamos entregados al personal",

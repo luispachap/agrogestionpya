@@ -44,6 +44,8 @@ export function llavesDe(espacio) {
     // Cómo acomodó cada persona su inicio y su barra. No son datos del rancho:
     // no suben, y no se borran al reiniciar el teléfono.
     menu: `agro_menu_v8:${e}`,
+    // La corrida de ajo que se está corriendo hoy en este aparato (src/corridaViva.js). No sube.
+    corrida: `agro_corrida_viva_v8:${e}`,
     // El almacén grande (IndexedDB) donde viven los eventos, y el candado del
     // checador cuando la tableta se deja cerrada en esa pantalla.
     eventos: `agro_eventos_v8:${e}`, checador: `agro_checador_v8:${e}`, reloj: `agro_reloj_v8:${e}`,

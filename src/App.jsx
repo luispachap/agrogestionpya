@@ -56,6 +56,7 @@ import { fuentesPorDia, cotejar } from "./cotejo.js";
 import MapaAgricola from "./Mapa.jsx";
 import { limitesDe, conPoligonos } from "./mapa.js";
 import { resultadoDelRancho, flujoDeEfectivo, NOMBRE_DE_FLUJO, DESTINOS_DE_INSUMO, insumosPorClasificar } from "./resultado.js";
+import { leerCorridaViva, guardarCorridaViva, borrarCorridaViva } from "./corridaViva.js";
 import { CLASES_DE_SALIDA, ORDEN_DE_CLASES, nombreDeClase, claseDeSalida, revisarSalida, egresoDeCaja, estadoDeSalida, pendientesDeCaja, eventosParaLigar, revisarLiga, saldoDeCaja } from "./caja.js";
 // El resultado y el flujo del rancho: TODAS las pantallas los sacan de aquí, para que digan lo mismo.
 // Cada ajuste de valuación sigue a su consumo: a la parcela, al uso general, o al vehículo (que lo lleva en su propia cuenta).
@@ -13398,7 +13399,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
               <div className="text-xs text-accent" style={{ marginTop: 8, fontWeight: 700 }}>Administrar proveedores ›</div>
             </div>
             <div className="card" style={{ background: "rgba(74,159,212,.04)", border: "1px solid rgba(74,159,212,.15)" }}>
-              <div className="text-xs text-muted">El flujo cuenta el dinero el día que se mueve: ingresos y gastos capturados, compras, créditos y sus abonos, y lo del personal el día que se le paga (Pagos al personal), no el día que trabajó. Un préstamo entregado es dinero que salió aunque no sea gasto. El trabajo que todavía no se paga no aparece aquí: está en Pagos al personal como pendiente.</div>
+              <div className="text-xs text-muted">El flujo cuenta el dinero el día que se mueve: ingresos y gastos capturados, compras, créditos y sus abonos, y lo del personal el día que se le paga (Pagos al personal), no el día que trabajó. Un préstamo entregado es dinero que salió aunque no sea gasto. El trabajo que todavía no se paga no aparece aquí: está en Pagos al personal como pendiente.{efectivo.ventasSinDinero > 0 ? ` Hay ${fmt(efectivo.ventasSinDinero)} de ventas cobradas en especie o a cuenta de una deuda: son venta, pero no son dinero que entró, y no están en este flujo.` : ""}</div>
             </div>
           </>
         )}
@@ -20410,6 +20411,8 @@ function InventarioTerminado({ data, add, upd, session, onClose }) {
   };
 
   const guardarAjuste = (t) => {
+    // Cambiar cuánto ajo terminado hay sin decir por qué es mover producto sin rastro: el motivo es obligatorio.
+    if (!String(aj.motivo || "").trim()) { alert("Falta el motivo del ajuste (conteo físico, merma, error de captura…). Sin motivo no se cambia el inventario."); return; }
     ajustarTerminado(data, upd, {
       terminadoId: t.id,
       nuevasCajas: aj.cajas === "" ? t.cajas : aj.cajas,
@@ -20709,27 +20712,31 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
   const nombreParcela = (pid) => (data.parcelas || []).find(p => p.id === pid)?.nombre || pid;
 
   // --- Configuración de la corrida ---
-  const [cultivo, setCultivo] = useState(cultivos[0] || "Ajo");
-  const [estibaOrigenId, setEstibaOrigenId] = useState("");
+  // Lo que se va corriendo hoy se guarda en el teléfono: salir a otra pantalla, recargar o que el teléfono cierre la
+  // app ya no borra las cajas contadas (src/corridaViva.js). `viva` es la foto de la corrida de hoy, si la hay.
+  const viva = useRef(leerCorridaViva(localStorage, LLAVES.corrida, today())).current;
+  const dv = (k, d) => (viva && viva[k] !== undefined ? viva[k] : d);
+  const [cultivo, setCultivo] = useState(dv("cultivo", cultivos[0] || "Ajo"));
+  const [estibaOrigenId, setEstibaOrigenId] = useState(dv("estibaOrigenId", ""));
   // Pool de tarimas de limpio "en la mesa": Migue selecciona varias disponibles y va
   // tomando de ellas. Al cambiar a media tarima pide confirmación (anti click accidental);
   // si la activa se vacía, queda libre de elegir la siguiente sin confirmar.
-  const [poolIds, setPoolIds] = useState([]); // ids de tarimas en la mesa
+  const [poolIds, setPoolIds] = useState(dv("poolIds", [])); // ids de tarimas en la mesa
   const [verPool, setVerPool] = useState(false);
   // Modo revoltura: en vez de elegir UNA tarima, se corre "del pool" y al cerrar
   // calibre las cajas se reparten proporcionalmente entre las tarimas según su saldo.
   // Traza genérica al grupo (pero sigue llegando a parcela), para cuando no hay tiempo.
-  const [modoRevoltura, setModoRevoltura] = useState(false);
+  const [modoRevoltura, setModoRevoltura] = useState(dv("modoRevoltura", false));
   // Alta rápida de tarima limpiada durante la corrida.
   const [altaRapida, setAltaRapida] = useState(null); // {cajas, parcelaId} | null
   const [nuevaLimpioCajas, setNuevaLimpioCajas] = useState(""); // tarima de limpio sin registrar
   // Configuración recordada de corridas anteriores (taras pre-pesadas y tamaño de estiba):
   // Migue no vuelve a teclear las taras de cada pallet en cada corrida.
   const cfgCorrida = (() => { try { return JSON.parse(localStorage.getItem("agro_corrida_cfg") || "{}"); } catch { return {}; } })();
-  const [cajasPorEstiba, setCajasPorEstiba] = useState(parseFloat(cfgCorrida.cajasPorEstiba) || 50);
-  const [folioCorrida] = useState(`COR-${Date.now().toString().slice(-6)}`);
-  const [corridaId] = useState(`cor${Date.now()}`);
-  const [responsable, setResponsable] = useState("");
+  const [cajasPorEstiba, setCajasPorEstiba] = useState(dv("cajasPorEstiba", parseFloat(cfgCorrida.cajasPorEstiba) || 50));
+  const [folioCorrida] = useState(dv("folioCorrida", `COR-${Date.now().toString().slice(-6)}`));
+  const [corridaId] = useState(dv("corridaId", `cor${Date.now()}`));
+  const [responsable, setResponsable] = useState(dv("responsable", ""));
 
   // Estibas de limpio disponibles como origen
   const saldoDe = (e) => (e.saldo != null ? e.saldo : e.cajas);
@@ -20745,21 +20752,21 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
   // --- Tablero de calibres: contador en curso por cada calibre ---
   // contador[cal] = cajas que llevan acumuladas (aún no cerradas en estiba)
   const calibresNum = CALIBRES_CORRIDA;
-  const [contador, setContador] = useState(() => Object.fromEntries(calibresNum.map(c => [c, 0])));
+  const [contador, setContador] = useState(() => dv("contador", Object.fromEntries(calibresNum.map(c => [c, 0]))));
   // Rendimiento por TARIMA (tramo): cuánto ha rendido la tarima de limpio actual,
   // por calibre. Al cambiar de tarima se guarda su tramo sin perder el conteo.
-  const [rendTramo, setRendTramo] = useState(() => Object.fromEntries(calibresNum.map(c => [c, 0])));
+  const [rendTramo, setRendTramo] = useState(() => dv("rendTramo", Object.fromEntries(calibresNum.map(c => [c, 0]))));
   // Cajas contadas del origen actual aún no cerradas en estiba.
-  const [contadorTramo, setContadorTramo] = useState(() => Object.fromEntries(calibresNum.map(c => [c, 0])));
+  const [contadorTramo, setContadorTramo] = useState(() => dv("contadorTramo", Object.fromEntries(calibresNum.map(c => [c, 0]))));
   // Aportes de tarimas anteriores a cajas aún no cerradas: { cal: [{id, codigo, cajas}] }
-  const [aportesPrevios, setAportesPrevios] = useState({});
+  const [aportesPrevios, setAportesPrevios] = useState(dv("aportesPrevios", {}));
   // Tramos cerrados (rendimiento histórico de cada tarima ya vaciada en esta corrida)
-  const [tramos, setTramos] = useState([]);
+  const [tramos, setTramos] = useState(dv("tramos", []));
   // tara pre-pesada por calibre (el pallet de cada calibre)
   const [taraCal, setTaraCal] = useState(() => Object.fromEntries(calibresNum.map(c => [c, (cfgCorrida.taraCal || {})[c] || ""])));
 
   // estibas de calibre ya cerradas en esta corrida: {id, calibre, codigo, cajas, bruto, tara, neto}
-  const [estibasCerradas, setEstibasCerradas] = useState([]);
+  const [estibasCerradas, setEstibasCerradas] = useState(dv("estibasCerradas", []));
   // calibre en proceso de cierre (muestra panel de peso)
   const [cerrando, setCerrando] = useState(null); // {calibre, cajas}
   // Modal de fin de día: pregunta cuántas cajas de LIMPIO (plástico) quedaron en
@@ -20783,15 +20790,15 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
   // ── Plástico (limpio) que entra a la corrida, con su hora. El primero arranca el reloj. ──
   // Esto es el monitoreo "grueso" de limpio: cuando se acaba una tarima y mueven otra,
   // se registra como un evento. Se alimenta automáticamente al elegir tarimas de origen.
-  const [plasticoEventos, setPlasticoEventos] = useState([]); // [{id, hora, cajas, nota, estibaId}]
+  const [plasticoEventos, setPlasticoEventos] = useState(dv("plasticoEventos", [])); // [{id, hora, cajas, nota, estibaId}]
   // El limpio (plástico) entra a la corrida automáticamente al seleccionar tarimas
   // del pool o por alta rápida — no hay captura manual redundante.
   const borrarPlastico = (id) => setPlasticoEventos(ev => ev.filter(e => e.id !== id));
 
   // ── Cortes de cartón: lecturas de cuántas cajas de cartón acumuladas hay (para el rate) ──
-  const [lecturas, setLecturas] = useState([]); // [{id, hora, total, ritmo}]
+  const [lecturas, setLecturas] = useState(dv("lecturas", [])); // [{id, hora, total, ritmo}]
   // Ritmo de la corredora que Migue fija (lo ajusta según la calidad del ajo).
-  const [ritmoActual, setRitmoActual] = useState("medio"); // bajo | medio | alto
+  const [ritmoActual, setRitmoActual] = useState(dv("ritmoActual", "medio")); // bajo | medio | alto
   const [pedirCorte, setPedirCorte] = useState(false);   // recordatorio de corte 15 min
   const [sugerirCalidad, setSugerirCalidad] = useState(false); // tras un corte, sugerir muestra
   const registrarCorte = () => {
@@ -20807,7 +20814,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
   //    conteo guarda: cuánto limpio quedaba Y cuánto cartón se había producido hasta
   //    ese momento. Entre dos conteos, la proporción REAL = cartón producido / limpio
   //    consumido (medido, no estimado). ──
-  const [conteos, setConteos] = useState([]); // [{id, hora, limpioQueda, cartonAcum}]
+  const [conteos, setConteos] = useState(dv("conteos", [])); // [{id, hora, limpioQueda, cartonAcum}]
   const [conteoInput, setConteoInput] = useState("");
   const [pedirConteo, setPedirConteo] = useState(false); // bandera del recordatorio
   const registrarConteoFisico = () => {
@@ -20820,9 +20827,17 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
   const borrarConteo = (id) => setConteos(cs => cs.filter(c => c.id !== id));
 
   // ── Meta del día y recordatorios ──
-  const [metaDia, setMetaDia] = useState("");
-  const [avisarCada, setAvisarCada] = useState("200"); // recordar contar limpio cada N cajas de cartón
-  const [minCorte, setMinCorte] = useState("15");       // recordar tomar corte cada N minutos
+  const [metaDia, setMetaDia] = useState(dv("metaDia", ""));
+  const [avisarCada, setAvisarCada] = useState(dv("avisarCada", "200")); // recordar contar limpio cada N cajas de cartón
+  const [minCorte, setMinCorte] = useState(dv("minCorte", "15"));       // recordar tomar corte cada N minutos
+  // Cada cambio deja la foto al día. Al terminar la corrida se borra (y `terminada` evita que este efecto la vuelva a guardar).
+  const terminada = useRef(false);
+  useEffect(() => {
+    if (terminada.current) return;
+    guardarCorridaViva(localStorage, LLAVES.corrida, { cultivo, estibaOrigenId, poolIds, modoRevoltura, cajasPorEstiba, folioCorrida, corridaId, responsable,
+      contador, rendTramo, contadorTramo, aportesPrevios, tramos, estibasCerradas, plasticoEventos, lecturas, ritmoActual, conteos, metaDia, avisarCada, minCorte }, today());
+  }, [cultivo, estibaOrigenId, poolIds, modoRevoltura, cajasPorEstiba, folioCorrida, corridaId, responsable, contador, rendTramo, contadorTramo, aportesPrevios, tramos, estibasCerradas, plasticoEventos, lecturas, ritmoActual, conteos, metaDia, avisarCada, minCorte]);
+  const olvidarViva = () => { terminada.current = true; borrarCorridaViva(localStorage, LLAVES.corrida); };
 
   // ═══════ CÁLCULOS EN VIVO (recalibrados con conteos físicos reales) ═══════
   const plasticoOrden = [...plasticoEventos].sort((a, b) => minDeHora(a.hora) - minDeHora(b.hora));
@@ -21094,6 +21109,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
       // No se usó ninguna tarima registrada: solo guardar el reporte del día.
       if (!window.confirm("¿Terminar la corrida del día? El reporte queda registrado.")) return;
       guardarCorrida({ estado: "terminada" });
+      olvidarViva();
       onClose();
       return;
     }
@@ -21121,6 +21137,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
       });
     });
     guardarCorrida({ estado: "terminada" });
+    olvidarViva();
     setFinDia(null);
     onClose();
   };
@@ -21274,6 +21291,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
         <h2>Corrida de ajo</h2>
       </div>
       <div className="section-pad">
+        {viva && <div className="text-xs" role="status" style={{ marginBottom: 8, color: "var(--accent)" }}>Se retomó la corrida de hoy ({folioCorrida}) como la dejaste: tarimas, cajas contadas, cortes y conteos.</div>}
         {/* Pestañas del panel unificado */}
         <div style={{ display: "flex", gap: 5, marginBottom: 12, flexWrap: "wrap" }}>
           <button className={`btn btn-sm ${vista === "corrida" ? "btn-accent" : "btn-outline"}`} style={{ flex: "1 1 45%" }} onClick={() => setVista("corrida")}><Ic e="▶️" /> Corrida en vivo</button>

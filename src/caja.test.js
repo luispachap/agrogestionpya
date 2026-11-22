@@ -206,3 +206,15 @@ test("un_abono_cancelado_en_un_aparato_no_revive_porque_el_otro_no_lo_sabia", ()
   const u = unirCredito({ id: "c", monto: 100, abonos: [vivo] }, { id: "c", monto: 100, abonos: [cancelado] });
   assert.equal(u.estado, "activo", "con el abono cancelado la deuda sigue viva");
 });
+
+test("una_venta_cobrada_en_especie_o_contra_deuda_es_venta_pero_no_es_dinero_que_entra", () => {
+  const ingresos = [
+    { id: "a", fecha: "2026-11-10", monto: 10000, metodo: "transferencia" },
+    { id: "b", fecha: "2026-11-10", monto: 1000, metodo: "especie" },
+    { id: "c", fecha: "2026-11-10", monto: 4000, metodo: "contra deuda" },
+  ];
+  const f = flujoDeEfectivo({ ingresos });
+  assert.equal(f.ingresos, 10000);
+  assert.equal(f.ventasSinDinero, 5000);
+  assert.equal(resultadoDelRancho({ ingresos }).ingresos, 15000, "en el resultado sí cuentan las tres: se vendió");
+});

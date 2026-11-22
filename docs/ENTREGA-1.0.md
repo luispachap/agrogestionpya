@@ -3,27 +3,24 @@
 Corte: sábado 21 de noviembre de 2026, noche. Fecha objetivo de entrega: lunes 23.
 La guía para operar está en `docs/OPERACION-1.0.md`.
 
-## Conclusión: NO LISTO todavía
+## Conclusión: NO LISTO como sistema completo · listo para prueba de campo en la operación diaria
 
-Actualizado el 21 de noviembre, medianoche. Lo corregido está publicado y probado; lo que falta no se resuelve con
-más pruebas mías:
+Actualizado el domingo 22 de noviembre. La evaluación completa, con qué se comprobó cada cosa, está en
+`docs/EVALUACION-1.0.md`. En corto:
 
-1. **El respaldo automático está preparado pero sin estrenar.** No existe todavía ni un respaldo real ni una
-   restauración ensayada. Mientras no se haga el ensayo, **operar dinero en producción depende de que la base no
-   falle** (`docs/RESPALDO-AUTOMATICO.md`). Faltan cuatro secretos y un repositorio privado, que sólo puede poner Luis.
-2. **Nada se ha probado en el rancho.** Todo es con datos inventados, navegadores que imitan teléfonos y una nube de
-   imitación. La prueba del domingo (`docs/PRUEBA-DEL-DOMINGO.md`) es la primera con teléfonos de verdad.
-3. **La auditoría funcional de los 67 módulos va en 6** (`docs/AUDITORIA-FUNCIONAL.md`): Finanzas, Movimientos, Caja
-   chica, Proveedores, Deudas y Bitácora están recorridos como usuario; los otros 61 siguen en el inventario como
-   NO VERIFICADOS hasta recorrerlos. Ninguno queda fuera. Usarlos destapó ocho defectos de dinero, ya corregidos.
+1. **El respaldo automático está ensayado en local y sin estrenar.** 26 comprobaciones de punta a punta con dos
+   servidores de base de datos de verdad; falta el primer respaldo real y restaurarlo en un proyecto aislado de
+   Supabase. Mientras tanto, **operar dinero en producción depende de que la base no falle**
+   (`docs/RESPALDO-AUTOMATICO.md`). Faltan un repositorio privado y tres secretos, que sólo puede poner Luis.
+2. **Nada se ha probado en el rancho.** La prueba de campo (`docs/PRUEBA-DEL-DOMINGO.md`) es la primera con
+   teléfonos de verdad.
+3. **Auditoría funcional de los 67 módulos** (`docs/AUDITORIA-FUNCIONAL.md`): 7 aprobados, 5 recorridos en parte
+   (Bodega, con una corrida de ajo simulada completa) y 55 sin verificar con el criterio completo. Usarlos destapó
+   13 defectos de dinero o de control, ya corregidos. Ninguno queda fuera.
 4. **Producción está vacía.** Una cuenta, cero personal, fecha de inicio sin declarar.
 
-**Qué lo vuelve LISTO:** (a) el respaldo real y su restauración ensayada; (b) la prueba del domingo y corregir lo
-que destape; (c) terminar la auditoría funcional — sigue aunque pase del lunes.
-
-**Qué se puede prometer para el lunes:** la operación diaria (alta de personal, checar, plan, reparto, cambios,
-incidencias, aplicaciones, almacén básico, cierre de jornada, pagos) si la prueba del domingo pasa, y capturando
-dinero sólo cuando el respaldo esté ensayado.
+**Qué lo vuelve LISTO:** (a) el respaldo real y su restauración ensayada; (b) la prueba de campo y corregir lo que
+destape; (c) terminar la auditoría funcional — sigue aunque pase del lunes.
 
 ## Alcance de la versión 1.0
 
@@ -116,14 +113,15 @@ recordatorios de Seguridad de la etapa anterior; dos pruebas con falsas alarmas.
 
 | Qué | Resultado |
 |---|---|
-| Pruebas de cálculo y reglas (`npm test`) | 1,246 de 1,246 |
-| Base aislada, atacada directo (`npm run test:base`) | 148 de 148 (16 de restauración, 12 del respaldo automático, 4 de la auditoría) |
+| Pruebas de cálculo y reglas (`npm test`) | 1,253 de 1,253 |
+| Base aislada, atacada directo (`npm run test:base`) | 152 de 152 (16 de restauración, 12 del respaldo automático, 8 de la auditoría) |
+| Respaldo y restauración de punta a punta, en local (`sh pruebas/respaldo_local/ensayo.sh`) | 26 de 26 |
 | Función de lectura con IA, sin red ni gasto | 12 de 12 |
-| Compilación | 224 módulos; el lector de PDF sale aparte |
-| Recorridos en navegador de la batería (31) | Todos pasan; `entrega` 68, `sinsenal` 10, `auditoria_dinero` 37, `auditoria_proveedores` 25 |
+| Compilación | 225 módulos; el lector de PDF sale aparte |
+| Recorridos en navegador de la batería (32) | Todos pasan; `entrega` 68, `sinsenal` 10, `auditoria_dinero` 37, `auditoria_proveedores` 27, `auditoria_bodega` 46 |
 | Producción sin sesión | 6 de 6: no se lee, no se escribe, no se llama nada |
 | Sitio publicado en Android y iPhone imitados | 18 de 18 |
-| Producción contra la base de pruebas, después de instalar la hoja 53 | 7 huellas iguales: 188 reglas, 52 funciones, 72 tablas, 173 candados, 200 permisos, 36 operaciones sensibles, quién puede llamar cada función |
+| Producción contra la base de pruebas, después de instalar las hojas 53 y 54 | 7 huellas iguales: 188 reglas, 52 funciones, 72 tablas, 173 candados, 200 permisos, 36 operaciones sensibles, quién puede llamar cada función |
 
 Lo que **no** se pudo ejecutar: una sesión real en producción, un teléfono real, señal real del rancho, correos de
 invitación reales, la cámara para credenciales y el toque de un aviso.
@@ -148,7 +146,9 @@ invitación reales, la cámara para credenciales y el toque de un aviso.
 | Restaurar conserva quién autorizó y cuándo; nadie inventa autorizaciones (hoja 53 + firma) | **Instalada** en la base y **publicado** (`a7b8e4a`), 21 nov |
 | Caja chica: sólo se corrige el concepto; cancelar arrastra su gasto; gasto de parcela ya no sale como general | **Publicado** (`a7b8e4a`) |
 | Caja chica: clases de salida (gasto general, de parcela, inventario, préstamo, pago, traspaso, por clasificar) | **Publicado** (`d169a5e`), 22 nov |
-| Abonos a créditos: se cancelan en vez de borrarse, salen en el flujo, y dos teléfonos ya no se pisan | En la rama, probado; **sin publicar: pide autorización** |
-| Respaldo automático | Herramientas en la rama; **sin estrenar** |
-| Punto de regreso de la app | Despliegue anterior `dpl_C6PFHZoy3uCKVEJz4aAwp9TryVvF` (`a7b8e4a`); antes, `dpl_CC6uu3f4HAEHXh45S6FYP3PDE5Yg` (`d3e0498`) |
+| Abonos a créditos: se cancelan en vez de borrarse, salen en el flujo, y dos teléfonos ya no se pisan | **Publicado** (`6ce96fd`), 22 nov |
+| Banco, Socios y ¿Alcanza? fuera del encargado (hoja 54) | **Instalada** en la base y **publicado** (`7b3e610`), 22 nov |
+| Corrida que no se pierde al salir de la pantalla; ventas sin dinero fuera del flujo; ajuste de ajo terminado con motivo | En la rama, probado; **sin publicar: pide autorización** |
+| Respaldo automático | Herramientas en la rama, ensayadas en local; **sin estrenar** |
+| Punto de regreso de la app | Despliegue anterior `dpl_59DgNTyzKbMMk1ZUzXKRWgBR8AoZ` (`6ce96fd`); antes, `dpl_A3yNVCoznNSnZPyxEECydxUNykRe` (`d169a5e`) |
 | Permiso de organización | Sin otorgar: lo hace Luis para su cuenta |
