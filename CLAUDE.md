@@ -797,6 +797,13 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   servicio). Restaurar se ABRE con motivo (`abrir_restauracion`, superadministrador, una hora, queda en
   `restauraciones`) y sólo recupera el sello original si la firma coincide; lo restaurado queda marcado (`restaurado`,
   `restaurado_por`). La app manda el sello con `conSelloOriginal` y sube sólo lo que falta (`soloFaltantes`).
+- **Auditoría funcional de los 67 módulos** (`docs/AUDITORIA-FUNCIONAL.md`): usar cada módulo como persona, en
+  teléfono imitado, con nube de imitación, dos aparatos, sin señal y otros perfiles. Recorridos `pruebas/auditoria_*`;
+  lo que la imitación no puede negar se ataca en `pruebas/base/auditoria.test.mjs`. Un módulo no es APROBADO porque abre.
+- **Un abono a un crédito no se borra**: `cancelar("creditos", id, etiqueta, { abonoId })` lo cancela con motivo y
+  bitácora (y la venta del abono en especie). `saldoCredito` y el flujo no cuentan lo cancelado; un abono sin `tipo`
+  es de dinero. **Dos versiones de un crédito se UNEN** (`unirCredito`: abonos de los dos lados; cancelado gana), al
+  subir (`guardarRegistro` lee la nube antes) y al bajar (`mezclarConNube` → `porSubir`). No vuelvas a escoger una.
 - **Respaldo automático: PREPARADO, SIN ESTRENAR** (`herramientas/respaldo/`, `docs/RESPALDO-AUTOMATICO.md`). Corre en
   un repositorio PRIVADO aparte (este es público) y toma de aquí sus herramientas. `respaldar.sh` sólo lee;
   `restaurar.sh` se niega contra producción y contra un proyecto con tablas, y comprueba con `huellas.sql`

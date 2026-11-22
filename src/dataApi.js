@@ -11,6 +11,7 @@
 // ============================================================
 
 import { objetoAFila, filaAObjeto } from "./filas.js";
+import { unirCredito } from "./calculos.js";
 import { supabase, supabaseListo } from "./supabase";
 
 // ------------------------------------------------------------
@@ -149,6 +150,18 @@ export async function guardarRegistro(tabla, obj) {
     const sellado = data && data[0] ? filaAObjeto(data[0]) : null;
     if (sellado) { try { alSellar?.(sellado); } catch { /* el sello llega igual en la siguiente bajada */ } }
     return true;
+  }
+  if (tabla === "creditos") {
+    // Antes de subir un crédito se lee el de la nube y se UNEN sus abonos: si otro aparato registró un abono mientras
+    // éste estaba sin señal, subir encima lo borraba (dinero pagado que desaparecía).
+    const { data: ya, error: e0 } = await supabase.from(tabla).select("*").eq("id", fila.id).maybeSingle();
+    if (e0) throw e0;
+    if (ya) {
+      const unido = unirCredito(obj, filaAObjeto(ya));
+      const { error } = await supabase.from(tabla).upsert(objetoAFila(tabla, unido), { onConflict: "id" });
+      if (error) throw error;
+      return true;
+    }
   }
   const { error } = await supabase.from(tabla).upsert(fila, { onConflict: "id" });
   if (error) throw error;

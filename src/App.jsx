@@ -7370,7 +7370,10 @@ function AppInner() {
         // - Registros en ambos: gana el más reciente; así nadie pisa el trabajo del otro.
         // La mezcla vive en sincroniza.js, con sus pruebas. Lo que trae lápida
         // en la nube (alguien lo borró) se quita de este teléfono.
-        setData(prev => mezclarConNube(prev, datosNube).datos);
+        // Lo que se UNIÓ y la nube no tenía completo (abonos de un crédito capturados en este aparato) se vuelve a subir.
+        const porSubir = new Map();
+        setData(prev => { const m = mezclarConNube(prev, datosNube); for (const x of m.porSubir || []) porSubir.set(x.tabla + "/" + x.registro.id, x); return m.datos; });
+        setTimeout(() => { for (const x of porSubir.values()) replicarRef.current?.("upd", x.tabla, x.registro); }, 50);
         bajarEventosRef.current?.().then(r => {
           if (activo && r && !r.ok) setAvisosLectura(a => ({ ...(a || {}), fallas: [...((a && a.fallas) || []), { tabla: "eventos", mensaje: r.mensaje || "no se pudo leer" }], topes: (a && a.topes) || [], cuando: new Date().toISOString() }));
         });
@@ -7506,6 +7509,7 @@ function AppInner() {
 
   // Función auxiliar: replica un cambio a Supabase. Si no hay conexión o falla,
   // lo encola para reintentar cuando vuelva la señal (Etapa 3 - sincronización offline).
+  const replicarRef = useRef(null);
   const replicarANube = useCallback((operacion, sec, payload) => {
     if (!supabaseListo) return;
     if (!TABLAS_NUBE.includes(sec)) return;
@@ -7534,6 +7538,7 @@ function AppInner() {
   // Cada registro que nace o se toca aquí lleva la marca de ESTE espacio. La
   // base rechaza lo que llegue sin ella (hoja SQL 31): así nada guardado para
   // otro proyecto, ni de cuando la app estaba a prueba, entra a la operación.
+  replicarRef.current = replicarANube;
   const marcarTocado = (item) => marcarEspacio({ ...item, _actualizado: new Date().toISOString() }, ESPACIO);
 
   const upd = useCallback((sec, item) => {
@@ -7676,10 +7681,13 @@ function AppInner() {
   // por la misma puerta que las pantallas. Vite lo quita de lo que se publica.
   useEffect(() => { if (import.meta.env.DEV) window.__agro = { add, upd, del }; }, [add, upd, del]);
 
-  const cancelar = useCallback((sec, id, etiqueta = "este movimiento") => {
+  const cancelar = useCallback((sec, id, etiqueta = "este movimiento", parte = null) => {
     const col = Array.isArray(data[sec]) ? data[sec] : [];
     const registro = col.find(x => x.id === id);
     if (!registro) return false;
+    // Un abono a un crédito vive dentro del crédito. Tampoco se borra: se cancela con su motivo y se queda a la vista.
+    const abono = parte?.abonoId ? (registro.abonos || []).find(a => a.id === parte.abonoId) : null;
+    if (parte?.abonoId && (!abono || estaCancelado(abono))) return false;
     const motivo = prompt(`Cancelar ${etiqueta}.
 
 El registro NO se borra: se queda tachado con tu nombre y el motivo, para que después se pueda saber qué pasó.
@@ -7689,6 +7697,18 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
     if (!String(motivo).trim()) {                    // sin motivo no se cancela
       alert("Hace falta el motivo. Sin él, dentro de seis meses nadie va a saber por qué se canceló.");
       return false;
+    }
+    if (abono) {
+      const quien = session?.nombre || session?.id || "—";
+      const abonos = registro.abonos.map(a => a.id === abono.id ? marcarCancelado(a, { motivo, quien }) : a);
+      upd(sec, { ...registro, abonos, estado: saldoCredito({ ...registro, abonos }).saldo <= 0 ? "pagado" : "activo" });
+      anotarEnBitacora("cancelo", sec, { id: registro.id, concepto: `Abono de ${fmt(abono.monto)} al crédito «${registro.concepto || registro.id}»`, monto: abono.monto, fecha: abono.fecha, abonoId: abono.id }, { motivo });
+      // Si el abono fue en especie dejó además una venta: se cancela con él.
+      for (const g of (data.ingresos || []).filter(x => x.origenCredito === registro.id && x.abonoId === abono.id && !estaCancelado(x))) {
+        upd("ingresos", marcarCancelado(g, { motivo: `Se canceló el abono en especie: ${motivo}`, quien }));
+        anotarEnBitacora("cancelo", "ingresos", g, { motivo: `Se canceló el abono en especie: ${motivo}` });
+      }
+      return true;
     }
     upd(sec, marcarCancelado(registro, {
       motivo,
@@ -15131,8 +15151,7 @@ function CreditoDetalle({ data, cr, add, upd, del, cancelar, reactivar, onClose 
       ...(abForm.tipo === "especie" ? { cultivo: abForm.cultivo, cantidad: parseFloat(abForm.cantidad) || 0, unidad: abForm.unidad, parcelaId: abForm.parcelaId } : {}),
     };
     const nuevosAbonos = [...(cr.abonos || []), nuevoAbono];
-    const nuevoAbonado = nuevosAbonos.reduce((s, a) => s + a.monto, 0);
-    upd("creditos", { ...cr, abonos: nuevosAbonos, estado: nuevoAbonado >= cr.monto ? "pagado" : "activo" });
+    upd("creditos", { ...cr, abonos: nuevosAbonos, estado: saldoCredito({ ...cr, abonos: nuevosAbonos }).saldo <= 0 ? "pagado" : "activo" });
 
     // Un pago en especie cuenta como una venta: genera un ingreso registrado
     if (abForm.tipo === "especie") {
@@ -15142,18 +15161,14 @@ function CreditoDetalle({ data, cr, add, upd, del, cancelar, reactivar, onClose 
         concepto: `Pago en especie a ${prov?.nombre || "acreedor"} — ${abForm.cultivo || "cosecha"}`,
         categoria: "venta_cosecha", parcelaId: abForm.parcelaId || "", cultivo: p?.cultivo || abForm.cultivo,
         monto, cantidad: parseFloat(abForm.cantidad) || 0, unidad: abForm.unidad,
-        cliente: prov?.nombre || "Acreedor", metodo: "especie", origenCredito: cr.id,
+        cliente: prov?.nombre || "Acreedor", metodo: "especie", origenCredito: cr.id, abonoId,
       });
     }
     setAbForm(FA0); setShowAbono(false);
   };
 
-  const borrarAbono = abId => {
-    if (!confirm("¿Eliminar este abono?")) return;
-    const nuevosAbonos = (cr.abonos || []).filter(a => a.id !== abId);
-    const nuevoAbonado = nuevosAbonos.reduce((s, a) => s + a.monto, 0);
-    upd("creditos", { ...cr, abonos: nuevosAbonos, estado: nuevoAbonado >= cr.monto ? "pagado" : "activo" });
-  };
+  // Un abono es dinero: no se borra. Se cancela con su motivo y se queda en el historial, tachado.
+  const cancelarAbono = ab => cancelar("creditos", cr.id, `el abono de ${fmt(ab.monto)}`, { abonoId: ab.id });
 
   return (
     <div>
@@ -15227,12 +15242,13 @@ function CreditoDetalle({ data, cr, add, upd, del, cancelar, reactivar, onClose 
             <div key={ab.id} className="list-item">
               <div className="li-icon" style={{ background: ab.tipo === "especie" ? "rgba(74,159,212,.12)" : "rgba(132,192,1,.12)" }}><Ic e={ab.tipo === "especie" ? "🌾" : "💵"} /></div>
               <div className="li-body">
-                <div className="li-title">{ab.tipo === "especie" ? `Pago en especie${ab.cultivo ? ": " + ab.cultivo : ""}` : "Abono en dinero"}</div>
-                <div className="li-sub">{ab.fecha}{ab.tipo === "especie" && ab.cantidad ? ` · ${fmtN(ab.cantidad)} ${ab.unidad}` : ""}{ab.nota ? ` · ${ab.nota}` : ""}</div>
+                <div className="li-title" style={estiloCancelado(ab)}>{ab.tipo === "especie" ? `Pago en especie${ab.cultivo ? ": " + ab.cultivo : ""}` : ab.tipo === "cosecha" ? "Abono con cosecha" : "Abono en dinero"}</div>
+                <div className="li-sub" style={estiloCancelado(ab)}>{ab.fecha}{ab.tipo === "especie" && ab.cantidad ? ` · ${fmtN(ab.cantidad)} ${ab.unidad}` : ""}{ab.nota ? ` · ${ab.nota}` : ""}</div>
+                {estaCancelado(ab) && <div className="text-xs" style={{ color: "var(--red)" }}>Cancelado por {ab.canceladoPor}: {ab.motivoCancelacion}</div>}
               </div>
               <div className="li-right">
-                <div className="li-val" style={{ color: "var(--safe)" }}>{fmt(ab.monto)}</div>
-                <button className="btn-ghost" style={{ padding: 2, fontSize: 13, color: "var(--red)" }} onClick={() => borrarAbono(ab.id)}><Ic e="🗑" /></button>
+                <div className="li-val" style={{ color: "var(--safe)", ...estiloCancelado(ab) }}>{fmt(ab.monto)}</div>
+                {!estaCancelado(ab) && <button className="btn-ghost" aria-label={`Cancelar el abono de ${fmt(ab.monto)}`} style={{ padding: 2, fontSize: 13, color: "var(--red)" }} onClick={() => cancelarAbono(ab)}><Ic e="❌" /></button>}
               </div>
             </div>
           ))}
@@ -18345,10 +18361,9 @@ function GestionDeudas({ data, add, upd, del, cancelar, reactivar, session, onCl
   const aplicarAbono = cr => {
     const m = parseFloat(abono.monto) || 0;
     if (m <= 0) { alert("Indica el monto del abono"); return; }
-    const nuevoAbono = { id: `ab${Date.now()}`, fecha: today(), monto: m };
+    const nuevoAbono = { id: `ab${Date.now()}`, fecha: today(), tipo: "dinero", monto: m, registradoPor: { rol: session.role, id: session.id, nombre: session.nombre } };
     const nuevosAbonos = [...(cr.abonos || []), nuevoAbono];
-    const totalAbonado = nuevosAbonos.reduce((s, a) => s + a.monto, 0);
-    upd("creditos", { ...cr, abonos: nuevosAbonos, estado: totalAbonado >= cr.monto ? "pagado" : "activo" });
+    upd("creditos", { ...cr, abonos: nuevosAbonos, estado: saldoCredito({ ...cr, abonos: nuevosAbonos }).saldo <= 0 ? "pagado" : "activo" });
     setAbono({ id: null, monto: "" });
   };
 
@@ -18394,9 +18409,10 @@ function GestionDeudas({ data, add, upd, del, cancelar, reactivar, session, onCl
             {(cr.abonos || []).map(ab => (
               <div key={ab.id} className="list-item">
                 <div className="li-icon"><Ic e="💵" /></div>
-                <div className="li-body"><div className="li-title">{fmt(ab.monto)}</div><div className="li-sub">{ab.fecha}</div></div>
-                <button className="btn-ghost" style={{ padding: 2, fontSize: 13, color: "var(--red)" }}
-                  onClick={() => { if (confirm("¿Eliminar este abono?")) upd("creditos", { ...cr, abonos: cr.abonos.filter(x => x.id !== ab.id), estado: "activo" }); }}><Ic e="🗑" /></button>
+                <div className="li-body"><div className="li-title" style={estiloCancelado(ab)}>{fmt(ab.monto)}</div><div className="li-sub" style={estiloCancelado(ab)}>{ab.fecha}</div>
+                  {estaCancelado(ab) && <div className="text-xs" style={{ color: "var(--red)" }}>Cancelado por {ab.canceladoPor}: {ab.motivoCancelacion}</div>}</div>
+                {!estaCancelado(ab) && <button className="btn-ghost" aria-label={`Cancelar el abono de ${fmt(ab.monto)}`} style={{ padding: 2, fontSize: 13, color: "var(--red)" }}
+                  onClick={() => cancelar("creditos", cr.id, `el abono de ${fmt(ab.monto)}`, { abonoId: ab.id })}><Ic e="❌" /></button>}
               </div>
             ))}
           </div>
@@ -20555,12 +20571,11 @@ function liquidarEmbarque(data, add, upd, { embarque, monto, fecha, forma, credi
         id: `ab${Date.now()}`, fecha: liq.fecha, tipo: "cosecha", monto: m,
         nota: `Embarque ${embarque.folio}`,
       }];
-      const totalAbonado = nuevosAbonos.reduce((sm, a) => sm + (a.monto || 0), 0);
       upd("creditos", {
         ...cr,
         abonos: nuevosAbonos,
         // Si con este abono la deuda queda saldada, se marca pagada (igual que en Deudas)
-        estado: totalAbonado >= (cr.monto || 0) ? "pagado" : "activo",
+        estado: saldoCredito({ ...cr, abonos: nuevosAbonos }).saldo <= 0 ? "pagado" : "activo",
       });
     }
   }

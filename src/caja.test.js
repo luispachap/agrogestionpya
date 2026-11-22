@@ -7,7 +7,7 @@ import { marcarCancelado } from "./calculos.js";
 const sal = (id, monto, extra = {}) => ({ id, tipo: "salida", concepto: "algo " + id, monto, fecha: "2026-11-10", ...extra });
 const ent = (id, monto) => ({ id, tipo: "entrada", concepto: "Fondo", monto, fecha: "2026-11-01" });
 const ev = (id, tipo, monto, extra = {}) => ({ id, tipo, fecha: "2026-11-10", estado: "vigente", datos: { monto, ...extra } });
-const cancelado = (r) => marcarCancelado(r, "prueba", { nombre: "Prueba" }, "2026-11-11T00:00:00Z");
+const cancelado = (r) => marcarCancelado(r, { motivo: "prueba", quien: "Prueba", cuando: "2026-11-11T00:00:00Z" });
 // Lo que haría la pantalla al guardar: la salida y, si le toca, su gasto ligado.
 const guardar = (movs) => ({ cajachica: movs, egresos: movs.map(m => egresoDeCaja(m)).filter(Boolean) });
 const cuentas = ({ cajachica, egresos, eventos = [] }) => ({
@@ -159,4 +159,50 @@ test("un_mes_de_caja_completo_cuadra_al_centavo_entre_caja_resultados_y_flujo", 
   assert.equal(saldoDeCaja(d.cajachica), 2099.65);
   // Lo que salió de la caja = lo que el flujo contó + el traspaso.
   assert.equal(Math.round((6000 - saldoDeCaja(d.cajachica)) * 100), Math.round((f.egresos + 500) * 100));
+});
+
+// ── Abonos a créditos de proveedores: es dinero, no se borra ──
+import { saldoCredito } from "./calculos.js";
+test("un_abono_cancelado_se_queda_en_el_historial_y_deja_de_contar_en_el_saldo_y_en_el_flujo", () => {
+  const ab = (id, monto, extra = {}) => ({ id, fecha: "2026-11-10", monto, ...extra });
+  const cr = { id: "c1", monto: 1000, formaPago: "dinero", fecha: "2026-11-01", abonos: [ab("a", 300, { tipo: "dinero" }), marcarCancelado(ab("b", 200, { tipo: "dinero" }), { motivo: "se capturó dos veces", quien: "Prueba" })] };
+  assert.deepEqual(saldoCredito(cr), { abonado: 300, saldo: 700 });
+  assert.equal(cr.abonos.length, 2, "el cancelado sigue ahí");
+  const f = flujoDeEfectivo({ creditos: [cr] });
+  assert.equal(f.meses[0].detalle.abonos_creditos, 300);
+});
+test("un_abono_capturado_en_deudas_sin_decir_tipo_es_dinero_y_sale_en_el_flujo", () => {
+  const cr = { id: "c1", monto: 1000, formaPago: "dinero", fecha: "2026-11-01", abonos: [{ id: "a", fecha: "2026-11-10", monto: 250 }, { id: "b", fecha: "2026-11-10", monto: 400, tipo: "especie" }, { id: "c", fecha: "2026-11-10", monto: 100, tipo: "cosecha" }] };
+  const f = flujoDeEfectivo({ creditos: [cr] });
+  assert.equal(f.meses[0].detalle.abonos_creditos, 250, "sólo el de dinero es dinero que sale");
+  assert.equal(saldoCredito(cr).saldo, 250, "pero los tres bajan la deuda");
+});
+
+// ── Dos aparatos abonando al mismo crédito ──
+import { unirAbonos, unirCredito, leFaltanAbonos } from "./calculos.js";
+import { mezclarConNube } from "./sincroniza.js";
+test("dos_aparatos_abonan_al_mismo_credito_y_no_se_pierde_ningun_abono", () => {
+  const base = { id: "c1", monto: 1000, abonos: [{ id: "a", fecha: "2026-11-10", monto: 100, tipo: "dinero" }] };
+  const sinSenal = { ...base, _actualizado: "2026-11-12T10:00:00Z", abonos: [...base.abonos, { id: "x", fecha: "2026-11-12", monto: 111, tipo: "dinero" }] };
+  const otro = { ...base, _actualizado: "2026-11-12T09:00:00Z", abonos: [...base.abonos, { id: "y", fecha: "2026-11-12", monto: 222, tipo: "dinero" }] };
+  const u = unirCredito(sinSenal, otro);
+  assert.deepEqual(u.abonos.map(a => a.id).sort(), ["a", "x", "y"]);
+  assert.equal(saldoCredito(u).saldo, 567);
+  // Al bajar: lo local trae uno que la nube no tiene → se une y se pide volver a subir.
+  const m = mezclarConNube({ creditos: [sinSenal] }, { creditos: [otro] });
+  assert.deepEqual(m.datos.creditos[0].abonos.map(a => a.id).sort(), ["a", "x", "y"]);
+  assert.equal(m.porSubir.length, 1);
+  // Y cuando la nube ya trae todo, no se sube nada (no hay ida y vuelta sin fin).
+  const m2 = mezclarConNube({ creditos: [u] }, { creditos: [{ ...u, _actualizado: "2026-11-12T11:00:00Z" }] });
+  assert.equal(m2.porSubir.length, 0);
+});
+test("un_abono_cancelado_en_un_aparato_no_revive_porque_el_otro_no_lo_sabia", () => {
+  const vivo = { id: "a", fecha: "2026-11-10", monto: 100 };
+  const cancelado = marcarCancelado(vivo, { motivo: "doble", quien: "Prueba" });
+  assert.equal(unirAbonos([vivo], [cancelado])[0].cancelado, true);
+  assert.equal(unirAbonos([cancelado], [vivo])[0].cancelado, true);
+  assert.equal(leFaltanAbonos({ abonos: [vivo] }, { abonos: [cancelado] }), true);
+  assert.equal(leFaltanAbonos({ abonos: [cancelado] }, { abonos: [vivo] }), false);
+  const u = unirCredito({ id: "c", monto: 100, abonos: [vivo] }, { id: "c", monto: 100, abonos: [cancelado] });
+  assert.equal(u.estado, "activo", "con el abono cancelado la deuda sigue viva");
 });

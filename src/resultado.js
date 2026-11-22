@@ -115,7 +115,9 @@ export function flujoDeEfectivo({ ingresos = [], egresos = [], compras = [], ent
   for (const e of entradas_inv) reg(e.fecha, "egresos", "almacen", costoAFinanzas(e));
   for (const cr of vivos(creditos)) {
     if (cr.formaPago === "dinero") reg(cr.fecha, "ingresos", "creditos", n(cr.monto));
-    for (const ab of cr.abonos || []) if (ab.tipo === "dinero") reg(ab.fecha, "egresos", "abonos_creditos", n(ab.monto));
+    // Un abono sin tipo es de dinero (así los guardaba la pantalla Deudas, y por eso no salían en el flujo). El que se
+    // pagó en especie o con cosecha no es dinero que sale. Y el cancelado no cuenta.
+    for (const ab of vivos(cr.abonos || [])) if ((ab.tipo || "dinero") === "dinero") reg(ab.fecha, "egresos", "abonos_creditos", n(ab.monto));
   }
   for (const e of vigentes(eventos)) {
     const m = n(e.datos?.monto);

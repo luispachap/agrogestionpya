@@ -13,8 +13,9 @@ más pruebas mías:
    falle** (`docs/RESPALDO-AUTOMATICO.md`). Faltan cuatro secretos y un repositorio privado, que sólo puede poner Luis.
 2. **Nada se ha probado en el rancho.** Todo es con datos inventados, navegadores que imitan teléfonos y una nube de
    imitación. La prueba del domingo (`docs/PRUEBA-DEL-DOMINGO.md`) es la primera con teléfonos de verdad.
-3. **La auditoría funcional de los 67 módulos va en 3.** Finanzas, Movimientos y Caja chica están recorridos como
-   usuario; los otros 64 siguen en el inventario como NO VERIFICADOS hasta recorrerlos. Ninguno queda fuera.
+3. **La auditoría funcional de los 67 módulos va en 6** (`docs/AUDITORIA-FUNCIONAL.md`): Finanzas, Movimientos, Caja
+   chica, Proveedores, Deudas y Bitácora están recorridos como usuario; los otros 61 siguen en el inventario como
+   NO VERIFICADOS hasta recorrerlos. Ninguno queda fuera. Usarlos destapó ocho defectos de dinero, ya corregidos.
 4. **Producción está vacía.** Una cuenta, cero personal, fecha de inicio sin declarar.
 
 **Qué lo vuelve LISTO:** (a) el respaldo real y su restauración ensayada; (b) la prueba del domingo y corregir lo
@@ -114,11 +115,11 @@ recordatorios de Seguridad de la etapa anterior; dos pruebas con falsas alarmas.
 
 | Qué | Resultado |
 |---|---|
-| Pruebas de cálculo y reglas (`npm test`) | 1,242 de 1,242 |
-| Base aislada, atacada directo (`npm run test:base`) | 144 de 144 (16 de restauración, 12 del respaldo automático) |
+| Pruebas de cálculo y reglas (`npm test`) | 1,246 de 1,246 |
+| Base aislada, atacada directo (`npm run test:base`) | 148 de 148 (16 de restauración, 12 del respaldo automático, 4 de la auditoría) |
 | Función de lectura con IA, sin red ni gasto | 12 de 12 |
 | Compilación | 224 módulos; el lector de PDF sale aparte |
-| Recorridos en navegador de la batería (30) | Todos pasan; `entrega` 68, `sinsenal` 10, `auditoria_dinero` 37 |
+| Recorridos en navegador de la batería (31) | Todos pasan; `entrega` 68, `sinsenal` 10, `auditoria_dinero` 37, `auditoria_proveedores` 25 |
 | Producción sin sesión | 6 de 6: no se lee, no se escribe, no se llama nada |
 | Sitio publicado en Android y iPhone imitados | 18 de 18 |
 | Producción contra la base de pruebas, después de instalar la hoja 53 | 7 huellas iguales: 188 reglas, 52 funciones, 72 tablas, 173 candados, 200 permisos, 36 operaciones sensibles, quién puede llamar cada función |
@@ -145,7 +146,8 @@ invitación reales, la cámara para credenciales y el toque de un aviso.
 | Correcciones P0, P1 y P2 del cierre | **Publicado** (`d3e0498`) |
 | Restaurar conserva quién autorizó y cuándo; nadie inventa autorizaciones (hoja 53 + firma) | **Instalada** en la base y **publicado** (`a7b8e4a`), 21 nov |
 | Caja chica: sólo se corrige el concepto; cancelar arrastra su gasto; gasto de parcela ya no sale como general | **Publicado** (`a7b8e4a`) |
-| Caja chica: clases de salida (gasto general, de parcela, inventario, préstamo, pago, traspaso, por clasificar) | En la rama, probado; **se publica al terminar su batería** |
+| Caja chica: clases de salida (gasto general, de parcela, inventario, préstamo, pago, traspaso, por clasificar) | **Publicado** (`d169a5e`), 22 nov |
+| Abonos a créditos: se cancelan en vez de borrarse, salen en el flujo, y dos teléfonos ya no se pisan | En la rama, probado; **sin publicar: pide autorización** |
 | Respaldo automático | Herramientas en la rama; **sin estrenar** |
-| Punto de regreso de la app | Despliegue anterior `dpl_CC6uu3f4HAEHXh45S6FYP3PDE5Yg` (`d3e0498`) |
+| Punto de regreso de la app | Despliegue anterior `dpl_C6PFHZoy3uCKVEJz4aAwp9TryVvF` (`a7b8e4a`); antes, `dpl_CC6uu3f4HAEHXh45S6FYP3PDE5Yg` (`d3e0498`) |
 | Permiso de organización | Sin otorgar: lo hace Luis para su cuenta |

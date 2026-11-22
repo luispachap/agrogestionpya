@@ -9,12 +9,18 @@
 //     Antes no había lápidas: un teléfono con la copia vieja la volvía a
 //     subir y lo borrado revivía.
 //   · Si la nube trae una tabla VACÍA, lo local no se toca (precaución).
+//   · Un crédito no se escoge: se UNE (los abonos de los dos lados), y si a la nube le faltaba algo se vuelve a subir.
 // ════════════════════════════════════════════════════════════════════════
-import { ganaAlSincronizar } from "./calculos.js";
+import { ganaAlSincronizar, unirCredito, leFaltanAbonos } from "./calculos.js";
+
+// Tablas donde dos versiones del mismo registro no se escogen: se UNEN, porque cada una puede traer algo que la otra
+// no (los abonos de un crédito capturados en dos aparatos). `falta(a, b)` dice si a `a` le falta algo de `b`.
+const UNIONES = { creditos: { unir: unirCredito, falta: leFaltanAbonos } };
 
 export function mezclarConNube(local, nube) {
   const next = { ...(local || {}) };
   let quitados = 0;
+  const porSubir = [];
   for (const [tabla, filasNube] of Object.entries(nube || {})) {
     if (!Array.isArray(filasNube)) continue;          // _fallas, _topes
     if (filasNube.length === 0) continue;             // nube vacía: no tocar lo local
@@ -27,11 +33,20 @@ export function mezclarConNube(local, nube) {
         continue;
       }
       const rl = porId[rn.id];
+      const u = UNIONES[tabla];
+      if (rl && u) {
+        const gana = ganaAlSincronizar(rl, rn);
+        const unido = u.unir(gana, gana === rl ? rn : rl);
+        porId[rn.id] = unido;
+        // Si a la nube le falta algo que este aparato sí tiene, hay que volver a subir el registro ya unido.
+        if (u.falta(rn, unido)) porSubir.push({ tabla, registro: unido });
+        continue;
+      }
       porId[rn.id] = rl ? ganaAlSincronizar(rl, rn) : rn;
     }
     next[tabla] = Object.values(porId);
   }
-  return { datos: next, quitados };
+  return { datos: next, quitados, porSubir };
 }
 
 // ¿Toca volver a bajar los catálogos y registros de la nube? Antes sólo se bajaban al ENTRAR: lo que otro aparato

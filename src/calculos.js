@@ -155,8 +155,37 @@ export function diasEntre(a, b) {
 /* ════════════ CRÉDITOS ════════════ */
 
 export function saldoCredito(cr) {
-  const abonado = sumarDinero((cr?.abonos || []).map(a => a.monto || 0));
+  // Un abono cancelado no se borra: se queda en el historial, tachado, y deja de contar.
+  const abonado = sumarDinero((cr?.abonos || []).filter(a => !estaCancelado(a)).map(a => a.monto || 0));
   return { abonado, saldo: sumarDinero(cr?.monto || 0, -abonado) };
+}
+
+// DOS APARATOS ABONANDO AL MISMO CRÉDITO. Los abonos viven dentro del crédito, así que el que subía al último pisaba
+// el abono del otro: dinero pagado que desaparecía del registro. Dos versiones del mismo crédito se UNEN: se conservan
+// los abonos de las dos (por su id), y si en alguna un abono está cancelado, queda cancelado (cancelar no se deshace
+// por llegar tarde). Los demás datos del crédito son los de la versión que gana.
+export function unirAbonos(a = [], b = []) {
+  const porId = new Map();
+  for (const ab of [...(a || []), ...(b || [])]) {
+    if (!ab || ab.id == null) continue;
+    const ya = porId.get(ab.id);
+    if (!ya || (estaCancelado(ab) && !estaCancelado(ya))) porId.set(ab.id, ab);
+  }
+  return [...porId.values()].sort((x, y) => String(x.fecha || "").localeCompare(String(y.fecha || "")) || String(x.id).localeCompare(String(y.id)));
+}
+export function unirCredito(gana, otro) {
+  if (!gana) return otro;
+  if (!otro) return gana;
+  const abonos = unirAbonos(gana.abonos, otro.abonos);
+  const unido = { ...gana, abonos };
+  return { ...unido, estado: saldoCredito(unido).saldo <= 0 ? "pagado" : "activo" };
+}
+// ¿A `a` le falta algo que `b` sí tiene? (un abono, o saber que uno se canceló)
+export function leFaltanAbonos(a, b) {
+  const de = (cr) => new Map((cr?.abonos || []).map(x => [x.id, estaCancelado(x)]));
+  const ma = de(a), mb = de(b);
+  for (const [id, cancelado] of mb) if (!ma.has(id) || (cancelado && !ma.get(id))) return true;
+  return false;
 }
 
 // Días que faltan para que venza (negativo = ya venció). null si no hay fecha.
