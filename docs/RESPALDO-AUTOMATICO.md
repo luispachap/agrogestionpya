@@ -1,114 +1,142 @@
 # Respaldo automático de AgroGestión
 
-**Estado (21 nov 2026): PREPARADO, SIN ESTRENAR.** Las herramientas están escritas y probadas contra bases y
-almacenes de imitación. **Todavía no se ha sacado un respaldo real ni se ha restaurado ninguno.** Mientras eso no
-pase, el riesgo de perder información por una falla de la base **sigue abierto**.
+**Estado (22 nov 2026): PREPARADO Y ENSAYADO EN LOCAL. SIN ESTRENAR CONTRA SUPABASE.**
+Todavía no existe un respaldo real de producción ni una restauración en un proyecto aislado de Supabase.
+**Mientras eso no pase, el riesgo sigue abierto y el respaldo no se considera terminado.**
 
-## Qué resuelve
+## Lo que te toca a ti, Luis (tres pasos, unos 10 minutos, nada por chat)
 
-El plan gratuito de Supabase no guarda copias de la base. Si el proyecto se daña o se pierde, hoy lo único que
-queda es el archivo que alguien haya bajado a mano desde la app y lo que guarde cada teléfono.
+1. **Crea un repositorio privado.** En github.com → «New repository» → nombre `agrogestion-respaldos` → **Private**
+   → marca «Add a README» → Create repository.
+2. **Ponle tres secretos.** En ese repositorio: Settings → Secrets and variables → Actions → «New repository secret».
 
-Con esto, cada noche (3:17 de la mañana) GitHub saca solo una copia completa y la guarda **cifrada** en un
-repositorio privado. No cuesta: GitHub da 2,000 minutos al mes a los repositorios privados y esto usa unos 3 por noche.
+   | Nombre (tal cual) | Qué va | De dónde sale |
+   |---|---|---|
+   | `CLAVE_RESPALDO` | Una frase larga que tú inventas (cinco o seis palabras) | De tu cabeza. **Apúntala en papel.** Sin ella el respaldo no se abre y nadie la puede recuperar. Que la conozca otra persona de confianza |
+   | `BASE_URL` | La dirección de conexión de la base, con su contraseña | Panel de Supabase → botón **Connect** → «Session pooler» → copiar, y cambiar `[YOUR-PASSWORD]` por la contraseña de la base. Si no la recuerdas: Database → Settings → «Reset database password» |
+   | `LLAVE_SERVICIO` | La llave secreta del proyecto | Panel de Supabase → Settings → API Keys → la que empieza con `sb_secret_` |
 
-| Qué se respalda | Cómo |
-|---|---|
-| Todos los datos, de todas las tablas | Copia completa de la base |
-| Las cuentas (correo y contraseña cifrada), perfiles y permisos otorgados | Van en la misma copia |
-| Reglas de acceso, candados, funciones, operaciones sensibles | Van en la misma copia |
-| Sellos de autorización (quién autorizó, cuándo) y su firma | Van en la misma copia, tal cual |
-| Fotos, comprobantes y archivos de las conversaciones | Cada noche sólo lo nuevo; lo borrado en producción **se conserva** |
+3. **Avísame** («ya está el repositorio»). Yo subo la configuración y corro el primer respaldo.
 
-Lo que **no** va en el respaldo y habría que volver a poner a mano en un proyecto nuevo: la llave de IA y los demás
-secretos de las funciones del servidor, la configuración del correo de invitaciones, y las funciones del servidor
-(éstas están en el repositorio de la app y se vuelven a desplegar).
+**Para el ensayo** (cuando el primer respaldo ya exista), dos pasos más:
+
+4. Crea un **segundo proyecto** en Supabase, gratuito, con un nombre que diga ENSAYO. Vacío, sin tocarle nada.
+5. En el mismo repositorio, dos secretos más: `DESTINO_BASE_URL` y `DESTINO_LLAVE_SERVICIO` (lo mismo que arriba, pero
+   del proyecto ENSAYO), y avísame con la clave de ese proyecto (lo que va antes de `.supabase.co`; no es secreto).
+
+Si al avisarme no puedo entrar al repositorio nuevo, te pediré un paso más: darle acceso a Claude a ese repositorio
+en la configuración de GitHub. No hay nada más que configurar.
+
+## Qué hace
+
+Cada noche (3:17 de la mañana) GitHub saca solo una copia completa y la guarda **cifrada** en ese repositorio
+privado. No cuesta: GitHub da 2,000 minutos al mes a los repositorios privados y esto usa unos 3 por noche.
+De paso, esa visita diaria evita que el plan gratuito de Supabase pause la base por falta de uso.
 
 Se conservan los últimos 30 días y el respaldo del día primero de cada mes.
 
-## Por qué en un repositorio aparte
+## Qué se recupera y qué no
 
-El repositorio de la app es **público** y su rama principal no se toca. Un respaldo —aunque vaya cifrado— no debe
-vivir en un lugar público, y GitHub sólo corre tareas programadas desde la rama principal. Por eso los respaldos
-van en un repositorio **privado** que sólo tiene dos archivos de configuración; las herramientas las toma de aquí
-(`herramientas/respaldo/`), así se corrigen en un solo lugar.
+| Qué | ¿Se recupera? | Cómo se comprobó |
+|---|---|---|
+| Todos los datos de todas las tablas | **Sí** | Cada tabla: mismos renglones, mismo contenido (ensayo local) |
+| Dinero: gastos, ingresos, caja, créditos con sus abonos, lo cancelado con su motivo | **Sí** | Comparado renglón por renglón |
+| **Autoría**: quién capturó cada evento, quién lo autorizó o rechazó, con qué perfil y cuándo | **Sí, sin cambios** | Comparado evento por evento; nada queda a nombre de quien restaura |
+| La firma de cada sello y la llave con que la base firma | **Sí** | En la copia, las firmas se siguen comprobando |
+| La bitácora | **Sí** | Comparada completa |
+| Las cuentas (correo y contraseña cifrada): cada quien entra con la misma contraseña | **Sí** | Comparadas |
+| Perfiles, permisos por perfil y permisos otorgados (con quién los otorgó) | **Sí** | Comparados |
+| Reglas de acceso, candados, funciones, operaciones sensibles | **Sí** | Las siete huellas de siempre, más dos nuevas |
+| Los permisos que se **quitaron** (funciones y tablas cerradas) | **Sí, con un paso propio** | Una copia normal NO los trae: ver «Lo que destapó el ensayo» |
+| Fotos, comprobantes y archivos de conversaciones | **Sí** | Cada archivo se vuelve a bajar de la copia y se compara byte por byte |
+| Archivos borrados en producción | **Sí, se conservan** | El respaldo nunca borra un archivo |
+| El nombre del espacio y la fecha de inicio declarada | **Sí** | Comparados; la copia sigue rechazando registros de otro espacio |
 
-## Lo que tiene que hacer Luis (una vez, unos 15 minutos)
+**Lo que NO se recupera del respaldo** y hay que volver a poner a mano en un proyecto nuevo:
 
-Nada de esto se manda por chat ni se escribe en ningún archivo: se pega directo en GitHub.
+- **Las sesiones abiertas.** Todos tienen que volver a entrar con su correo y contraseña (la contraseña es la misma).
+- **Los secretos de las funciones del servidor**: la llave de IA y su espacio de trabajo. Se vuelven a capturar.
+- **Las funciones del servidor** (lectura con IA, avisos): no van en el respaldo; están en el repositorio de la app
+  y se vuelven a desplegar.
+- **La configuración del correo** de invitaciones y de recuperación de contraseña, y las direcciones permitidas.
+- **Las suscripciones de avisos al teléfono**: la dirección a la que avisa la base apunta al proyecto de antes; hay
+  que cambiarla, y cada teléfono vuelve a aceptar los avisos.
+- **Quién subió cada archivo al almacén** (el dato interno del almacén): los archivos vuelven, pero subidos por la
+  restauración. Quién registró el comprobante sigue en el registro que lo usa.
+- **Lo capturado después del último respaldo** (hasta un día): no está en el respaldo. Sigue en los teléfonos que
+  lo capturaron: lo que tenían pendiente sube solo, y lo demás se recupera con «Elegir archivo de respaldo».
+- **Lo que un teléfono capturó sin señal y nunca subió**, si ese teléfono se pierde.
 
-1. **Crear el repositorio privado.** En github.com → «New repository» → nombre `agrogestion-respaldos` →
-   **Private** → marcar «Add a README» → Create.
-2. **Inventar la clave del respaldo.** Una frase larga (cinco o seis palabras sueltas). Apuntarla en papel y
-   guardarla donde se guardan las escrituras. **Sin esa frase el respaldo no se puede abrir, y nadie la puede
-   recuperar.** Que la conozca también otra persona de confianza.
-3. **Poner cuatro secretos** en ese repositorio (Settings → Secrets and variables → Actions → «New repository secret»):
+## Lo que destapó el ensayo local (y ya está corregido)
 
-   | Nombre | De dónde sale |
-   |---|---|
-   | `CLAVE_RESPALDO` | La frase del paso 2 |
-   | `BASE_URL` | Panel de Supabase → botón **Connect** → «Session pooler» → copiar la dirección y cambiar `[YOUR-PASSWORD]` por la contraseña de la base. Si no se recuerda: Database → Settings → «Reset database password» |
-   | `PROYECTO_URL` | `https://cidgbfddrzoilvkqhszg.supabase.co` |
-   | `LLAVE_SERVICIO` | Panel de Supabase → Settings → API Keys → la llave **secreta** (empieza con `sb_secret_`) |
+**Una copia normal de la base no restaura los permisos que se quitaron.** Un proyecto nuevo de Supabase le da de
+entrada a toda cuenta permiso de llamar cualquier función; la copia sólo dice «además dale permiso a…». Restaurada
+tal cual, la base quedaba con **todas sus funciones abiertas**, incluida la que firma los sellos de autorización.
+La restauración lo detectó sola (las huellas no coincidieron) y se negó a darse por buena.
 
-4. **Avisarme.** Yo subo los dos archivos de configuración a ese repositorio y corro el primer respaldo.
+Corregido: el respaldo guarda aparte quién puede llamar cada función y tocar cada tabla, y la restauración lo vuelve
+a aplicar al final. Las comprobaciones ahora incluyen esos permisos y tres intentos de llamar funciones cerradas.
 
-## El ensayo (sin esto no se declara resuelto)
+## El ensayo local (hecho el 22 nov): qué demuestra y qué no
 
-Un respaldo que nunca se ha restaurado es una suposición. El ensayo:
+`sh pruebas/respaldo_local/ensayo.sh` — 26 comprobaciones, todas pasan. Dos servidores de base de datos de
+verdad en esta máquina: en uno, un rancho inventado capturado por las puertas reales (cada cuenta con su sesión, la
+base sella y firma); el respaldo de la noche tal cual; la restauración en el otro, vacío.
 
-1. Luis crea un **segundo proyecto** en Supabase (gratuito; la organización permite dos), vacío, con cualquier nombre
-   que diga ENSAYO, y pone otros tres secretos en el repositorio de respaldos: `DESTINO_BASE_URL`,
-   `DESTINO_PROYECTO_URL` y `DESTINO_LLAVE_SERVICIO` (mismos pasos, del proyecto nuevo).
-2. Se corre «Restaurar un respaldo en otro proyecto». Se niega a correr contra producción y contra un proyecto que
-   ya tenga tablas.
-3. La restauración sola comprueba, y deja un informe:
-   - **Datos:** cada tabla tiene los mismos renglones, con el mismo contenido (huella de cada tabla).
-   - **Permisos e integridad:** las mismas reglas de acceso, funciones, permisos por perfil, operaciones sensibles,
-     puertas y candados (las siete huellas con que ya se compara producción contra la base de pruebas).
-   - **Cuentas:** las mismas, con sus perfiles y sus permisos otorgados.
-   - **Archivos:** cada foto y documento se vuelve a bajar de la copia y se compara contra el original.
-   - **Operaciones sensibles:** 30 intentos no autorizados contra la copia (sin sesión y con una cuenta sin perfil:
-     leer dinero, meter un gasto, meter un pago, tocar la bitácora, darse permisos). Tienen que rechazarse todos.
-4. Falta una cosa más que el informe no cubre y hay que ensayar a mano: **operar sobre la copia**. La base lleva
-   escrito de qué proyecto es (el candado del arranque limpio), así que para que la app trabaje contra el proyecto
-   nuevo hay que decirle a la base su nombre nuevo. Ese paso se ensaya en el mismo proyecto de ENSAYO, con una
-   copia de la app apuntada ahí, y se documenta aquí cuando esté hecho.
-5. Al terminar, el proyecto de ENSAYO se pausa o se borra (lo decide Luis).
+Demuestra: que el respaldo sale cifrado y completo; que no imprime llaves; que la restauración se niega contra
+producción, contra una base con tablas, contra el origen y con otra clave; que datos, autoría, permisos, cuentas y
+archivos vuelven idénticos; que los intentos no autorizados se rechazan en la copia; y que la copia opera.
+
+**No demuestra** (por eso no sustituye el ensayo real): que la herramienta oficial de Supabase saque la copia igual
+que su imitación local; que un proyecto nuevo de Supabase acepte la restauración sin tropiezos (versión de la base,
+extensiones, papeles propios de la plataforma); ni que el almacén real de archivos se comporte como la imitación.
+
+## El ensayo real (sin esto no se declara resuelto)
+
+1. Con el primer respaldo ya guardado, se corre «Restaurar un respaldo en otro proyecto» contra el proyecto ENSAYO.
+   Se niega a correr contra producción y contra un proyecto que ya tenga tablas.
+2. La restauración comprueba sola y deja un informe: datos de cada tabla, estructura y permisos (nueve huellas),
+   cuentas, cada archivo byte por byte, y 36 intentos no autorizados.
+3. Se comprueba aparte la autoría, igual que en el ensayo local.
+4. Se apunta una copia de la app al proyecto ENSAYO con el nombre de espacio de producción
+   (`VITE_ESPACIO_HEREDADO`) y se usa: entrar con la cuenta, ver lo restaurado, capturar algo.
+5. Se anota aquí lo que salió, y lo que no se pudo recuperar. El proyecto ENSAYO se pausa o se borra (lo decide Luis).
 
 ## Qué hacer si se pierde producción
 
-1. Crear un proyecto nuevo en Supabase y poner sus tres secretos `DESTINO_…`.
-2. Correr «Restaurar un respaldo en otro proyecto» con el día que se quiera.
-3. Hacer el paso 4 del ensayo, volver a desplegar las funciones del servidor y poner sus secretos.
-4. Apuntar la app al proyecto nuevo (dos variables en Vercel) y publicar.
-5. Lo capturado después del último respaldo sigue en los teléfonos que lo capturaron: al entrar, lo que tenían
-   pendiente sube; lo demás se recupera con «Elegir archivo de respaldo» desde el aparato que lo tenga.
+1. Crear un proyecto nuevo en Supabase y poner sus dos secretos `DESTINO_…`.
+2. Correr «Restaurar un respaldo en otro proyecto» con el día que se quiera. Tiene que terminar en verde.
+3. Volver a desplegar las funciones del servidor y capturar sus secretos; cambiar la dirección de los avisos.
+4. En Vercel: la dirección y la llave pública del proyecto nuevo, **y `VITE_ESPACIO_HEREDADO` con el nombre del
+   proyecto de antes**. Así la app trabaja sobre la copia sin reescribir ni un registro ni una firma, y los
+   teléfonos conservan lo que tenían guardado y pendiente. Publicar.
+5. Todos vuelven a entrar. Lo pendiente de cada teléfono sube solo.
 
-Se pierde, como máximo, lo de un día que ningún teléfono conserve.
+`VITE_ESPACIO_HEREDADO` sólo se pone en una recuperación de producción. Nunca en una vista previa ni en pruebas.
 
 ## Cómo sabré que dejó de funcionar
 
 - GitHub le manda un correo al dueño del repositorio cuando la tarea de la noche falla.
-- El archivo `ULTIMO.md` del repositorio de respaldos dice el día del último respaldo, cuántas tablas, renglones,
+- El archivo `ULTIMO.md` del repositorio de respaldos dice el día del último respaldo y cuántas tablas, renglones,
   cuentas y archivos llevó. Si esa fecha no es la de hoy o la de ayer, algo pasó.
-- Un respaldo incompleto **no se guarda**: si falta la tabla de cuentas, la de perfiles o las huellas, la tarea
-  falla en vez de guardar medio respaldo.
+- Un respaldo incompleto **no se guarda**: si falta la tabla de cuentas, la de perfiles, las huellas o los
+  permisos, la tarea falla en vez de guardar medio respaldo. Y antes de guardar comprueba que lo cifrado se abre.
 
 ## Seguridad
 
 - Las llaves viven sólo en los secretos de GitHub. Las herramientas no las imprimen; si algo falla, el mensaje
-  sale sin direcciones ni claves (hay prueba).
+  sale sin direcciones ni claves (hay prueba, y el ensayo lo revisa).
 - El respaldo sólo **lee** de producción.
 - Lo guardado va cifrado (AES-256). En el repositorio no se ve el contenido de la base ni el de las fotos, ni
   siquiera el nombre de cada archivo.
 - La copia lleva dentro las llaves internas de la base (la que firma los sellos y la de los avisos): por eso va
   cifrada y por eso el repositorio es privado.
+- Va en un repositorio aparte porque el de la app es **público** y su rama principal no se toca.
 
 ## Límites conocidos
 
 - GitHub guarda la historia: un respaldo «quitado» por viejo sigue ocupando espacio dentro del repositorio. Con el
   tamaño actual de la base no importa; se revisa cuando pase de 500 MB.
 - Si las fotos crecen mucho (más de 1 GB), habrá que mover los archivos a otro lugar. Hoy no hay ninguna.
-- Si la solución gratuita no pasa el ensayo, la alternativa es el plan de pago de Supabase (US$25 al mes), que
+- Si la solución gratuita no pasa el ensayo real, la alternativa es el plan de pago de Supabase (US$25 al mes), que
   trae copia diaria con 7 días. No se propone mientras ésta no falle.

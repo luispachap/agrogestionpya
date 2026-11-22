@@ -1,5 +1,6 @@
 -- LAS HUELLAS DE UNA BASE: con qué se comprueba que una copia restaurada es igual a la original.
--- Sólo lee. Se genera con las mismas consultas de pruebas/base/paridad.mjs (hay prueba de que no se separen).
+-- Sólo lee. Las siete primeras son las consultas de pruebas/base/paridad.mjs; además, quién puede tocar cada tabla
+-- y qué funciones puede llamar la llave de servicio (lo que una copia normal no restaura sola: ver privilegios.sql).
 --   estructura: reglas de acceso, funciones, tablas, permisos por perfil, operaciones sensibles, puertas y candados.
 --   datos:      cada tabla, con cuántos renglones tiene y la huella de todos ellos (sin importar el orden).
 --   archivos:   qué fotos y documentos hay en el almacén (su contenido se comprueba aparte, archivo por archivo).
@@ -19,6 +20,14 @@ union all
 select 'estructura' clase, 'puertas' nombre, count(*)::text n, coalesce(md5(string_agg(md5(x::text), '' order by md5(x::text) collate "C")), '') huella from (select p.proname||'|'||has_function_privilege('anon', p.oid, 'execute')||'|'||has_function_privilege('authenticated', p.oid, 'execute') x from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname <> 'rls_auto_enable') t
 union all
 select 'estructura' clase, 'candados' nombre, count(*)::text n, coalesce(md5(string_agg(md5(x::text), '' order by md5(x::text) collate "C")), '') huella from (select c.relname||'|'||tg.tgname||'|'||tg.tgenabled::text x from pg_trigger tg join pg_class c on c.oid=tg.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and not tg.tgisinternal) t
+union all
+select 'estructura' clase, 'llaves_de_tablas' nombre, count(*)::text n, coalesce(md5(string_agg(md5(x), '' order by md5(x) collate "C")), '') huella from (
+  select c.relname || '|' || r || '|' || priv || '|' || has_table_privilege(r, c.oid, priv) x
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace, unnest(array['anon', 'authenticated', 'service_role']) r, unnest(array['select', 'insert', 'update', 'delete']) priv
+   where n.nspname = 'public' and c.relkind = 'r') t
+union all
+select 'estructura' clase, 'puertas_de_servicio' nombre, count(*)::text n, coalesce(md5(string_agg(md5(x), '' order by md5(x) collate "C")), '') huella from (
+  select p.proname || '|' || has_function_privilege('service_role', p.oid, 'execute') x from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname <> 'rls_auto_enable') t
 union all
 select 'datos' clase, n.nspname||'.'||c.relname nombre,
   split_part(r.v, ':', 1) n, split_part(r.v, ':', 2) huella

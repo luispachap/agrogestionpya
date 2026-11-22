@@ -28,5 +28,6 @@ export const supabaseListo = !!(url && anonKey);
 // El ESPACIO: cada proyecto de la nube tiene su propio cajón en el teléfono.
 // La app de este proyecto nunca lee ni sube lo guardado para otro (ni lo de
 // cuando la app estaba a prueba). Ver src/espacio.js.
-export const ESPACIO = espacioDe(url);
+// (En una recuperación en otro proyecto, VITE_ESPACIO_HEREDADO conserva el nombre de antes. No es un secreto.)
+export const ESPACIO = espacioDe(url, import.meta.env.VITE_ESPACIO_HEREDADO);
 export const LLAVES = llavesDe(ESPACIO);

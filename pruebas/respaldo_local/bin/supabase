@@ -1,0 +1,13 @@
+#!/bin/sh
+# IMITACIÓN de «supabase db dump» para el ensayo LOCAL: hace lo que hace la herramienta de verdad (roles, esquema del
+# rancho, datos del rancho + cuentas + almacén), con pg_dump. La de verdad corre en GitHub; ésta sólo sirve aquí.
+[ "$1 $2" = "db dump" ] || { echo "imitación: sólo sabe «db dump»"; exit 2; }
+shift 2; url=""; sale=""; modo="esquema"
+while [ $# -gt 0 ]; do case "$1" in
+  --db-url) url=$2; shift 2 ;; -f) sale=$2; shift 2 ;; --role-only) modo="roles"; shift ;; --data-only) modo="datos"; shift ;;
+  --use-copy) shift ;; -x) shift 2 ;; *) shift ;; esac; done
+case "$modo" in
+  roles) echo "-- Los papeles de la plataforma (anon, authenticated, service_role) ya vienen en un proyecto nuevo." > "$sale" ;;
+  esquema) pg_dump "$url" --schema-only --schema=public --quote-all-identifiers | sed 's/^CREATE SCHEMA "public";/CREATE SCHEMA IF NOT EXISTS "public";/' > "$sale" ;;
+  datos) pg_dump "$url" --data-only --quote-all-identifiers -t 'public.*' -t auth.users -t storage.buckets -t storage.objects > "$sale" ;;
+esac

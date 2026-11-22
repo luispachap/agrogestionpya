@@ -80,3 +80,13 @@ test("el_respaldo_lleva_el_directorio_de_cuentas_sin_correos_para_saber_de_quien
   assert.equal(sobreDeRespaldo({}, "esp", "x")._respaldo.cuentas, undefined);
   assert.equal(revisarRespaldo(r, "esp").entra, true);
 });
+
+test("en_una_recuperacion_la_app_conserva_el_espacio_de_antes_aunque_la_direccion_sea_otra", () => {
+  assert.equal(espacioDe("https://proyectonuevo.supabase.co", "cidgbfddrzoilvkqhszg"), "cidgbfddrzoilvkqhszg");
+  // Sin nombre heredado, lo de siempre; y un nombre mal escrito no se usa.
+  assert.equal(espacioDe("https://proyectonuevo.supabase.co"), "proyectonuevo");
+  assert.equal(espacioDe("https://proyectonuevo.supabase.co", ""), "proyectonuevo");
+  assert.equal(espacioDe("https://proyectonuevo.supabase.co", "con espacios y ñ"), "proyectonuevo");
+  assert.equal(espacioDe("https://proyectonuevo.supabase.co", "local"), "proyectonuevo");
+  assert.equal(espacioDe("", "x"), "local");
+});

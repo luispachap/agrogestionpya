@@ -2,7 +2,8 @@
 -- Lo corre la restauración después de comparar las huellas: que las reglas sean las mismas no basta, hay que
 -- empujar la puerta. Todo va dentro de una transacción que se deshace: no queda ni un renglón.
 --   · sin sesión (sólo la llave pública) y con una cuenta que se registró sola, sin perfil;
---   · leer dinero y personal, meter un gasto, meter un pago, tocar y borrar la bitácora, darse un perfil.
+--   · leer dinero y personal, meter un gasto, meter un pago, tocar y borrar la bitácora, darse un perfil,
+--     y llamar funciones que deben estar cerradas (firmar sellos, apartar dinero de la IA).
 -- Si algo pasa, truena con la lista. Si todo se rechaza, avisa cuántos intentos hizo.
 begin;
 do $$
@@ -50,6 +51,20 @@ begin
         execute intento.sql;
         get diagnostics n = row_count;
         if n > 0 then pasaron := pasaron || format(' [%s %s: %s renglones]', quien, intento.que, n); end if;
+      exception when others then null;
+      end;
+    end loop;
+    -- Llamar funciones que deben estar cerradas: si la llamada ENTRA (aunque después se niegue sola), la puerta quedó abierta.
+    for intento in select * from (values
+      ('llama a la función que firma los sellos', 'public.firma_de_sello(text,text,text,jsonb,text,text,uuid,text,timestamptz,timestamptz)'),
+      ('llama a la función que aparta dinero de la IA', 'public.reservar_ia_mes'),
+      ('llama a la función que valida eventos', 'public.validar_evento()')
+    ) t(que, sql) loop
+      hechos := hechos + 1;
+      begin
+        if position('(' in intento.sql) > 0 then n := has_function_privilege(current_user, intento.sql, 'execute')::int;
+        else select count(*) into n from pg_proc p where p.oid::regproc::text in (intento.sql, split_part(intento.sql, '.', 2)) and has_function_privilege(current_user, p.oid, 'execute'); end if;
+        if n > 0 then pasaron := pasaron || format(' [%s %s]', quien, intento.que); end if;
       exception when others then null;
       end;
     end loop;

@@ -36,13 +36,15 @@ callado psql "$BASE_URL" -X -v ON_ERROR_STOP=1 -AtqF '|' -f "$AQUI/huellas.sql" 
 callado psql "$BASE_URL" -X -v ON_ERROR_STOP=1 -AtqF '|' -o "$TMP/lista.txt" -c \
   "select bucket_id, name, coalesce(updated_at, created_at)::text || '/' || coalesce(metadata->>'size', ''), coalesce(metadata->>'mimetype', '') from storage.objects order by 1, 2"
 callado psql "$BASE_URL" -X -v ON_ERROR_STOP=1 -Atq -o "$TMP/copia/version.txt" -c "select version()"
+# Los permisos que se QUITARON no van en una copia normal: se guardan aparte, como órdenes (ver privilegios.sql).
+callado psql "$BASE_URL" -X -v ON_ERROR_STOP=1 -Atq -f "$AQUI/privilegios.sql" -o "$TMP/copia/privilegios.sql"
 
 # Un respaldo vacío no es un respaldo: antes de guardar se revisa que traiga lo que tiene que traer.
-for f in roles.sql schema.sql data.sql huellas.txt; do
+for f in roles.sql schema.sql data.sql huellas.txt privilegios.sql; do
   [ -s "$TMP/copia/$f" ] || { echo "El respaldo salió incompleto: falta $f. No se guarda."; exit 1; }
 done
-grep -q 'COPY "public"."perfiles"' "$TMP/copia/data.sql" || { echo "El respaldo no trae la tabla de perfiles. No se guarda."; exit 1; }
-grep -q 'COPY "auth"."users"' "$TMP/copia/data.sql" || { echo "El respaldo no trae las cuentas. No se guarda."; exit 1; }
+grep -Eq 'COPY "?public"?\."?perfiles"?' "$TMP/copia/data.sql" || { echo "El respaldo no trae la tabla de perfiles. No se guarda."; exit 1; }
+grep -Eq 'COPY "?auth"?\."?users"?' "$TMP/copia/data.sql" || { echo "El respaldo no trae las cuentas. No se guarda."; exit 1; }
 grep -q '^estructura|reglas|' "$TMP/copia/huellas.txt" || { echo "Las huellas salieron incompletas. No se guarda."; exit 1; }
 
 echo "3/5 · Bajando las fotos y documentos nuevos…"

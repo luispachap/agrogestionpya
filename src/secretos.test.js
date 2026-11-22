@@ -17,7 +17,7 @@ test("C-2 · ninguna variable VITE_ con contraseña, correo, secreto o token", (
 test("C-2 · las únicas variables de entorno del cliente son la URL y la llave pública", () => {
   const vistas = new Set();
   for (const f of fuentes) for (const m of leer(f).matchAll(/import\.meta\.env\.(\w+)/g)) vistas.add(m[1]);
-  for (const v of vistas) assert.ok(["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "DEV", "PROD", "MODE", "BASE_URL"].includes(v), `variable no permitida: ${v}`);
+  for (const v of vistas) assert.ok(["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "VITE_ESPACIO_HEREDADO", "DEV", "PROD", "MODE", "BASE_URL"].includes(v), `variable no permitida: ${v}`);
 });
 test("C-1 · no queda ningún PIN de fábrica de dirección en el código", () => {
   const app = leer("App.jsx");

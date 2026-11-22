@@ -7,6 +7,9 @@ on:
       dia:
         description: "Día del respaldo (AAAA-MM-DD). Vacío = el más reciente"
         required: false
+      proyecto:
+        description: "Clave del proyecto NUEVO de Supabase (lo que va antes de .supabase.co)"
+        required: true
       confirmo:
         description: "Escribe: EN UN PROYECTO NUEVO Y VACIO"
         required: true
@@ -37,9 +40,11 @@ jobs:
       - name: Restaurar y comprobar
         env:
           DESTINO_BASE_URL: ${{ secrets.DESTINO_BASE_URL }}
-          DESTINO_PROYECTO_URL: ${{ secrets.DESTINO_PROYECTO_URL }}
+          PROYECTO_NUEVO: ${{ inputs.proyecto }}
           DESTINO_LLAVE_SERVICIO: ${{ secrets.DESTINO_LLAVE_SERVICIO }}
           CLAVE_RESPALDO: ${{ secrets.CLAVE_RESPALDO }}
           BASE_URL: ${{ secrets.BASE_URL }}
           DIA: ${{ inputs.dia }}
-        run: sh _app/herramientas/respaldo/restaurar.sh "$GITHUB_WORKSPACE" "$DIA"
+        run: |
+          case "$PROYECTO_NUEVO" in *[!a-z0-9]*|"") echo "La clave del proyecto sólo lleva letras minúsculas y números."; exit 2 ;; esac
+          DESTINO_PROYECTO_URL="https://$PROYECTO_NUEVO.supabase.co" sh _app/herramientas/respaldo/restaurar.sh "$GITHUB_WORKSPACE" "$DIA"

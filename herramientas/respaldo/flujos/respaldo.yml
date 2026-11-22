@@ -37,7 +37,7 @@ jobs:
       - name: Respaldar
         env:
           BASE_URL: ${{ secrets.BASE_URL }}
-          PROYECTO_URL: ${{ secrets.PROYECTO_URL }}
+          PROYECTO_URL: https://cidgbfddrzoilvkqhszg.supabase.co   # no es secreto: es la dirección pública del proyecto
           LLAVE_SERVICIO: ${{ secrets.LLAVE_SERVICIO }}
           CLAVE_RESPALDO: ${{ secrets.CLAVE_RESPALDO }}
         run: sh _app/herramientas/respaldo/respaldar.sh "$GITHUB_WORKSPACE"

@@ -21,7 +21,15 @@ export const LLAVES_ANTERIORES = ["agro_v7", "agro_pending_v7", "agro_fallidas_v
 
 // De la dirección del proyecto sale el nombre del espacio:
 //   https://abcdefgh.supabase.co → "abcdefgh".  Sin nube configurada → "local".
-export function espacioDe(url) {
+//   RECUPERACIÓN: si la base de producción se pierde y se restaura su respaldo en OTRO proyecto, esa base sigue
+//   siendo del espacio de antes (lo lleva escrito, y cada registro y cada firma también). Para que la app trabaje
+//   sobre la copia SIN reescribir nada, se le dice el nombre heredado (`VITE_ESPACIO_HEREDADO`, en Vercel): entonces
+//   usa ése aunque la dirección sea otra, y los teléfonos conservan su cajón y lo que tenían pendiente de subir.
+//   Sólo se pone en una recuperación de producción. Nunca en una vista previa ni en un proyecto de pruebas: sería
+//   abrirle a datos de prueba la puerta de la operación.
+export function espacioDe(url, heredado = "") {
+  const h = String(heredado || "").trim().toLowerCase();
+  if (/^[a-z0-9-]{3,}$/.test(h) && h !== "local" && h !== "sin-configurar") return h;
   const m = /^https?:\/\/([a-z0-9-]+)/i.exec(String(url || ""));
   const nombre = m ? m[1].toLowerCase() : "";
   return !nombre || nombre === "sin-configurar" ? "local" : nombre;

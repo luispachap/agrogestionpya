@@ -41,12 +41,14 @@ printf '%s' "$CLAVE_RESPALDO" > "$TMP/clave"; chmod 600 "$TMP/clave"
 gpg --batch --quiet --yes --pinentry-mode loopback --passphrase-file "$TMP/clave" --decrypt "$SALE/base/$DIA.tar.gz.gpg" | tar -xzf - -C "$TMP/copia" \
   || { echo "No se pudo abrir: la clave no es la misma con que se guardó."; exit 1; }
 
+[ -s "$TMP/copia/privilegios.sql" ] || { echo "Este respaldo no trae sus permisos (es de antes del 22 nov). No se restaura a medias."; exit 1; }
 echo "3/6 · Restaurando cuentas, reglas y datos…"
 # Igual que lo indica Supabase: todo o nada, y con los candados dormidos mientras entran los datos tal como estaban
 # (así nada se vuelve a sellar ni a firmar: lo restaurado conserva quién lo hizo, quién lo autorizó y cuándo).
 callado psql --single-transaction --variable ON_ERROR_STOP=1 -X \
   --file "$TMP/copia/roles.sql" --file "$TMP/copia/schema.sql" \
   --command 'SET session_replication_role = replica' --file "$TMP/copia/data.sql" \
+  --command 'SET session_replication_role = origin' --file "$TMP/copia/privilegios.sql" \
   --dbname "$DESTINO_BASE_URL"
 
 echo "4/6 · Subiendo las fotos y documentos…"

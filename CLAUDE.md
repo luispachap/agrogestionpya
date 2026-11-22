@@ -808,7 +808,14 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   un repositorio PRIVADO aparte (este es público) y toma de aquí sus herramientas. `respaldar.sh` sólo lee;
   `restaurar.sh` se niega contra producción y contra un proyecto con tablas, y comprueba con `huellas.sql`
   (estructura + cada tabla), `archivos.mjs comprobar` y `ataques.sql`. **No se declara resuelto hasta el ensayo real.**
-  `huellas.sql` se genera de las consultas de `pruebas/base/paridad.mjs`: si cambian, se vuelve a generar.
+  Las siete primeras huellas son las consultas de `pruebas/base/paridad.mjs`: si cambian, se cambian en los dos.
+  **Una copia normal no trae los permisos que se QUITARON** (un proyecto nuevo abre toda función a toda cuenta):
+  `privilegios.sql` los guarda como órdenes y `restaurar.sh` los reaplica; lo encontró el ensayo local
+  (`sh pruebas/respaldo_local/ensayo.sh`, 26 comprobaciones, dos servidores PostgreSQL de verdad, herramienta de copia
+  imitada). **Recuperar en otro proyecto no reescribe nada**: la app usa `VITE_ESPACIO_HEREDADO` (el espacio de antes)
+  — sólo en una recuperación de producción, nunca en pruebas ni vistas previas.
+- **Banco, Socios y ¿Alcanza? NO son del encargado** (Luis, 22 nov; hoja 54 instalada): fuera de su menú y de sus
+  pantallas, y la base le niega `estados_cuenta`, `titulares`, `bolsas` y `aportaciones`. No se los regreses.
 
 ## Cómo verificar tu trabajo
 
