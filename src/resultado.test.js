@@ -80,3 +80,39 @@ test("un_gasto_capturado_a_una_parcela_es_costo_de_produccion_y_no_gasto_general
   assert.equal(de("gastos_parcela"), 800); assert.equal(de("gastos"), 1500);
   assert.equal(r.costos, 800); assert.equal(r.gastos, 1500); assert.equal(r.utilidad, 7700);
 });
+
+// ── La misma compra, capturada en Inventario Y pagada de la caja (o en Finanzas), no sale dos veces ──
+import { gastosDeLaMismaCompra, ligarEntradaAGasto, comprasQuizaDobles } from "./resultado.js";
+test("la_urea_pagada_de_la_caja_y_metida_al_almacen_sale_una_sola_vez_del_flujo", () => {
+  const entrada = { id: "x1", fecha: "2026-11-19", insumoId: "urea", cantidad: 10, costo_total: 5000 };
+  const gasto = { id: "eg-cc1", fecha: "2026-11-19", monto: 5000, categoria: "insumos", destinoInsumo: "inventario", concepto: "Urea", cajachicaId: "cc1" };
+  const doble = flujoDeEfectivo({ egresos: [gasto], entradas_inv: [entrada] });
+  assert.equal(doble.egresos, 10000, "sin decir nada son dos compras: no se adivina");
+  const mismas = gastosDeLaMismaCompra(entrada, { egresos: [gasto], entradas_inv: [entrada] });
+  assert.deepEqual(mismas.map(g => g.id), ["eg-cc1"]);
+  const r = ligarEntradaAGasto(entrada, gasto, { id: "u1", nombre: "Luis" }, "2026-11-19");
+  assert.equal(r.ok, true); assert.equal(r.entrada.egresoId, "eg-cc1"); assert.equal(r.entrada.ligadoPor.nombre, "Luis"); assert.equal(r.egreso.entradaInvId, "x1");
+  const una = flujoDeEfectivo({ egresos: [r.egreso], entradas_inv: [r.entrada] });
+  assert.equal(una.egresos, 5000);
+  assert.equal(resultadoDelRancho({ egresos: [r.egreso], entradas_inv: [r.entrada] }).inventario.comprado, 5000);
+  assert.equal(comprasQuizaDobles({ egresos: [r.egreso], entradas_inv: [r.entrada] }).length, 0, "ya ligada, deja de avisar");
+  assert.equal(ligarEntradaAGasto(r.entrada, gasto).ok, false, "no se liga dos veces");
+});
+test("solo_se_propone_el_gasto_que_de_verdad_puede_ser_la_misma_compra", () => {
+  const entrada = { id: "x1", fecha: "2026-11-19", costo_total: 5000 };
+  const eg = (id, mas) => ({ id, fecha: "2026-11-19", monto: 5000, categoria: "insumos", destinoInsumo: "inventario", ...mas });
+  const prop = (egresos, entradas = [entrada]) => gastosDeLaMismaCompra(entrada, { egresos, entradas_inv: entradas }).map(g => g.id);
+  assert.deepEqual(prop([eg("a", { monto: 5000.5 })]), [], "otro importe");
+  assert.deepEqual(prop([eg("a", { fecha: "2026-11-25" })]), [], "seis días después");
+  assert.deepEqual(prop([eg("a", { fecha: "2026-11-22" })]), ["a"], "a tres días sí");
+  assert.deepEqual(prop([eg("a", { cancelado: { motivo: "duplicado" } })]), [], "un gasto cancelado no");
+  assert.deepEqual(prop([eg("a", { solicitudId: "s1" })]), [], "el que nació con su propia entrada no");
+  assert.deepEqual(prop([eg("a", { destinoInsumo: "produccion" })]), [], "lo usado directo en producción no pasó por el almacén");
+  assert.deepEqual(prop([eg("a", { categoria: "servicios", destinoInsumo: undefined })]), [], "la luz no es una compra de almacén");
+  assert.deepEqual(prop([eg("a", { destinoInsumo: undefined })]), ["a"], "un gasto de insumos que nadie ha clasificado sí se propone");
+  assert.deepEqual(prop([eg("a")], [entrada, { id: "x2", fecha: "2026-11-19", costo_total: 5000, yaEsEgreso: true, egresoId: "a" }]), [], "ese gasto ya es de otra entrada");
+  assert.deepEqual(gastosDeLaMismaCompra({ id: "x3", fecha: "2026-11-19" }, { egresos: [eg("a")] }), [], "una entrada sin costo no es dinero");
+  assert.deepEqual(gastosDeLaMismaCompra({ ...entrada, yaEsEgreso: true }, { egresos: [eg("a")] }), [], "la ya ligada no se vuelve a proponer");
+  const sinClasificar = ligarEntradaAGasto(entrada, eg("a", { destinoInsumo: undefined }));
+  assert.equal(claseDeInsumo(sinClasificar.egreso), "inventario", "al ligarlo queda dicho que entró al almacén");
+});

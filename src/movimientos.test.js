@@ -435,3 +435,35 @@ test("si_al_recibir_ya_se_sabe_el_precio_entra_valuada_de_una_vez", () => {
   const e = est([r.evento], [HILO]);
   assert.equal(e.porValuar.length, 0); assert.equal(e.promedios.get("i-x"), 48); assert.equal(e.recibidas[0].valor, 480);
 });
+
+// ── Auditoría del almacén (22 nov): lo que una compra posterior no debe cambiar ──
+test("una_merma_vale_lo_que_costaba_el_dia_que_paso_aunque_despues_se_compre_mas_caro", () => {
+  const BULTO = { id: "i-b", nombre: "Bulto", unidad: "bulto", existencia: 0, costo_unit: 0 };
+  const e1 = entrada({ articulo: BULTO, cantidad: 10, costoUnit: 500, quien: ADMIN, cuando: c("08:00"), fecha: D, azar: az() }).evento;
+  const m = merma({ articulo: BULTO, cantidad: 1, causa: "merma", quien: ENC, cuando: c("09:00"), fecha: D, azar: az() }).evento;
+  const k = contar({ articulo: BULTO, contado: 8, existencia: 9, causa: "robo", quien: ADMIN, cuando: c("10:00"), fecha: D, azar: az() }).evento;
+  const antes = resumenDeAjustes(est([e1, m, k], [BULTO]), conExistenciaReal([BULTO], est([e1, m, k], [BULTO])));
+  assert.equal(antes.faltante, 1000, "una merma y un faltante de un bulto de $500");
+  const e2 = entrada({ articulo: BULTO, cantidad: 8, costoUnit: 900, quien: ADMIN, cuando: c("12:00"), fecha: D, azar: az() }).evento;
+  const s = est([e1, m, k, e2], [BULTO]); const inv = conExistenciaReal([BULTO], s);
+  assert.equal(inv[0].costo_unit, 700, "el promedio de hoy ya es $700");
+  assert.equal(resumenDeAjustes(s, inv).faltante, 1000, "y lo que se perdió en la mañana sigue valiendo $1,000, no $1,400");
+});
+test("el_inventario_vale_lo_comprado_menos_lo_usado_sin_centavos_de_mas_ni_de_menos", () => {
+  const BULTO = { id: "i-b", nombre: "Bulto", unidad: "bulto", existencia: 0, costo_unit: 0 };
+  const evs = [entrada({ articulo: BULTO, cantidad: 5, costoUnit: 500, quien: ADMIN, cuando: c("08:00"), fecha: D, azar: az() }).evento,
+    entrada({ articulo: BULTO, cantidad: 4, costoUnit: 600, quien: ADMIN, cuando: c("09:00"), fecha: D, azar: az() }).evento];
+  assert.equal(valorDelInventario(est(evs, [BULTO]), [BULTO]).valor, 4900, "9 bultos a $544.444…: $4,900, no $4,899.96");
+});
+test("lo_recibido_sin_precio_no_se_valua_al_promedio_de_lo_demas_hasta_que_alguien_le_pone_precio", () => {
+  const BULTO = { id: "i-b", nombre: "Bulto", unidad: "bulto", existencia: 0, costo_unit: 0 };
+  const e1 = entrada({ articulo: BULTO, cantidad: 9, costoUnit: 500, quien: ADMIN, cuando: c("08:00"), fecha: D, azar: az() }).evento;
+  const compra = { id: "co1", estado: "aprobada", descripcion: "Dos bultos", monto: 1300, items: [{ nombre: "Bulto", insumoId: "i-b", cantidad: 2 }] };
+  const r = recibirCompra({ compra, i: 0, articulo: BULTO, cantidad: 2, quien: ENC, cuando: c("10:00"), fecha: D }); assert.ok(r.ok, r.dice);
+  const s = est([e1, r.evento], [BULTO]);
+  assert.equal(existenciasDe(BULTO, s).lugares[NAVE], 11, "ya están en el estante");
+  assert.equal(valorDelInventario(s, [BULTO]).valor, 4500, "valen los 9 que tienen precio; los 2 nuevos están por valuar");
+  assert.equal(valorDelInventario(s, [BULTO]).porValuar.length, 1);
+  const v = valuar({ entrada: s.porValuar[0], costoUnit: 600, quien: ADMIN, cuando: c("11:00"), fecha: D }); assert.ok(v.ok, v.dice);
+  assert.equal(valorDelInventario(est([e1, r.evento, v.evento], [BULTO]), [BULTO]).valor, 5700, "con precio: $4,500 + $1,200");
+});

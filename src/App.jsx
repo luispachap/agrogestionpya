@@ -55,7 +55,7 @@ import { CLASES_DE_CLAVE, catalogoDeClaves, listaDeClaves, aprenderClave, relaci
 import { fuentesPorDia, cotejar } from "./cotejo.js";
 import MapaAgricola from "./Mapa.jsx";
 import { limitesDe, conPoligonos } from "./mapa.js";
-import { resultadoDelRancho, flujoDeEfectivo, NOMBRE_DE_FLUJO, DESTINOS_DE_INSUMO, insumosPorClasificar } from "./resultado.js";
+import { resultadoDelRancho, flujoDeEfectivo, NOMBRE_DE_FLUJO, DESTINOS_DE_INSUMO, insumosPorClasificar, gastosDeLaMismaCompra, ligarEntradaAGasto, comprasQuizaDobles } from "./resultado.js";
 import { leerCorridaViva, guardarCorridaViva, borrarCorridaViva } from "./corridaViva.js";
 import { CLASES_DE_SALIDA, ORDEN_DE_CLASES, nombreDeClase, claseDeSalida, revisarSalida, egresoDeCaja, estadoDeSalida, pendientesDeCaja, eventosParaLigar, revisarLiga, saldoDeCaja } from "./caja.js";
 // El resultado y el flujo del rancho: TODAS las pantallas los sacan de aquí, para que digan lo mismo.
@@ -96,7 +96,7 @@ import {
 import {
   costoDeSalida, valeDeSalida, clasificarAjuste, resumenMermas,
   compararConteo, loQueFaltaContar, CAUSAS_MERMA, DESTINOS_SALIDA,
-  costoAFinanzas,
+  costoAFinanzas, revisarArticulo,
 } from "./almacen.js";
 // La siembra, medida mientras pasa. El rancho es MÁS AGRÍCOLA que ganadero.
 import { avanceDeSiembra, revisarRecarga, rendimiento, compararRendimientos, alcanzaLaSemilla } from "./siembra.js";
@@ -7765,7 +7765,8 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
       resueltos.forEach(o => {
         const col = Array.isArray(next[o.sec]) ? next[o.sec] : [];
         if (o.tipo === "add") {
-          next[o.sec] = [...col, o.item];
+          // Mismo identificador = el mismo registro: no se agrega dos veces.
+          next[o.sec] = col.some(x => x.id === o.item.id) ? col.map(x => x.id === o.item.id ? o.item : x) : [...col, o.item];
         } else { // upd
           next[o.sec] = col.some(x => x.id === o.item.id) ? col.map(x => x.id === o.item.id ? o.item : x) : [...col, o.item];
         }
@@ -8044,7 +8045,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "dron" && <RecorridoDron data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "eldia" && <ElDia data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "proveedores" && <AdminProveedores data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} onBack={() => setPage("contabilidad")} />}
-              {page === "inventario" && <AdminInventario data={data} add={add} upd={upd} del={del} setInv={setInv} />}
+              {page === "inventario" && <AdminInventario data={data} add={add} upd={upd} del={del} setInv={setInv} session={session} />}
               {page === "equipo" && <AdminEquipo data={data} add={add} upd={upd} del={del} session={session} onBack={() => setPage("home")} />}
               {page === "aprobacion-externos" && <AprobacionExternos data={data} upd={upd} onBack={() => setPage("home")} />}
               {page === "parcelas" && <AdminParcelas data={data} add={add} upd={upd} del={del} onBack={() => setPage("home")} />}
@@ -11290,8 +11291,9 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
 }
 
 /* ════════════ ADMIN INVENTARIO ════════════ */
-function AdminInventario({ data, add, upd, del, setInv }) {
+function AdminInventario({ data, add, upd, del, setInv, session = {} }) {
   const [tab, setTab] = useState("stock");
+  const [diceAlta, setDiceAlta] = useState("");
   const [showF, setShowF] = useState(false);
   const [showE, setShowE] = useState(false);
   const [editItem, setEditItem] = useState(null);
@@ -11360,7 +11362,8 @@ function AdminInventario({ data, add, upd, del, setInv }) {
                 )}
               </>
             )}
-            <button className="btn btn-accent" onClick={() => { add("inventario", { ...form, id: `i${Date.now()}` }); setShowF(false); setForm({ nombre: "", cat: "nutricion", unidad: "kg", existencia: 0, costo_unit: 0, minimo: 0, emoji: "🌱", tipoAgro: "", ingredienteActivo: "", paraQueSirve: "", dosisRec: "", unidadDosis: "kg/ha", intervaloSeguridad: "" }); }}>Guardar</button>
+            {diceAlta && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{diceAlta}</div>}
+            <button className="btn btn-accent" onClick={() => { const r = revisarArticulo(form, data.inventario); if (!r.ok) { setDiceAlta(r.dice); return; } setDiceAlta(""); add("inventario", { ...form, nombre: r.nombre, unidad: r.unidad, id: `i${Date.now()}` }); setShowF(false); setForm({ nombre: "", cat: "nutricion", unidad: "kg", existencia: 0, costo_unit: 0, minimo: 0, emoji: "🌱", tipoAgro: "", ingredienteActivo: "", paraQueSirve: "", dosisRec: "", unidadDosis: "kg/ha", intervaloSeguridad: "" }); }}>Guardar</button>
           </div>
         </div>
       )}
@@ -11380,7 +11383,10 @@ function AdminInventario({ data, add, upd, del, setInv }) {
             <button className="btn btn-accent" onClick={() => {
               if (!ent.insumoId || !ent.cantidad) return;
               setInv(ent.insumoId, parseFloat(ent.cantidad) || 0, null, { fecha: ent.fecha, concepto: `Entrada${ent.proveedor ? ` de ${ent.proveedor}` : ""}`, costoUnit: (parseFloat(ent.costo_total) || 0) > 0 ? (parseFloat(ent.costo_total) || 0) / (parseFloat(ent.cantidad) || 1) : null });
-              add("entradas_inv", { ...ent, id: `ei${Date.now()}`, cantidad: parseFloat(ent.cantidad) || 0, costo_total: parseFloat(ent.costo_total) || 0 });
+              const nuevaEnt = { ...ent, id: `ei${Date.now()}`, cantidad: parseFloat(ent.cantidad) || 0, costo_total: parseFloat(ent.costo_total) || 0 };
+              add("entradas_inv", nuevaEnt);
+              // Si ya hay un gasto por ese mismo importe en esos días, se enseña la lista de entradas: ahí se pregunta si es la misma compra.
+              if (gastosDeLaMismaCompra(nuevaEnt, { egresos: data.egresos || [], entradas_inv: data.entradas_inv || [] }).length) setTab("entradas");
               setShowE(false); setEnt({ insumoId: "", cantidad: "", proveedor: "", costo_total: "", factura: "", fecha: today() });
             }}>Registrar Entrada</button>
           </div>
@@ -11475,8 +11481,11 @@ function AdminInventario({ data, add, upd, del, setInv }) {
           // creer que costaron cero, cuando lo que pasa es que no son dinero.
           const importe = costoAFinanzas(e);
           const conDinero = importe > 0;
+          const mismas = gastosDeLaMismaCompra(e, { egresos: data.egresos || [], entradas_inv: data.entradas_inv || [] });
+          const suGasto = e.egresoId ? (data.egresos || []).find(x => x.id === e.egresoId) : null;
+          const esLaMisma = (g) => { const r = ligarEntradaAGasto(e, g, { id: session.id, nombre: session.nombre || "" }, today()); if (!r.ok) return; upd("entradas_inv", r.entrada); upd("egresos", r.egreso); };
           return (
-            <div key={e.id} className="list-item">
+            <div key={e.id} className="list-item" style={{ flexWrap: "wrap" }}>
               <div className="li-icon"><Ic e={e.esConteo ? "📋" : (inv?.emoji || "📦")} /></div>
               <div className="li-body">
                 <div className="li-title">{inv?.nombre || e.nombre || "Insumo"}</div>
@@ -11494,6 +11503,11 @@ function AdminInventario({ data, add, upd, del, setInv }) {
                   </div>
                 )}
               </div>
+              {suGasto && <div className="text-xs text-muted" style={{ flexBasis: "100%", marginTop: 4 }}>Es la misma compra que el gasto «{suGasto.concepto}» del {suGasto.fecha}: el dinero se cuenta una vez{e.ligadoPor?.nombre ? ` (lo dijo ${e.ligadoPor.nombre})` : ""}.</div>}
+              {mismas.length > 0 && <div style={{ flexBasis: "100%", marginTop: 6 }}>
+                <div className="text-xs" style={{ color: "var(--gold)" }}>Parece la misma compra que {mismas.length === 1 ? "un gasto ya capturado" : "alguno de estos gastos"}. Si lo es, dilo: así el dinero no sale dos veces en el flujo. Si son dos compras distintas, no hagas nada.</div>
+                {mismas.map(g => <div key={g.id} className="flex-b" style={{ marginTop: 4, gap: 8 }}><span className="text-xs">{g.concepto} · {g.fecha} · {fmt(g.monto)}{g.cajachicaId ? " · de caja chica" : ""}</span><button className="btn btn-outline btn-sm" style={{ flex: "0 0 auto" }} aria-label={`Es la misma compra que ${g.concepto}`} onClick={() => esLaMisma(g)}>Es la misma compra</button></div>)}
+              </div>}
             </div>
           );
         })}
@@ -13428,6 +13442,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
               <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Comprar no es gastar: lo comprado está aquí hasta que se usa, y entonces pasa a los costos de arriba. Utilidad, inventario y flujo de efectivo son tres cifras distintas.</div>
               <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">Lo que hay hoy, a su costo promedio</span><span className="text-sm font-bold">{fmt(resultado.inventario.valor)}</span></div>
               <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">Comprado para el almacén (ya salió del flujo, no es gasto)</span><span className="text-sm">{fmt(resultado.inventario.comprado)}</span></div>
+              {(() => { const q = comprasQuizaDobles({ egresos: data.egresos || [], entradas_inv: data.entradas_inv || [] }); return q.length > 0 && <div className="text-xs" style={{ color: "var(--gold)", padding: "4px 0" }}>{q.length} entrada(s) del almacén coinciden en importe y fecha con un gasto ya capturado: puede ser la misma compra contada dos veces. Se revisa en Inventario → Entradas.{onNav && <> <button className="btn btn-outline btn-sm" onClick={() => onNav("inventario")}>Ir a Inventario</button></>}</div>; })()}
               {resultado.inventario.porValuar > 0 && <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm" style={{ color: "var(--gold)" }}>Compras del personal pendientes de recibir o de valuar<div className="text-xs">todavía no son gasto ni inventario: falta confirmar que llegaron o su precio</div></span><span className="text-sm">{fmt(resultado.inventario.porValuar)}</span></div>}
               {resultado.inventario.sinValor.length > 0 && <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>Hay {resultado.inventario.sinValor.length} artículo(s) con existencia y sin precio ({resultado.inventario.sinValor.slice(0, 4).map(x => `${fmtN(x.cantidad)} ${x.unidad || ""} de ${x.articulo}`).join(", ")}). No valen cero: no se sabe cuánto valen, y no están en la cifra de arriba.</div>}
             </div>
@@ -19177,40 +19192,42 @@ function ConfirmarCompraModal({ solicitud, data, add, upd, setInv, aplicarLote, 
     if (guardando) return;
     setGuardando(true);
 
-    // Armar TODAS las operaciones en un solo lote (un solo re-render).
+    // Armar las operaciones de catálogo y de dinero en un solo lote (un solo re-render).
+    // LA EXISTENCIA NO SE ESCRIBE: lo que llegó entra como un MOVIMIENTO del almacén, con su costo, igual que una entrada
+    // capturada en Inventario. (Antes aquí se le escribía al artículo la existencia y el costo promedio ya calculados:
+    // lo que entraba no subía la existencia y el costo de lo ya consumido cambiaba hacia atrás.)
+    // Los identificadores salen de la solicitud y del renglón: registrar la misma compra desde dos teléfonos es el
+    // mismo gasto, la misma entrada y el mismo movimiento, no dos.
     const ops = [];
-    const ts = Date.now();
+    const movimientos = [];
+    const ahora = new Date().toISOString(), quien = quienDe(session);
     lineas.forEach((l, idx) => {
       const cant = parseFloat(l.cantidad) || 0;
       const costo = parseFloat(l.costoTotal) || 0;
       let insumoId = l.insumoId;
-      let nombreInsumo = "";
+      let articulo = null;
 
       if (insumoId === "__nuevo__") {
-        insumoId = `inv${ts}_${idx}`;
-        nombreInsumo = l.nombreNuevo.trim();
-        ops.push({ tipo: "add", sec: "inventario", item: {
-          id: insumoId, nombre: nombreInsumo, cat: l.cat, unidad: l.unidad,
-          existencia: cant, costo_unit: cant > 0 ? costo / cant : 0, minimo: 0, emoji: "🧪",
-        }});
+        insumoId = `inv-sol-${solicitud.id}-${idx}`;
+        articulo = { id: insumoId, nombre: l.nombreNuevo.trim(), cat: l.cat, unidad: l.unidad, existencia: 0, costo_unit: 0, minimo: 0, emoji: "🧪" };
+        ops.push({ tipo: "add", sec: "inventario", item: articulo });
       } else {
-        const inv = (data.inventario || []).find(i => i.id === insumoId);
-        if (!inv) return;
-        nombreInsumo = inv.nombre;
-        const nuevaExist = (inv.existencia || 0) + cant;
-        const nuevoCostoProm = nuevaExist > 0 ? ((inv.existencia || 0) * (inv.costo_unit || 0) + costo) / nuevaExist : 0;
-        ops.push({ tipo: "upd", sec: "inventario", item: { ...inv, existencia: nuevaExist, costo_unit: nuevoCostoProm } });
+        articulo = (data.inventario || []).find(i => i.id === insumoId);
+        if (!articulo) return;
       }
+      const nombreInsumo = articulo.nombre;
+      const ev = movimientoDeSiempre({ articulo, delta: cant, movimiento: { concepto: `Compra de la solicitud${proveedor ? ` · ${proveedor}` : ""}`, costoUnit: costo > 0 ? costo / cant : null, ref: solicitud.id }, quien, cuando: instanteDe(fecha, today(), ahora), fecha });
+      if (ev) movimientos.push({ ...ev, id: `alm_entrada-solicitud-${solicitud.id}-${idx}`, capturado: ahora });
 
       if (costo > 0) {
         ops.push({ tipo: "add", sec: "egresos", item: {
-          id: `e${ts}_${idx}`, fecha, concepto: `Compra: ${nombreInsumo}`, categoria: "insumos", destinoInsumo: "inventario",
+          id: `eg-sol-${solicitud.id}-${idx}`, fecha, concepto: `Compra: ${nombreInsumo}`, categoria: "insumos", destinoInsumo: "inventario",
           monto: costo, proveedor, solicitudId: solicitud.id,
           registradoPor: { rol: session.role, id: session.id, nombre: session.nombre || "" },
         }});
       }
       ops.push({ tipo: "add", sec: "entradas_inv", item: {
-        id: `ei${ts}_${idx}`, fecha, insumoId, cantidad: cant, costo_total: costo, proveedor, factura: "",
+        id: `ei-sol-${solicitud.id}-${idx}`, fecha, insumoId, cantidad: cant, costo_total: costo, proveedor, factura: "",
         concepto: "Compra desde solicitud",
         // Arriba ya se escribio el egreso con este importe. Sin esta marca, la
         // compra se cuenta dos veces en todos los totales.
@@ -19226,6 +19243,7 @@ function ConfirmarCompraModal({ solicitud, data, add, upd, setInv, aplicarLote, 
 
     // Aplicar TODO de una vez (un solo render, sin bloqueo)
     aplicarLote(ops);
+    movimientos.forEach(ev => add("eventos", ev));
 
     alert("Compra registrada: los productos entraron al inventario y el gasto quedó en finanzas.");
     onHecho && onHecho();

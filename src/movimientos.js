@@ -209,12 +209,12 @@ export function estadoDelAlmacen(eventos, inventario = []) {
     if (e.tipo === T.costo) { prom.set(d.articuloId, d.costoUnit); continue; }
     if (e.tipo === T.retiro) { saca(e, d.articuloId, d.de || NAVE, d.cantidad); abre(e, d.cantidad, d.recibe, null); continue; }
     if (e.tipo === T.transferencia) { saca(e, d.articuloId, d.de, d.cantidad); mueve(d.articuloId, d.a, d.cantidad); continue; }
-    if (e.tipo === T.merma) { mueve(d.articuloId, d.lugar || NAVE, d.delta); ajustes.push({ ev: e.id, clase: "merma", articuloId: d.articuloId, articulo: d.articulo, unidad: d.unidad, lugar: d.lugar || NAVE, diferencia: d.delta, causa: d.causa, nota: d.nota || "", fecha: e.fecha, quien: e.quien?.nombre || "" }); continue; }
+    if (e.tipo === T.merma) { mueve(d.articuloId, d.lugar || NAVE, d.delta); ajustes.push({ ev: e.id, clase: "merma", articuloId: d.articuloId, articulo: d.articulo, unidad: d.unidad, lugar: d.lugar || NAVE, diferencia: d.delta, causa: d.causa, nota: d.nota || "", fecha: e.fecha, quien: e.quien?.nombre || "", costoEntonces: prom.get(d.articuloId) ?? null }); continue; }
     if (e.tipo === T.conteo) {
       const lugar = d.lugar || NAVE; const calculado = hay(d.articuloId, lugar); const dif = r3(d.contado - calculado);
       de(d.articuloId).set(lugar, d.contado);
       conteos.push({ ev: e.id, articuloId: d.articuloId, lugar, fecha: e.fecha, cuando: e.cuando, contado: d.contado, quien: e.quien?.nombre || "" });
-      if (dif !== 0) ajustes.push({ ev: e.id, clase: "conteo", articuloId: d.articuloId, articulo: d.articulo, unidad: d.unidad, lugar, diferencia: dif, calculado, contado: d.contado, causa: d.causa || "no_se_sabe", nota: d.nota || "", fecha: e.fecha, quien: e.quien?.nombre || "",
+      if (dif !== 0) ajustes.push({ ev: e.id, clase: "conteo", articuloId: d.articuloId, articulo: d.articulo, unidad: d.unidad, lugar, diferencia: dif, calculado, contado: d.contado, causa: d.causa || "no_se_sabe", nota: d.nota || "", fecha: e.fecha, quien: e.quien?.nombre || "", costoEntonces: prom.get(d.articuloId) ?? null,
         // Quien contó vio otra diferencia: después llegó un movimiento de otro aparato. La causa que puso era para aquélla.
         cambio: d.diferenciaVista != null && r3(d.diferenciaVista) !== dif ? { vista: d.diferenciaVista } : null, sinCausa: !d.causa, resuelta: resueltas.get(e.id) || null });
       continue;
@@ -444,9 +444,12 @@ export function actividadesDeAlmacen(consumos) {
   }));
 }
 // Las mermas y ajustes, valuados. "No se sabe" va aparte: es la que hay que bajar.
+// Cada una vale lo que costaba el artículo EL DÍA QUE PASÓ (`costoEntonces`), igual que un consumo. Valuarlas al costo
+// de hoy hacía que una compra posterior, más cara o más barata, le cambiara el importe a una merma de hace meses — y
+// con él, el resultado de un mes ya visto. Sólo si ese día no había costo se usa el del catálogo.
 export function resumenDeAjustes(estado, inventario, { desde, hasta } = {}) {
   const costo = new Map((inventario || []).map(a => [a.id, Number(a.costo_unit) || 0]));
-  const lista = estado.ajustes.filter(a => a.causa !== "inicial" && (!desde || a.fecha >= desde) && (!hasta || a.fecha <= hasta)).map(a => ({ ...a, valor: multiplicarDinero(costo.get(a.articuloId) || 0, Math.abs(a.diferencia)) }));
+  const lista = estado.ajustes.filter(a => a.causa !== "inicial" && (!desde || a.fecha >= desde) && (!hasta || a.fecha <= hasta)).map(a => ({ ...a, valor: multiplicarDinero(a.costoEntonces > 0 ? a.costoEntonces : (costo.get(a.articuloId) || 0), Math.abs(a.diferencia)) }));
   const porCausa = {}; for (const a of lista.filter(x => x.diferencia < 0)) porCausa[a.causa] = sumarDinero(porCausa[a.causa] || 0, a.valor);
   return { lista, porCausa, faltante: sumarDinero(Object.values(porCausa)), sinSaber: sumarDinero(porCausa.no_se_sabe || 0, porCausa["no se sabe"] || 0), sobrantes: lista.filter(x => x.diferencia > 0) };
 }
@@ -502,7 +505,10 @@ export function valorDelInventario(estado, inventario = []) {
     let n = 0; for (const x of (estado.saldos.get(a.id) || new Map()).values()) n += x; for (const l of estado.lotes) if (l.articuloId === a.id && !l.herramienta) n += l.saldo;
     if (!(n > 0)) continue;
     const c = estado.promedios.get(a.id);
-    if (c > 0) valor = sumarDinero(valor, multiplicarDinero(c, n)); else sinValor.push({ articuloId: a.id, articulo: a.nombre, unidad: a.unidad, cantidad: r3(n), porValuar: (estado.porValuar || []).some(p => p.articuloId === a.id) });
+    // Lo recibido SIN precio no se valúa al promedio de lo demás: está pendiente de valoración (va en `porValuar`), y
+    // valuarlo aquí lo enseñaba dos veces. Y el promedio no se redondea antes de multiplicar: 9 a $544.444 son $4,900.
+    const sinPrecio = Math.min(n, (estado.porValuar || []).filter(p => p.articuloId === a.id).reduce((t, p) => t + (Number(p.cantidad) || 0), 0));
+    if (c > 0) valor = sumarDinero(valor, Math.round(c * (n - sinPrecio) * 100) / 100); else sinValor.push({ articuloId: a.id, articulo: a.nombre, unidad: a.unidad, cantidad: r3(n), porValuar: (estado.porValuar || []).some(p => p.articuloId === a.id) });
   }
   return { valor, sinValor, porValuar: estado.porValuar || [] };
 }

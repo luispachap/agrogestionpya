@@ -229,3 +229,14 @@ test("sin_entradas_da_cero_sin_truenar", () => {
   assert.equal(loQueEntroCuesta(null).total, 0);
   assert.equal(costoAFinanzas(null), 0);
 });
+
+import { revisarArticulo } from "./almacen.js";
+test("un_articulo_sin_nombre_o_repetido_no_se_da_de_alta", () => {
+  assert.equal(revisarArticulo({ nombre: "  ", unidad: "kg" }, []).ok, false);
+  assert.equal(revisarArticulo({ nombre: "Urea", unidad: "" }, []).ok, false);
+  const r = revisarArticulo({ nombre: " Urea ", unidad: " bulto " }, []);
+  assert.deepEqual([r.ok, r.nombre, r.unidad], [true, "Urea", "bulto"]);
+  const rep = revisarArticulo({ nombre: "UREÁ  46", unidad: "kg" }, [{ id: "i1", nombre: "urea 46" }]);
+  assert.equal(rep.ok, false); assert.match(rep.dice, /urea 46/);
+  assert.equal(revisarArticulo({ id: "i1", nombre: "Urea 46", unidad: "kg" }, [{ id: "i1", nombre: "urea 46" }]).ok, true, "editar el mismo artículo no choca consigo");
+});

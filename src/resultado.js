@@ -52,6 +52,29 @@ export function claseDeInsumo(e) {
   return "por_clasificar";
 }
 export const esCompraDeAlmacen = (e) => claseDeInsumo(e) === "inventario";
+// LA MISMA COMPRA NO SALE DOS VECES DEL FLUJO. Una entrada con costo capturada en Inventario cuenta, ella sola, como
+// dinero que salió. Si esa compra además está como gasto de insumos (pagada de la caja chica o capturada en Finanzas),
+// el mismo dinero salía dos veces y «lo comprado para el almacén» se inflaba. No se adivina: se PROPONE el gasto que
+// coincide (mismo importe, a tres días o menos, que no sea ya de otra entrada) y una persona dice «es la misma».
+// Dos compras distintas del mismo importe también coinciden: por eso no se liga solo.
+const diasDe = (a, b) => Math.abs((new Date(`${a}T12:00:00Z`) - new Date(`${b}T12:00:00Z`)) / 86400000);
+export function gastosDeLaMismaCompra(entrada, { egresos = [], entradas_inv = [] } = {}) {
+  const m = costoAFinanzas(entrada); if (!(m > 0) || !entrada?.fecha) return [];
+  const tomados = new Set(entradas_inv.filter(x => x && x.egresoId && x.id !== entrada.id).map(x => x.egresoId));
+  return vivos(egresos).filter(e => ["inventario", "por_clasificar"].includes(claseDeInsumo(e)) && !e.solicitudId && !e.entradaInvId && !tomados.has(e.id)
+    && Math.abs(n(e.monto) - m) < 0.005 && e.fecha && diasDe(e.fecha, entrada.fecha) <= 3);
+}
+// Decir «es la misma»: la entrada deja de contar como dinero aparte (cuenta el gasto) y el gasto queda como compra de
+// almacén, apuntándose uno al otro. Devuelve los dos registros como hay que guardarlos; no toca existencias ni costos.
+export function ligarEntradaAGasto(entrada, egreso, quien = {}, fecha = "") {
+  if (!entrada?.id || !egreso?.id) return { ok: false, dice: "Falta la entrada o el gasto." };
+  if (entrada.yaEsEgreso) return { ok: false, dice: "Esa entrada ya está ligada a un gasto." };
+  const por = { id: quien.id || "", nombre: quien.nombre || "", fecha };
+  return { ok: true, entrada: { ...entrada, yaEsEgreso: true, egresoId: egreso.id, ligadoPor: por },
+    egreso: { ...egreso, destinoInsumo: "inventario", entradaInvId: entrada.id } };
+}
+// Las entradas que todavía tienen un gasto con el que podrían ser la misma compra (para avisar donde se lee el dinero).
+export const comprasQuizaDobles = ({ egresos = [], entradas_inv = [] } = {}) => entradas_inv.filter(e => gastosDeLaMismaCompra(e, { egresos, entradas_inv }).length > 0);
 export const insumosPorClasificar = (egresos = []) => vivos(egresos).filter(e => claseDeInsumo(e) === "por_clasificar");
 
 //   actividades   las que cuentan (`actividadesContables`)

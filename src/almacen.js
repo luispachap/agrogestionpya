@@ -274,3 +274,15 @@ export function loQueEntroCuesta(entradas) {
       : `${sinCosto.length} entrada(s) a la bodega no tienen costo capturado, así que este total va corto. No es que hayan costado cero.`,
   };
 }
+
+// Dar de alta un artículo: sin nombre no se puede encontrar ni contar, y dos artículos con el mismo nombre parten la
+// existencia en dos sin que nadie lo note (lo que entra a uno no sale del otro).
+const igualNombre = (a) => String(a || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+export function revisarArticulo(form, inventario = []) {
+  const nombre = String(form?.nombre || "").trim();
+  if (!nombre) return { ok: false, dice: "Falta el nombre del artículo." };
+  if (!String(form?.unidad || "").trim()) return { ok: false, dice: "Falta la unidad (kg, L, bulto, pieza…)." };
+  const otro = (inventario || []).find(a => a.id !== form.id && igualNombre(a.nombre) === igualNombre(nombre));
+  if (otro) return { ok: false, dice: `Ya hay un artículo que se llama ${otro.nombre}. Si es el mismo, regístrale una entrada en vez de darlo de alta otra vez.` };
+  return { ok: true, nombre, unidad: String(form.unidad).trim() };
+}
