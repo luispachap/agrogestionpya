@@ -459,3 +459,12 @@ aparte quién ordenó, capturó, ejecutó y confirmó (sin inventar a nadie; lo 
 cubre las 25 actividades que ya ofrecía alguna pantalla, bodega incluida; umbral para sugerir por actividad; requisito
 legal con fundamento y vigencia. Diseñados (sin construir): confirmación de tareas, importación selectiva de libretas,
 consulta del trabajador. Recomendaciones, restricciones y facultades: sin tocar. **Sin publicar** hasta que Luis lo diga.
+
+**Cierre de la versión 1.0 (21 nov, noche) — `ENTREGA-1.0.md` y `OPERACION-1.0.md`:** funcionalidades nuevas congeladas.
+Recorrido de entrega de un día completo con cuentas (`entrega`, 62) y prueba sin señal sobre la versión compilada
+(`sinsenal`, 10). Destapó y se corrigieron 5 fallas P0 y 6 P1 (cola sin reintento con mala señal, respaldo que
+descontaba dos veces y no subía, borrado masivo heredado, app en blanco sin señal, función de la base distinta al
+repositorio; lo de otros aparatos sólo al entrar, plan duplicado, alta sin revisar PIN, sueldo «estimado», salir
+colgado, sesión con PIN abierta). Producción comparada contra la base de pruebas: 7 huellas iguales.
+**Veredicto: NO LISTO todavía** — falta publicar (pide autorización), que entren las cuentas y el personal, y la prueba
+de 12 pasos en teléfonos reales. **Probado:** 1,221 de cálculo, 116 de base, 36 recorridos. **Sin validar en campo: todo.**

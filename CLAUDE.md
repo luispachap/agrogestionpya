@@ -753,6 +753,36 @@ tendencia ("la calidad bajó de 95% a 88%, ibas a ritmo alto") pero **nunca orde
 "sube el ritmo". Su criterio de experto ve cosas que la app no. Si la app manda y
 se equivoca, pierde la confianza de todos.
 
+## Cierre de la versión 1.0 (21 nov) — lo que quedó y no se rompe
+
+Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo y la prueba de campo: `docs/OPERACION-1.0.md`.
+**Funcionalidades nuevas congeladas** hasta que la 1.0 opere: sólo se corrige P0 y P1.
+
+- **`pruebas/entrega_navegador.py` es LA prueba de entrega**: un día completo con cuentas contra una nube de imitación
+  que guarda y devuelve (`pruebas/apoyo/nube_entera.py`): alta → checar → plan → reparto → cambio → incidencia →
+  compra y aplicación → sin señal → cierre → pagos → salir, recargar, aparato nuevo → todas las pantallas de todos los
+  perfiles → respaldo y restauración. Si cambias sincronización, sesión, almacén o pagos, corre ésta. En esa prueba el
+  trabajador de servicio va bloqueado (Playwright no intercepta lo que él pide); lo suyo lo prueba `sinsenal_navegador.py`
+  contra la versión compilada.
+- **La cola reintenta sola** cada 30 s mientras haya algo (`CADA_CUANTO_REINTENTAR_MS`), y una falla de RED no gasta
+  intentos (`esFallaDeRed`): sólo un rechazo de la base cuenta para apartar un registro.
+- **Lo de otros aparatos se vuelve a bajar** cada 5 min con la app a la vista y al regresar a ella (`tocaBajar`), no sólo
+  al entrar. Los eventos siguen cada 2 min.
+- **`public/sw.js`**: guarda desde la instalación lo necesario para arrancar (lee las piezas de la portada); `/assets/`
+  es caché primero; la portada es red con límite de 4 s; la portada se guarda AL FINAL, después de sus piezas. Si lo
+  tocas, corre `sinsenal`.
+- **Alta de personal**: `revisarAlta` (nombre, sueldo, PIN de 4 a 8 números y que no lo tenga nadie más; también al
+  editar la ficha) y `sueldoDeAlta` (el sueldo vale desde el día del alta). **Mandar una tarea** no la repite (`yaMandada`).
+- **Teléfono compartido**: la sesión con PIN de trabajador, cuadrilla o externo se cierra sola a los 5 min sin tocar
+  (`debeCerrarse`); nunca la del encargado ni la de quien entró con cuenta. `cerrarSesion` no espera sin límite
+  (`conLimite`): sin señal también se sale.
+- **Respaldo**: lleva SÓLO lo capturado (`soloLoCapturado` sobre `rawData`), nunca lo calculado. Restaurar reemplaza el
+  aparato Y vuelve a subir todo con `subirColeccion` (mismo id: no duplica). **Ya no existe «Reiniciar datos»** ni poner
+  el inventario en cero: no los vuelvas a poner. Otra base = `herramientas/respaldo-a-otro-espacio.mjs`.
+- **Producción = lo probado**: `node pruebas/base/paridad.mjs --consulta` da las huellas de la base de pruebas y la
+  consulta de sólo lectura para producción. Deben coincidir las siete. Después de instalar una hoja, vuelve a compararlas.
+- Ya no hay aviso de «PINs de fábrica»: no existen. No lo regreses.
+
 ## Cómo verificar tu trabajo
 
 Después de **cada** cambio en `App.jsx`, en este orden:
