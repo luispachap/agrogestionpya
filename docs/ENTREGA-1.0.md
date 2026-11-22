@@ -1,5 +1,7 @@
 # AgroGestión 1.0 — tablero de cierre
 
+> **Las cifras y estados vigentes NO están aquí.** La única fuente del estado de la versión 1.0 (módulos aprobados, defectos, pendientes y lo publicado) es `docs/ESTADO.json`, de donde se generan `docs/AUDITORIA-FUNCIONAL.md` y el tablero de cierre. Este documento se conserva como acta de su fecha; si algo aquí contradice a esos, vale lo de allá.
+
 Corte: sábado 21 de noviembre de 2026, noche. Fecha objetivo de entrega: lunes 23.
 La guía para operar está en `docs/OPERACION-1.0.md`.
 

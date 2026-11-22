@@ -1,5 +1,7 @@
 # Tablero de avance — AgroGestión P&A
 
+> **Las cifras y estados vigentes NO están aquí.** La única fuente del estado de la versión 1.0 (módulos aprobados, defectos, pendientes y lo publicado) es `docs/ESTADO.json`, de donde se generan `docs/AUDITORIA-FUNCIONAL.md` y el tablero de cierre. Este documento se conserva como acta de su fecha; si algo aquí contradice a esos, vale lo de allá.
+
 Actualizado: 19 nov 2026 · Rama de trabajo: `produccion/base-vigente` · Rama de emergencia: `emergencia/p0-contencion`
 
 **El plan y el estado de la infraestructura nueva están en `docs/RUTA.md`.** Este tablero lleva el detalle por asunto.

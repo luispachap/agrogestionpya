@@ -1,0 +1,253 @@
+<title>Cierre AgroGestión 1.0</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Tablero de cierre: el veredicto arriba, lo que falta para cambiarlo, y debajo la evidencia módulo por módulo. */
+:root {
+  --bg: #f6f7f3; --sup: #ffffff; --tinta: #1c2420; --suave: #5b665f; --raya: #dfe3da;
+  --ajo: #6a4c82; --ajo-suave: #efe9f4;
+  --bien: #1f7a4d; --bien-f: #e3f3ea; --ojo: #96650a; --ojo-f: #fbf0d6; --mal: #b3312c; --mal-f: #fbe6e4;
+  --tit: "Space Grotesk", "Segoe UI", system-ui, sans-serif; --txt: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121613; --sup: #1a201c; --tinta: #e8ece6; --suave: #a0aaa2; --raya: #2c342e;
+  --ajo: #c3a6dc; --ajo-suave: #2a2233;
+  --bien: #6fd19c; --bien-f: #16301f; --ojo: #e8bd5c; --ojo-f: #33290f; --mal: #f08a84; --mal-f: #3a1917; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121613; --sup: #1a201c; --tinta: #e8ece6; --suave: #a0aaa2; --raya: #2c342e;
+  --ajo: #c3a6dc; --ajo-suave: #2a2233;
+  --bien: #6fd19c; --bien-f: #16301f; --ojo: #e8bd5c; --ojo-f: #33290f; --mal: #f08a84; --mal-f: #3a1917; color-scheme: dark }
+body { background: var(--bg); color: var(--tinta); font-family: var(--txt); font-size: 15px; line-height: 1.55; }
+.hoja { max-width: 1040px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 36px; }
+h1, h2, h3 { font-family: var(--tit); text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: 1.05rem; font-weight: 600; color: var(--suave); letter-spacing: .01em; }
+h2 { font-size: 1.35rem; font-weight: 600; }
+h3 { font-size: 1rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+.corte { color: var(--suave); font-size: .85rem; }
+.veredicto { background: var(--sup); border: 1px solid var(--raya); border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.sello { display: inline-flex; align-items: center; gap: 10px; align-self: flex-start; background: var(--mal-f); color: var(--mal); font-family: var(--tit); font-weight: 700; font-size: 1.7rem; padding: 6px 16px; border-radius: 10px; letter-spacing: .01em; }
+.sello small { font-size: .95rem; font-weight: 600; }
+.razones { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.razones div { border-top: 3px solid var(--mal); padding-top: 10px; min-width: 0; }
+.razones b { display: block; font-family: var(--tit); margin-bottom: 2px; }
+.razones span { color: var(--suave); font-size: .92rem; }
+.pasos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; counter-reset: paso; }
+.pasos li { counter-increment: paso; background: var(--ajo-suave); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.pasos li::before { content: counter(paso); font-family: var(--tit); font-weight: 700; color: var(--ajo); font-size: 1.4rem; display: block; line-height: 1; margin-bottom: 6px; }
+.pasos b { display: block; }
+.pasos span { color: var(--suave); font-size: .92rem; }
+.dos { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.dos > div { background: var(--sup); border: 1px solid var(--raya); border-radius: 12px; padding: 16px; min-width: 0; }
+.dos h3 { margin-bottom: 4px; } .dos .si h3 { color: var(--bien); } .dos .no h3 { color: var(--ojo); }
+.cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.cifras div { background: var(--sup); border: 1px solid var(--raya); border-radius: 12px; padding: 14px; min-width: 0; }
+.cifras b { font-family: var(--tit); font-size: 1.5rem; font-variant-numeric: tabular-nums; display: block; line-height: 1.1; }
+.cifras span { color: var(--suave); font-size: .85rem; }
+section { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.tabla { overflow-x: auto; background: var(--sup); border: 1px solid var(--raya); border-radius: 12px; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; min-width: 720px; }
+th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); font-weight: 600; padding: 10px 12px; border-bottom: 1px solid var(--raya); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--raya); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .82rem; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+.p { display: inline-block; font-family: var(--tit); font-weight: 700; font-size: .78rem; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+.pA, .ok { background: var(--bien-f); color: var(--bien); } .pB, .aviso { background: var(--ojo-f); color: var(--ojo); } .pC, .falla { background: var(--mal-f); color: var(--mal); }
+.clases { display: flex; flex-wrap: wrap; gap: 10px 22px; font-size: .9rem; color: var(--suave); }
+.clases span b { color: var(--tinta); }
+ul.lista { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 6px; max-width: 78ch; }
+.pie { color: var(--suave); font-size: .85rem; }
+.gris { background: var(--bg); color: var(--suave); }
+.nota { color: var(--suave); font-size: .85rem; margin-top: 3px; }
+ol.lista { margin: 0; padding-left: 1.4em; display: flex; flex-direction: column; gap: 6px; max-width: 78ch; }
+.dos ul.lista { font-size: .92rem; }
+</style>
+
+<div class="hoja">
+  <header style="display:flex;flex-direction:column;gap:6px">
+    <h1>AgroGestión 1.0 · tablero de cierre</h1>
+    <div class="corte">Corte: domingo 22 de noviembre de 2026 · 11 módulos aprobados, 14 en parte y 42 sin verificar, de 67 · 26 defectos encontrados, 23 corregidos, todos publicados</div>
+  </header>
+
+  <div class="veredicto">
+    <div class="sello">NO LISTO <small>como sistema completo · listo para prueba de campo en la operación diaria</small></div>
+    <p>Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).</p>
+    <div class="razones"><div><b>No hay un respaldo real todavía</b><span>La copia de cada noche está preparada y ensayada en local. Falta el primer respaldo real y restaurarlo en un proyecto aislado. Hasta entonces no conviene capturar dinero real como registro definitivo.</span></div><div><b>Nada se ha probado en el rancho</b><span>Todo es con datos inventados y teléfonos imitados: señal, cámara, impresora y correo reales no se pueden imitar.</span></div><div><b>La auditoría módulo por módulo no ha terminado</b><span>Cada recorrido completo ha destapado defectos de dinero o de control. Faltan los módulos que el inventario marca en parte o sin verificar.</span></div></div>
+  </div>
+
+  <section>
+    <h2>Qué lo vuelve LISTO</h2>
+    <ol class="pasos"><li><b>Respaldo real</b><span>Luis crea el repositorio privado y sus tres secretos (docs/RESPALDO-AUTOMATICO.md). Después se corre el primer respaldo y se restaura en un proyecto aislado.</span></li><li><b>Prueba de campo</b><span>Una hora, en los teléfonos de verdad, con la guía docs/PRUEBA-DEL-DOMINGO.md.</span></li><li><b>Terminar la auditoría</b><span>Recorrer como persona cada módulo que falta, corregir lo que salga y volver a probar.</span></li><li><b>Criterio de Miguel, Fito y Dirección</b><span>Organización, jornada y especialidades esperan su validación; no es una decisión técnica.</span></li></ol>
+    <div class="dos">
+      <div class="si"><h3>Lo que sí se puede hacer ya, como prueba de campo</h3><ul class="lista"><li>Dar de alta al personal y las parcelas reales</li><li>Checar, mandar el plan, repartir, cambiar y cerrar la jornada</li><li>Registrar incidencias y aplicaciones</li><li>Ver lo que corresponde pagar</li></ul></div>
+      <div class="no"><h3>Lo que todavía no</h3><ul class="lista"><li>Capturar dinero real como registro definitivo (hasta tener respaldo real)</li><li>Dar por bueno un módulo que diga NO VERIFICADO</li><li>Confiar en un teléfono sin haber hecho en él la prueba de campo</li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Auditoría funcional: usar cada módulo como una persona</h2>
+    <p>Un módulo sólo se aprueba así: capturar datos realistas desde un teléfono imitado, comprobar la cifra en pantalla y en lo guardado, recargar, cancelar, verlo en otro aparato, quitarle la señal a uno y entrar con otros perfiles. Que abra, o que sus pruebas de cálculo pasen, no cuenta.</p>
+    <div class="cifras">
+      <div><b>11</b><span>aprobados: Ajo terminado, Finanzas, Movimientos, Caja chica, Deudas, Inventario, Conteo y mermas, Solicitudes de compra, Registrar compra, Proveedores, Bitácora</span></div>
+      <div><b>14</b><span>en parte: Aplicaciones, Corrida de ajo, Estibas, Salida de camión, Consignaciones, Comercialización, Entregas del almacén, Mis compras, Equipo, Personal, Equipos de trabajo, Cuadrillas, Checador, Pagos al personal</span></div>
+      <div><b>42</b><span>sin verificar con este criterio; de ellos, 29 sólo se sabe que abren</span></div>
+      <div><b>26</b><span>defectos encontrados al usarlos: 23 corregidos y vueltos a probar y publicados, 3 abiertos</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Pruebas ejecutadas sobre la versión vigente</h2>
+    <div class="tabla"><table><thead><tr><th>Qué</th><th>Con qué</th><th>Resultado</th></tr></thead><tbody>
+      <tr><td>Reglas y cálculos</td><td><code>npm test</code></td><td class="n">1,272 de 1,272</td></tr>
+      <tr><td>La base, armada desde cero y atacada por perfil</td><td><code>npm run test:base</code></td><td class="n">156 de 156</td></tr>
+      <tr><td>Respaldo y restauración, de punta a punta en local</td><td><code>sh pruebas/respaldo_local/ensayo.sh</code></td><td class="n">26 de 26</td></tr>
+      <tr><td>Todo junto: lo anterior, compilación y 37 recorridos en navegador</td><td><code>sh pruebas/todo.sh</code></td><td class="n">Todo pasa (sobre la versión publicada)</td></tr>
+      <tr><td>Entregas del almacén con dos teléfonos (recorrido agregado después de publicar; no cambia la app)</td><td><code>pruebas/auditoria_entregas_navegador.py</code></td><td class="n">13 de 13</td></tr>
+      <tr><td>Producción cerrada sin sesión</td><td><code>pruebas/real_sin_sesion.py</code></td><td class="n">6 de 6</td></tr>
+      <tr><td>El sitio publicado, en Android y iPhone imitados</td><td><code>pruebas/real_sitio.py</code></td><td class="n">18 de 18</td></tr>
+      <tr><td>Lo publicado es exactamente lo probado, byte por byte</td><td><code>pruebas/real_identico.py</code></td><td class="n">18 de 18 archivos idénticos</td></tr>
+      <tr><td>Producción igual a la base probada</td><td><code>node pruebas/base/paridad.mjs --consulta</code></td><td class="n">7 huellas iguales (última hoja instalada: 55)</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section>
+    <h2>Qué está publicado y qué no</h2>
+    <div class="tabla"><table><thead><tr><th>Qué</th><th>Estado</th><th>Detalle</th></tr></thead><tbody>
+      <tr><td>La app en app.agroselectos.com</td><td><span class="p ok">Publicado</span></td><td>Versión <code>c5c244f</code>, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio.</td></tr>
+      <tr><td>Las correcciones del almacén: la compra de una solicitud entra como movimiento; la misma compra no sale dos veces; aplicar no es dinero que sale; mermas al costo de su día; lo recibido sin precio; alta de artículos</td><td><span class="p ok">Publicado</span></td><td>22 de noviembre, autorizado por Luis.</td></tr>
+      <tr><td>Integridad histórica de costos e identidad única: costo guardado al capturar, identificadores que no se repiten entre teléfonos, quién capturó cada registro, aviso de capturas repetidas</td><td><span class="p ok">Publicado</span></td><td>22 de noviembre, en la misma publicación.</td></tr>
+      <tr><td>Bodega: corrida que no se pierde al salir, ventas sin dinero fuera del flujo, ajuste de ajo terminado con motivo</td><td><span class="p ok">Publicado</span></td><td>22 de noviembre.</td></tr>
+      <tr><td>Caja chica (clases de salida), abonos a créditos (cancelar en vez de borrar, flujo, dos teléfonos)</td><td><span class="p ok">Publicado</span></td><td>22 de noviembre.</td></tr>
+      <tr><td>Banco, Socios y ¿Alcanza? fuera del perfil de encargado</td><td><span class="p ok">Instalado en la base</span></td><td>Hoja 54 en la base y publicado en la app.</td></tr>
+      <tr><td>Banco y Socios: Finanzas sólo con permiso otorgado, y sólo consulta</td><td><span class="p ok">Instalado en la base</span></td><td>Hoja 55 en la base; el permiso ya se puede otorgar desde la app. No se le otorgó a nadie.</td></tr>
+      <tr><td>Restaurar conserva quién autorizó y cuándo; nadie puede inventar una autorización</td><td><span class="p ok">Instalado en la base</span></td><td>Hoja 53 en la base y publicado.</td></tr>
+      <tr><td>Respaldo automático de cada noche</td><td><span class="p aviso">Sin estrenar</span></td><td>Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis).</td></tr>
+      <tr><td>Permiso para configurar la organización</td><td><span class="p aviso">Sin otorgar</span></td><td>Lo otorga el administrador a su propia cuenta.</td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section>
+    <h2>Defectos encontrados al usar los módulos</h2>
+    <div class="tabla"><table><thead><tr><th>#</th><th>Módulo</th><th>Qué pasaba</th><th>Nivel</th><th>Estado</th></tr></thead><tbody>
+      <tr><td class="n">1</td><td>Caja chica</td><td>Un gasto de caja sin parcela no llegaba a Resultados ni al flujo</td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">2</td><td>Caja chica</td><td>Toda salida era gasto; ahora dice qué fue (siete clases, política de Luis)</td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">3</td><td>Caja chica</td><td>Se podía cambiar el importe o borrar el movimiento sin rastro</td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">4</td><td>Caja chica</td><td>Cancelar un movimiento dejaba vivo su gasto ligado</td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">5</td><td>Finanzas</td><td>Un gasto de una parcela salía entre los gastos generales</td><td><span class="p gris">P2</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">6</td><td>Proveedores, Deudas</td><td>Un abono a un crédito se podía BORRAR con un toque, sin motivo</td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">7</td><td>Deudas</td><td>Los abonos capturados en Deudas no salían en el flujo de efectivo</td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">8</td><td>Proveedores, Deudas</td><td>Dos teléfonos abonando al mismo crédito, uno sin señal: se perdía un abono</td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">9</td><td>Banco, Socios</td><td>El encargado podía ver y capturar estados de cuenta y la cuenta entre socios</td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">10</td><td>Finanzas</td><td>Una venta cobrada en especie o a cuenta de una deuda se contaba como dinero que entró</td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">11</td><td>Corrida de ajo</td><td>Salir de la pantalla o recargar a media corrida borraba las cajas contadas, las tarimas, los cortes y los conteos, y partía el reporte del día</td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">12</td><td>Ajo terminado</td><td>El inventario de ajo terminado se podía ajustar sin decir el motivo</td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">13</td><td>Respaldo</td><td>Una copia restaurada dejaba abiertas a toda cuenta las funciones de la base (incluida la que firma autorizaciones)<div class="nota">corregido antes de estrenarse; nunca estuvo en producción</div></td><td><span class="p falla">P0</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">14</td><td>Deudas / Proveedores</td><td>El proveedor se guarda distinto en cada pantalla (texto / ficha)</td><td><span class="p gris">P2</span></td><td><span class="p aviso">Abierto</span></td></tr>
+      <tr><td class="n">15</td><td>Caja chica / Almacén</td><td>Una compra de almacén pagada de caja (o capturada en Finanzas) y además metida con costo en Inventario salía dos veces del flujo. Reproducido: $10,000 por una compra de $5,000<div class="nota">Inventario → Entradas propone el gasto que coincide y una persona dice «es la misma compra»; Finanzas avisa cuántas hay</div></td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">16</td><td>Corrida de ajo</td><td>Los cortes, conteos y cajas de plástico de la corrida se pueden borrar sin motivo; y la configuración se guarda con un nombre fijo, no por espacio</td><td><span class="p gris">P2</span></td><td><span class="p aviso">Abierto</span></td></tr>
+      <tr><td class="n">17</td><td>Consignaciones</td><td>Los cobros de un embarque viven dentro del embarque: dos teléfonos cobrando el mismo podrían pisarse (mismo patrón que los abonos)<div class="nota">sin reproducir</div></td><td><span class="p gris">P2</span></td><td><span class="p aviso">Abierto</span></td></tr>
+      <tr><td class="n">18</td><td>Solicitudes de compra</td><td>Al registrar la compra de un artículo que ya existía, la existencia NO subía (5 + 4 seguían siendo 5) y el costo de lo ya consumido cambiaba hacia atrás (el resultado pasó de $2,500 a $7,294 sin que nadie gastara)<div class="nota">la mercancía entra como movimiento del almacén, con identificador fijo por solicitud (dos teléfonos no la meten doble)</div></td><td><span class="p falla">P0</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">19</td><td>Conteo y mermas</td><td>Una merma o un faltante se valuaba al costo de HOY: una compra posterior más cara le cambiaba el importe a una merma vieja, y con él el resultado de un mes ya visto<div class="nota">vale lo que costaba el día que pasó, y ese costo queda escrito en el propio registro al capturarlo</div></td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">20</td><td>Aplicaciones / Finanzas</td><td>Aplicar un producto que ya estaba en el almacén contaba otra vez como dinero que salió (una vez al comprarlo y otra al aplicarlo)</td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">21</td><td>Inventario</td><td>Lo recibido sin precio se valuaba al promedio de lo demás y además salía como «por valuar» (se veía dos veces); y el valor traía centavos de más o de menos por redondear el promedio</td><td><span class="p gris">P2</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">22</td><td>Inventario, Registrar compra</td><td>Se podía dar de alta un artículo sin nombre, o dos con el mismo nombre (parte la existencia en dos)</td><td><span class="p gris">P2</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">23</td><td>Pagos al personal</td><td>Dos avisos enseñaban importes sin formato de dinero («faltan 350»)</td><td><span class="p gris">P3</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">24</td><td>Todos los registros</td><td>Casi todos los identificadores se armaban sólo con la hora del teléfono: dos aparatos capturando en la misma milésima (o uno guardando dos renglones seguidos) podían hacer el mismo, y en la nube el segundo pisaba al primero sin avisar<div class="nota">todo identificador nuevo lleva una parte al azar; el mismo identificador nunca deja dos renglones</div></td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">25</td><td>Finanzas</td><td>Un gasto o un ingreso tecleado en Finanzas se guardaba sin decir quién lo capturó<div class="nota">todo registro de dinero o de almacén queda con su autor</div></td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">26</td><td>Finanzas, Inventario, Aplicaciones</td><td>Si dos personas capturaban el mismo gasto, la misma entrada o la misma aplicación, cada una en su teléfono, contaba dos veces y nada lo señalaba<div class="nota">Finanzas → Resultados avisa «capturas que parecen repetidas», con quién capturó cada una; una persona cancela la que sobra o dice «son distintos». La app no quita nada sola</div></td><td><span class="p gris">P2</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section>
+    <h2>Módulo por módulo</h2>
+    <div class="tabla"><table><thead><tr><th>#</th><th>Módulo</th><th>Estado</th><th>Prueba</th><th>Qué se probó</th><th>Qué falta</th></tr></thead><tbody>
+      <tr><td class="n">1</td><td>Operación</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">2</td><td>El día</td><td><span class="p gris">Sin verificar</span></td><td>antes: plan, jornada, reasignacion, entrega</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">3</td><td>¿Alcanza?</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">4</td><td>Resumen</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">5</td><td>¿Cómo vamos?</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">6</td><td>Mensajes</td><td><span class="p gris">Sin verificar</span></td><td>antes: mensajes, mensajes_movil, dicho</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">7</td><td>Registrar actividad</td><td><span class="p gris">Sin verificar</span></td><td>antes: ejecutores</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">8</td><td>Registro de varios</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">9</td><td>Aplicaciones</td><td><span class="p aviso">En parte</span></td><td>auditoria_agronomo 23 · ejecutores</td><td>Aplicación con un producto del inventario: descuenta lo aplicado, carga su costo a la parcela una vez, no vuelve a salir del flujo, avisa si no se dice quién aplicó, recarga, otro aparato; una compra posterior más cara no le cambia el costo</td><td>Con aplicadores y quién la indicó (visto en local), reentrada y carencia, reporte de la aplicación</td></tr>
+      <tr><td class="n">10</td><td>Indicaciones</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">11</td><td>Tareas</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">12</td><td>Reportar</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">13</td><td>Mapa del rancho</td><td><span class="p gris">Sin verificar</span></td><td>antes: mapa, satelite</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">14</td><td>Parcelas</td><td><span class="p gris">Sin verificar</span></td><td>antes: entrega</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">15</td><td>Estado de parcelas</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">16</td><td>Calendario</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">17</td><td>Cosechas</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">18</td><td>Rendimiento por parcela</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">19</td><td>Variedades</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">20</td><td>Comparar variedades</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">21</td><td>Hoja de Fito</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">22</td><td>Dron</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">23</td><td>Ganado</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">24</td><td>Corrida de ajo</td><td><span class="p aviso">En parte</span></td><td>auditoria_bodega 46 · corridaViva.test</td><td>Corrida en vivo completa: tarima de limpio a la mesa, conteo por calibre, cierre de estiba con peso y folio, conteo físico, salir y volver, recargar, terminar el día con ajuste de la tarima, un solo reporte</td><td>Pestañas Calidad y Categorías aparte, modo revoltura, cambio de tarima a media corrida, tarima limpiada hoy, cortes de 15 minutos</td></tr>
+      <tr><td class="n">25</td><td>Estibas</td><td><span class="p aviso">En parte</span></td><td>auditoria_bodega 46</td><td>Alta masiva de barbecho desde la parcela, limpio que consume barbecho, saldos, rastreo hasta la parcela, etiquetas, otro teléfono</td><td>Re-limpia, alta individual, estiba sin origen, cierre manual de una estiba, imprimir</td></tr>
+      <tr><td class="n">26</td><td>Ajo terminado</td><td><span class="p ok">Aprobado</span></td><td>auditoria_bodega 46</td><td>Entra solo al cerrar estiba; entrada manual; ajuste con motivo obligatorio e historial; baja al embarcar; recarga; nube</td><td>—</td></tr>
+      <tr><td class="n">27</td><td>Salida de camión</td><td><span class="p aviso">En parte</span></td><td>auditoria_bodega 46</td><td>Embarque a cliente: tarima pesada, folio, formato, baja del terminado, queda pendiente de cobro, no es venta todavía</td><td>Salida a nuestra bodega, varias tarimas y calibres, estiba de origen, cargar más de lo que hay, remisión impresa</td></tr>
+      <tr><td class="n">28</td><td>Consignaciones</td><td><span class="p aviso">En parte</span></td><td>auditoria_bodega 46</td><td>Pendiente de cobro, cobrar en dinero, nace una sola venta, llega a resultados y flujo, el encargado no entra</td><td>Pago parcial, pago a cuenta de una deuda (la regla del flujo sí está probada en cálculo), dos teléfonos</td></tr>
+      <tr><td class="n">29</td><td>Comercialización</td><td><span class="p aviso">En parte</span></td><td>auditoria_bodega 46</td><td>Enseña la venta con su cliente y el precio por kilo</td><td>Sólo se comprobó una venta; faltan varios clientes y periodos</td></tr>
+      <tr><td class="n">30</td><td>Mano de obra</td><td><span class="p gris">Sin verificar</span></td><td>antes: cuadrillas</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">31</td><td>Finanzas</td><td><span class="p ok">Aprobado</span></td><td>auditoria_dinero 37 · auditoria_identidad 18</td><td>Gasto general y de parcela, venta, cancelar con motivo, bitácora, flujo y resultados, recarga, otro teléfono, tres perfiles; doble toque, dos teléfonos sin señal con el mismo gasto, aviso de repetidos, quién capturó</td><td>—</td></tr>
+      <tr><td class="n">32</td><td>Movimientos</td><td><span class="p ok">Aprobado</span></td><td>auditoria_dinero 37</td><td>Totales del periodo iguales a Finanzas; lo cancelado no cuenta y sigue visible</td><td>—</td></tr>
+      <tr><td class="n">33</td><td>Caja chica</td><td><span class="p ok">Aprobado</span></td><td>auditoria_dinero 37 · auditoria_pagos 40 · caja.test</td><td>Ligar una salida a su préstamo o a su pago (toma el importe, no cuenta doble, una segunda no encuentra a qué ligarse y queda por ligar). Fondo, las siete clases de salida, por clasificar y clasificar después, cancelar con su gasto ligado, sólo se corrige el concepto, flujo sin duplicar, saldo al centavo</td><td>Ligar una salida a un préstamo o pago real: probado en cálculo, sin recorrido en navegador</td></tr>
+      <tr><td class="n">34</td><td>Papeles</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">35</td><td>Importar documentos</td><td><span class="p gris">Sin verificar</span></td><td>antes: importar, ia, rayas</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">36</td><td>Banco</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre; permisos por perfil atacados en la base</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">37</td><td>Socios</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre; permisos por perfil atacados en la base</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">38</td><td>Deudas</td><td><span class="p ok">Aprobado</span></td><td>auditoria_proveedores 27 · base 4</td><td>Mismo crédito y saldo que Proveedores; abonar; el abono sale en el flujo; cancelar abono; el encargado no entra</td><td>El proveedor se guarda distinto que en Proveedores (P2 abierto)</td></tr>
+      <tr><td class="n">39</td><td>Semana</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">40</td><td>Reportes</td><td><span class="p gris">Sin verificar</span></td><td>antes: mes, cruces</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">41</td><td>Temporadas</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">42</td><td>ContPAQi</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">43</td><td>Inventario</td><td><span class="p ok">Aprobado</span></td><td>auditoria_almacen 45 · movimientos.test · resultado.test · auditoria_identidad 18</td><td>Alta (sin nombre o repetido no entra), entrada con costo como movimiento, valor a costo promedio, «es la misma compra» contra un gasto de caja, recarga, otro aparato, Dirección, dos aparatos sin señal</td><td>Ficha técnica de agroquímicos y pestaña Cosechas</td></tr>
+      <tr><td class="n">44</td><td>Entregas del almacén</td><td><span class="p aviso">En parte</span></td><td>auditoria_entregas 13 · auditoria_almacen 45 · almacen 55 (local)</td><td>Entregar a una persona (exige quién recibe), entregar no es gastar, se ve quién lo trae, cerrar con lo usado y lo regresado, ahí nace el costo; los dos teléfonos cerrando la misma entrega sin señal: cuenta una vez y queda «por revisar»; uso directo</td><td>Con cuentas: herramientas prestadas, «sigue en uso», bajas con causa y traslados entre bodegas (recorridos en local)</td></tr>
+      <tr><td class="n">45</td><td>Conteo y mermas</td><td><span class="p ok">Aprobado</span></td><td>auditoria_almacen 45 · movimientos.test</td><td>Conteo a ciegas (no enseña el número antes), causa obligatoria si no cuadra, merma con causa, importe al costo del día, baja el valor del inventario y no es salida de dinero</td><td>Conteo en otra bodega</td></tr>
+      <tr><td class="n">46</td><td>Solicitudes de compra</td><td><span class="p ok">Aprobado</span></td><td>auditoria_almacen 45 · auditoria_identidad 18</td><td>El encargado pide (no mueve nada), no se le ofrece comprar; el administrador registra la compra: sube la existencia, sale el dinero una vez, no cambia el resultado; ya comprada no se repite; la misma solicitud comprada desde dos teléfonos sin señal entra una vez</td><td>Cotizar por WhatsApp (abre otra aplicación)</td></tr>
+      <tr><td class="n">47</td><td>Mis compras</td><td><span class="p aviso">En parte</span></td><td>auditoria_almacen 45 · decisiones (local)</td><td>Aprobar no mete al almacén; recibir sin precio queda por valuar (ni cero ni al promedio); valuar; el flete es gasto; el flujo la cuenta una vez; la misma compra recibida desde dos teléfonos sin señal entra una vez</td><td>La captura del trabajador con su PIN y la foto del ticket</td></tr>
+      <tr><td class="n">48</td><td>Registrar compra</td><td><span class="p ok">Aprobado</span></td><td>auditoria_agronomo 23</td><td>Insumo nuevo y existente, costo promedio, no es gasto, sale una vez del flujo, nombre repetido no entra, el encargado no la tiene</td><td>—</td></tr>
+      <tr><td class="n">49</td><td>Proveedores</td><td><span class="p ok">Aprobado</span></td><td>auditoria_proveedores 27 · base 4</td><td>Directorio, crédito con vencimiento, abonos en dinero y en especie, cancelar abono (no borrar) con bitácora, recarga, dos teléfonos con uno sin señal, perfiles</td><td>—</td></tr>
+      <tr><td class="n">50</td><td>Equipo</td><td><span class="p aviso">En parte</span></td><td>entrega 68 · auditoria_pagos · auditoria_semana</td><td>Alta de trabajadores con sueldo y PIN (repetido o sin nombre no entra), llega a otro aparato</td><td>Editar, baja, maquinaria, encargados</td></tr>
+      <tr><td class="n">51</td><td>Personal</td><td><span class="p aviso">En parte</span></td><td>auditoria_pagos 40</td><td>Préstamos de punta a punta: solicitud (no es deuda), autorización por menos, entrega (ahí nace la deuda, no más de lo autorizado), abonos, abono de más, dos aparatos sin señal, el encargado no autoriza ni abona</td><td>Pestañas Actividades y Cuadrillas</td></tr>
+      <tr><td class="n">52</td><td>Equipos de trabajo</td><td><span class="p aviso">En parte</span></td><td>entrega 68 · auditoria_pagos · auditoria_semana</td><td>Asignar a una parcela desde ahorita, cambio de parcela, el costo sigue a la asignación</td><td>Pago por tarea, vehículo, aclarar el tiempo sin asignar (recorridos en local)</td></tr>
+      <tr><td class="n">53</td><td>Cuadrillas</td><td><span class="p aviso">En parte</span></td><td>auditoria_semana 26 · eventuales (local)</td><td>El día de una cuadrilla por día: vacío no se guarda, costo a la parcela, una cuenta por responsable</td><td>Destajo, precio por el trabajo, flete y vehículo propio con cuentas</td></tr>
+      <tr><td class="n">54</td><td>Checador</td><td><span class="p aviso">En parte</span></td><td>entrega 68 · auditoria_pagos · auditoria_semana</td><td>Entrada y salida con PIN, jornada de 8 horas, lo que le toca al checar</td><td>Credencial con código (pide cámara), aparato ligado sin sesión</td></tr>
+      <tr><td class="n">55</td><td>Jornadas</td><td><span class="p gris">Sin verificar</span></td><td>antes: entrega</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">56</td><td>Credenciales</td><td><span class="p gris">Sin verificar</span></td><td>antes: checador</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">57</td><td>Pase de lista</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">58</td><td>Asistencia</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">59</td><td>Pagos al personal</td><td><span class="p aviso">En parte</span></td><td>auditoria_pagos 40 · auditoria_semana 26 · entrega</td><td>Lo que corresponde, pago (sellado por la base), el préstamo no descuenta solo, cuenta de cuadrilla por responsable, bonos (otorgar es costo, pagar no), recibo con versión, cerrar, confirmar y reabrir la semana, Finanzas y encargado sin permiso, recarga, otro aparato; el mismo pago hecho en dos teléfonos sin señal queda a la vista como entregado de más</td><td>Con cuentas faltan: ausencias y decisiones de un día, horas adicionales, prestaciones y bajas (recorridos en local: pagos 33, prestaciones 49, bajas 34)</td></tr>
+      <tr><td class="n">60</td><td>Aprobar externos</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">61</td><td>Mis días</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">62</td><td>Arranque</td><td><span class="p gris">Sin verificar</span></td><td>antes: arranque, cuentas</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">63</td><td>Organización</td><td><span class="p gris">Sin verificar</span></td><td>antes: organizacion</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">64</td><td>Bitácora</td><td><span class="p ok">Aprobado</span></td><td>auditoria_dinero · auditoria_proveedores · base</td><td>Enseña cada cancelación con quién, cuándo y motivo; en la base nadie la edita ni la borra</td><td>—</td></tr>
+      <tr><td class="n">65</td><td>Seguridad</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">66</td><td>Respaldo</td><td><span class="p gris">Sin verificar</span></td><td>antes: entrega, ensayo local del respaldo</td><td>—</td><td>Falta la auditoría completa</td></tr>
+      <tr><td class="n">67</td><td>Subir catálogos</td><td><span class="p gris">Sin verificar</span></td><td>antes: sólo que abre</td><td>—</td><td>Falta la auditoría completa</td></tr>
+    </tbody></table></div>
+    <h3>Lo que no se pudo ejecutar y por qué</h3>
+    <ul class="lista"><li>Que dos teléfonos generen el mismo identificador en la misma milésima no se puede provocar a voluntad en el navegador: se prueba en cálculo (5,000 identificadores con la hora congelada) y, en navegador, que dos capturas iguales de dos teléfonos nunca comparten identificador.</li><li>Que la base le niegue algo a un perfil no se ve en la nube de imitación (devuelve todo): se prueba atacando la base aislada (<code>pruebas/base/auditoria.test.mjs</code>, 12 pruebas).</li><li>Que un trabajador capture su compra entrando con su PIN en un teléfono ligado: la compra se sembró en la nube de imitación como si él la hubiera mandado; aprobar, recibir y valuar sí se hicieron en pantalla.</li><li>«Registrar actividad» (captura tecleada de mano de obra) con cuentas: la pantalla es de varios pasos y no se alcanzó; la cubre <code>ejecutores</code> en local.</li><li>Imprimir etiquetas y remisiones: no hay impresora; se comprobó que la pantalla las genera.</li><li>Todo lo que pide un teléfono de verdad.</li></ul>
+    <h3>Orden en que sigue</h3>
+    <ol class="lista"><li>Terminar lo que quedó en parte de la operación diaria, con cuentas: Entregas (a una persona y cierre), Cuadrillas (destajo, precio, flete), Equipos de trabajo (pago por tarea, vehículo), ausencias, prestaciones y bajas, El día y Jornadas, Registrar actividad, Mano de obra.</li><li>Terminar Bodega: calidad, categorías aparte, revoltura, re-limpia, salida a nuestra bodega, pago parcial y a cuenta de deuda; y los dos pendientes abiertos (16 y 17).</li><li>Dinero que falta: Papeles, Banco, Socios (con la consulta autorizada de Finanzas), Semana, Reportes, Temporadas, ContPAQi y los paneles (Operación, ¿Alcanza?, Resumen, ¿Cómo vamos?).</li><li>Agronomía y campo: Hoja de Fito, Variedades, Calendario, Cosechas, Rendimiento, Dron, Ganado, Mapa.</li><li>Captura anterior y control: Registro de varios, Tareas, Indicaciones, Pase de lista, Asistencia, Reportar, Seguridad, Subir catálogos, Credenciales, Arranque, Organización, Mensajes, Importar documentos.</li><li>Integrales: seguridad por perfil en todos, respaldo y recuperación reales.</li></ol>
+  </section>
+
+  <section>
+    <h2>Pendientes</h2>
+    <div class="dos">
+      <div><h3>Lo que le toca a Luis</h3><ul class="lista"><li>Crear el repositorio privado de respaldos y sus tres secretos.</li><li>Hacer la prueba de campo con la familia.</li><li>Otorgarse el permiso para configurar la organización (Arranque → Cuentas), si la va a usar.</li><li>Decidir a qué cuenta de Finanzas, si a alguna, se le otorga la consulta de Banco y Socios.</li></ul></div>
+      <div><h3>Menores, que pueden esperar</h3><ul class="lista"><li>«Nueva parcela» trae una lista fija de ubicaciones heredada. Hay que decidir si se queda.</li><li>El reparto hablado entiende «deshierbar» como «limpiar la parcela».</li><li>El insumo aplicado cuenta una sola vez, pero en Resultados sale bajo «Gastos capturados» y no bajo «Insumos consumidos».</li><li>Mientras una subida falla, la pantalla dice «Sincronizando…» en vez de decir que está reintentando.</li><li>El archivo principal pesa 2.7 MB: la primera carga con mala señal es lenta.</li><li>En producción quedan los datos de la prueba de avisos (1 conversación, 3 mensajes). Hay que retirarlos.</li><li>Defecto 14 (Deudas / Proveedores): El proveedor se guarda distinto en cada pantalla (texto / ficha).</li><li>Defecto 16 (Corrida de ajo): Los cortes, conteos y cajas de plástico de la corrida se pueden borrar sin motivo; y la configuración se guarda con un nombre fijo, no por espacio.</li><li>Defecto 17 (Consignaciones): Los cobros de un embarque viven dentro del embarque: dos teléfonos cobrando el mismo podrían pisarse (mismo patrón que los abonos).</li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Riesgos que quedan aunque todo pase</h2>
+    <ul class="lista"><li>Sin copias automáticas todavía: hasta el ensayo real, la copia es el archivo que un administrador descarga a mano.</li><li>Lo que un respaldo no recupera: las sesiones abiertas, los secretos y el despliegue de las funciones del servidor, la configuración del correo, las suscripciones de avisos y lo capturado después del último respaldo que ningún teléfono conserve.</li><li>Casi cada módulo auditado ha destapado al menos un defecto: es razonable esperar más en los que faltan.</li><li>El repositorio del código es público. No tiene llaves ni datos, pero la documentación nombra a la familia. Los respaldos irán en uno privado.</li><li>El teléfono ligado guarda lo que ve la cuenta del encargado: por eso nunca se liga la de un administrador.</li><li>El PIN no es identidad: lo que mueve dinero se hace con cuenta, y la base lo exige.</li><li>La base gratuita se pausa si pasan varios días sin uso. Se reactiva sin perder nada.</li><li>Producción está vacía: una cuenta, sin personal, sin parcelas y sin fecha de inicio declarada.</li></ul>
+  </section>
+
+  <div class="pie">Este tablero y <code>docs/AUDITORIA-FUNCIONAL.md</code> se generan del mismo archivo de estado: no pueden decir cosas distintas.</div>
+</div>

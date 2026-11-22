@@ -836,8 +836,23 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   producto del inventario (`deInventario`, `aplicacionId`, `indicacionId`) es costo y NO va al flujo.
 - **Una merma o un faltante vale lo del día en que pasó** (`costoEntonces`), como un consumo; lo recibido sin precio
   no se valúa al promedio (`valorDelInventario` lo deja fuera hasta valuarlo); alta de artículo: `revisarArticulo`.
-- Recorridos de auditoría nuevos: `auditoria_pagos` (40), `auditoria_almacen` (45), `auditoria_semana` (26),
-  `auditoria_agronomo` (20). Todos con cuentas, nube de imitación, recarga y segundo aparato.
+- Recorridos de auditoría: `auditoria_pagos` (40), `auditoria_almacen` (45), `auditoria_semana` (26),
+  `auditoria_agronomo` (23), `auditoria_identidad` (18). Todos con cuentas, nube de imitación, recarga y segundo aparato.
+- **UNA SOLA FUENTE DEL ESTADO (Luis, 22 nov): `docs/ESTADO.json`.** `node herramientas/estado.mjs` genera de ahí
+  `docs/AUDITORIA-FUNCIONAL.md` y `docs/tablero-de-cierre.html` (lo que se publica como tablero). **No escribas cifras,
+  módulos aprobados, pendientes ni «publicado» en ningún otro documento**, ni edites a mano los generados:
+  `src/estado.test.js` falla. Un módulo no puede decir APROBADO o PARCIAL sin un recorrido `auditoria_*` o `entrega`.
+- **INTEGRIDAD HISTÓRICA DE LOS COSTOS (Luis, 22 nov).** Lo que ya pasó se queda con su costo: consumo, merma y
+  faltante guardan `costoUnit` AL CAPTURARSE; la aplicación y la actividad guardan su importe. Ni una compra posterior,
+  ni una que llega tarde, ni valuar después los cambian (la diferencia va aparte, en `ajustesDeValuacion`). Prueba:
+  `ninguna_compra_posterior_ni_tardia_ni_valuacion_cambia_el_costo_de_lo_que_ya_paso`. **Nunca valúes algo pasado con
+  el `costo_unit` de hoy.**
+- **IDENTIDAD ÚNICA (Luis, 22 nov).** Todo identificador nuevo se hace con `unico()` (`calculos.js`: hora + azar);
+  **nunca `Date.now()` solo**. Lo que es UN hecho con nombre propio lleva identificador fijo (recibir una compra,
+  comprar una solicitud, el gasto de una salida de caja): dos teléfonos sin señal lo meten una vez. `add` no deja dos
+  renglones con el mismo identificador y estampa quién capturó (`conAutor`). Lo que no se puede saber si es lo mismo
+  (dos gastos, entradas, ingresos o aplicaciones iguales el mismo día) se AVISA en Finanzas → Resultados
+  (`src/repetidos.js`, `quizaRepetidos`); una persona cancela el que sobra o dice «son distintos». Nada se quita solo.
 
 ## Cómo verificar tu trabajo
 
@@ -848,7 +863,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **225 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **226 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

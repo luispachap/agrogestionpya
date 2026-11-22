@@ -1,0 +1,965 @@
+{
+ "_nota": "ÚNICA FUENTE DE VERDAD del estado de AgroGestión 1.0. De aquí se generan docs/AUDITORIA-FUNCIONAL.md y el tablero de cierre (node herramientas/estado.mjs). No se escriben cifras en ningún otro documento.",
+ "corte": "domingo 22 de noviembre de 2026",
+ "veredicto": {
+  "sello": "NO LISTO",
+  "detalle": "como sistema completo · listo para prueba de campo en la operación diaria",
+  "texto": "Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).",
+  "razones": [
+   {
+    "t": "No hay un respaldo real todavía",
+    "d": "La copia de cada noche está preparada y ensayada en local. Falta el primer respaldo real y restaurarlo en un proyecto aislado. Hasta entonces no conviene capturar dinero real como registro definitivo."
+   },
+   {
+    "t": "Nada se ha probado en el rancho",
+    "d": "Todo es con datos inventados y teléfonos imitados: señal, cámara, impresora y correo reales no se pueden imitar."
+   },
+   {
+    "t": "La auditoría módulo por módulo no ha terminado",
+    "d": "Cada recorrido completo ha destapado defectos de dinero o de control. Faltan los módulos que el inventario marca en parte o sin verificar."
+   }
+  ]
+ },
+ "pruebas": [
+  {
+   "que": "Reglas y cálculos",
+   "con": "npm test",
+   "resultado": "1,272 de 1,272"
+  },
+  {
+   "que": "La base, armada desde cero y atacada por perfil",
+   "con": "npm run test:base",
+   "resultado": "156 de 156"
+  },
+  {
+   "que": "Respaldo y restauración, de punta a punta en local",
+   "con": "sh pruebas/respaldo_local/ensayo.sh",
+   "resultado": "26 de 26"
+  },
+  {
+   "que": "Todo junto: lo anterior, compilación y 37 recorridos en navegador",
+   "con": "sh pruebas/todo.sh",
+   "resultado": "Todo pasa (sobre la versión publicada)"
+  },
+  {
+   "que": "Entregas del almacén con dos teléfonos (recorrido agregado después de publicar; no cambia la app)",
+   "con": "pruebas/auditoria_entregas_navegador.py",
+   "resultado": "13 de 13"
+  },
+  {
+   "que": "Producción cerrada sin sesión",
+   "con": "pruebas/real_sin_sesion.py",
+   "resultado": "6 de 6"
+  },
+  {
+   "que": "El sitio publicado, en Android y iPhone imitados",
+   "con": "pruebas/real_sitio.py",
+   "resultado": "18 de 18"
+  },
+  {
+   "que": "Lo publicado es exactamente lo probado, byte por byte",
+   "con": "pruebas/real_identico.py",
+   "resultado": "18 de 18 archivos idénticos"
+  },
+  {
+   "que": "Producción igual a la base probada",
+   "con": "node pruebas/base/paridad.mjs --consulta",
+   "resultado": "7 huellas iguales (última hoja instalada: 55)"
+  }
+ ],
+ "para_listo": [
+  {
+   "t": "Respaldo real",
+   "d": "Luis crea el repositorio privado y sus tres secretos (docs/RESPALDO-AUTOMATICO.md). Después se corre el primer respaldo y se restaura en un proyecto aislado."
+  },
+  {
+   "t": "Prueba de campo",
+   "d": "Una hora, en los teléfonos de verdad, con la guía docs/PRUEBA-DEL-DOMINGO.md."
+  },
+  {
+   "t": "Terminar la auditoría",
+   "d": "Recorrer como persona cada módulo que falta, corregir lo que salga y volver a probar."
+  },
+  {
+   "t": "Criterio de Miguel, Fito y Dirección",
+   "d": "Organización, jornada y especialidades esperan su validación; no es una decisión técnica."
+  }
+ ],
+ "se_puede": [
+  "Dar de alta al personal y las parcelas reales",
+  "Checar, mandar el plan, repartir, cambiar y cerrar la jornada",
+  "Registrar incidencias y aplicaciones",
+  "Ver lo que corresponde pagar"
+ ],
+ "no_se_puede": [
+  "Capturar dinero real como registro definitivo (hasta tener respaldo real)",
+  "Dar por bueno un módulo que diga NO VERIFICADO",
+  "Confiar en un teléfono sin haber hecho en él la prueba de campo"
+ ],
+ "modulos": [
+  {
+   "n": 1,
+   "nombre": "Operación",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 2,
+   "nombre": "El día",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: plan, jornada, reasignacion, entrega",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 3,
+   "nombre": "¿Alcanza?",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 4,
+   "nombre": "Resumen",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 5,
+   "nombre": "¿Cómo vamos?",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 6,
+   "nombre": "Mensajes",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: mensajes, mensajes_movil, dicho",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 7,
+   "nombre": "Registrar actividad",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: ejecutores",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 8,
+   "nombre": "Registro de varios",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 9,
+   "nombre": "Aplicaciones",
+   "estado": "PARCIAL",
+   "prueba": "auditoria_agronomo 23 · ejecutores",
+   "probado": "Aplicación con un producto del inventario: descuenta lo aplicado, carga su costo a la parcela una vez, no vuelve a salir del flujo, avisa si no se dice quién aplicó, recarga, otro aparato; una compra posterior más cara no le cambia el costo",
+   "falta": "Con aplicadores y quién la indicó (visto en local), reentrada y carencia, reporte de la aplicación"
+  },
+  {
+   "n": 10,
+   "nombre": "Indicaciones",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 11,
+   "nombre": "Tareas",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 12,
+   "nombre": "Reportar",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 13,
+   "nombre": "Mapa del rancho",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: mapa, satelite",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 14,
+   "nombre": "Parcelas",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: entrega",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 15,
+   "nombre": "Estado de parcelas",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 16,
+   "nombre": "Calendario",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 17,
+   "nombre": "Cosechas",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 18,
+   "nombre": "Rendimiento por parcela",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 19,
+   "nombre": "Variedades",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 20,
+   "nombre": "Comparar variedades",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 21,
+   "nombre": "Hoja de Fito",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 22,
+   "nombre": "Dron",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 23,
+   "nombre": "Ganado",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 24,
+   "nombre": "Corrida de ajo",
+   "estado": "PARCIAL",
+   "prueba": "auditoria_bodega 46 · corridaViva.test",
+   "probado": "Corrida en vivo completa: tarima de limpio a la mesa, conteo por calibre, cierre de estiba con peso y folio, conteo físico, salir y volver, recargar, terminar el día con ajuste de la tarima, un solo reporte",
+   "falta": "Pestañas Calidad y Categorías aparte, modo revoltura, cambio de tarima a media corrida, tarima limpiada hoy, cortes de 15 minutos"
+  },
+  {
+   "n": 25,
+   "nombre": "Estibas",
+   "estado": "PARCIAL",
+   "prueba": "auditoria_bodega 46",
+   "probado": "Alta masiva de barbecho desde la parcela, limpio que consume barbecho, saldos, rastreo hasta la parcela, etiquetas, otro teléfono",
+   "falta": "Re-limpia, alta individual, estiba sin origen, cierre manual de una estiba, imprimir"
+  },
+  {
+   "n": 26,
+   "nombre": "Ajo terminado",
+   "estado": "APROBADO",
+   "prueba": "auditoria_bodega 46",
+   "probado": "Entra solo al cerrar estiba; entrada manual; ajuste con motivo obligatorio e historial; baja al embarcar; recarga; nube",
+   "falta": "—"
+  },
+  {
+   "n": 27,
+   "nombre": "Salida de camión",
+   "estado": "PARCIAL",
+   "prueba": "auditoria_bodega 46",
+   "probado": "Embarque a cliente: tarima pesada, folio, formato, baja del terminado, queda pendiente de cobro, no es venta todavía",
+   "falta": "Salida a nuestra bodega, varias tarimas y calibres, estiba de origen, cargar más de lo que hay, remisión impresa"
+  },
+  {
+   "n": 28,
+   "nombre": "Consignaciones",
+   "estado": "PARCIAL",
+   "prueba": "auditoria_bodega 46",
+   "probado": "Pendiente de cobro, cobrar en dinero, nace una sola venta, llega a resultados y flujo, el encargado no entra",
+   "falta": "Pago parcial, pago a cuenta de una deuda (la regla del flujo sí está probada en cálculo), dos teléfonos"
+  },
+  {
+   "n": 29,
+   "nombre": "Comercialización",
+   "estado": "PARCIAL",
+   "prueba": "auditoria_bodega 46",
+   "probado": "Enseña la venta con su cliente y el precio por kilo",
+   "falta": "Sólo se comprobó una venta; faltan varios clientes y periodos"
+  },
+  {
+   "n": 30,
+   "nombre": "Mano de obra",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: cuadrillas",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 31,
+   "nombre": "Finanzas",
+   "estado": "APROBADO",
+   "prueba": "auditoria_dinero 37 · auditoria_identidad 18",
+   "probado": "Gasto general y de parcela, venta, cancelar con motivo, bitácora, flujo y resultados, recarga, otro teléfono, tres perfiles; doble toque, dos teléfonos sin señal con el mismo gasto, aviso de repetidos, quién capturó",
+   "falta": "—"
+  },
+  {
+   "n": 32,
+   "nombre": "Movimientos",
+   "estado": "APROBADO",
+   "prueba": "auditoria_dinero 37",
+   "probado": "Totales del periodo iguales a Finanzas; lo cancelado no cuenta y sigue visible",
+   "falta": "—"
+  },
+  {
+   "n": 33,
+   "nombre": "Caja chica",
+   "estado": "APROBADO",
+   "prueba": "auditoria_dinero 37 · auditoria_pagos 40 · caja.test",
+   "probado": "Ligar una salida a su préstamo o a su pago (toma el importe, no cuenta doble, una segunda no encuentra a qué ligarse y queda por ligar). Fondo, las siete clases de salida, por clasificar y clasificar después, cancelar con su gasto ligado, sólo se corrige el concepto, flujo sin duplicar, saldo al centavo",
+   "falta": "Ligar una salida a un préstamo o pago real: probado en cálculo, sin recorrido en navegador"
+  },
+  {
+   "n": 34,
+   "nombre": "Papeles",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 35,
+   "nombre": "Importar documentos",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: importar, ia, rayas",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 36,
+   "nombre": "Banco",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre; permisos por perfil atacados en la base",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 37,
+   "nombre": "Socios",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre; permisos por perfil atacados en la base",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 38,
+   "nombre": "Deudas",
+   "estado": "APROBADO",
+   "prueba": "auditoria_proveedores 27 · base 4",
+   "probado": "Mismo crédito y saldo que Proveedores; abonar; el abono sale en el flujo; cancelar abono; el encargado no entra",
+   "falta": "El proveedor se guarda distinto que en Proveedores (P2 abierto)"
+  },
+  {
+   "n": 39,
+   "nombre": "Semana",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 40,
+   "nombre": "Reportes",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: mes, cruces",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 41,
+   "nombre": "Temporadas",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 42,
+   "nombre": "ContPAQi",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 43,
+   "nombre": "Inventario",
+   "estado": "APROBADO",
+   "prueba": "auditoria_almacen 45 · movimientos.test · resultado.test · auditoria_identidad 18",
+   "probado": "Alta (sin nombre o repetido no entra), entrada con costo como movimiento, valor a costo promedio, «es la misma compra» contra un gasto de caja, recarga, otro aparato, Dirección, dos aparatos sin señal",
+   "falta": "Ficha técnica de agroquímicos y pestaña Cosechas"
+  },
+  {
+   "n": 44,
+   "nombre": "Entregas del almacén",
+   "estado": "PARCIAL",
+   "prueba": "auditoria_entregas 13 · auditoria_almacen 45 · almacen 55 (local)",
+   "probado": "Entregar a una persona (exige quién recibe), entregar no es gastar, se ve quién lo trae, cerrar con lo usado y lo regresado, ahí nace el costo; los dos teléfonos cerrando la misma entrega sin señal: cuenta una vez y queda «por revisar»; uso directo",
+   "falta": "Con cuentas: herramientas prestadas, «sigue en uso», bajas con causa y traslados entre bodegas (recorridos en local)"
+  },
+  {
+   "n": 45,
+   "nombre": "Conteo y mermas",
+   "estado": "APROBADO",
+   "prueba": "auditoria_almacen 45 · movimientos.test",
+   "probado": "Conteo a ciegas (no enseña el número antes), causa obligatoria si no cuadra, merma con causa, importe al costo del día, baja el valor del inventario y no es salida de dinero",
+   "falta": "Conteo en otra bodega"
+  },
+  {
+   "n": 46,
+   "nombre": "Solicitudes de compra",
+   "estado": "APROBADO",
+   "prueba": "auditoria_almacen 45 · auditoria_identidad 18",
+   "probado": "El encargado pide (no mueve nada), no se le ofrece comprar; el administrador registra la compra: sube la existencia, sale el dinero una vez, no cambia el resultado; ya comprada no se repite; la misma solicitud comprada desde dos teléfonos sin señal entra una vez",
+   "falta": "Cotizar por WhatsApp (abre otra aplicación)"
+  },
+  {
+   "n": 47,
+   "nombre": "Mis compras",
+   "estado": "PARCIAL",
+   "prueba": "auditoria_almacen 45 · decisiones (local)",
+   "probado": "Aprobar no mete al almacén; recibir sin precio queda por valuar (ni cero ni al promedio); valuar; el flete es gasto; el flujo la cuenta una vez; la misma compra recibida desde dos teléfonos sin señal entra una vez",
+   "falta": "La captura del trabajador con su PIN y la foto del ticket"
+  },
+  {
+   "n": 48,
+   "nombre": "Registrar compra",
+   "estado": "APROBADO",
+   "prueba": "auditoria_agronomo 23",
+   "probado": "Insumo nuevo y existente, costo promedio, no es gasto, sale una vez del flujo, nombre repetido no entra, el encargado no la tiene",
+   "falta": "—"
+  },
+  {
+   "n": 49,
+   "nombre": "Proveedores",
+   "estado": "APROBADO",
+   "prueba": "auditoria_proveedores 27 · base 4",
+   "probado": "Directorio, crédito con vencimiento, abonos en dinero y en especie, cancelar abono (no borrar) con bitácora, recarga, dos teléfonos con uno sin señal, perfiles",
+   "falta": "—"
+  },
+  {
+   "n": 50,
+   "nombre": "Equipo",
+   "estado": "PARCIAL",
+   "prueba": "entrega 68 · auditoria_pagos · auditoria_semana",
+   "probado": "Alta de trabajadores con sueldo y PIN (repetido o sin nombre no entra), llega a otro aparato",
+   "falta": "Editar, baja, maquinaria, encargados"
+  },
+  {
+   "n": 51,
+   "nombre": "Personal",
+   "estado": "PARCIAL",
+   "prueba": "auditoria_pagos 40",
+   "probado": "Préstamos de punta a punta: solicitud (no es deuda), autorización por menos, entrega (ahí nace la deuda, no más de lo autorizado), abonos, abono de más, dos aparatos sin señal, el encargado no autoriza ni abona",
+   "falta": "Pestañas Actividades y Cuadrillas"
+  },
+  {
+   "n": 52,
+   "nombre": "Equipos de trabajo",
+   "estado": "PARCIAL",
+   "prueba": "entrega 68 · auditoria_pagos · auditoria_semana",
+   "probado": "Asignar a una parcela desde ahorita, cambio de parcela, el costo sigue a la asignación",
+   "falta": "Pago por tarea, vehículo, aclarar el tiempo sin asignar (recorridos en local)"
+  },
+  {
+   "n": 53,
+   "nombre": "Cuadrillas",
+   "estado": "PARCIAL",
+   "prueba": "auditoria_semana 26 · eventuales (local)",
+   "probado": "El día de una cuadrilla por día: vacío no se guarda, costo a la parcela, una cuenta por responsable",
+   "falta": "Destajo, precio por el trabajo, flete y vehículo propio con cuentas"
+  },
+  {
+   "n": 54,
+   "nombre": "Checador",
+   "estado": "PARCIAL",
+   "prueba": "entrega 68 · auditoria_pagos · auditoria_semana",
+   "probado": "Entrada y salida con PIN, jornada de 8 horas, lo que le toca al checar",
+   "falta": "Credencial con código (pide cámara), aparato ligado sin sesión"
+  },
+  {
+   "n": 55,
+   "nombre": "Jornadas",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: entrega",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 56,
+   "nombre": "Credenciales",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: checador",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 57,
+   "nombre": "Pase de lista",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 58,
+   "nombre": "Asistencia",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 59,
+   "nombre": "Pagos al personal",
+   "estado": "PARCIAL",
+   "prueba": "auditoria_pagos 40 · auditoria_semana 26 · entrega",
+   "probado": "Lo que corresponde, pago (sellado por la base), el préstamo no descuenta solo, cuenta de cuadrilla por responsable, bonos (otorgar es costo, pagar no), recibo con versión, cerrar, confirmar y reabrir la semana, Finanzas y encargado sin permiso, recarga, otro aparato; el mismo pago hecho en dos teléfonos sin señal queda a la vista como entregado de más",
+   "falta": "Con cuentas faltan: ausencias y decisiones de un día, horas adicionales, prestaciones y bajas (recorridos en local: pagos 33, prestaciones 49, bajas 34)"
+  },
+  {
+   "n": 60,
+   "nombre": "Aprobar externos",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 61,
+   "nombre": "Mis días",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 62,
+   "nombre": "Arranque",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: arranque, cuentas",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 63,
+   "nombre": "Organización",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: organizacion",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 64,
+   "nombre": "Bitácora",
+   "estado": "APROBADO",
+   "prueba": "auditoria_dinero · auditoria_proveedores · base",
+   "probado": "Enseña cada cancelación con quién, cuándo y motivo; en la base nadie la edita ni la borra",
+   "falta": "—"
+  },
+  {
+   "n": 65,
+   "nombre": "Seguridad",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 66,
+   "nombre": "Respaldo",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: entrega, ensayo local del respaldo",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  },
+  {
+   "n": 67,
+   "nombre": "Subir catálogos",
+   "estado": "NO VERIFICADO",
+   "prueba": "antes: sólo que abre",
+   "probado": "—",
+   "falta": "Falta la auditoría completa"
+  }
+ ],
+ "defectos": [
+  {
+   "n": 1,
+   "modulo": "Caja chica",
+   "que": "Un gasto de caja sin parcela no llegaba a Resultados ni al flujo",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 2,
+   "modulo": "Caja chica",
+   "que": "Toda salida era gasto; ahora dice qué fue (siete clases, política de Luis)",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 3,
+   "modulo": "Caja chica",
+   "que": "Se podía cambiar el importe o borrar el movimiento sin rastro",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 4,
+   "modulo": "Caja chica",
+   "que": "Cancelar un movimiento dejaba vivo su gasto ligado",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 5,
+   "modulo": "Finanzas",
+   "que": "Un gasto de una parcela salía entre los gastos generales",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 6,
+   "modulo": "Proveedores, Deudas",
+   "que": "Un abono a un crédito se podía BORRAR con un toque, sin motivo",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 7,
+   "modulo": "Deudas",
+   "que": "Los abonos capturados en Deudas no salían en el flujo de efectivo",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 8,
+   "modulo": "Proveedores, Deudas",
+   "que": "Dos teléfonos abonando al mismo crédito, uno sin señal: se perdía un abono",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 9,
+   "modulo": "Banco, Socios",
+   "que": "El encargado podía ver y capturar estados de cuenta y la cuenta entre socios",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 10,
+   "modulo": "Finanzas",
+   "que": "Una venta cobrada en especie o a cuenta de una deuda se contaba como dinero que entró",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 11,
+   "modulo": "Corrida de ajo",
+   "que": "Salir de la pantalla o recargar a media corrida borraba las cajas contadas, las tarimas, los cortes y los conteos, y partía el reporte del día",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 12,
+   "modulo": "Ajo terminado",
+   "que": "El inventario de ajo terminado se podía ajustar sin decir el motivo",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 13,
+   "modulo": "Respaldo",
+   "que": "Una copia restaurada dejaba abiertas a toda cuenta las funciones de la base (incluida la que firma autorizaciones)",
+   "nivel": "P0",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": "corregido antes de estrenarse; nunca estuvo en producción"
+  },
+  {
+   "n": 14,
+   "modulo": "Deudas / Proveedores",
+   "que": "El proveedor se guarda distinto en cada pantalla (texto / ficha)",
+   "nivel": "P2",
+   "estado": "abierto",
+   "publicado": null,
+   "nota": ""
+  },
+  {
+   "n": 15,
+   "modulo": "Caja chica / Almacén",
+   "que": "Una compra de almacén pagada de caja (o capturada en Finanzas) y además metida con costo en Inventario salía dos veces del flujo. Reproducido: $10,000 por una compra de $5,000",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": "Inventario → Entradas propone el gasto que coincide y una persona dice «es la misma compra»; Finanzas avisa cuántas hay"
+  },
+  {
+   "n": 16,
+   "modulo": "Corrida de ajo",
+   "que": "Los cortes, conteos y cajas de plástico de la corrida se pueden borrar sin motivo; y la configuración se guarda con un nombre fijo, no por espacio",
+   "nivel": "P2",
+   "estado": "abierto",
+   "publicado": null,
+   "nota": ""
+  },
+  {
+   "n": 17,
+   "modulo": "Consignaciones",
+   "que": "Los cobros de un embarque viven dentro del embarque: dos teléfonos cobrando el mismo podrían pisarse (mismo patrón que los abonos)",
+   "nivel": "P2",
+   "estado": "abierto",
+   "publicado": null,
+   "nota": "sin reproducir"
+  },
+  {
+   "n": 18,
+   "modulo": "Solicitudes de compra",
+   "que": "Al registrar la compra de un artículo que ya existía, la existencia NO subía (5 + 4 seguían siendo 5) y el costo de lo ya consumido cambiaba hacia atrás (el resultado pasó de $2,500 a $7,294 sin que nadie gastara)",
+   "nivel": "P0",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": "la mercancía entra como movimiento del almacén, con identificador fijo por solicitud (dos teléfonos no la meten doble)"
+  },
+  {
+   "n": 19,
+   "modulo": "Conteo y mermas",
+   "que": "Una merma o un faltante se valuaba al costo de HOY: una compra posterior más cara le cambiaba el importe a una merma vieja, y con él el resultado de un mes ya visto",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": "vale lo que costaba el día que pasó, y ese costo queda escrito en el propio registro al capturarlo"
+  },
+  {
+   "n": 20,
+   "modulo": "Aplicaciones / Finanzas",
+   "que": "Aplicar un producto que ya estaba en el almacén contaba otra vez como dinero que salió (una vez al comprarlo y otra al aplicarlo)",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 21,
+   "modulo": "Inventario",
+   "que": "Lo recibido sin precio se valuaba al promedio de lo demás y además salía como «por valuar» (se veía dos veces); y el valor traía centavos de más o de menos por redondear el promedio",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 22,
+   "modulo": "Inventario, Registrar compra",
+   "que": "Se podía dar de alta un artículo sin nombre, o dos con el mismo nombre (parte la existencia en dos)",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 23,
+   "modulo": "Pagos al personal",
+   "que": "Dos avisos enseñaban importes sin formato de dinero («faltan 350»)",
+   "nivel": "P3",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": ""
+  },
+  {
+   "n": 24,
+   "modulo": "Todos los registros",
+   "que": "Casi todos los identificadores se armaban sólo con la hora del teléfono: dos aparatos capturando en la misma milésima (o uno guardando dos renglones seguidos) podían hacer el mismo, y en la nube el segundo pisaba al primero sin avisar",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": "todo identificador nuevo lleva una parte al azar; el mismo identificador nunca deja dos renglones"
+  },
+  {
+   "n": 25,
+   "modulo": "Finanzas",
+   "que": "Un gasto o un ingreso tecleado en Finanzas se guardaba sin decir quién lo capturó",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": "todo registro de dinero o de almacén queda con su autor"
+  },
+  {
+   "n": 26,
+   "modulo": "Finanzas, Inventario, Aplicaciones",
+   "que": "Si dos personas capturaban el mismo gasto, la misma entrada o la misma aplicación, cada una en su teléfono, contaba dos veces y nada lo señalaba",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": true,
+   "nota": "Finanzas → Resultados avisa «capturas que parecen repetidas», con quién capturó cada una; una persona cancela la que sobra o dice «son distintos». La app no quita nada sola"
+  }
+ ],
+ "no_se_pudo": [
+  "Que dos teléfonos generen el mismo identificador en la misma milésima no se puede provocar a voluntad en el navegador: se prueba en cálculo (5,000 identificadores con la hora congelada) y, en navegador, que dos capturas iguales de dos teléfonos nunca comparten identificador.",
+  "Que la base le niegue algo a un perfil no se ve en la nube de imitación (devuelve todo): se prueba atacando la base aislada (`pruebas/base/auditoria.test.mjs`, 12 pruebas).",
+  "Que un trabajador capture su compra entrando con su PIN en un teléfono ligado: la compra se sembró en la nube de imitación como si él la hubiera mandado; aprobar, recibir y valuar sí se hicieron en pantalla.",
+  "«Registrar actividad» (captura tecleada de mano de obra) con cuentas: la pantalla es de varios pasos y no se alcanzó; la cubre `ejecutores` en local.",
+  "Imprimir etiquetas y remisiones: no hay impresora; se comprobó que la pantalla las genera.",
+  "Todo lo que pide un teléfono de verdad."
+ ],
+ "orden": [
+  "Terminar lo que quedó en parte de la operación diaria, con cuentas: Entregas (a una persona y cierre), Cuadrillas (destajo, precio, flete), Equipos de trabajo (pago por tarea, vehículo), ausencias, prestaciones y bajas, El día y Jornadas, Registrar actividad, Mano de obra.",
+  "Terminar Bodega: calidad, categorías aparte, revoltura, re-limpia, salida a nuestra bodega, pago parcial y a cuenta de deuda; y los dos pendientes abiertos (16 y 17).",
+  "Dinero que falta: Papeles, Banco, Socios (con la consulta autorizada de Finanzas), Semana, Reportes, Temporadas, ContPAQi y los paneles (Operación, ¿Alcanza?, Resumen, ¿Cómo vamos?).",
+  "Agronomía y campo: Hoja de Fito, Variedades, Calendario, Cosechas, Rendimiento, Dron, Ganado, Mapa.",
+  "Captura anterior y control: Registro de varios, Tareas, Indicaciones, Pase de lista, Asistencia, Reportar, Seguridad, Subir catálogos, Credenciales, Arranque, Organización, Mensajes, Importar documentos.",
+  "Integrales: seguridad por perfil en todos, respaldo y recuperación reales."
+ ],
+ "publicado": [
+  {
+   "que": "La app en app.agroselectos.com",
+   "estado": "publicado",
+   "detalle": "Versión `c5c244f`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio."
+  },
+  {
+   "que": "Las correcciones del almacén: la compra de una solicitud entra como movimiento; la misma compra no sale dos veces; aplicar no es dinero que sale; mermas al costo de su día; lo recibido sin precio; alta de artículos",
+   "estado": "publicado",
+   "detalle": "22 de noviembre, autorizado por Luis."
+  },
+  {
+   "que": "Integridad histórica de costos e identidad única: costo guardado al capturar, identificadores que no se repiten entre teléfonos, quién capturó cada registro, aviso de capturas repetidas",
+   "estado": "publicado",
+   "detalle": "22 de noviembre, en la misma publicación."
+  },
+  {
+   "que": "Bodega: corrida que no se pierde al salir, ventas sin dinero fuera del flujo, ajuste de ajo terminado con motivo",
+   "estado": "publicado",
+   "detalle": "22 de noviembre."
+  },
+  {
+   "que": "Caja chica (clases de salida), abonos a créditos (cancelar en vez de borrar, flujo, dos teléfonos)",
+   "estado": "publicado",
+   "detalle": "22 de noviembre."
+  },
+  {
+   "que": "Banco, Socios y ¿Alcanza? fuera del perfil de encargado",
+   "estado": "instalado",
+   "detalle": "Hoja 54 en la base y publicado en la app."
+  },
+  {
+   "que": "Banco y Socios: Finanzas sólo con permiso otorgado, y sólo consulta",
+   "estado": "instalado",
+   "detalle": "Hoja 55 en la base; el permiso ya se puede otorgar desde la app. No se le otorgó a nadie."
+  },
+  {
+   "que": "Restaurar conserva quién autorizó y cuándo; nadie puede inventar una autorización",
+   "estado": "instalado",
+   "detalle": "Hoja 53 en la base y publicado."
+  },
+  {
+   "que": "Respaldo automático de cada noche",
+   "estado": "sin_estrenar",
+   "detalle": "Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis)."
+  },
+  {
+   "que": "Permiso para configurar la organización",
+   "estado": "sin_otorgar",
+   "detalle": "Lo otorga el administrador a su propia cuenta."
+  }
+ ],
+ "pendientes_menores": [
+  "«Nueva parcela» trae una lista fija de ubicaciones heredada. Hay que decidir si se queda.",
+  "El reparto hablado entiende «deshierbar» como «limpiar la parcela».",
+  "El insumo aplicado cuenta una sola vez, pero en Resultados sale bajo «Gastos capturados» y no bajo «Insumos consumidos».",
+  "Mientras una subida falla, la pantalla dice «Sincronizando…» en vez de decir que está reintentando.",
+  "El archivo principal pesa 2.7 MB: la primera carga con mala señal es lenta.",
+  "En producción quedan los datos de la prueba de avisos (1 conversación, 3 mensajes). Hay que retirarlos."
+ ],
+ "de_luis": [
+  "Crear el repositorio privado de respaldos y sus tres secretos.",
+  "Hacer la prueba de campo con la familia.",
+  "Otorgarse el permiso para configurar la organización (Arranque → Cuentas), si la va a usar.",
+  "Decidir a qué cuenta de Finanzas, si a alguna, se le otorga la consulta de Banco y Socios."
+ ],
+ "riesgos": [
+  "Sin copias automáticas todavía: hasta el ensayo real, la copia es el archivo que un administrador descarga a mano.",
+  "Lo que un respaldo no recupera: las sesiones abiertas, los secretos y el despliegue de las funciones del servidor, la configuración del correo, las suscripciones de avisos y lo capturado después del último respaldo que ningún teléfono conserve.",
+  "Casi cada módulo auditado ha destapado al menos un defecto: es razonable esperar más en los que faltan.",
+  "El repositorio del código es público. No tiene llaves ni datos, pero la documentación nombra a la familia. Los respaldos irán en uno privado.",
+  "El teléfono ligado guarda lo que ve la cuenta del encargado: por eso nunca se liga la de un administrador.",
+  "El PIN no es identidad: lo que mueve dinero se hace con cuenta, y la base lo exige.",
+  "La base gratuita se pausa si pasan varios días sin uso. Se reactiva sin perder nada.",
+  "Producción está vacía: una cuenta, sin personal, sin parcelas y sin fecha de inicio declarada."
+ ]
+}
