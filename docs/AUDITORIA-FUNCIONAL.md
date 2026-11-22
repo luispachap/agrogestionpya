@@ -21,22 +21,22 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | Reglas y cálculos | `npm test` | 1,281 de 1,281 |
 | La base, armada desde cero y atacada por perfil | `npm run test:base` | 163 de 163 |
 | Respaldo y restauración, de punta a punta en local | `sh pruebas/respaldo_local/ensayo.sh` | 26 de 26 |
-| Todo junto: lo anterior, compilación y 39 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `574caf5`) |
+| Todo junto: lo anterior, compilación y 40 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `14bf671`) |
 | Producción cerrada sin sesión | `pruebas/real_sin_sesion.py` | 6 de 6 |
 | El sitio publicado, en Android y iPhone imitados | `pruebas/real_sitio.py` | 18 de 18 |
-| Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos a `574caf5` |
+| Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos a `14bf671` |
 | Producción igual a la base probada | `node pruebas/base/paridad.mjs --consulta` | 7 huellas iguales (última hoja instalada: 56) |
 | La base de producción rechaza pisar un identificador ocupado | `prueba directa que se deshace sola` | Otra marca: rechazado · sin marca: rechazado · misma marca: corrige |
-| Asistencia con dos teléfonos (corrección posterior a la publicación) | `pruebas/auditoria_ausencias_navegador.py` | 36 de 36 |
+| Asistencia con dos teléfonos, semana cerrada y pago hecho | `pruebas/auditoria_ausencias_navegador.py` | 36 de 36 |
 
 ## Qué está publicado y qué no
 
 | Qué | Estado | Detalle |
 |---|---|---|
-| La app en app.agroselectos.com | **Publicado** | Versión `574caf5`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio. |
+| La app en app.agroselectos.com | **Publicado** | Versión `14bf671`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio. |
 | Cobros parciales de un embarque desde dos teléfonos (no se pisan; cada cobro con autor, hora y su venta ligada) | **Publicado** | 22 de noviembre, autorizado por Luis. |
 | Un identificador ocupado no se pisa: lo rechaza la base y el teléfono reubica su registro | **Instalado en la base** | Hoja 56 en la base y publicado en la app, 22 de noviembre. |
-| Asistencia: dos decisiones distintas para el mismo día quedan a la vista | **Sin publicar** | Corregido y probado después de la última publicación; pide autorización de Luis. |
+| Asistencia: dos decisiones distintas para el mismo día quedan a la vista; historial de decisiones; una semana cerrada pide reabrirse para cambiarlas | **Publicado** | 22 de noviembre, autorizado por Luis. |
 | Las correcciones del almacén: la compra de una solicitud entra como movimiento; la misma compra no sale dos veces; aplicar no es dinero que sale; mermas al costo de su día; lo recibido sin precio; alta de artículos | **Publicado** | 22 de noviembre, autorizado por Luis. |
 | Integridad histórica de costos e identidad única: costo guardado al capturar, identificadores que no se repiten entre teléfonos, quién capturó cada registro, aviso de capturas repetidas | **Publicado** | 22 de noviembre, en la misma publicación. |
 | Bodega: corrida que no se pierde al salir, ventas sin dinero fuera del flujo, ajuste de ajo terminado con motivo | **Publicado** | 22 de noviembre. |
@@ -47,7 +47,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
 
-## Defectos encontrados al usar los módulos (29: 27 corregidos, 1 de ellos sin publicar; 2 abiertos)
+## Defectos encontrados al usar los módulos (29: 27 corregidos, 0 de ellos sin publicar; 2 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -79,7 +79,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | 26 | Finanzas, Inventario, Aplicaciones | Si dos personas capturaban el mismo gasto, la misma entrada o la misma aplicación, cada una en su teléfono, contaba dos veces y nada lo señalaba | P2 | Corregido y publicado: Finanzas → Resultados avisa «capturas que parecen repetidas», con quién capturó cada una; una persona cancela la que sobra o dice «son distintos». La app no quita nada sola |
 | 27 | Todos los registros (base) | La unicidad de los identificadores dependía sólo del azar del teléfono: si dos registros DISTINTOS llegaban con el mismo identificador, la base dejaba que el segundo quedara encima del primero (y en los eventos, descartaba el segundo sin decir nada) | P1 | Corregido y publicado: hoja 56: cada registro capturado lleva una marca de nacimiento y la base rechaza cualquier otro registro en un identificador ocupado, en todas las tablas; el teléfono reubica solo su registro con otro identificador, así que ninguno se pierde. Probado con un choque forzado y atacando la base; comprobado también en producción con una prueba que se deshace sola |
 | 28 | Consignaciones | Un cobro de un embarque no decía quién lo capturó ni a qué hora, y no quedaba ligado a la venta que generó | P2 | Corregido y publicado: cada cobro lleva su identificador, importe, fecha, autor, hora de captura y la liga con su venta (y con su abono, si fue a cuenta de una deuda); la venta apunta de regreso al cobro |
-| 29 | Pagos al personal (Asistencia) | Si dos administradores decidían distinto cómo se paga la misma salida antes de tiempo, cada uno en su teléfono, se aplicaba la última sin avisarle a nadie (uno creía medio día y el otro completo) | P1 | Corregido **sin publicar**: Asistencia enseña las dos decisiones con quién, cuándo y por qué, dice cuál se está aplicando (la misma en todos los teléfonos) y deja cancelar, con motivo, la que no vale. Siempre vale una sola: nunca dos pagos ni dos cargos. Hay un historial de decisiones donde las canceladas se quedan con quién las canceló y por qué. Con la semana cerrada no se decide ni se cancela sin reabrirla; lo que llegue de otro teléfono sin señal sale como diferencia contra el cierre, diciendo quién y por qué |
+| 29 | Pagos al personal (Asistencia) | Si dos administradores decidían distinto cómo se paga la misma salida antes de tiempo, cada uno en su teléfono, se aplicaba la última sin avisarle a nadie (uno creía medio día y el otro completo) | P1 | Corregido y publicado: Asistencia enseña las dos decisiones con quién, cuándo y por qué, dice cuál se está aplicando (la misma en todos los teléfonos) y deja cancelar, con motivo, la que no vale. Siempre vale una sola: nunca dos pagos ni dos cargos. Hay un historial de decisiones donde las canceladas se quedan con quién las canceló y por qué. Con la semana cerrada no se decide ni se cancela sin reabrirla; lo que llegue de otro teléfono sin señal sale como diferencia contra el cierre, diciendo quién y por qué |
 
 ## Lo que no se pudo ejecutar y por qué
 
@@ -198,6 +198,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 
 ## Riesgos que quedan aunque todo pase
 
+- Riesgo técnico por evaluar (Luis, 22 nov): que una semana cerrada pida reabrirse para cambiar sus decisiones lo cuida la app, no la base. Una decisión que llegue por fuera de la app (o de un teléfono que no sabía del cierre) sí entra; no pasa callada —sale como diferencia contra el cierre, con quién y por qué— pero la base no la rechaza.
 - Sin copias automáticas todavía: hasta el ensayo real, la copia es el archivo que un administrador descarga a mano.
 - Lo que un respaldo no recupera: las sesiones abiertas, los secretos y el despliegue de las funciones del servidor, la configuración del correo, las suscripciones de avisos y lo capturado después del último respaldo que ningún teléfono conserve.
 - Casi cada módulo auditado ha destapado al menos un defecto: es razonable esperar más en los que faltan.

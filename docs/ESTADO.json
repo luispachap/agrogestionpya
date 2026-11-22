@@ -37,9 +37,9 @@
    "resultado": "26 de 26"
   },
   {
-   "que": "Todo junto: lo anterior, compilación y 39 recorridos en navegador",
+   "que": "Todo junto: lo anterior, compilación y 40 recorridos en navegador",
    "con": "sh pruebas/todo.sh",
-   "resultado": "Todo pasa (sobre la versión publicada, `574caf5`)"
+   "resultado": "Todo pasa (sobre la versión publicada, `14bf671`)"
   },
   {
    "que": "Producción cerrada sin sesión",
@@ -54,7 +54,7 @@
   {
    "que": "Lo publicado es exactamente lo probado, byte por byte",
    "con": "pruebas/real_identico.py",
-   "resultado": "18 de 18 archivos idénticos a `574caf5`"
+   "resultado": "18 de 18 archivos idénticos a `14bf671`"
   },
   {
    "que": "Producción igual a la base probada",
@@ -67,7 +67,7 @@
    "resultado": "Otra marca: rechazado · sin marca: rechazado · misma marca: corrige"
   },
   {
-   "que": "Asistencia con dos teléfonos (corrección posterior a la publicación)",
+   "que": "Asistencia con dos teléfonos, semana cerrada y pago hecho",
    "con": "pruebas/auditoria_ausencias_navegador.py",
    "resultado": "36 de 36"
   }
@@ -898,7 +898,7 @@
    "que": "Si dos administradores decidían distinto cómo se paga la misma salida antes de tiempo, cada uno en su teléfono, se aplicaba la última sin avisarle a nadie (uno creía medio día y el otro completo)",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Asistencia enseña las dos decisiones con quién, cuándo y por qué, dice cuál se está aplicando (la misma en todos los teléfonos) y deja cancelar, con motivo, la que no vale. Siempre vale una sola: nunca dos pagos ni dos cargos. Hay un historial de decisiones donde las canceladas se quedan con quién las canceló y por qué. Con la semana cerrada no se decide ni se cancela sin reabrirla; lo que llegue de otro teléfono sin señal sale como diferencia contra el cierre, diciendo quién y por qué"
   }
  ],
@@ -922,7 +922,7 @@
   {
    "que": "La app en app.agroselectos.com",
    "estado": "publicado",
-   "detalle": "Versión `574caf5`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio."
+   "detalle": "Versión `14bf671`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio."
   },
   {
    "que": "Cobros parciales de un embarque desde dos teléfonos (no se pisan; cada cobro con autor, hora y su venta ligada)",
@@ -935,9 +935,9 @@
    "detalle": "Hoja 56 en la base y publicado en la app, 22 de noviembre."
   },
   {
-   "que": "Asistencia: dos decisiones distintas para el mismo día quedan a la vista",
-   "estado": "sin_publicar",
-   "detalle": "Corregido y probado después de la última publicación; pide autorización de Luis."
+   "que": "Asistencia: dos decisiones distintas para el mismo día quedan a la vista; historial de decisiones; una semana cerrada pide reabrirse para cambiarlas",
+   "estado": "publicado",
+   "detalle": "22 de noviembre, autorizado por Luis."
   },
   {
    "que": "Las correcciones del almacén: la compra de una solicitud entra como movimiento; la misma compra no sale dos veces; aplicar no es dinero que sale; mermas al costo de su día; lo recibido sin precio; alta de artículos",
@@ -1000,6 +1000,7 @@
   "Decidir a qué cuenta de Finanzas, si a alguna, se le otorga la consulta de Banco y Socios."
  ],
  "riesgos": [
+  "Riesgo técnico por evaluar (Luis, 22 nov): que una semana cerrada pida reabrirse para cambiar sus decisiones lo cuida la app, no la base. Una decisión que llegue por fuera de la app (o de un teléfono que no sabía del cierre) sí entra; no pasa callada —sale como diferencia contra el cierre, con quién y por qué— pero la base no la rechaza.",
   "Sin copias automáticas todavía: hasta el ensayo real, la copia es el archivo que un administrador descarga a mano.",
   "Lo que un respaldo no recupera: las sesiones abiertas, los secretos y el despliegue de las funciones del servidor, la configuración del correo, las suscripciones de avisos y lo capturado después del último respaldo que ningún teléfono conserve.",
   "Casi cada módulo auditado ha destapado al menos un defecto: es razonable esperar más en los que faltan.",
