@@ -1,3 +1,4 @@
+import { unico } from "./calculos.js";
 // ============================================================
 //  AgroGestión — El lector de papeles (la cascada, de gratis a caro)
 //
@@ -312,7 +313,7 @@ export function aprenderDeLaConfirmacion({ patronPrevio, transcripcion, tipo, ca
   // al proveedor la próxima vez sin preguntarle a nadie qué es este papel.
   if (fuente === "xml") {
     return {
-      id: patronPrevio?.id || `pl${Date.now()}`,
+      id: patronPrevio?.id || `pl${unico()}`,
       emisor,
       rfc: camposConfirmados.rfc || patronPrevio?.rfc || "",
       tipo: tipo || patronPrevio?.tipo || "factura",
@@ -338,7 +339,7 @@ export function aprenderDeLaConfirmacion({ patronPrevio, transcripcion, tipo, ca
   if (Object.keys(patron.campos).length === 0) return null;
   return {
     ...patron,
-    id: patronPrevio?.id || `pl${Date.now()}`,
+    id: patronPrevio?.id || `pl${unico()}`,
     senas: [...new Set([...(patron.senas || []), normalizar(emisor)])],
     aciertos: (patronPrevio?.aciertos || 0) + 1,
   };

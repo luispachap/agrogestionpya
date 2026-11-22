@@ -1,3 +1,5 @@
+import { unico, conAutor } from "./calculos.js";
+import { quizaRepetidos, marcarDistintos } from "./repetidos.js";
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component, createContext, useContext } from "react";
 import { createPortal } from "react-dom";
 // Una operación, múltiples consecuencias: el evento se captura una vez.
@@ -998,7 +1000,7 @@ function urlWhatsAppCotizacion(solicitud, proveedor) {
 // Marca una indicación como completada y crea una actividad real ligada a ella.
 // Si la indicación menciona un insumo, descuenta inventario y carga costo a la parcela.
 function completarIndicacion({ tarea, datosActividad, data, add, upd, setInv, session }) {
-  const actividadId = `act${Date.now()}`;
+  const actividadId = `act${unico()}`;
   const horasNum = parseFloat(datosActividad.horas) || 0;
   const cantidadInsumoNum = parseFloat(datosActividad.cantidadInsumo) || 0;
 
@@ -1603,11 +1605,11 @@ function registrarCosecha(data, add, upd, { parcelaId, cantidad, unidad, registr
   if (cant <= 0) return;
   const p = data.parcelas.find(x => x.id === parcelaId);
   const cosExist = (data.cosechas || []).find(c => c.parcelaId === parcelaId);
-  const nuevoReg = { id: `cr${Date.now()}${Math.floor(Math.random() * 999)}`, fecha: fecha || today(), cantidad: cant, unidad, registradoPor, nota: nota || "", actividadId, siembraId: siembraId || "", variedadNombre: variedadNombre || "" };
+  const nuevoReg = { id: `cr${unico()}${Math.floor(Math.random() * 999)}`, fecha: fecha || today(), cantidad: cant, unidad, registradoPor, nota: nota || "", actividadId, siembraId: siembraId || "", variedadNombre: variedadNombre || "" };
   if (cosExist) {
     upd("cosechas", { ...cosExist, registros: [...(cosExist.registros || []), nuevoReg], unidad: cosExist.unidad || unidad });
   } else {
-    add("cosechas", { id: `cos${Date.now()}`, parcelaId, cultivo: p?.cultivo || "", unidad, registros: [nuevoReg], ajustes: [], notas: "" });
+    add("cosechas", { id: `cos${unico()}`, parcelaId, cultivo: p?.cultivo || "", unidad, registros: [nuevoReg], ajustes: [], notas: "" });
   }
 }
 
@@ -1636,7 +1638,7 @@ function entradaTerminado(data, add, upd, { cultivo, calibre, variedad, cajas, k
   if (nCajas <= 0 && nKg <= 0) return;
   const clave = claveTerminado(cultivo, calibre, variedad);
   const mov = {
-    id: `mt${Date.now()}${Math.floor(Math.random() * 999)}`,
+    id: `mt${unico()}${Math.floor(Math.random() * 999)}`,
     tipo: "entrada", fecha: fecha || today(), cajas: nCajas, kg: nKg,
     nota: nota || "", registradoPor: registradoPor || null,
   };
@@ -1650,7 +1652,7 @@ function entradaTerminado(data, add, upd, { cultivo, calibre, variedad, cajas, k
     });
   } else {
     add("terminados", {
-      id: `term${Date.now()}`, clave, cultivo, calibre, variedad: variedad || "",
+      id: `term${unico()}`, clave, cultivo, calibre, variedad: variedad || "",
       cajas: nCajas, kg: nKg, movimientos: [mov],
     });
   }
@@ -1664,7 +1666,7 @@ function salidaTerminado(data, add, upd, { cultivo, calibre, variedad, cajas, kg
   const exist = (data.terminados || []).find(t => t.clave === claveTerminado(cultivo, calibre, variedad));
   if (!exist) return false;
   const mov = {
-    id: `mt${Date.now()}${Math.floor(Math.random() * 999)}`,
+    id: `mt${unico()}${Math.floor(Math.random() * 999)}`,
     tipo: "salida", fecha: fecha || today(), cajas: nCajas, kg: nKg,
     nota: nota || "", ref: ref || "", registradoPor: registradoPor || null,
   };
@@ -1682,7 +1684,7 @@ function ajustarTerminado(data, upd, { terminadoId, nuevasCajas, nuevosKg, motiv
   const exist = (data.terminados || []).find(t => t.id === terminadoId);
   if (!exist) return;
   const mov = {
-    id: `mt${Date.now()}${Math.floor(Math.random() * 999)}`,
+    id: `mt${unico()}${Math.floor(Math.random() * 999)}`,
     tipo: "ajuste", fecha: today(),
     cajas: (parseFloat(nuevasCajas) || 0) - (exist.cajas || 0),
     kg: (parseFloat(nuevosKg) || 0) - (exist.kg || 0),
@@ -1742,7 +1744,7 @@ function crearEstiba(data, add, upd, { fase, cajas, cultivo, parcelaId, siembraI
   parcelasOrigen = [...new Set(parcelasOrigen.filter(Boolean))];
   const nCajas = parseFloat(cajas) || 0;
   const estiba = {
-    id: `est${Date.now()}${Math.floor(Math.random() * 999)}`,
+    id: `est${unico()}${Math.floor(Math.random() * 999)}`,
     codigo, fase, cajas: nCajas,
     saldo: nCajas, // cajas disponibles para consumir en la siguiente fase
     cultivo: cultivo || "", parcelaId: parcelaId || "",
@@ -2334,7 +2336,7 @@ function useOffline() {
   // Agregar una operación a la cola de pendientes.
   const queue = useCallback((operacion, sec, payload) => {
     setPending(p => [...p, {
-      id: `q${Date.now()}${Math.floor(Math.random() * 1000)}`,
+      id: `q${unico()}${Math.floor(Math.random() * 1000)}`,
       operacion, sec, payload, queuedAt: Date.now(), intentos: 0,
     }]);
   }, [setPending]);
@@ -2786,7 +2788,7 @@ function ElDia({ data, add, upd, session, onClose }) {
     add("eventos", r.evento); setReabreJ(null); setDiceJ("La jornada se reabrió. La foto anterior queda guardada.");
   };
   const mananaJ = sumarDias(fechaJ, 1);
-  const porPasarJ = cierreJ.vigente ? tareasParaManana({ cierre: cierreJ.vigente, indicaciones: data.indicaciones || [], manana: mananaJ, quien: quienJ, cuando: new Date().toISOString(), idNuevo: k => `ind${Date.now()}${k}` }) : [];
+  const porPasarJ = cierreJ.vigente ? tareasParaManana({ cierre: cierreJ.vigente, indicaciones: data.indicaciones || [], manana: mananaJ, quien: quienJ, cuando: new Date().toISOString(), idNuevo: k => `ind${unico()}${k}` }) : [];
   const pasarAManana = () => { for (const t of porPasarJ) add("indicaciones", t); setDiceJ(`${porPasarJ.length} tarea(s) quedaron en el plan del ${fechaLarga(new Date(`${mananaJ}T12:00:00`))}. Se pueden cambiar en Reparto.`); };
 
   const [diaPlan, setDiaPlan] = useState("hoy");
@@ -2800,7 +2802,7 @@ function ElDia({ data, add, upd, session, onClose }) {
     const cuando = new Date().toISOString();
     const r = tocando.modo === "quitar"
       ? quitarAsignacion(ind, { quien: quienCambia, motivo: tocando.motivo, cuando })
-      : cambiarAsignacion(ind, { parcelaId: tocando.parcelaId || null, hora: tocando.hora || null, ...(tocando.asignadoA ? { asignadoA: tocando.asignadoA } : {}), ...(String(tocando.resumen || "").trim() ? { resumen: String(tocando.resumen).trim() } : {}) }, { quien: quienCambia, motivo: tocando.motivo, cuando, id: `ind${Date.now()}${Math.floor(Math.random() * 1000)}`, parcelas });
+      : cambiarAsignacion(ind, { parcelaId: tocando.parcelaId || null, hora: tocando.hora || null, ...(tocando.asignadoA ? { asignadoA: tocando.asignadoA } : {}), ...(String(tocando.resumen || "").trim() ? { resumen: String(tocando.resumen).trim() } : {}) }, { quien: quienCambia, motivo: tocando.motivo, cuando, id: `ind${unico()}${Math.floor(Math.random() * 1000)}`, parcelas });
     if (!r.ok) { setDicePlan(r.dice); return; }
     upd("indicaciones", r.anterior);
     if (r.nueva) add("indicaciones", r.nueva);
@@ -3300,7 +3302,7 @@ function RecorridoDron({ data, add, upd, session, onClose }) {
         const ex = await leerExif(a);
         const chica = await achicar(a);
         leidas.push({
-          id: `fp${Date.now()}_${i}`,
+          id: `fp${unico()}_${i}`,
           dataUrl: chica, nombre: a.name, orden: i,
           lat: ex.lat, lng: ex.lon, fecha: ex.fecha, tomadaEn: ex.tomadaEl,
           porqueSinGps: ex.tieneGps ? null : ex.porque,
@@ -3819,7 +3821,7 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
   // Contestar lo que le falta a una propuesta, sin repetir el mensaje. Queda como un mensaje más de la conversación.
   const contestar = (mensaje, propuesta) => {
     const t = String(resp[propuesta.id] || "").trim(); if (!t) return;
-    const aclaracion = { id: `msj${Date.now()}${Math.floor(Math.random() * 1000)}`, de: yo, cuando: new Date().toISOString(), texto: t };
+    const aclaracion = { id: `msj${unico()}${Math.floor(Math.random() * 1000)}`, de: yo, cuando: new Date().toISOString(), texto: t };
     const r = aclararPropuesta({ propuesta, respuesta: aclaracion, personas: gente, parcelas: data.parcelas || [], hoy: today() });
     guardarAclaracion(mensaje, propuesta, r.propuesta, aclaracion, r.dice);
     setResp(x => ({ ...x, [propuesta.id]: "" })); setNoSePudo({ id: propuesta.id, dice: r.dice });
@@ -3885,7 +3887,7 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
       }
 
       const crudo = {
-        id: `msj${Date.now()}${Math.floor(Math.random() * 1000)}`,
+        id: `msj${unico()}${Math.floor(Math.random() * 1000)}`,
         de: { id: session.id, nombre: session.nombre, rol: session.role },
         cuando: new Date().toISOString(),
         texto: texto.trim(),
@@ -6301,7 +6303,7 @@ function ImportarDocumentos({ data, add, session, onClose }) {
     if (archivos.length === 0) return;
     if (!ini.sabido) { setAviso(["Todavía no se sabe la fecha de inicio de operaciones (hace falta señal para preguntarla). Sin ella no se puede decidir qué es histórico: intenta de nuevo cuando haya conexión."]); return; }
     trabajando.current = true; setAviso([]); setDice("");
-    const lote = `L${Date.now()}`, notas = []; let repetidos = 0, sinOriginal = 0;
+    const lote = `L${unico()}`, notas = []; let repetidos = 0, sinOriginal = 0;
     const vistos = bandejaDe(datosRef.current.eventos).slice(), huellas = new Set(vistos.map(d => d.huella));
     for (let i = 0; i < archivos.length; i++) {
       const f = archivos[i]; setAvance({ total: archivos.length, hechas: i, actual: f.name }); await cede();
@@ -7621,12 +7623,14 @@ function AppInner() {
     // Quién lo ordenó, capturó, ejecutó y confirmó van aparte, sin suponer a nadie. No cambia pagos ni costos.
     if (CLASES_CON_QUIENES.includes(sec)) item = conQuienes(sec, item, { sesion: sesionRef.current, catalogos: catalogosRef.current });
     if (sec === "inventario") item = paraGuardarArticulo(item);
+    item = conAutor(sec, item, sesionRef.current);
     item = apartarArchivos(sec, item);
     // Cada evento nace diciendo cuánto difería el reloj de este teléfono del servidor (o que no se ha podido cotejar).
     if (sec === "eventos" && !item.reloj) item = { ...item, reloj: selloDeReloj(relojRef.current, Date.now()) };
-    const ni = marcarTocado({ ...item, id: item.id || `${sec[0]}${Date.now()}${Math.floor(Math.random() * 1000)}` });
-    // Un evento con el mismo identificador es el MISMO evento: un doble toque no lo mete dos veces.
-    setData(d => { const lista = Array.isArray(d[sec]) ? d[sec] : []; return sec === "eventos" && lista.some(x => x.id === ni.id) ? d : { ...d, [sec]: [...lista, ni] }; });
+    const ni = marcarTocado({ ...item, id: item.id || `${sec[0]}${unico()}${Math.floor(Math.random() * 1000)}` });
+    // Un evento con el mismo identificador es el MISMO evento: un doble toque no lo mete dos veces. Y en las demás
+    // colecciones, el mismo identificador es el mismo registro: se queda uno (el último), nunca dos renglones.
+    setData(d => { const lista = Array.isArray(d[sec]) ? d[sec] : []; if (!lista.some(x => x.id === ni.id)) return { ...d, [sec]: [...lista, ni] }; return sec === "eventos" ? d : { ...d, [sec]: lista.map(x => x.id === ni.id ? ni : x) }; });
     replicarANube("add", sec, ni);
     return ni;
   }, [setData, replicarANube, apartarArchivos]);
@@ -7754,7 +7758,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
   const aplicarLote = useCallback((ops) => {
     const resueltos = ops.map(o => {
       if (o.tipo === "add") {
-        const ni = { ...o.item, id: o.item.id || `${o.sec[0]}${Date.now()}${Math.floor(Math.random() * 100000)}` };
+        const ni = { ...o.item, id: o.item.id || `${o.sec[0]}${unico()}${Math.floor(Math.random() * 100000)}` };
         return { ...o, item: marcarTocado(ni) };
       }
       return { ...o, item: marcarTocado(o.item) };
@@ -7794,7 +7798,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
     const ev = movimientoDeSiempre({ articulo: item, delta, movimiento: { ...(contexto || {}), ...(movimiento || {}) }, usadoPor: movimiento?.usadoPor || contexto?.usadoPor || null, quien, cuando: instanteDe(fecha, today(), ahora), fecha });
     if (ev) add("eventos", { ...ev, capturado: ahora });
     if (movimiento) add("entradas_inv", {
-      id: `mov${Date.now()}_${id}`, insumoId: id, nombre: item.nombre, unidad: item.unidad, cantidad: delta, fecha,
+      id: `mov${unico()}_${id}`, insumoId: id, nombre: item.nombre, unidad: item.unidad, cantidad: delta, fecha,
       concepto: movimiento.concepto || (delta < 0 ? "Salida" : "Entrada"), parcelaId: movimiento.parcelaId || "", actividadId: movimiento.actividadId || "", indicacionId: movimiento.indicacionId || "",
       costo_unit: item.costo_unit || 0, costo_total: (item.costo_unit || 0) * delta, registradoPor: movimiento.registradoPor || null, _evento: ev?.id || null,
       ...(movimiento.esVale ? { esVale: true } : {}), ...(movimiento.destino ? { destino: movimiento.destino } : {}),
@@ -8388,7 +8392,7 @@ function LoginScreen({ data, add, upd, onLogin, vinculo = null, eventosListos = 
       if (busq.trim().length < 5 || !/\s/.test(busq.trim())) { setError("Escribe tu nombre completo"); return; }
       const nombre = busq.trim().toUpperCase();
       let ext = (data.externos || []).find(e => e.nombre.toUpperCase() === nombre);
-      if (!ext) { const newId = `ext${Date.now()}`; add("externos", { id: newId, nombre, fecha_registro: today(), sueldo_dia: 683 }); ext = { id: newId, nombre }; }
+      if (!ext) { const newId = `ext${unico()}`; add("externos", { id: newId, nombre, fecha_registro: today(), sueldo_dia: 683 }); ext = { id: newId, nombre }; }
       onLogin({ role: "externo", nombre: ext.nombre, id: ext.id, sueldo_dia: ext.sueldo_dia || 683 }); return;
     }
     // ---- Camino D: PIN. La app busca de quién es; nadie escoge su perfil. ----
@@ -11224,7 +11228,7 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
               if (!form.nombre || !form.cultivo) return;
               const lat = parseFloat(form.lat) || null;
               const lng = parseFloat(form.lng) || null;
-              add("parcelas", { ...form, lat, lng, id: `p${Date.now()}` });
+              add("parcelas", { ...form, lat, lng, id: `p${unico()}` });
               setForm(FORM0);
               setTab("lista");
             }}>Crear Parcela</button>
@@ -11255,7 +11259,7 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
               if (!ranchoForm.nombre) return;
               const lat = parseFloat(ranchoForm.lat) || null;
               const lng = parseFloat(ranchoForm.lng) || null;
-              add("ranchos", { ...ranchoForm, lat, lng, id: `r${Date.now()}` });
+              add("ranchos", { ...ranchoForm, lat, lng, id: `r${unico()}` });
               setRanchoForm({ nombre: "", hectareas: 100, lat: "", lng: "" });
             }}>Crear Rancho</button>
           </div>
@@ -11363,7 +11367,7 @@ function AdminInventario({ data, add, upd, del, setInv, session = {} }) {
               </>
             )}
             {diceAlta && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{diceAlta}</div>}
-            <button className="btn btn-accent" onClick={() => { const r = revisarArticulo(form, data.inventario); if (!r.ok) { setDiceAlta(r.dice); return; } setDiceAlta(""); add("inventario", { ...form, nombre: r.nombre, unidad: r.unidad, id: `i${Date.now()}` }); setShowF(false); setForm({ nombre: "", cat: "nutricion", unidad: "kg", existencia: 0, costo_unit: 0, minimo: 0, emoji: "🌱", tipoAgro: "", ingredienteActivo: "", paraQueSirve: "", dosisRec: "", unidadDosis: "kg/ha", intervaloSeguridad: "" }); }}>Guardar</button>
+            <button className="btn btn-accent" onClick={() => { const r = revisarArticulo(form, data.inventario); if (!r.ok) { setDiceAlta(r.dice); return; } setDiceAlta(""); add("inventario", { ...form, nombre: r.nombre, unidad: r.unidad, id: `i${unico()}` }); setShowF(false); setForm({ nombre: "", cat: "nutricion", unidad: "kg", existencia: 0, costo_unit: 0, minimo: 0, emoji: "🌱", tipoAgro: "", ingredienteActivo: "", paraQueSirve: "", dosisRec: "", unidadDosis: "kg/ha", intervaloSeguridad: "" }); }}>Guardar</button>
           </div>
         </div>
       )}
@@ -11383,7 +11387,7 @@ function AdminInventario({ data, add, upd, del, setInv, session = {} }) {
             <button className="btn btn-accent" onClick={() => {
               if (!ent.insumoId || !ent.cantidad) return;
               setInv(ent.insumoId, parseFloat(ent.cantidad) || 0, null, { fecha: ent.fecha, concepto: `Entrada${ent.proveedor ? ` de ${ent.proveedor}` : ""}`, costoUnit: (parseFloat(ent.costo_total) || 0) > 0 ? (parseFloat(ent.costo_total) || 0) / (parseFloat(ent.cantidad) || 1) : null });
-              const nuevaEnt = { ...ent, id: `ei${Date.now()}`, cantidad: parseFloat(ent.cantidad) || 0, costo_total: parseFloat(ent.costo_total) || 0 };
+              const nuevaEnt = { ...ent, id: `ei${unico()}`, cantidad: parseFloat(ent.cantidad) || 0, costo_total: parseFloat(ent.costo_total) || 0 };
               add("entradas_inv", nuevaEnt);
               // Si ya hay un gasto por ese mismo importe en esos días, se enseña la lista de entradas: ahí se pregunta si es la misma compra.
               if (gastosDeLaMismaCompra(nuevaEnt, { egresos: data.egresos || [], entradas_inv: data.entradas_inv || [] }).length) setTab("entradas");
@@ -11572,7 +11576,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
               <div key={k} className="form-group"><label className="form-label">{l}</label><input type={t} className="inp" value={encForm[k]} onChange={e => setEncForm(f => ({ ...f, [k]: t === "number" ? (parseFloat(e.target.value) || 0) : e.target.value }))} /></div>
             ))}
             <div className="text-xs text-muted mb-3">El encargado puede asignar tareas, ver actividades del personal, registrar préstamos, manejar caja chica y reportar incidencias. También es personal con sueldo: puede registrar sus propias actividades y recibir bonificaciones.</div>
-            <button className="btn btn-accent" onClick={() => { const r = revisarAlta({ ...encForm, sueldo_dia: encForm.sueldo_dia || encForm.sueldo }, data, { pideSueldo: false }); if (!r.ok) { alert(r.dice); return; } if (r.aviso && !window.confirm(r.aviso + "\n\n¿Guardar así?")) return; add("encargados", { ...encForm, id: `en${Date.now()}`, categoria: "encargado", sueldo_dia: encForm.sueldo_dia || 0 }); setEncForm({ nombre: "", pin: "", sueldo_dia: 0 }); setShowAdd(false); }}>Guardar</button>
+            <button className="btn btn-accent" onClick={() => { const r = revisarAlta({ ...encForm, sueldo_dia: encForm.sueldo_dia || encForm.sueldo }, data, { pideSueldo: false }); if (!r.ok) { alert(r.dice); return; } if (r.aviso && !window.confirm(r.aviso + "\n\n¿Guardar así?")) return; add("encargados", { ...encForm, id: `en${unico()}`, categoria: "encargado", sueldo_dia: encForm.sueldo_dia || 0 }); setEncForm({ nombre: "", pin: "", sueldo_dia: 0 }); setShowAdd(false); }}>Guardar</button>
           </div>
         </div>
       )}
@@ -11589,7 +11593,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
               </select>
               <div className="text-xs text-muted mt-2">El puesto define la interfaz de registro: tractorista, dronero, etc.</div>
             </div>
-            <button className="btn btn-accent" onClick={() => { const r = revisarAlta(tForm, data); if (!r.ok) { alert(r.dice); return; } if (r.aviso && !window.confirm(r.aviso + "\n\n¿Guardar así?")) return; add("trabajadores", { ...tForm, nombre: tForm.nombre.trim(), pin: String(tForm.pin || "").trim(), id: `t${Date.now()}` }); setTForm({ nombre: "", categoria: "jornalero", sueldo_dia: 350, pin: "", codigoNomina: "" }); setShowAdd(false); }}>Guardar</button>
+            <button className="btn btn-accent" onClick={() => { const r = revisarAlta(tForm, data); if (!r.ok) { alert(r.dice); return; } if (r.aviso && !window.confirm(r.aviso + "\n\n¿Guardar así?")) return; add("trabajadores", { ...tForm, nombre: tForm.nombre.trim(), pin: String(tForm.pin || "").trim(), id: `t${unico()}` }); setTForm({ nombre: "", categoria: "jornalero", sueldo_dia: 350, pin: "", codigoNomina: "" }); setShowAdd(false); }}>Guardar</button>
           </div>
         </div>
       )}
@@ -11600,7 +11604,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
             {[["Nombre", "text", "nombre"], ["Responsable", "text", "responsable"], ["Miembros", "number", "miembros"], ["Flete/día", "number", "flete_dia"], ["PIN", "text", "pin"]].map(([l, t, k]) => (
               <div key={k} className="form-group"><label className="form-label">{l}</label><input type={t} className="inp" value={cqForm[k]} onChange={e => setCqForm(f => ({ ...f, [k]: t === "number" ? parseFloat(e.target.value) || 0 : e.target.value }))} /></div>
             ))}
-            <button className="btn btn-accent" onClick={() => { const r = revisarAlta(cqForm, data, { pideSueldo: false }); if (!r.ok) { alert(r.dice); return; } add("cuadrillas", { ...cqForm, id: `cq${Date.now()}` }); setCqForm({ nombre: "", responsable: "", miembros: 1, flete_dia: 0, pin: "" }); setShowAdd(false); }}>Guardar</button>
+            <button className="btn btn-accent" onClick={() => { const r = revisarAlta(cqForm, data, { pideSueldo: false }); if (!r.ok) { alert(r.dice); return; } add("cuadrillas", { ...cqForm, id: `cq${unico()}` }); setCqForm({ nombre: "", responsable: "", miembros: 1, flete_dia: 0, pin: "" }); setShowAdd(false); }}>Guardar</button>
           </div>
         </div>
       )}
@@ -11616,7 +11620,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
                 {["tractor", "vehiculo", "implemento", "dron"].map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
-            <button className="btn btn-accent" onClick={() => { add("maquinaria", { ...maqForm, id: `m${Date.now()}` }); setShowAdd(false); }}>Guardar</button>
+            <button className="btn btn-accent" onClick={() => { add("maquinaria", { ...maqForm, id: `m${unico()}` }); setShowAdd(false); }}>Guardar</button>
           </div>
         </div>
       )}
@@ -11766,7 +11770,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
               {[["Monto", "number", "monto"], ["Concepto", "text", "concepto"], ["Año", "number", "anio"]].map(([l, t, k]) => (
                 <div key={k} className="form-group"><label className="form-label">{l}</label><input type={t} className="inp" value={bonForm[k] || ""} onChange={e => setBonForm(f => ({ ...f, [k]: t === "number" ? parseFloat(e.target.value) || 0 : e.target.value }))} /></div>
               ))}
-              <button className="btn btn-accent" onClick={() => { if (!bonForm.trabajadorId) return; add("bonificaciones", { ...bonForm, id: `b${Date.now()}` }); setBonForm({ trabajadorId: "", monto: 0, anio: new Date().getFullYear(), concepto: "Bono" }); }}>Registrar</button>
+              <button className="btn btn-accent" onClick={() => { if (!bonForm.trabajadorId) return; add("bonificaciones", { ...bonForm, id: `b${unico()}` }); setBonForm({ trabajadorId: "", monto: 0, anio: new Date().getFullYear(), concepto: "Bono" }); }}>Registrar</button>
             </div>
             {data.bonificaciones.map(b => {
               const t = data.trabajadores.find(x => x.id === b.trabajadorId) || (data.encargados || []).find(x => x.id === b.trabajadorId);
@@ -12047,7 +12051,7 @@ function TrabReg({ data, add, upd, setInv, session, online, onLogout, onNav }) {
       }
     }
     const costoIns = insumosFinales.reduce((s, i) => s + i.costo, 0);
-    const actId = `a${Date.now()}`;
+    const actId = `a${unico()}`;
     const _sb = siembraEnFecha(data, form.parcelaId, form.fecha || today());
     add("actividades", {
       id: actId, fecha: form.fecha || today(), parcelaId: form.parcelaId, tipo: form.tipo,
@@ -12371,7 +12375,7 @@ function TrabReporte({ data, add, session, onLogout }) {
   const [enviado, setEnviado] = useState(false);
   const enviar = () => {
     if (!desc.trim()) { alert("Describe el problema"); return; }
-    add("incidencias", { id: `inc${Date.now()}`, fecha: today(), trabajadorId: session.id, tipo, desc, estado: "pendiente", prioridad });
+    add("incidencias", { id: `inc${unico()}`, fecha: today(), trabajadorId: session.id, tipo, desc, estado: "pendiente", prioridad });
     setEnviado(true);
     setTimeout(() => { setEnviado(false); setDesc(""); setTipo("equipo"); setPrioridad("media"); }, 2500);
   };
@@ -12440,7 +12444,7 @@ function CuadrillaReg({ data, add, upd, setInv, session, online, onLogout }) {
     if (yaRegistrado) { alert("El trabajo de ese día ya está registrado por el encargado. No se registra dos veces: su pago sale de ese registro."); return; }
     const mo = calcMO();
     const costoIns = form.insumos.reduce((s, i) => s + i.costo, 0);
-    const actId = `a${Date.now()}`;
+    const actId = `a${unico()}`;
     const _sb = siembraEnFecha(data, form.parcelaId, form.fecha || today());
     add("actividades", {
       id: actId, fecha: form.fecha || today(), parcelaId: form.parcelaId, tipo: form.tipo,
@@ -13219,7 +13223,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
     const costoVenta = parseFloat(ingForm.costoVenta) || 0;
     const montoBruto = parseFloat(ingForm.monto) || 0;
     add("ingresos", {
-      ...ingForm, id: `ing${Date.now()}`,
+      ...ingForm, id: `ing${unico()}`,
       monto: montoBruto - costoVenta, // monto neto: lo que de verdad entra
       montoBruto, costoVenta, conceptoCostoVenta: ingForm.conceptoCostoVenta || "",
       cantidad: cant, cultivo: p?.cultivo || ingForm.cultivo,
@@ -13230,7 +13234,7 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
   };
   const guardarEgreso = () => {
     if (!egForm.concepto || !egForm.monto) { alert("Completa concepto y monto"); return; }
-    add("egresos", { ...egForm, id: `eg${Date.now()}`, monto: parseFloat(egForm.monto) || 0, parcelaId: egForm.parcelaId || null, vehiculoId: egForm.parcelaId ? null : egForm.vehiculoId || null });
+    add("egresos", { ...egForm, id: `eg${unico()}`, monto: parseFloat(egForm.monto) || 0, parcelaId: egForm.parcelaId || null, vehiculoId: egForm.parcelaId ? null : egForm.vehiculoId || null });
     setEgForm(FORM_EG); setShowForm(null);
   };
   // Disponible de cosecha de la parcela elegida en el form de ingreso
@@ -13463,6 +13467,15 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
               {p.porLigar.length > 0 && <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm">Préstamos o pagos que salieron de la caja, sin ligar a su registro ({p.porLigar.length})<div className="text-xs text-muted">no son gasto; si el préstamo o el pago ya está registrado y no se ligan, el flujo los cuenta dos veces</div></span><b>{fmt(p.montoPorLigar)}</b></div>}
               <div className="text-xs text-muted" style={{ marginTop: 6 }}>Se resuelven en la pantalla Caja chica.</div>
             </div>; })()}
+            {(() => { const rep = quizaRepetidos(data); return rep.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}>
+              <div className="card-title">Capturas que parecen repetidas ({rep.length})</div>
+              <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Coinciden en fecha, importe o cantidad y concepto. Puede ser el mismo hecho capturado en dos teléfonos, o dos hechos iguales: la app no lo sabe y no quita nada sola. Si sobra uno, se cancela en su pantalla; si son dos de verdad, dilo y el aviso se va.</div>
+              {rep.map(g => <div key={g.llave} style={{ padding: "6px 0", borderTop: "1px solid var(--border)" }}>
+                <div className="flex-b" style={{ gap: 8 }}><span className="text-sm"><b>{g.nombre}</b> · {g.dice} · {g.fecha}{g.importe > 0 ? ` · ${fmt(g.importe)}` : ""}</span><span className="text-sm" style={{ flex: "0 0 auto" }}>{g.registros.length} veces</span></div>
+                <div className="text-xs text-muted">Capturó: {g.registros.map(r => r.quien || "sin nombre").join(" · ")}. Se revisa en {g.donde}.</div>
+                {(session.role === "admin" || session.role === "finanzas") && <button className="btn btn-outline btn-sm" style={{ marginTop: 4 }} aria-label={`Son distintos: ${g.dice}`} onClick={() => marcarDistintos(g, data[g.coleccion] || [], { id: session.id, nombre: session.nombre || "" }, today()).forEach(r => upd(g.coleccion, r))}>Son distintos</button>}
+              </div>)}
+            </div>; })()}
             <div className="card">
               <div className="card-title">Resultado por cultivo</div>
               {(() => { const g = sumarDinero((data.actividadesContables || data.actividades || []).filter(a => a.esBodega && a.cultivoBodega === "__general__").map(a => (a.costoMO || 0) + (a.costoMaq || 0) + (a.costoInsumos || 0))); return g > 0 ? <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Los trabajos generales de bodega ({fmt(g)}) no se reparten entre los cultivos: son gasto general y salen aparte en el cierre de mes.</div> : null; })()}
@@ -13630,7 +13643,7 @@ function ExternoReg({ data, add, setInv, session, online, onLogout }) {
   const enviar = () => {
     const mo = calcMO();
     const costoIns = form.insumos.reduce((s, i) => s + i.costo, 0);
-    const actId = `a${Date.now()}`;
+    const actId = `a${unico()}`;
     const _sb = siembraEnFecha(data, form.parcelaId, form.fecha || today());
     add("actividades", {
       id: actId, fecha: form.fecha || today(), parcelaId: form.parcelaId, tipo: form.tipo,
@@ -13894,7 +13907,7 @@ function TrabCompras({ data, add, setInv, session, online, onLogout }) {
   const enviar = () => {
     if (!form.descripcion || !form.monto) { alert("Falta descripción o monto"); return; }
     add("compras", {
-      id: `co${Date.now()}`, fecha: form.fecha, trabajadorId: session.id, tipoTrab: session.role,
+      id: `co${unico()}`, fecha: form.fecha, trabajadorId: session.id, tipoTrab: session.role,
       descripcion: form.descripcion, proveedor: form.proveedor, monto: parseFloat(form.monto) || 0,
       estado: "pendiente", ticket: form.ticket, afectaInventario: form.afectaInventario, items: form.items,
     });
@@ -14370,13 +14383,13 @@ function EncargadoTareas({ data, add, upd, del, session }) {
 
   const guardarTarea = () => {
     if (!form.asignadoA || !form.titulo) { alert("Falta asignar a quién y el título"); return; }
-    add("tareas", { ...form, id: `ta${Date.now()}`, fecha: today(), asignadoPor: session.id, estado: "pendiente" });
+    add("tareas", { ...form, id: `ta${unico()}`, fecha: today(), asignadoPor: session.id, estado: "pendiente" });
     setForm(FORM0); setShowForm(false);
   };
   const guardarInc = () => {
     if (!incForm.desc.trim()) { alert("Describe la incidencia o necesidad"); return; }
     add("incidencias", {
-      id: `inc${Date.now()}`, fecha: today(), trabajadorId: session.id, tipoTrab: "encargado",
+      id: `inc${unico()}`, fecha: today(), trabajadorId: session.id, tipoTrab: "encargado",
       tipo: incForm.tipo, clase: incForm.clase, desc: incForm.desc, estado: "pendiente", prioridad: incForm.prioridad,
     });
     setIncForm(FINC0); setShowInc(false);
@@ -14560,7 +14573,7 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
   };
   const guardarCuad = () => {
     const r = revisarAlta(cuadForm, data, { pideSueldo: false }); if (!r.ok) { alert(r.dice); return; }
-    add("cuadrillas", { ...cuadForm, id: `cq${Date.now()}`, miembros: parseInt(cuadForm.miembros) || 1, flete_dia: parseFloat(cuadForm.flete_dia) || 0 });
+    add("cuadrillas", { ...cuadForm, id: `cq${unico()}`, miembros: parseInt(cuadForm.miembros) || 1, flete_dia: parseFloat(cuadForm.flete_dia) || 0 });
     setCuadForm(FC0); setShowCuad(false);
   };
   const aplicarAbono = pr => {
@@ -14761,7 +14774,7 @@ function EncargadoCaja({ data, add, upd, del, cancelar, reactivar, session }) {
 
   const guardar = () => {
     const monto = parseFloat(form.monto) || 0;
-    const ccId = `cc${Date.now()}`;
+    const ccId = `cc${unico()}`;
     if (form.tipo === "entrada") {
       if (!form.concepto || !monto) { setAviso("Falta concepto o monto."); return; }
       add("cajachica", { id: ccId, tipo: "entrada", concepto: form.concepto, monto, fecha: form.fecha, registradoPor: session.id });
@@ -14948,12 +14961,12 @@ function AdminProveedores({ data, add, upd, del, cancelar, reactivar, onBack }) 
 
   const guardarProv = () => {
     if (!provForm.nombre) { alert("Falta el nombre"); return; }
-    add("proveedores", { ...provForm, id: `pv${Date.now()}` });
+    add("proveedores", { ...provForm, id: `pv${unico()}` });
     setProvForm(FP0); setShowProv(false);
   };
   const guardarCred = () => {
     if (!credForm.proveedorId || !credForm.monto) { alert("Falta proveedor o monto"); return; }
-    add("creditos", { ...credForm, id: `cr${Date.now()}`, monto: parseFloat(credForm.monto) || 0, abonos: [], estado: "activo" });
+    add("creditos", { ...credForm, id: `cr${unico()}`, monto: parseFloat(credForm.monto) || 0, abonos: [], estado: "activo" });
     setCredForm(FC0); setShowCred(false);
   };
 
@@ -15157,7 +15170,7 @@ function CreditoDetalle({ data, cr, add, upd, del, cancelar, reactivar, onClose 
   const registrarAbono = () => {
     const monto = parseFloat(abForm.monto) || 0;
     if (monto <= 0) { alert("El monto debe ser mayor a cero"); return; }
-    const abonoId = `ab${Date.now()}`;
+    const abonoId = `ab${unico()}`;
     const nuevoAbono = {
       id: abonoId, fecha: abForm.fecha, tipo: abForm.tipo, monto,
       nota: abForm.nota,
@@ -15170,7 +15183,7 @@ function CreditoDetalle({ data, cr, add, upd, del, cancelar, reactivar, onClose 
     if (abForm.tipo === "especie") {
       const p = data.parcelas.find(x => x.id === abForm.parcelaId);
       add("ingresos", {
-        id: `ing${Date.now()}`, fecha: abForm.fecha,
+        id: `ing${unico()}`, fecha: abForm.fecha,
         concepto: `Pago en especie a ${prov?.nombre || "acreedor"} — ${abForm.cultivo || "cosecha"}`,
         categoria: "venta_cosecha", parcelaId: abForm.parcelaId || "", cultivo: p?.cultivo || abForm.cultivo,
         monto, cantidad: parseFloat(abForm.cantidad) || 0, unidad: abForm.unidad,
@@ -15326,7 +15339,7 @@ function RegistroActividadAdmin({ data, add, upd, setInv, session, onClose }) {
     if (esCuadrilla && CUADRILLAS_SOLO_EN_SU_PANTALLA) { alert(AVISO_CUADRILLAS); return; }
     const esBodega = form.parcelaId === "__bodega__";
     if (esBodega && !form.cultivoBodega) { alert("Elige a qué cultivo aplica el trabajo de bodega"); return; }
-    const actId = `a${Date.now()}`;
+    const actId = `a${unico()}`;
     let costoMO = 0, costoMaq = 0;
     if (esCuadrilla) {
       costoMO = calcMOCuadrilla();
@@ -15745,12 +15758,12 @@ function CosechaDetalle({ data, parcelaId, add, upd, session, onClose }) {
     const delta = parseFloat(ajForm.delta) || 0;
     if (delta === 0) { alert("Indica el ajuste (puede ser positivo o negativo)"); return; }
     if (!ajForm.motivo.trim()) { alert("Indica el motivo del ajuste"); return; }
-    const ajuste = { id: `aj${Date.now()}`, fecha: today(), delta, motivo: ajForm.motivo, ajustadoPor: { rol: session.role, nombre: session.nombre } };
+    const ajuste = { id: `aj${unico()}`, fecha: today(), delta, motivo: ajForm.motivo, ajustadoPor: { rol: session.role, nombre: session.nombre } };
     if (cos) {
       upd("cosechas", { ...cos, ajustes: [...(cos.ajustes || []), ajuste] });
     } else {
       const p = data.parcelas.find(x => x.id === parcelaId);
-      add("cosechas", { id: `cos${Date.now()}`, parcelaId, cultivo: p?.cultivo || "", unidad: "kg", registros: [], ajustes: [ajuste], notas: "" });
+      add("cosechas", { id: `cos${unico()}`, parcelaId, cultivo: p?.cultivo || "", unidad: "kg", registros: [], ajustes: [ajuste], notas: "" });
     }
     setAjForm(FA0); setShowAjuste(false);
   };
@@ -15775,7 +15788,7 @@ function CosechaDetalle({ data, parcelaId, add, upd, session, onClose }) {
     if (cant > r.disponible) { alert(`Solo hay ${fmtN(r.disponible)} ${r.unidad} disponibles`); return; }
     if (!cos) { alert("No hay cosecha registrada"); return; }
     // Registrar el uso de semilla en la cosecha
-    const uso = { id: `us${Date.now()}`, fecha: today(), cantidad: cant, nota: semForm.nota || "Apartado para siembra" };
+    const uso = { id: `us${unico()}`, fecha: today(), cantidad: cant, nota: semForm.nota || "Apartado para siembra" };
     upd("cosechas", { ...cos, usosSemilla: [...(cos.usosSemilla || []), uso] });
     // Crear o sumar a un insumo tipo semilla en el inventario
     const nombreSemilla = `Semilla de ${r.p?.cultivo || "cosecha"}`;
@@ -15785,7 +15798,7 @@ function CosechaDetalle({ data, parcelaId, add, upd, session, onClose }) {
       upd("inventario", { ...insExist, existencia: (insExist.existencia || 0) + cant });
     } else {
       add("inventario", {
-        id: `i${Date.now()}`, nombre: nombreSemilla, cat: "semilla", unidad: r.unidad,
+        id: `i${unico()}`, nombre: nombreSemilla, cat: "semilla", unidad: r.unidad,
         existencia: cant, costo_unit: costoUnit, minimo: 0, emoji: "🌱", origenCosecha: parcelaId,
       });
     }
@@ -15802,7 +15815,7 @@ function CosechaDetalle({ data, parcelaId, add, upd, session, onClose }) {
     const costoUnit = parseFloat(envForm.costoAsignado) || r.costoPorUnidad || 0;
     const transporte = parseFloat(envForm.transporte) || 0;
     add("envios_bodega", {
-      id: `env${Date.now()}`, fecha: today(), parcelaId,
+      id: `env${unico()}`, fecha: today(), parcelaId,
       cultivo: r.p?.cultivo || "", cantidad: cant, unidad: r.unidad,
       costoUnitario: costoUnit, costoTotal: costoUnit * cant + transporte,
       transporte, nota: envForm.nota,
@@ -15980,7 +15993,7 @@ function GestionCiclos({ data, add, upd, del, onClose }) {
 
   const guardar = () => {
     if (!form.nombre || !form.fechaInicio) { alert("Falta nombre o fecha de inicio"); return; }
-    add("ciclos", { ...form, id: `ci${Date.now()}`, estado: "activo" });
+    add("ciclos", { ...form, id: `ci${unico()}`, estado: "activo" });
     setForm(F0); setShowForm(false);
   };
 
@@ -16268,7 +16281,7 @@ function CalendarioCultivos({ data, add, upd, del, session, onClose }) {
     // o varias variedades a la vez). Cada una vive por su cuenta.
     const culVar = (cul?.variedades || []).find(v => v.id === celdaForm.variedadId);
     add("siembras", {
-      id: `si${Date.now()}`, parcelaId: celda.parcelaId, cultivoId: celdaForm.cultivoId,
+      id: `si${unico()}`, parcelaId: celda.parcelaId, cultivoId: celdaForm.cultivoId,
       cultivoNombre: cul?.nombre || "Cultivo", fechaSiembra,
       fechaCosechaEstimada: fechaCosecha, fechaCosechaReal: "", estado: "activa",
       presupuesto: parseFloat(celdaForm.presupuesto) || 0, notas: celdaForm.notas,
@@ -17102,7 +17115,7 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
       const costoMO = (p.sueldo || 0) * (horas / 8);
       const costoMaq = (maq && idxGlobal === 0) ? maq.costo_hora * horas : 0;
       add("actividades", {
-        id: `a${Date.now()}${idxGlobal}`, fecha, parcelaId, tipo,
+        id: `a${unico()}${idxGlobal}`, fecha, parcelaId, tipo,
         siembraId: _sb?.id || null,
         registradoPor: { tipo: cfg.tipo, id: p.id },
         maquinariaId: (maquinariaId && idxGlobal === 0) ? maquinariaId : null,
@@ -17122,7 +17135,7 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
       const cfg = selCuad[c.id];
       const costoMO = calcCostoCuad(cfg);
       add("actividades", {
-        id: `a${Date.now()}${idxGlobal}`, fecha, parcelaId, tipo,
+        id: `a${unico()}${idxGlobal}`, fecha, parcelaId, tipo,
         siembraId: _sb?.id || null,
         registradoPor: { tipo: "cuadrilla", id: c.id },
         maquinariaId: null, horas_maq: 0, horas_trab: 0,
@@ -17142,7 +17155,7 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
       const cfg = selExt[e.id];
       const costoMO = calcCostoExt(cfg);
       add("actividades", {
-        id: `a${Date.now()}${idxGlobal}`, fecha, parcelaId, tipo,
+        id: `a${unico()}${idxGlobal}`, fecha, parcelaId, tipo,
         siembraId: _sb?.id || null,
         registradoPor: { tipo: "externo", id: e.id },
         maquinariaId: null, horas_maq: 0, horas_trab: 0,
@@ -17517,7 +17530,7 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
     if (!form.parcelaId) { alert("Elige una parcela"); return; }
     if ((form.productos || []).length === 0) { alert("Agrega al menos un producto"); return; }
     if ((form.aplicaron || []).length === 0 && asi !== true) { setAvisoSinAplicador(true); return; }
-    const apId = `ap${Date.now()}`;
+    const apId = `ap${unico()}`;
     const { aplicaron, indicoId, ...loDemas } = form;
     add("aplicaciones", {
       ...loDemas, id: apId, cultivo: parcelaSel?.cultivo || "",
@@ -17773,7 +17786,7 @@ function AgronomoIndicaciones({ data, add, upd, del, setInv, session, onClose })
   const guardar = () => {
     if (!form.asignadoA || !form.titulo) { alert("Falta destinatario o indicación"); return; }
     add("tareas", {
-      ...form, id: `ta${Date.now()}`, fecha: today(),
+      ...form, id: `ta${unico()}`, fecha: today(),
       asignadoPor: session.id, estado: "pendiente", origen: "agronomo",
     });
     setForm(F0); setShowForm(false);
@@ -18364,7 +18377,7 @@ function GestionDeudas({ data, add, upd, del, cancelar, reactivar, session, onCl
   const crearCredito = () => {
     if (!form.concepto || !form.monto) { alert("Falta concepto o monto"); return; }
     add("creditos", {
-      id: `cr${Date.now()}`, concepto: form.concepto, proveedor: form.proveedor,
+      id: `cr${unico()}`, concepto: form.concepto, proveedor: form.proveedor,
       monto: parseFloat(form.monto) || 0, fecha: form.fecha, estado: "activo", abonos: [],
       vencimiento: form.vencimiento || "", condiciones: form.condiciones || "",
       registradoPor: { rol: session.role, id: session.id, nombre: session.nombre },
@@ -18375,7 +18388,7 @@ function GestionDeudas({ data, add, upd, del, cancelar, reactivar, session, onCl
   const aplicarAbono = cr => {
     const m = parseFloat(abono.monto) || 0;
     if (m <= 0) { alert("Indica el monto del abono"); return; }
-    const nuevoAbono = { id: `ab${Date.now()}`, fecha: today(), tipo: "dinero", monto: m, registradoPor: { rol: session.role, id: session.id, nombre: session.nombre } };
+    const nuevoAbono = { id: `ab${unico()}`, fecha: today(), tipo: "dinero", monto: m, registradoPor: { rol: session.role, id: session.id, nombre: session.nombre } };
     const nuevosAbonos = [...(cr.abonos || []), nuevoAbono];
     upd("creditos", { ...cr, abonos: nuevosAbonos, estado: saldoCredito({ ...cr, abonos: nuevosAbonos }).saldo <= 0 ? "pagado" : "activo" });
     setAbono({ id: null, monto: "" });
@@ -18900,7 +18913,7 @@ function SolicitudesCompra({ data, add, upd, del, setInv, aplicarLote, session, 
     setForm(f => ({
       ...f,
       items: [...f.items, {
-        id: `it${Date.now()}`,
+        id: `it${unico()}`,
         insumoId: itemTmp.insumoId || null,
         nombre,
         cantidad: itemTmp.cantidad || "",
@@ -19738,7 +19751,7 @@ function GestionVariedades({ data, upd, session, onClose }) {
       alert("Ya existe una variedad con ese nombre en este cultivo."); return;
     }
     const nueva = {
-      id: `var_${cultivo.id}_${Date.now()}`,
+      id: `var_${cultivo.id}_${unico()}`,
       nombre: nuevaVar.nombre.trim(),
       notas: nuevaVar.notas.trim(),
     };
@@ -20083,7 +20096,7 @@ function EmbarqueAjo({ data, add, upd, session, onClose }) {
       if (!seguir) return;
     }
     const estSel = tar.estibaId ? (data.estibas || []).find(e => e.id === tar.estibaId) : null;
-    setTarimas(prev => [...prev, { ...tar, id: `t${Date.now()}`, neto: netoTarima(tar), estibaCodigo: estSel ? estSel.codigo : "" }]);
+    setTarimas(prev => [...prev, { ...tar, id: `t${unico()}`, neto: netoTarima(tar), estibaCodigo: estSel ? estSel.codigo : "" }]);
     setTar({ ...TAR0, calibre: tar.calibre }); // conserva el calibre por comodidad
   };
   const quitarTarima = (id) => setTarimas(prev => prev.filter(t => t.id !== id));
@@ -20105,7 +20118,7 @@ function EmbarqueAjo({ data, add, upd, session, onClose }) {
   const guardarEmbarque = () => {
     if (tarimas.length === 0) { alert("Agrega al menos una tarima"); return; }
     const folio = env.folio || `EMB-${Date.now().toString().slice(-6)}`;
-    const idEmb = `emb${Date.now()}`;
+    const idEmb = `emb${unico()}`;
     const registro = {
       id: idEmb, ...env, folio,
       tarimas, totalTarimas, totalCajas, totalBruto, totalTara, totalNeto,
@@ -20562,7 +20575,7 @@ function liquidarEmbarque(data, add, upd, { embarque, monto, fecha, forma, credi
   const m = parseFloat(monto) || 0;
   if (m <= 0) return;
   const liq = {
-    id: `liq${Date.now()}`, fecha: fecha || today(), monto: m, forma,
+    id: `liq${unico()}`, fecha: fecha || today(), monto: m, forma,
     creditoId: creditoId || "", nota: nota || "",
   };
   // 1) Registrar la liquidación dentro del embarque. Si es pago PARCIAL,
@@ -20576,7 +20589,7 @@ function liquidarEmbarque(data, add, upd, { embarque, monto, fecha, forma, credi
   });
   // 2) Generar el ingreso (venta real, ahora que se conoce el precio)
   add("ingresos", {
-    id: `ing${Date.now()}`, fecha: liq.fecha,
+    id: `ing${unico()}`, fecha: liq.fecha,
     concepto: `Liquidación embarque ${embarque.folio}${embarque.cliente ? " · " + embarque.cliente : ""}`,
     categoria: "venta_cosecha", cultivo: embarque.cultivo || "",
     monto: m, cantidad: embarque.totalNeto || 0, unidad: "kg",
@@ -20588,7 +20601,7 @@ function liquidarEmbarque(data, add, upd, { embarque, monto, fecha, forma, credi
     const cr = (data.creditos || []).find(c => c.id === creditoId);
     if (cr) {
       const nuevosAbonos = [...(cr.abonos || []), {
-        id: `ab${Date.now()}`, fecha: liq.fecha, tipo: "cosecha", monto: m,
+        id: `ab${unico()}`, fecha: liq.fecha, tipo: "cosecha", monto: m,
         nota: `Embarque ${embarque.folio}`,
       }];
       upd("creditos", {
@@ -20755,7 +20768,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
   const cfgCorrida = (() => { try { return JSON.parse(localStorage.getItem("agro_corrida_cfg") || "{}"); } catch { return {}; } })();
   const [cajasPorEstiba, setCajasPorEstiba] = useState(dv("cajasPorEstiba", parseFloat(cfgCorrida.cajasPorEstiba) || 50));
   const [folioCorrida] = useState(dv("folioCorrida", `COR-${Date.now().toString().slice(-6)}`));
-  const [corridaId] = useState(dv("corridaId", `cor${Date.now()}`));
+  const [corridaId] = useState(dv("corridaId", `cor${unico()}`));
   const [responsable, setResponsable] = useState(dv("responsable", ""));
 
   // Estibas de limpio disponibles como origen
@@ -20823,7 +20836,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
   const [sugerirCalidad, setSugerirCalidad] = useState(false); // tras un corte, sugerir muestra
   const registrarCorte = () => {
     const totalActual = calibresNum.reduce((s, c) => s + (contador[c] || 0), 0) + estibasCerradas.reduce((s, e) => s + (e.cajas || 0), 0);
-    setLecturas(l => [...l, { id: `lc${Date.now()}`, hora: horaActual, total: totalActual, ritmo: ritmoActual }]);
+    setLecturas(l => [...l, { id: `lc${unico()}`, hora: horaActual, total: totalActual, ritmo: ritmoActual }]);
     setPedirCorte(false);
     setSugerirCalidad(true); // tras el corte, Migue toma muestra de calidad
   };
@@ -20841,7 +20854,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
     const limpioQueda = parseFloat(conteoInput);
     if (isNaN(limpioQueda) || limpioQueda < 0) { alert("¿Cuántas cajas de limpio quedan ahora?"); return; }
     const cartonAcum = calibresNum.reduce((s, c) => s + (contador[c] || 0), 0) + estibasCerradas.reduce((s, e) => s + (e.cajas || 0), 0);
-    setConteos(cs => [...cs, { id: `cf${Date.now()}`, hora: horaActual, limpioQueda, cartonAcum }]);
+    setConteos(cs => [...cs, { id: `cf${unico()}`, hora: horaActual, limpioQueda, cartonAcum }]);
     setConteoInput(""); setPedirConteo(false);
   };
   const borrarConteo = (id) => setConteos(cs => cs.filter(c => c.id !== id));
@@ -20933,7 +20946,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
   const pctBueno = q => { const t = parseFloat(q.totalCabezas) || 0; return t > 0 ? (t - malosDe(q)) / t : 0; };
   const guardarCalidad = () => {
     if (!cal.totalCabezas || (parseFloat(cal.totalCabezas) || 0) <= 0) { alert("Captura el total de cabezas muestreadas"); return; }
-    add("control_corrida", { id: `cq${Date.now()}`, tipo: "calidad", corridaFolio: folioCorrida, ...cal, malos: malosDe(cal), pctBueno: pctBueno(cal), ritmo: ritmoActual, registradoPor: { rol: session.role, id: session.id, nombre: session.nombre } });
+    add("control_corrida", { id: `cq${unico()}`, tipo: "calidad", corridaFolio: folioCorrida, ...cal, malos: malosDe(cal), pctBueno: pctBueno(cal), ritmo: ritmoActual, registradoPor: { rol: session.role, id: session.id, nombre: session.nombre } });
     alert(`Muestreo guardado. ${(pctBueno(cal) * 100).toFixed(1)}% de bueno.`);
     setCal({ ...Q0, calibre: cal.calibre });
     setSugerirCalidad(false);
@@ -20957,7 +20970,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
     const kilos = parseFloat(aparte.kilos) || 0;
     if (cajas <= 0 && kilos <= 0) { alert("Captura cajas o kilos de esta categoría"); return; }
     add("control_corrida", {
-      id: `ca${Date.now()}`, tipo: "aparte", corridaFolio: folioCorrida, fecha: today(),
+      id: `ca${unico()}`, tipo: "aparte", corridaFolio: folioCorrida, fecha: today(),
       categoria: aparte.categoria, cajas, kilos, nota: aparte.nota,
       registradoPor: { rol: session.role, id: session.id, nombre: session.nombre },
     });
@@ -20966,7 +20979,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
     if (inv) {
       upd("inventario", { ...inv, existencia: (parseFloat(inv.existencia) || 0) + cajas });
     } else {
-      add("inventario", { id: `i${Date.now()}`, nombre: `Ajo ${aparte.categoria}`, cat: "otro", unidad: "caja", existencia: cajas, costo_unit: 0, minimo: 0, emoji: "🧄" });
+      add("inventario", { id: `i${unico()}`, nombre: `Ajo ${aparte.categoria}`, cat: "otro", unidad: "caja", existencia: cajas, costo_unit: 0, minimo: 0, emoji: "🧄" });
     }
     alert(`${aparte.categoria}: ${fmtN(cajas)} cajas registradas y sumadas al inventario.`);
     setAparte({ categoria: aparte.categoria, cajas: "", kilos: "", nota: "" });
@@ -21017,7 +21030,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
     if (quedoVacia) {
       const restoMesa = tarimasPool.filter(e => e.id !== estibaOrigen.id).reduce((sm, e) => sm + saldoDe(e), 0);
       const cartonAcumAhora = calibresNum.reduce((sm, c) => sm + (contador[c] || 0), 0) + estibasCerradas.reduce((sm, e) => sm + (e.cajas || 0), 0);
-      setConteos(cs => [...cs, { id: `cf${Date.now()}`, hora: horaActual, limpioQueda: restoMesa, cartonAcum: cartonAcumAhora, auto: true }]);
+      setConteos(cs => [...cs, { id: `cf${unico()}`, hora: horaActual, limpioQueda: restoMesa, cartonAcum: cartonAcumAhora, auto: true }]);
       setPoolIds(ids => ids.filter(x => x !== estibaOrigen.id));
       upd("estibas", { ...estibaOrigen, saldo: 0, estado: "consumida" });
     }
@@ -21053,7 +21066,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
     // origen, su saldo entra a la corrida como evento de plástico (si no estaba ya).
     const nuevaEst = (data.estibas || []).find(e => e.id === nuevoId);
     if (nuevaEst && !plasticoEventos.some(ev => ev.estibaId === nuevoId)) {
-      setPlasticoEventos(ev => [...ev, { id: `pe${Date.now()}`, hora: horaActual, cajas: saldoDe(nuevaEst), nota: nuevaEst.codigo, estibaId: nuevoId }]);
+      setPlasticoEventos(ev => [...ev, { id: `pe${unico()}`, hora: horaActual, cajas: saldoDe(nuevaEst), nota: nuevaEst.codigo, estibaId: nuevoId }]);
     }
     return true;
   };
@@ -21074,7 +21087,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
       // Entra a la mesa: registrar su limpio como evento (si no existía ya).
       if (est) {
         setPlasticoEventos(ev => ev.some(e => e.estibaId === id) ? ev
-          : [...ev, { id: `pe${Date.now()}`, hora: horaActual, cajas: saldoDe(est), nota: est.codigo, estibaId: id }]);
+          : [...ev, { id: `pe${unico()}`, hora: horaActual, cajas: saldoDe(est), nota: est.codigo, estibaId: id }]);
       }
       return [...ids, id];
     });
@@ -21564,7 +21577,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
                     });
                     setPoolIds(ids => [...ids, nueva.id]);
                     // Su limpio entra a la corrida de inmediato (evento con hora).
-                    setPlasticoEventos(ev => [...ev, { id: `pe${Date.now()}`, hora: horaActual, cajas: cj, nota: `${nueva.codigo || "alta rápida"}`, estibaId: nueva.id }]);
+                    setPlasticoEventos(ev => [...ev, { id: `pe${unico()}`, hora: horaActual, cajas: cj, nota: `${nueva.codigo || "alta rápida"}`, estibaId: nueva.id }]);
                     setAltaRapida(null);
                   }}>Meter a la mesa</button>
                 </div>
@@ -22749,7 +22762,7 @@ function PanelPrestaciones({ data, add, upd, session }) {
               </div>
               <div className="text-xs text-muted" style={{ marginTop: 4 }}>Lo que cambia cada vez (comisiones, premios). Lo que ganó de más por destajo y ya está registrado en la app se toma solo: no lo repitas aquí.</div></>}
           </div>); })}
-        <div className="acc-row" style={{ marginTop: 6 }}><button onClick={() => setCond(v => ({ ...v, perCambio: true, per: [...v.per, { id: `pc${Date.now()}`, clase: "bono", tipo: "fija", nombre: "", monto: "", periodo: "", desde: v.f.fechaIngreso || hoy }] }))}>Agregar una percepción</button></div>
+        <div className="acc-row" style={{ marginTop: 6 }}><button onClick={() => setCond(v => ({ ...v, perCambio: true, per: [...v.per, { id: `pc${unico()}`, clase: "bono", tipo: "fija", nombre: "", monto: "", periodo: "", desde: v.f.fechaIngreso || hoy }] }))}>Agregar una percepción</button></div>
         <label className="text-sm" style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}><input type="checkbox" aria-label="Ya revisé sus percepciones" checked={cond.perRevisado} onChange={e => setCond(v => ({ ...v, perRevisado: e.target.checked, perCambio: true }))} /> Ya revisé: esto es todo lo que recibe{cond.per.length === 0 ? " (nada más que su sueldo)" : ""}</label>
         <div className="text-xs text-muted">Mientras no se marque, su salario integrado sale como un piso «por revisar».</div>
       </div>
@@ -23413,7 +23426,7 @@ function PaseLista({ data, add, upd, session, onClose }) {
     const ya = asisIdx[`${tid}|${f}`];
     if (ya?.delChecador) { alert("Esa asistencia viene del checador (checó su entrada). Si está mal, se corrige en Jornadas, con su motivo."); return; }
     if (ya) upd("asistencia", { ...ya, presente: !ya.presente });
-    else add("asistencia", { id: `as${Date.now()}${Math.floor(Math.random() * 999)}`, fecha: f, trabajadorId: tid, presente: true, registradoPor: session.id });
+    else add("asistencia", { id: `as${unico()}${Math.floor(Math.random() * 999)}`, fecha: f, trabajadorId: tid, presente: true, registradoPor: session.id });
   };
 
   // Inconsistencias de la semana: vino pero sin actividad (= costo no aplicado)
@@ -23460,7 +23473,7 @@ function PaseLista({ data, add, upd, session, onClose }) {
     elegidos.forEach(({ t, fecha }) => {
       const costoMO = (t.sueldo || 0) * (horas / 8);
       add("actividades", {
-        id: `a${Date.now()}${idx}`, fecha, parcelaId: cap.parcelaId, tipo: tipoFinal,
+        id: `a${unico()}${idx}`, fecha, parcelaId: cap.parcelaId, tipo: tipoFinal,
         siembraId: null,
         registradoPor: { tipo: "planta", id: t.id },
         maquinariaId: null, horas_maq: 0, horas_trab: horas,
@@ -23863,7 +23876,7 @@ function PanelSeguridad({ data, add, upd, session, onClose }) {
           </div>
           <button className="btn btn-outline" style={{ width: "100%", borderColor: "var(--gold)", color: "var(--gold)" }} onClick={async () => {
             if (!window.confirm("Todos los dispositivos borrarán su copia local y recargarán desde la nube al abrir la app. Un aparato con registros sin subir espera a subirlos antes de recargar. ¿Mandar la orden?")) return;
-            const token = `r${Date.now()}`;
+            const token = `r${unico()}`;
             const nuevo = { ...(cfg || { id: "seguridad" }), resetToken: token, resetFecha: today(), resetPor: session.id };
             if (cfg) upd("config_seguridad", nuevo); else add("config_seguridad", nuevo);
             // Este mismo dispositivo ya queda al día con el token (no se recarga a sí mismo)

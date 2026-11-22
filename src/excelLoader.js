@@ -1,3 +1,4 @@
+import { unico } from "./calculos.js";
 // ============================================================
 //  AgroGestión — Cargador de Excel
 //  Agroselectos P&A
@@ -217,7 +218,7 @@ export function excelAColecciones(datosExcel) {
     const nombre = (f["Nombre"] || "").toString().trim();
     if (!nombre) return;
     out.trabajadores.push({
-      id: `t${Date.now()}${i}`,
+      id: `t${unico()}${i}`,
       nombre,
       pin: (f["PIN"] || "").toString().trim(),
       sueldo_dia: parseFloat(f["Sueldo diario"]) || 0,
@@ -232,7 +233,7 @@ export function excelAColecciones(datosExcel) {
     const nombre = (f["Nombre"] || "").toString().trim();
     if (!nombre) return;
     out.encargados.push({
-      id: `en${Date.now()}${i}`,
+      id: `en${unico()}${i}`,
       nombre,
       pin: (f["PIN"] || "").toString().trim(),
       sueldo_dia: parseFloat(f["Sueldo diario"]) || 0,
@@ -246,7 +247,7 @@ export function excelAColecciones(datosExcel) {
     const nombre = (f["Nombre"] || "").toString().trim();
     if (!nombre) return;
     out.agronomos.push({
-      id: `ag${Date.now()}${i}`,
+      id: `ag${unico()}${i}`,
       nombre,
       pin: (f["PIN"] || "").toString().trim(),
       telefono: (f["Teléfono"] || "").toString().trim(),
@@ -259,7 +260,7 @@ export function excelAColecciones(datosExcel) {
     const nombre = (f["Nombre"] || "").toString().trim();
     if (!nombre) return;
     out.cuadrillas.push({
-      id: `cq${Date.now()}${i}`,
+      id: `cq${unico()}${i}`,
       nombre,
       pin: (f["PIN"] || "").toString().trim(),
       miembros: parseInt(f["Miembros"]) || 0,
@@ -274,7 +275,7 @@ export function excelAColecciones(datosExcel) {
     const nombre = (f["Nombre"] || "").toString().trim();
     if (!nombre) return;
     out.proveedores.push({
-      id: `pr${Date.now()}${i}`,
+      id: `pr${unico()}${i}`,
       nombre,
       telefono: (f["Teléfono"] || "").toString().trim(),
       direccion: (f["Dirección"] || "").toString().trim(),

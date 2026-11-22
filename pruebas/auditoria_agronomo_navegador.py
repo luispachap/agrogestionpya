@@ -107,6 +107,13 @@ with sync_playwright() as p:
     ir(B, "compras-insumos"); B.wait_for_timeout(400)
     caso("el encargado no tiene «Registrar compra»", B.get_by_role("button", name="Registrar compra").count() == 0, plano(B.locator("body").inner_text())[:200])
 
+    # ══ 4. Integridad histórica: comprar después, mucho más caro, no le cambia el costo a la aplicación ya hecha ══
+    compra(G, 10, 9000)
+    cz = G.evaluate(CUENTAS); eg = [e for e in datos(G)["egresos"] if e.get("aplicacionId")]; f = art(G, "FOLIAR INVENTADO")
+    caso("el promedio de hoy ya es otro ($417.65 por litro)…", abs(f["costo_unit"] - (5200 + 9000) / 34) < 0.01 and f["existencia"] == 34, [f["existencia"], f["costo_unit"]])
+    caso("…y la aplicación de la mañana sigue costando $1,300: lo ya registrado no se recalcula", len(eg) == 1 and eg[0]["monto"] == 1300 and cz["egresos"] == 1300, [eg[0]["monto"], cz["egresos"]])
+    caso("el inventario vale lo que había más lo comprado: $14,200", cz["inv"]["valor"] == 14200, cz["inv"])
+
     caso("ninguna pantalla tronó", not errs, errs[:3])
     b.close()
 print(f"\n{sum(res)} de {len(res)}")

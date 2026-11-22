@@ -467,3 +467,39 @@ test("lo_recibido_sin_precio_no_se_valua_al_promedio_de_lo_demas_hasta_que_algui
   const v = valuar({ entrada: s.porValuar[0], costoUnit: 600, quien: ADMIN, cuando: c("11:00"), fecha: D }); assert.ok(v.ok, v.dice);
   assert.equal(valorDelInventario(est([e1, r.evento, v.evento], [BULTO]), [BULTO]).valor, 5700, "con precio: $4,500 + $1,200");
 });
+
+// ── INTEGRIDAD HISTÓRICA DE LOS COSTOS (Luis, 22 nov) ──
+// Lo que ya pasó se queda con el costo que tenía: ninguna compra posterior, ninguna que llega tarde y ningún precio
+// puesto después le cambia el importe a un consumo, a una merma o a un faltante ya registrados.
+test("ninguna_compra_posterior_ni_tardia_ni_valuacion_cambia_el_costo_de_lo_que_ya_paso", () => {
+  const B = { id: "i-b", nombre: "Bulto", unidad: "bulto", existencia: 0, costo_unit: 0 };
+  const P = { tipo: "parcela", id: "p7", nombre: "Parcela 7", actividad: "Fertilización" };
+  const visto = (evs) => conExistenciaReal([B], est(evs, [B]))[0];           // el artículo como lo enseña la pantalla en ese momento
+  const evs = [entrada({ articulo: B, cantidad: 10, costoUnit: 500, quien: ADMIN, cuando: c("08:00"), fecha: D, azar: az() }).evento];
+  const sinPrecio = recibirCompra({ compra: { id: "co9", estado: "aprobada", descripcion: "x", monto: 1300, items: [{ nombre: "Bulto", insumoId: "i-b", cantidad: 2 }] }, i: 0, articulo: B, cantidad: 2, quien: ENC, cuando: c("08:30"), fecha: D });
+  evs.push(sinPrecio.evento);
+  const uso = consumirDirecto({ articulo: visto(evs), cantidad: 3, destino: P, quien: ENC, cuando: c("09:00"), fecha: D, azar: az() }); assert.ok(uso.ok, uso.dice); evs.push(uso.evento);
+  const m = merma({ articulo: visto(evs), cantidad: 1, causa: "merma", quien: ENC, cuando: c("10:00"), fecha: D, azar: az() }); assert.ok(m.ok, m.dice); evs.push(m.evento);
+  const k = contar({ articulo: visto(evs), contado: 7, existencia: 8, causa: "robo", quien: ADMIN, cuando: c("11:00"), fecha: D, azar: az() }); assert.ok(k.ok, k.dice); evs.push(k.evento);
+  assert.equal(m.evento.datos.costoUnit, 500, "la merma guarda lo que costaba al capturarla"); assert.equal(k.evento.datos.costoUnit, 500);
+  // El conteo es absoluto («a esa hora había 7»): si después aparece mercancía anterior, cambia CUÁNTO faltaba, que es
+  // lo correcto; lo que no puede cambiar es A CUÁNTO se valúa cada unidad. Por eso del faltante se compara el precio.
+  const foto = (lista) => { const s = est(lista, [B]); const aj = resumenDeAjustes(s, conExistenciaReal([B], s)).lista;
+    const de = (clase) => aj.find(a => a.clase === clase);
+    return { consumo: costoDeConsumos(s).aParcelas, merma: de("merma").valor, cadaFaltante: de("conteo").valor / Math.abs(de("conteo").diferencia) }; };
+  const antes = foto(evs);
+  assert.deepEqual(antes, { consumo: 1500, merma: 500, cadaFaltante: 500 });
+  // 1) una compra POSTERIOR, mucho más cara
+  const cara = entrada({ articulo: B, cantidad: 20, costoUnit: 1200, quien: ADMIN, cuando: c("15:00"), fecha: D, azar: az() }).evento;
+  assert.deepEqual(foto([...evs, cara]), antes, "una compra posterior no toca lo anterior");
+  // 2) una compra ANTERIOR que sube tarde (otro teléfono sin señal), más barata
+  const tardia = entrada({ articulo: B, cantidad: 10, costoUnit: 100, quien: ADMIN, cuando: c("07:00"), fecha: D, azar: az() }).evento;
+  const conTardia = foto([...evs, cara, tardia]);
+  assert.deepEqual(conTardia, antes, "una compra que llega tarde tampoco: la diferencia va aparte");
+  assert.ok(ajustesDeValuacion(est([...evs, cara, tardia], [B])).lista.length >= 1, "y esa diferencia queda a la vista, con su causa");
+  // 3) ponerle precio después a lo que entró sin precio antes del consumo
+  const v = valuar({ entrada: est(evs, [B]).porValuar[0], costoUnit: 2000, quien: ADMIN, cuando: c("16:00"), fecha: D }); assert.ok(v.ok, v.dice);
+  assert.deepEqual(foto([...evs, cara, tardia, v.evento]), antes, "valuar después no reescribe el consumo, la merma ni el faltante");
+  // 4) y en cualquier orden de llegada sale lo mismo
+  assert.deepEqual(foto(revuelve([...evs, cara, tardia, v.evento])), antes);
+});

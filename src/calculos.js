@@ -494,3 +494,18 @@ export function sellarSueldoDelDia(actividad, trabajadores) {
   if (!t || sueldo <= 0) return actividad;
   return { ...actividad, sueldoDia: sueldo, trabajadorNombre: actividad.trabajadorNombre || t.nombre || "" };
 }
+
+// UN IDENTIFICADOR QUE NO SE REPITE ENTRE TELÉFONOS. Antes casi todos los registros nacían con «letra + hora del
+// teléfono en milésimas»: dos aparatos capturando en la misma milésima (o uno guardando dos renglones seguidos) hacían
+// el MISMO identificador, y en la nube el segundo registro pisaba al primero sin avisar. La hora se queda (ordena y
+// ayuda a leer) y se le pega una parte al azar.
+export const unico = () => `${Date.now()}${Math.random().toString(36).slice(2, 9).padEnd(7, "0")}`;
+
+// TODO REGISTRO DE DINERO O DE ALMACÉN DICE QUIÉN LO CAPTURÓ. Un gasto o un ingreso tecleado en Finanzas se guardaba sin
+// autor: se sabía el importe y no quién lo había metido. Se estampa al guardar, con la sesión; nunca se pisa el que
+// ya traiga (lo que capturó un trabajador y aprueba otro sigue siendo del trabajador).
+export const COLECCIONES_CON_AUTOR = ["egresos", "ingresos", "cajachica", "creditos", "entradas_inv", "compras", "solicitudes_compra", "ventas", "consignaciones"];
+export function conAutor(sec, item, sesion) {
+  if (!COLECCIONES_CON_AUTOR.includes(sec) || !item || item.registradoPor || !sesion?.id) return item;
+  return { ...item, registradoPor: { rol: sesion.role || sesion.rol || "", id: sesion.id, nombre: sesion.nombre || "" } };
+}

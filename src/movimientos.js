@@ -209,12 +209,12 @@ export function estadoDelAlmacen(eventos, inventario = []) {
     if (e.tipo === T.costo) { prom.set(d.articuloId, d.costoUnit); continue; }
     if (e.tipo === T.retiro) { saca(e, d.articuloId, d.de || NAVE, d.cantidad); abre(e, d.cantidad, d.recibe, null); continue; }
     if (e.tipo === T.transferencia) { saca(e, d.articuloId, d.de, d.cantidad); mueve(d.articuloId, d.a, d.cantidad); continue; }
-    if (e.tipo === T.merma) { mueve(d.articuloId, d.lugar || NAVE, d.delta); ajustes.push({ ev: e.id, clase: "merma", articuloId: d.articuloId, articulo: d.articulo, unidad: d.unidad, lugar: d.lugar || NAVE, diferencia: d.delta, causa: d.causa, nota: d.nota || "", fecha: e.fecha, quien: e.quien?.nombre || "", costoEntonces: prom.get(d.articuloId) ?? null }); continue; }
+    if (e.tipo === T.merma) { mueve(d.articuloId, d.lugar || NAVE, d.delta); ajustes.push({ ev: e.id, clase: "merma", articuloId: d.articuloId, articulo: d.articulo, unidad: d.unidad, lugar: d.lugar || NAVE, diferencia: d.delta, causa: d.causa, nota: d.nota || "", fecha: e.fecha, quien: e.quien?.nombre || "", costoEntonces: d.costoUnit > 0 ? d.costoUnit : (prom.get(d.articuloId) ?? null) }); continue; }
     if (e.tipo === T.conteo) {
       const lugar = d.lugar || NAVE; const calculado = hay(d.articuloId, lugar); const dif = r3(d.contado - calculado);
       de(d.articuloId).set(lugar, d.contado);
       conteos.push({ ev: e.id, articuloId: d.articuloId, lugar, fecha: e.fecha, cuando: e.cuando, contado: d.contado, quien: e.quien?.nombre || "" });
-      if (dif !== 0) ajustes.push({ ev: e.id, clase: "conteo", articuloId: d.articuloId, articulo: d.articulo, unidad: d.unidad, lugar, diferencia: dif, calculado, contado: d.contado, causa: d.causa || "no_se_sabe", nota: d.nota || "", fecha: e.fecha, quien: e.quien?.nombre || "", costoEntonces: prom.get(d.articuloId) ?? null,
+      if (dif !== 0) ajustes.push({ ev: e.id, clase: "conteo", articuloId: d.articuloId, articulo: d.articulo, unidad: d.unidad, lugar, diferencia: dif, calculado, contado: d.contado, causa: d.causa || "no_se_sabe", nota: d.nota || "", fecha: e.fecha, quien: e.quien?.nombre || "", costoEntonces: d.costoUnit > 0 ? d.costoUnit : (prom.get(d.articuloId) ?? null),
         // Quien contó vio otra diferencia: después llegó un movimiento de otro aparato. La causa que puso era para aquélla.
         cambio: d.diferenciaVista != null && r3(d.diferenciaVista) !== dif ? { vista: d.diferenciaVista } : null, sinCausa: !d.causa, resuelta: resueltas.get(e.id) || null });
       continue;
@@ -337,13 +337,17 @@ export function transferir({ articulo, cantidad, de, a, quien, cuando, fecha, az
   if (!de || !a || de === a) return { ok: false, dice: "Falta decir de dónde a dónde." };
   return { ok: true, evento: nuevoEvento({ tipo: T.transferencia, cuando, fecha, quien, azar, datos: { ...ficha(articulo), cantidad: q, de, a } }) };
 }
+// EL COSTO SE QUEDA ESCRITO EL DÍA QUE PASA. Una merma y un faltante guardan lo que costaba el artículo cuando se
+// capturaron (`costoUnit`), igual que un consumo. Así ni una compra posterior, ni una que llega tarde, ni ponerle
+// precio después a una entrada le cambian el importe a lo que ya pasó. Sin costo conocido no se inventa: no se guarda.
+const costoAlCapturar = (a) => (Number(a?.costo_unit) > 0 ? { costoUnit: Number(a.costo_unit) } : {});
 // Merma: se sabe que se perdió tanto, sin contar todo. Siempre con causa.
 export function merma({ articulo, lugar = NAVE, cantidad, causa, nota = "", quien, cuando, fecha, azar }) {
   const q = num(cantidad);
   if (!PUEDE.includes(quien?.rol)) return { ok: false, dice: "Una merma la registra un encargado o un administrador." };
   if (!articulo?.id || !(q > 0)) return { ok: false, dice: "Falta decir de qué artículo y cuánto." };
   if (!String(causa || "").trim()) return { ok: false, dice: "Una merma sin causa no se registra. Si no se sabe, se pone \"no se sabe\"." };
-  return { ok: true, evento: nuevoEvento({ tipo: T.merma, cuando, fecha, quien, azar, datos: { ...ficha(articulo), lugar, delta: -q, causa: String(causa).trim(), nota: String(nota || "").trim() } }) };
+  return { ok: true, evento: nuevoEvento({ tipo: T.merma, cuando, fecha, quien, azar, datos: { ...ficha(articulo), lugar, delta: -q, causa: String(causa).trim(), nota: String(nota || "").trim(), ...costoAlCapturar(articulo) } }) };
 }
 // Conteo: "a esta hora, en este lugar, había TANTO". Si no cuadra con lo que
 // se ve en ese momento, lleva causa. No guarda una diferencia para sumar:
@@ -355,7 +359,7 @@ export function contar({ articulo, lugar = NAVE, contado, existencia, causa = ""
   if (Number.isNaN(c) || c < 0) return { ok: false, dice: "Falta lo que se contó." };
   const dif = r3(c - (Number(existencia) || 0));
   if (dif !== 0 && !String(causa || "").trim()) return { ok: false, dice: "No cuadra, y un ajuste sin causa no se registra. Si no se sabe, se pone \"no se sabe\"." };
-  return { ok: true, diferencia: dif, evento: nuevoEvento({ tipo: T.conteo, cuando, fecha, quien, azar, datos: { ...ficha(articulo), lugar, contado: c, diferenciaVista: dif, ...(dif !== 0 ? { causa: String(causa).trim() } : {}), nota: String(nota || "").trim(), ...(responsable ? { responsable: String(responsable).trim() } : {}) } }) };
+  return { ok: true, diferencia: dif, evento: nuevoEvento({ tipo: T.conteo, cuando, fecha, quien, azar, datos: { ...ficha(articulo), lugar, contado: c, diferenciaVista: dif, ...costoAlCapturar(articulo), ...(dif !== 0 ? { causa: String(causa).trim() } : {}), nota: String(nota || "").trim(), ...(responsable ? { responsable: String(responsable).trim() } : {}) } }) };
 }
 // Dejar escrito qué se resolvió sobre una discrepancia, un cierre que no cupo o
 // una baja. No mueve existencias ni dinero: es la explicación, con nombre.

@@ -447,3 +447,19 @@ test("el_sueldo_con_que_se_da_de_alta_a_alguien_no_sale_como_estimado", () => {
   assert.equal(sueldoDeAlta_(con, "2026-11-23"), con);
   assert.equal(sueldoDeAlta_({ id: "t7", sueldo_dia: 0 }, "2026-11-23").historialSueldo, undefined);
 });
+
+import { unico } from "./calculos.js";
+test("dos_registros_capturados_en_la_misma_milesima_no_comparten_identificador", () => {
+  const real = Date.now; Date.now = () => 1763500000000;
+  try { const vistos = new Set(Array.from({ length: 5000 }, () => `eg${unico()}`)); assert.equal(vistos.size, 5000); assert.match([...vistos][0], /^eg1763500000000[a-z0-9]{7}$/); }
+  finally { Date.now = real; }
+});
+
+import { conAutor } from "./calculos.js";
+test("un_gasto_tecleado_en_finanzas_queda_con_quien_lo_capturo_y_no_se_le_cambia_el_autor_al_que_ya_lo_trae", () => {
+  const sesion = { role: "admin", id: "u1", nombre: "Luis" };
+  assert.deepEqual(conAutor("egresos", { id: "e1", monto: 700 }, sesion).registradoPor, { rol: "admin", id: "u1", nombre: "Luis" });
+  assert.equal(conAutor("egresos", { id: "e1", registradoPor: { nombre: "Ana" } }, sesion).registradoPor.nombre, "Ana");
+  assert.equal(conAutor("parcelas", { id: "p1" }, sesion).registradoPor, undefined, "un catálogo no lo necesita");
+  assert.equal(conAutor("egresos", { id: "e1" }, null).registradoPor, undefined, "sin sesión no se inventa un autor");
+});
