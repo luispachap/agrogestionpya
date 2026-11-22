@@ -111,7 +111,9 @@ test("de_un_respaldo_viejo_a_la_base_nueva_solo_llegan_los_catalogos_aprobados",
   XLSX.writeFile(libro, archivo);
   execFileSync("node", [herramienta, "aprobar", archivo, "--por", "Prueba", "--fecha", "2026-11-19", "--espacio", "proyectonuevo"]);
   const sql = readFileSync(join(dir, "catalogos-aprobados.sql"), "utf8");
-  for (const prohibido of ["1234", "0000", "hash-viejo", "999999", "868"]) assert.equal(sql.includes(prohibido), false, prohibido);
+  // Los ids nuevos salen al azar y pueden traer por casualidad esos mismos dígitos: se quitan antes de buscar.
+  const sinIds = sql.replace(/\b[a-z]_[0-9a-f-]{12}\b/g, "");
+  for (const prohibido of ["1234", "0000", "hash-viejo", "999999", "868"]) assert.equal(sinIds.includes(prohibido), false, prohibido);
 
   const b = await armarBase(); await verdad(b, "select sellar_espacio('proyectonuevo')");
   const antes = Number((await verdad(b, "select count(*) n from trabajadores"))[0].n);

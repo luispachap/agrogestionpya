@@ -70,7 +70,7 @@ test("un_requisito_legal_nace_por_validar_y_no_se_da_por_bueno_sin_su_norma_ni_q
   const ev = [], base = { actividadId: "act-control-de-plagas", clase: "legal", descripcion: "Capacitación para manejo de plaguicidas" };
   const r = va(ev, ponerRequisito({ eventos: ev, ...base, ...ctx() })), id = r.evento.datos.requisitoId;
   let q = catalogoEn(ev, HOY).porId.get("act-control-de-plagas").requisitos[0];
-  assert.deepEqual([q.clase, q.aplicabilidad, q.restringiria, q.restringeHoy], ["legal", "por_validar", false, false]); assert.match(q.estado, /Por validar/); assert.match(r.dice, /No restringe nada/);
+  assert.deepEqual([q.clase, q.aplicabilidad, q.restringiria, q.restringeHoy], ["legal", "por_validar", false, false]); assert.match(q.estado, /Por validar/); assert.match(q.estado, /no autoriza a nadie/); // un requisito pendiente nunca se lee como permiso para trabajar assert.match(r.dice, /No restringe nada/);
   assert.match(ponerRequisito({ eventos: ev, ...base, requisitoId: id, aplicabilidad: "validada", motivo: "x", ...ctx() }).dice, /QUÉ norma/);
   assert.match(ponerRequisito({ eventos: ev, ...base, requisitoId: id, aplicabilidad: "validada", norma: "Norma inventada 000, numeral 1", motivo: "x", ...ctx() }).dice, /quién validó/);
   va(ev, ponerRequisito({ eventos: ev, ...base, requisitoId: id, aplicabilidad: "validada", norma: "Norma inventada 000, numeral 1", validadoPor: "ASESORA INVENTADA", motivo: "se revisó la norma", ...ctx() }));

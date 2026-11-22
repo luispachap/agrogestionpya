@@ -514,3 +514,32 @@ doble. Falta: escoger personas, la pantalla para ligar nombres y la vista de ant
   provisional sigue sin crearse.
 
 No se lo otorgué a ninguna cuenta: lo hace una persona desde la app, cuando Luis decida a quién.
+
+**Decidido por Luis (21 nov, 18:50):** el permiso es, de entrada, sólo para su cuenta individual de administración.
+Se lo otorga él mismo desde Arranque → Cuentas (así queda anotado quién lo otorgó). No se le da a nadie más ni
+cambia facultades de mando. La estructura provisional sigue sin personas ni responsables definitivos.
+
+## 20. Lo construido: advertir cuando una aplicación no dice quién la aplicó (21 nov, 21 h)
+
+- Al guardar una aplicación de agroquímicos sin marcar a nadie, la pantalla se detiene y lo dice: «No marcaste quién
+  aplicó». Ofrece dos caminos: marcar a quien aplicó, o guardarla así a propósito.
+- Guardada así queda como registro incompleto: en la lista dice «Sin aplicadores identificados» y en el detalle,
+  «Quien la registró no cuenta como quien la aplicó». No le cuenta de experiencia a nadie.
+- No bloquea: la aplicación ya ocurrió y el registro vale más incompleto que ausente.
+- Un requisito legal pendiente ahora dice, pegado a su estado, que «no autoriza a nadie a hacer este trabajo ni lo
+  impide». Pendiente no es permiso.
+
+## 21. Diseño: quién de la cuadrilla hizo qué (no construido)
+
+Hoy la cuadrilla se registra como grupo y así se queda. Para cuando haya datos confiables:
+
+- **Qué haría falta saber, por integrante y por día:** que vino (ya se sabe), en qué actividad estuvo, cuánto tiempo
+  o cuánto hizo, y quién lo dice (el responsable de la cuadrilla, el encargado o el checador).
+- **De dónde saldría, de más a menos confiable:** checador con asignación individual; destajo con lo que hizo cada
+  quien (ya se captura); lista del responsable confirmada por el encargado. Lo que sólo diga «la cuadrilla limpió»
+  se queda como dato del grupo.
+- **Lo que nunca se hará:** repartirle a todos las mismas horas ni la misma actividad porque vinieron juntos. Un
+  integrante sin dato propio queda «participó en el grupo, sin detalle individual», y eso no cuenta como experiencia
+  individual.
+- **Sin tocar dinero:** el pago de la cuadrilla sigue saliendo de donde sale hoy.
+- **Antes de construir:** saber con Miguel cómo se sabe de verdad quién hizo qué dentro de una cuadrilla.

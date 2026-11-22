@@ -17383,6 +17383,8 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
   const genteAp = [...(data.trabajadores || []), ...(data.encargados || []), ...(data.agronomos || []), { id: session.id, nombre: session.nombre }].filter((x, i, l) => x?.id && x.nombre && x.activo !== false && l.findIndex(y => y.id === x.id) === i).map(x => ({ id: x.id, nombre: x.nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
   const catalogosAp = { trabajadores: data.trabajadores, encargados: data.encargados, agronomos: data.agronomos };
   const [form, setForm] = useState(F0);
+  // Guardar sin decir quién aplicó se puede, pero nunca sin que la pantalla lo advierta antes.
+  const [avisoSinAplicador, setAvisoSinAplicador] = useState(false);
   const [prod, setProd] = useState({ nombre: "", dosis: "", unidad: "kg/ha", insumoId: "", ingredienteActivo: "", paraQueSirve: "", tipoAgro: "" });
 
   const parcelaSel = data.parcelas.find(p => p.id === form.parcelaId);
@@ -17396,9 +17398,10 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
     setProd({ nombre: "", dosis: "", unidad: "kg/ha", insumoId: "", ingredienteActivo: "", paraQueSirve: "", tipoAgro: "" });
   };
 
-  const guardar = () => {
+  const guardar = (asi) => {
     if (!form.parcelaId) { alert("Elige una parcela"); return; }
     if ((form.productos || []).length === 0) { alert("Agrega al menos un producto"); return; }
+    if ((form.aplicaron || []).length === 0 && asi !== true) { setAvisoSinAplicador(true); return; }
     const apId = `ap${Date.now()}`;
     const { aplicaron, indicoId, ...loDemas } = form;
     add("aplicaciones", {
@@ -17424,7 +17427,7 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
         aplicacionId: apId, registradoPor: { rol: "agronomo", id: session.id, nombre: session.nombre },
       });
     }
-    setForm(F0); setShowForm(false);
+    setForm(F0); setShowForm(false); setAvisoSinAplicador(false);
     if (costoAplicacion > 0) alert(`Aplicación registrada. Se descontó del inventario y se cargó ${fmt(costoAplicacion)} a la parcela.`);
   };
 
@@ -17452,6 +17455,7 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
             <div className="card ap-quienes-detalle">
               <div className="card-title">Quién</div>
               <div className="confirm-row"><span className="cr-label">La aplicó</span><span className="cr-val" style={{ color: q.sabeQuienEjecuto ? undefined : "var(--gold)" }}>{q.sabeQuienEjecuto ? textoDeQuienes(q.ejecutaron) : "No se dijo quién aplicó"}</span></div>
+              {!q.sabeQuienEjecuto && <div className="text-xs ap-detalle-aviso" style={{ color: "var(--gold)", margin: "2px 0 6px" }}>Atención: esta aplicación no tiene aplicadores identificados. Quien la registró no cuenta como quien la aplicó.</div>}
               <div className="confirm-row"><span className="cr-label">La indicó</span><span className="cr-val">{q.ordeno?.nombre || "No se dijo"}</span></div>
               <div className="confirm-row"><span className="cr-label">La registró</span><span className="cr-val">{q.capturo?.nombre || "No quedó anotado"}</span></div>
               <div className="confirm-row"><span className="cr-label">La confirmó</span><span className="cr-val">{q.confirmo?.nombre || "Todavía nadie"}</span></div>
@@ -17586,7 +17590,16 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
               </div>
             </div>
             <div className="form-group" style={{ marginTop: 12 }}><label className="form-label">Notas (opcional)</label><textarea className="inp" value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} /></div>
-            <button className="btn btn-accent" onClick={guardar}>Guardar aplicación</button>
+            {avisoSinAplicador && form.aplicaron.length === 0 ? (
+              <div className="card ap-sin-aplicador" role="alert" style={{ padding: 12, border: "1px solid var(--gold)" }}>
+                <div className="font-bold" style={{ color: "var(--gold)" }}>No marcaste quién aplicó</div>
+                <div className="text-sm" style={{ margin: "6px 0 10px" }}>Si la guardas así, la aplicación queda registrada pero incompleta: dirá «no se dijo quién aplicó», no se le pondrá a quien la registra y no le contará de experiencia a nadie.</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button className="btn btn-accent" onClick={() => { setAvisoSinAplicador(false); document.querySelector(".ap-quienes")?.scrollIntoView({ block: "center" }); }}>Marcar quién aplicó</button>
+                  <button className="btn" onClick={() => guardar(true)}>Guardar sin aplicadores</button>
+                </div>
+              </div>
+            ) : <button className="btn btn-accent" onClick={guardar}>Guardar aplicación</button>}
           </div>
         )}
         <div className="form-group">
@@ -17617,6 +17630,7 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
                 <span className="text-xs text-muted">{a.fecha}</span>
               </div>
               <div className="text-sm text-muted">{p?.emoji} {p?.nombre || "—"} · {a.cultivo} · {a.superficie} ha</div>
+              {!quienesDe("aplicaciones", a, catalogosAp).sabeQuienEjecuto && <div className="text-xs ap-sin-aplicador-marca" style={{ marginTop: 6, color: "var(--gold)", fontWeight: 700 }}>Sin aplicadores identificados</div>}
               <div className="text-xs text-accent" style={{ marginTop: 6, fontWeight: 700 }}>{(a.productos || []).length} producto(s) · ver detalle ›</div>
             </div>
           );

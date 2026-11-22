@@ -567,7 +567,7 @@ Usuarios reales de la app:
   12 meses): no acredita ni autoriza. Requisito legal: norma, vigencia, quién validó y cuándo.
   **`src/ejecucion.js`: QUIÉN ORDENÓ · CAPTURÓ · EJECUTÓ · CONFIRMÓ**: `add` le pone `quienes` a toda actividad y
   aplicación (`conQuienes`); se lee con `quienesDe` (los registros de antes: `origen: "registro_anterior"`, sin rellenar).
-  **Quien registra una aplicación NO es por eso quien la aplicó**; una cuadrilla es un grupo; `confirmo` nace vacío. Los
+  **Quien registra una aplicación NO es por eso quien la aplicó**; guardar una aplicación sin aplicadores AVISA antes (`avisoSinAplicador`; no bloquea) y queda «Sin aplicadores identificados»; una cuadrilla es un grupo; `confirmo` nace vacío. Los
   módulos de dinero NO leen `quienes` (hay prueba): siguen con `registradoPor`/`trabajadorId`.
   **Etapas 2 a 6 y el motor de especialidades (`docs/ESPECIALIDADES.md`): SÓLO DISEÑO, sin autorizar.** No
   cambies permisos ni actives recomendaciones; la estructura real espera a Miguel, Fito y Dirección. Lo acordado: cuatro

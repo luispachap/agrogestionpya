@@ -28,7 +28,12 @@ def nueva(pg, aplican=(), indico=None):
     pg.get_by_role("button", name="+ Agregar a la lista").click(); pg.wait_for_timeout(200)
     for n in aplican: pg.get_by_label(f"Aplicó {n}").check()
     if indico: pg.get_by_label("Quién indicó la aplicación").select_option(indico)
-    pg.get_by_role("button", name="Guardar aplicación").click(); pg.wait_for_timeout(500)
+    pg.get_by_role("button", name="Guardar aplicación").click(); pg.wait_for_timeout(400)
+    if not aplican:
+        AVISOS.append(plano(pg.locator(".ap-sin-aplicador").inner_text()) if pg.locator(".ap-sin-aplicador").count() else "")
+        AVISOS.append(len([x for x in pg.evaluate("() => window.__agroDatos.aplicaciones")]))
+        pg.get_by_role("button", name="Guardar sin aplicadores").click(); pg.wait_for_timeout(500)
+AVISOS = []
 
 with sync_playwright() as p:
     b = p.chromium.launch()
@@ -43,10 +48,12 @@ with sync_playwright() as p:
     caso("y lo que ya leían las demás pantallas no cambió", a[0]["registradoPor"] and "ejecutores" not in a[0] and "ordenadoPor" not in a[0] and "aplicaron" not in a[0], {k: a[0].get(k) for k in ("registradoPor", "tipo", "superficie")})
     nueva(pg)
     b2 = [x for x in datos(pg)["ap"] if x["id"] not in ("ap-vieja", a[0]["id"])]
+    caso("antes de guardar sin aplicadores la pantalla lo advierte expresamente, y todavía no guarda nada", len(AVISOS) == 2 and "No marcaste quién aplicó" in AVISOS[0] and "no se le pondrá a quien la registra" in AVISOS[0] and AVISOS[1] == 2, AVISOS)
     caso("si no se dice quién aplicó, NO se le pone a quien la registró: queda vacío", len(b2) == 1 and b2[0]["quienes"]["ejecutaron"] == [] and b2[0]["quienes"]["ordeno"] is None and b2[0]["quienes"]["capturo"] is not None, b2[0].get("quienes") if b2 else None)
     def detalle(texto_fecha_o_idx):
         pg.locator(".ap-fila").nth(texto_fecha_o_idx).click(); pg.wait_for_timeout(300); t = plano(pg.locator(".ap-quienes-detalle").inner_text()); pg.locator(".top-bar .btn-ghost").first.click(); pg.wait_for_timeout(250); return t
     filas = [plano(x.inner_text()) for x in pg.locator(".ap-fila").all()]
+    caso("en la lista, las que no tienen aplicadores lo dicen; la que sí, no", sum(1 for x in filas if "Sin aplicadores identificados" in x) == 2 and len(filas) == 3, filas)
     vistos = [detalle(i) for i in range(len(filas))]
     con = [v for v in vistos if "APLICADOR UNO, APLICADOR DOS" in v or "APLICADOR DOS, APLICADOR UNO" in v]
     caso("el detalle enseña quién la aplicó, quién la indicó y quién la registró, cada uno en su renglón", len(con) == 1 and "La indicó | AGRONOMO DE PRUEBA" in con[0] and "La confirmó | Todavía nadie" in con[0], vistos)
