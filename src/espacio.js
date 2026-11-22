@@ -64,8 +64,12 @@ export function loDeAntes(leer) {
 }
 
 // El respaldo que se descarga dice de qué espacio es y de qué día.
-export function sobreDeRespaldo(datos, espacio, cuando) {
-  return { _respaldo: { espacio, cuando, version: 8 }, ...datos };
+// `cuentas` es el directorio de ese día (identificador de la cuenta → nombre y perfil). Los sellos de un pago o de un
+// cierre guardan el identificador de la cuenta que autorizó; si algún día hubiera que rehacer las cuentas, sin este
+// directorio ya no se sabría de quién era cada identificador. No lleva correos ni contraseñas.
+export function sobreDeRespaldo(datos, espacio, cuando, cuentas = null) {
+  const limpias = Array.isArray(cuentas) ? cuentas.filter(c => c && c.id).map(c => ({ id: c.id, nombre: c.nombre || "", rol: c.rol || "" })) : null;
+  return { _respaldo: { espacio, cuando, version: 8, ...(limpias && limpias.length ? { cuentas: limpias } : {}) }, ...datos };
 }
 
 // Lo que va en un respaldo y lo que se restaura: SÓLO lo capturado (las colecciones tal como se guardan), nunca lo

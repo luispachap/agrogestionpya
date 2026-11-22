@@ -73,3 +73,10 @@ test("un_respaldo_solo_pasa_a_otra_base_si_se_le_cambia_el_espacio_a_proposito",
   assert.equal(original.trabajadores[0]._espacio, "viejo", "el archivo original no se toca");
   assert.throws(() => respaldoParaOtroEspacio({ trabajadores: [] }, "nuevo"));
 });
+test("el_respaldo_lleva_el_directorio_de_cuentas_sin_correos_para_saber_de_quien_era_cada_autorizacion", () => {
+  const r = sobreDeRespaldo({ eventos: [] }, "esp", "2026-11-23T00:00:00Z", [{ id: "c1", nombre: "PERSONA UNO", rol: "superadmin", correo: "uno@prueba.invalid" }, { nombre: "sin id" }]);
+  assert.deepEqual(r._respaldo.cuentas, [{ id: "c1", nombre: "PERSONA UNO", rol: "superadmin" }]);
+  assert.equal(JSON.stringify(r).includes("prueba.invalid"), false);
+  assert.equal(sobreDeRespaldo({}, "esp", "x")._respaldo.cuentas, undefined);
+  assert.equal(revisarRespaldo(r, "esp").entra, true);
+});

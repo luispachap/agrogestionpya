@@ -16717,9 +16717,11 @@ function RespaldoDatos({ data, crudos, setData, pendientes = 0, onClose }) {
   // Lo que se respalda es lo CAPTURADO (las colecciones como se guardan), no las cuentas ya hechas: ésas se recalculan.
   const COLECCIONES = [...new Set([...Object.keys(INITIAL).filter(k => Array.isArray(INITIAL[k])), ...TABLAS_NUBE, "eventos"])];
 
-  const exportar = () => {
+  const exportar = async () => {
     try {
-      const contenido = JSON.stringify(sobreDeRespaldo(soloLoCapturado(crudos || data, COLECCIONES), ESPACIO, new Date().toISOString()));
+      // El directorio de cuentas de hoy va en el respaldo: así se sabe de quién era cada autorización aunque cambien las cuentas.
+      let cuentas = null; try { const d = await directorioDeCuentas(); cuentas = Array.isArray(d) ? d : (d && d.cuentas) || null; } catch { cuentas = null; }
+      const contenido = JSON.stringify(sobreDeRespaldo(soloLoCapturado(crudos || data, COLECCIONES), ESPACIO, new Date().toISOString(), cuentas));
       const blob = new Blob([contenido], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -16752,7 +16754,7 @@ function RespaldoDatos({ data, crudos, setData, pendientes = 0, onClose }) {
         }
         const obj = soloLoCapturado(rev.datos, COLECCIONES);
         if (supabaseListo && motivo.trim().length < 5) { setMsg({ tipo: "err", txt: "Antes de restaurar escribe por qué se restaura: queda anotado junto con tu cuenta." }); return; }
-        if (!confirm(`${rev.dice}\n\n¿Reemplazar TODOS los datos de este aparato con los del respaldo y volver a subirlos a la nube? Lo que ya esté en la nube no se duplica.`)) return;
+        if (!confirm(`${rev.dice}\n\n¿Reemplazar los datos de este aparato con los del respaldo y poner en la nube lo que falte? Lo que ya está en la nube NO se toca ni se duplica: si allá hay algo más reciente, se queda lo más reciente.`)) return;
         setData(prev => ({ ...prev, ...Object.fromEntries(COLECCIONES.map(c => [c, []])), ...obj }));
         if (!supabaseListo) { setMsg({ tipo: "ok", txt: "Datos restaurados en este aparato." }); return; }
         // Y a la nube: registro por registro con su mismo identificador, así que lo que ya estaba no se repite.
@@ -16764,11 +16766,11 @@ function RespaldoDatos({ data, crudos, setData, pendientes = 0, onClose }) {
         }
         for (const c of TABLAS_NUBE) {
           if (!Array.isArray(obj[c]) || obj[c].length === 0) continue;
-          try { subidos += await subirColeccion(c, c === "eventos" ? obj[c].map(conSelloOriginal) : obj[c]); } catch (err) { fallas.push(`${c} (${err?.message || "sin detalle"})`); }
+          try { subidos += await subirColeccion(c, c === "eventos" ? obj[c].map(conSelloOriginal) : obj[c], { soloFaltantes: true }); } catch (err) { fallas.push(`${c} (${err?.message || "sin detalle"})`); }
         }
         setSubiendo(false);
         setMsg(fallas.length === 0
-          ? { tipo: "ok", txt: `Datos restaurados en este aparato y ${subidos} registro(s) puestos en la nube.${abierta.ok ? " Lo que se había perdido conserva a quien lo autorizó y queda marcado como restaurado." : " Ojo: lo que se había perdido quedó autorizado a nombre de tu cuenta."}` }
+          ? { tipo: "ok", txt: `Datos restaurados en este aparato y ${subidos} registro(s) revisados contra la nube: lo que faltaba se puso y lo que ya estaba no se tocó.${abierta.ok ? " Lo que se había perdido conserva a quien lo autorizó y queda marcado como restaurado." : " Ojo: lo que se había perdido quedó autorizado a nombre de tu cuenta."}` }
           : { tipo: "err", txt: `Restaurado en este aparato, pero NO todo subió a la nube. Subieron ${subidos} registro(s); faltó: ${fallas.join("; ")}. No borres el archivo de respaldo.` });
       } catch (err) {
         setSubiendo(false);

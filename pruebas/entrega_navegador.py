@@ -256,7 +256,7 @@ with sync_playwright() as p:
     V.get_by_label("Por qué se restaura").fill("Ensayo: se perdió toda la base"); V.locator('input[type="file"]').set_input_files(ruta)
     for _ in range(40):
         V.wait_for_timeout(500)
-        if V.locator(".alert").count() and "restaurad" in V.locator(".alert").first.inner_text().lower(): break
+        if V.locator(".alert").count() and "restaurad" in V.locator(".alert").first.inner_text().lower() and "por qué" not in V.locator(".alert").first.inner_text(): break
     dice = plano(V.locator(".alert").first.inner_text()) if V.locator(".alert").count() else "sin mensaje"
     fR = foto(V); rR = V.evaluate(RES)
     caso("restaurar en un rancho vacío deja TODO igual: mismos registros, mismos costos, mismo valor del almacén (no descuenta dos veces)", fR == fA and rR == rA, [dice, [(k, fA[k], fR.get(k)) for k in fA if fA[k] != fR.get(k)], rR["inventario"], rA["inventario"]])
@@ -272,7 +272,10 @@ with sync_playwright() as p:
     W = ctxW.new_page(); W.on("pageerror", lambda e: errs.append(str(e))); W.goto(URL); W.wait_for_timeout(1500); entrar(W, ADM); W.wait_for_timeout(4500)
     fW = foto(W); rW = W.evaluate(RES)
     caso("otro aparato que entra a esa nube recuperada ve exactamente la misma operación", fW == fA and rW == rA, [(k, fA[k], fW.get(k)) for k in fA if fA[k] != fW.get(k)])
+    # Alguien corrigió un sueldo en la nube DESPUÉS del respaldo: restaurar no lo regresa al valor viejo.
+    idT = next(iter(vacia.t["trabajadores"])); vacia.t["trabajadores"][idT] = {**vacia.t["trabajadores"][idT], "datos": {**vacia.t["trabajadores"][idT]["datos"], "sueldo_dia": 999}, "actualizado": "2099-01-01T00:00:00Z"}
     V.get_by_label("Por qué se restaura").fill("Ensayo: otra vez el mismo archivo"); V.locator('input[type="file"]').set_input_files(ruta); V.wait_for_timeout(5000)
+    caso("y lo que en la nube era más reciente que el respaldo se queda como estaba", vacia.t["trabajadores"][idT]["datos"]["sueldo_dia"] == 999)
     caso("restaurar dos veces el mismo archivo no duplica nada", propias(vacia.cuantos()) == propias(nube.cuantos()) and foto(V) == fA, vacia.cuantos())
     ctxW.close()
     ctxV.close()

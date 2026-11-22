@@ -208,7 +208,10 @@ export async function vaciarTabla(tabla) {
 //  SUBIR EN BLOQUE: una colección completa de la app a Supabase.
 //  Usado en la migración inicial.
 // ------------------------------------------------------------
-export async function subirColeccion(tabla, registros) {
+// `soloFaltantes` (para RESTAURAR un respaldo): lo que ya está en la base no se toca; sólo entra lo que falta. Sin esto,
+// restaurar pisaba con la versión vieja del respaldo lo que alguien había corregido después, y la bitácora —que no se
+// puede modificar— hacía fallar el lote entero.
+export async function subirColeccion(tabla, registros, { soloFaltantes = false } = {}) {
   if (!supabaseListo) throw new Error("Supabase no está configurado");
   if (!registros || registros.length === 0) return 0;
   const filas = registros.map(r => objetoAFila(tabla, r));
@@ -216,7 +219,7 @@ export async function subirColeccion(tabla, registros) {
   let total = 0;
   for (let i = 0; i < filas.length; i += 100) {
     const lote = filas.slice(i, i + 100);
-    const { error } = await supabase.from(tabla).upsert(lote, { onConflict: "id" });
+    const { error } = await supabase.from(tabla).upsert(lote, { onConflict: "id", ignoreDuplicates: soloFaltantes });
     if (error) throw error;
     total += lote.length;
   }

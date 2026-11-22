@@ -103,3 +103,22 @@ test("pasada_la_hora_la_restauracion_ya_no_sirve", async () => {
   const f = await fila("r-org");
   assert.equal(f.validado_por, CUENTAS.luis); assert.equal(f.validacion, "rechazado", "sin restauración abierta se valida con quien sube, y él no tiene ese permiso");
 });
+
+test("restaurar_la_bitacora_no_truena_ni_la_modifica_lo_que_ya_esta_se_queda_y_lo_que_falta_entra", async () => {
+  const d = (accion) => JSON.stringify({ accion, _espacio: "prueba" });
+  // Así sube la app al restaurar: «si ya está, nada».
+  const RESTAURA = "insert into auditoria (id, datos) values ($1, $2::jsonb), ($3, $4::jsonb) on conflict (id) do nothing";
+  await como(db, "migue", "insert into auditoria (id, datos) values ('b-uno', $1::jsonb)", [d("lo original")]);
+  const r = await como(db, "luis", RESTAURA, ["b-uno", d("lo del respaldo, distinto"), "b-dos", d("se había perdido")]); assert.ok(r.ok, r.error);
+  const filas = await verdad(db, "select id, datos->>'accion' accion from auditoria where id in ('b-uno', 'b-dos') order by id");
+  assert.deepEqual(filas.map(f => [f.id, f.accion]), [["b-dos", "se había perdido"], ["b-uno", "lo original"]]);
+  // y con la forma vieja (pisar lo que ya está) la base lo rechaza: la bitácora no se modifica ni restaurando
+  const pisa = await como(db, "luis", "insert into auditoria (id, datos) values ('b-uno', $1::jsonb) on conflict (id) do update set datos = excluded.datos", [d("pisado")]);
+  assert.equal(pisa.ok, false);
+});
+
+test("restaurar_no_pisa_lo_que_alguien_corrigio_despues_del_respaldo", async () => {
+  await como(db, "migue", "insert into trabajadores (id, nombre, datos) values ('r-t1', 'PERSONA INVENTADA', $1::jsonb)", [JSON.stringify({ sueldo_dia: 400, _espacio: "prueba" })]);
+  const r = await como(db, "luis", "insert into trabajadores (id, nombre, datos) values ('r-t1', 'PERSONA INVENTADA', $1::jsonb) on conflict (id) do nothing", [JSON.stringify({ sueldo_dia: 350, _espacio: "prueba" })]); assert.ok(r.ok, r.error);
+  assert.equal((await verdad(db, "select datos->>'sueldo_dia' s from trabajadores where id = 'r-t1'"))[0].s, "400");
+});

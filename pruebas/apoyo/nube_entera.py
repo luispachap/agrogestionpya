@@ -88,8 +88,10 @@ class Nube:
             self.rechazos.append(tabla); return J({"code": "42501", "message": "new row violates row-level security policy"}, 401)
         if r.method == "DELETE": return J([], 200)
         entran = cuerpo if isinstance(cuerpo, list) else [cuerpo]; salen = []
+        solo_faltantes = "ignore-duplicates" in (r.headers.get("prefer") or "")
         for f in entran:
             if not isinstance(f, dict) or "id" not in f: continue
+            if solo_faltantes and f["id"] in filas: continue          # lo que ya está no se toca
             self.subidas.append((tabla, f["id"], c["rol"]))
             g = self.sellar(f, c) if tabla == "eventos" else {**f, "actualizado": f.get("actualizado") or self.ahora()}
             filas[g["id"]] = g; salen.append(g)
