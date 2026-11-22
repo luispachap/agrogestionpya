@@ -19,7 +19,8 @@ const BASE = {
 test("los_insumos_cuentan_al_consumirse_y_las_compras_para_el_almacen_no_son_gasto_son_inventario", () => {
   const r = resultadoDelRancho(BASE), de = (k) => r.lineas.find(l => l.clave === k).monto;
   assert.equal(de("insumos"), 700, "lo que se usó");
-  assert.equal(de("gastos"), 900 + 250, "la luz y el insumo comprado directo para una parcela; NO la urea para el almacén ni el taller del vehículo");
+  assert.equal(de("gastos"), 900, "la luz, que no dice parcela; NO la urea para el almacén ni el taller del vehículo");
+  assert.equal(de("gastos_parcela"), 250, "el insumo comprado directo para una parcela es costo de esa parcela, no un gasto general");
   assert.ok(!r.lineas.some(l => [8000, 5000].includes(l.monto)), "las compras no aparecen como gasto");
   assert.equal(r.inventario.comprado, 8000 + 5000 + 1400, "están en el inventario: gasto capturado como insumos, entrada del almacén y lo valuado de las compras del personal");
   assert.equal(r.inventario.valor, 12000); assert.equal(r.inventario.porValuar, 600); assert.equal(r.inventario.sinValor.length, 1, "lo que no tiene precio se dice, no vale cero");
@@ -38,7 +39,7 @@ test("la_utilidad_cuenta_todo_lo_del_personal_cuando_se_causa_y_cada_cosa_una_ve
   const r = resultadoDelRancho(BASE), de = (k) => r.lineas.find(l => l.clave === k).monto;
   assert.equal(r.ingresos, 100000, "lo cancelado no cuenta");
   assert.equal(de("mo"), 2500); assert.equal(de("personal"), 950); assert.equal(de("prestaciones"), 75); assert.equal(de("bonos"), 500); assert.equal(de("bajas"), 44560);
-  assert.equal(r.costos, 2500 + 700 + 200 + 400 + 2000 + 950 + 75 + 500 + 44560); assert.equal(r.gastos, 1150 + 100 + 80 + 45);
+  assert.equal(r.costos, 2500 + 700 + 250 + 200 + 400 + 2000 + 950 + 75 + 500 + 44560); assert.equal(r.gastos, 900 + 100 + 80 + 45);
   assert.equal(r.egresos, r.costos + r.gastos); assert.equal(r.utilidad, 100000 - r.egresos);
 });
 
@@ -71,4 +72,11 @@ test("un_gasto_de_insumos_puede_ser_cuatro_cosas_y_si_nadie_lo_dijo_no_es_ni_gas
   assert.equal(r.egresos, 3000, "lo por clasificar y lo del almacén no bajan la utilidad todavía");
   assert.equal(insumosPorClasificar(egresos).length, 1);
   const f = flujoDeEfectivo({ egresos }); assert.equal(f.meses[0].egresos, 5000, "en el flujo sí sale todo: el dinero se movió");
+});
+
+test("un_gasto_capturado_a_una_parcela_es_costo_de_produccion_y_no_gasto_general_y_la_utilidad_no_cambia", () => {
+  const egresos = [{ id: "g1", monto: 1500, concepto: "LUZ" }, { id: "g2", monto: 800, concepto: "REFACCION", parcelaId: "p1" }];
+  const r = resultadoDelRancho({ ingresos: [{ id: "i1", monto: 10000 }], egresos }), de = (k) => r.lineas.find(l => l.clave === k).monto;
+  assert.equal(de("gastos_parcela"), 800); assert.equal(de("gastos"), 1500);
+  assert.equal(r.costos, 800); assert.equal(r.gastos, 1500); assert.equal(r.utilidad, 7700);
 });

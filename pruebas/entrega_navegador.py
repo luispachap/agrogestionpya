@@ -149,7 +149,7 @@ with sync_playwright() as p:
     r1 = A.evaluate(RES); con = [e for e in datos(A)["eventos"] if e["tipo"] == "alm_consumo"]
     caso("la aplicación queda una vez, con quien la aplicó, y descuenta 6 kg del almacén una sola vez", f["aplicaciones"] == 1 and len(con) == 1 and con[0]["datos"]["cantidad"] == 6 and [e["nombre"] for e in datos(A)["aplicaciones"][0]["quienes"]["ejecutaron"]] == ["ANA INVENTADA"], con[:1])
     gastos = {x["clave"]: x["monto"] for x in r1["produccion"] + r1["generales"]}
-    caso("el insumo aplicado cuesta $1,200 UNA vez (no se suma además como consumo) y el almacén baja de $4,000 a $2,800", gastos["gastos"] == 1200 and gastos["insumos"] == 0 and gastos["consumo_general"] == 0 and r1["inventario"]["valor"] == 2800, [gastos, r1["inventario"]])
+    caso("el insumo aplicado cuesta $1,200 UNA vez (no se suma además como consumo) y el almacén baja de $4,000 a $2,800", gastos["gastos_parcela"] == 1200 and gastos["gastos"] == 0 and gastos["insumos"] == 0 and gastos["consumo_general"] == 0 and r1["inventario"]["valor"] == 2800, [gastos, r1["inventario"]])
     caso("la compra para el almacén no es gasto: sigue en inventario", r0["inventario"]["valor"] == 4000 and {x["clave"]: x["monto"] for x in r0["generales"]}["gastos"] == 0)
     subio(A)
 

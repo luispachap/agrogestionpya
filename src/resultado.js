@@ -65,6 +65,8 @@ export function resultadoDelRancho({ ingresos = [], egresos = [], entradas_inv =
   const produccion = [
     { clave: "mo", nombre: "Mano de obra en parcelas y bodega", monto: S(actividades.map(a => n(a.costoMO))) },
     { clave: "insumos", nombre: "Insumos consumidos", monto: S(actividades.map(a => n(a.costoInsumos))), nota: "cuentan cuando se usan, no cuando se compran" },
+    // Un gasto capturado CON parcela es costo de esa parcela: antes salía revuelto con los gastos generales.
+    { clave: "gastos_parcela", nombre: "Gastos capturados a una parcela", monto: S(gastos.filter(e => e.parcelaId).map(e => n(e.monto))), nota: "refacciones, servicios, insumos de una aplicación: lo que se capturó diciendo para qué parcela fue" },
     { clave: "insumos_directos", nombre: "Insumos comprados y usados directo en producción", monto: S(directos.map(e => n(e.monto))), nota: "no pasaron por el almacén y no dicen parcela" },
     { clave: "ajustes_insumos", nombre: "Ajustes de valuación de insumos", monto: n(almacen.ajustesValuacion), nota: "consumos en parcelas cuyo costo se supo o cambió después; el original no se toca. Los de un vehículo van en la cuenta de ese vehículo" },
     { clave: "maq_cuota", nombre: "Maquinaria: aplicado por cuota por hora", monto: S(actividades.map(a => n(a.costoMaq))) },
@@ -75,7 +77,7 @@ export function resultadoDelRancho({ ingresos = [], egresos = [], entradas_inv =
     { clave: "bajas", nombre: "Bajas: prima de antigüedad e indemnizaciones", monto: deFuente("bajas") },
   ];
   const generales = [
-    { clave: "gastos", nombre: "Gastos capturados", monto: S(gastos.map(e => n(e.monto))), nota: "sin las compras para el almacén, los insumos por clasificar ni los gastos de vehículos" },
+    { clave: "gastos", nombre: "Gastos generales capturados", monto: S(gastos.filter(e => !e.parcelaId).map(e => n(e.monto))), nota: "los que no dicen parcela; sin las compras para el almacén, los insumos por clasificar ni los gastos de vehículos" },
     { clave: "compras", nombre: "Compras del personal que no son mercancía", monto: n(compras?.gasto) },
     { clave: "consumo_general", nombre: "Insumos de uso general del rancho", monto: n(almacen.consumoGeneral) },
     { clave: "ajustes_generales", nombre: "Ajustes de valuación de insumos de uso general", monto: n(almacen.ajustesGenerales) },

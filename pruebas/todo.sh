@@ -14,7 +14,7 @@ npx vite --port 5173 >/dev/null 2>&1 &
 VITE_SUPABASE_URL=http://localhost:5199 VITE_SUPABASE_ANON_KEY=prueba npx vite --port 5174 >/dev/null 2>&1 &
 python3 -c "import time; time.sleep(6)"
 falla=0
-for t in humo recorrido archivos campo arranque cuentas menu checador cuadrillas eventuales almacen dosaparatos pagos prestaciones sensibles mes bajas cruces decisiones importar entrada ia plan jornada reasignacion organizacion ejecutores entrega sinsenal; do
+for t in humo recorrido archivos campo arranque cuentas menu checador cuadrillas eventuales almacen dosaparatos pagos prestaciones sensibles mes bajas cruces decisiones importar entrada ia plan jornada reasignacion organizacion ejecutores entrega sinsenal auditoria_dinero; do
   printf "   %s: " "$t"
   # El resultado es el de la prueba, no el de "tail": si truena a medias también cuenta como falla.
   if python3 pruebas/${t}_navegador.py > /tmp/agro_prueba.log 2>&1; then tail -1 /tmp/agro_prueba.log; else tail -3 /tmp/agro_prueba.log; echo "   ^^^ FALLÓ $t"; falla=1; fi

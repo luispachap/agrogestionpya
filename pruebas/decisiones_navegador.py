@@ -70,7 +70,7 @@ with sync_playwright() as p:
     # ══ 2 · La máquina: cuota aplicada contra costo real ══
     tab(pg, "Resultados")
     est = pg.locator(".card", has_text="Estado de resultados").first.inner_text()
-    caso("con la cuenta de la máquina incompleta (sin combustible ni depreciación) no se le baja el costo a nadie: se queda con los $300 de cuota", "Maquinaria: aplicado por cuota por hora" in est and "$300" in est and "costo real fuera de la cuota" not in est and "Gastos capturados" not in est, plano(est)[:700])
+    caso("con la cuenta de la máquina incompleta (sin combustible ni depreciación) no se le baja el costo a nadie: se queda con los $300 de cuota", "Maquinaria: aplicado por cuota por hora" in est and "$300" in est and "costo real fuera de la cuota" not in est and "Gastos generales capturados" not in est, plano(est)[:700])
     ir(pg, "reportes"); tab(pg, "Cierre de mes")
     pg.get_by_label("Mes que se cierra").fill("2026-11"); pg.wait_for_timeout(400)
     cm = pg.locator(".card", has_text="Cierre de mes").first.inner_text()
@@ -138,7 +138,7 @@ with sync_playwright() as p:
     caso("un gasto de insumos que nadie clasificó no es gasto ni inventario: sale por clasificar", "Insumos por clasificar" in t and "FERTILIZANTE DE PRUEBA" in t and "$700" in t and "No se supone que entraron al almacén" in t, plano(t)[:300])
     pg.get_by_label("Qué fue FERTILIZANTE DE PRUEBA").select_option("general"); pg.wait_for_timeout(500)
     est = pg.locator(".card", has_text="Estado de resultados").first.inner_text(); t = pg.locator("body").inner_text()
-    caso("al decir que fue de uso general pasa a gastos generales y deja de estar por clasificar", "Insumos por clasificar" not in t and "Gastos capturados" in est and "$700" in est, plano(est)[:500])
+    caso("al decir que fue de uso general pasa a gastos generales y deja de estar por clasificar", "Insumos por clasificar" not in t and "Gastos generales capturados" in est and "$700" in est, plano(est)[:500])
     caso("ninguna pantalla tronó", not g["trono"](pg) and not errs, errs[:2])
     b.close()
 print(f"\n{sum(res)}/{len(res)} pasan"); sys.exit(0 if all(res) else 1)

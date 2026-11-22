@@ -1435,7 +1435,7 @@ function BotonCancelar({ seccion, registro, etiqueta, cancelar, onHecho, classNa
     <button
       className={className || "btn-ghost"}
       style={estilo || { padding: 2, fontSize: 13, color: "var(--red)" }}
-      title="Cancelar (no se borra: queda el registro con el motivo)"
+      title="Cancelar (no se borra: queda el registro con el motivo)" aria-label={`Cancelar ${etiqueta || "este movimiento"}`}
       onClick={(ev) => { ev.stopPropagation(); if (cancelar(seccion, registro.id, etiqueta) && onHecho) onHecho(); }}
     ><Ic e="❌" /></button>
   );
@@ -7694,6 +7694,12 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
       quien: session?.nombre || session?.id || "—",
     }));
     anotarEnBitacora("cancelo", sec, registro, { motivo });
+    // Un gasto de caja chica hecho para una parcela dejó además un gasto ligado: si se cancela el de la caja, el ligado
+    // también (si no, el costo de la parcela se quedaba con un gasto que ya no existe).
+    if (sec === "cajachica") for (const e of (data.egresos || []).filter(x => x.cajachicaId === id && !estaCancelado(x))) {
+      upd("egresos", marcarCancelado(e, { motivo: `Se canceló su movimiento de caja chica: ${motivo}`, quien: session?.nombre || session?.id || "—" }));
+      anotarEnBitacora("cancelo", "egresos", e, { motivo: `Se canceló su movimiento de caja chica: ${motivo}` });
+    }
     return true;
   }, [data, upd, session]);
 
@@ -7712,6 +7718,11 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
       }],
     });
     anotarEnBitacora("reactivo", sec, r, { motivoOriginal: r.motivoCancelacion });
+    // Y su gasto ligado, si se había cancelado junto con él.
+    if (sec === "cajachica") for (const e of (data.egresos || []).filter(x => x.cajachicaId === id && estaCancelado(x) && String(x.motivoCancelacion || "").startsWith("Se canceló su movimiento de caja chica"))) {
+      upd("egresos", { ...e, cancelado: false, historialCancelacion: [...(e.historialCancelacion || []), { motivo: e.motivoCancelacion, por: e.canceladoPor, en: e.canceladoEn, reactivadoPor: session?.nombre || session?.id || "—", reactivadoEn: new Date().toISOString() }] });
+      anotarEnBitacora("reactivo", "egresos", e, { motivoOriginal: e.motivoCancelacion });
+    }
   }, [data, upd, session, anotarEnBitacora]);
 
   // Aplica VARIAS operaciones en una sola actualización de datos (un solo re-render).
@@ -14748,7 +14759,7 @@ function EncargadoCaja({ data, add, upd, del, cancelar, reactivar, session }) {
                 ))}
               </div>
             </div>
-            <div className="form-group"><label className="form-label">Concepto</label><input className="inp" placeholder={form.tipo === "entrada" ? "Ej: Fondo recibido de administración" : "Ej: Compra de diésel, pago de jornal..."} value={form.concepto} onChange={e => setForm(f => ({ ...f, concepto: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label">Concepto</label><input className="inp" placeholder={form.tipo === "entrada" ? "Ej: Fondo recibido de administración" : "Ej: Compra de diésel, refacción, pago de un día de trabajo..."} value={form.concepto} onChange={e => setForm(f => ({ ...f, concepto: e.target.value }))} /></div>
             {form.tipo === "salida" && (
               <div className="form-group"><label className="form-label">¿Fue para una parcela? (opcional — entra al costo del cultivo)</label>
                 <select className="inp" value={form.parcelaId || ""} onChange={e => setForm(f => ({ ...f, parcelaId: e.target.value }))}>
@@ -14785,12 +14796,11 @@ function EncargadoCaja({ data, add, upd, del, cancelar, reactivar, session }) {
       </div>
       {editItem && (
         <EditorRegistro
-          seccion="cajachica" registro={editItem} titulo={editItem.concepto} upd={upd} del={del}
+          seccion="cajachica" registro={editItem} titulo={editItem.concepto} upd={upd}
+          // De un movimiento de dinero sólo se corrige cómo se llama. El importe, el tipo y la fecha no se editan ni se
+          // borra el renglón: si están mal, se cancela con su motivo y se captura otro (antes se podían cambiar sin rastro).
           campos={[
             ["concepto", "Concepto", "text"],
-            ["tipo", "Tipo", "select", [{ v: "entrada", l: "Entrada (recibí dinero)" }, { v: "salida", l: "Salida (gasté dinero)" }]],
-            ["monto", "Monto", "number"],
-            ["fecha", "Fecha", "date"],
           ]}
           onClose={() => setEditItem(null)}
         />
