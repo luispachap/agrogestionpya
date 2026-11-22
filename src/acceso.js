@@ -204,6 +204,17 @@ export function entrarConCredencial(textoQR, pin, data) {
   return { ok: true, sesion: sesionDeCampo(x.rol, x.p), via: "credencial" };
 }
 
+// TELÉFONO COMPARTIDO: quien entró con su PIN a capturar lo suyo y dejó el teléfono no debe seguir «adentro» cuando lo
+// tome el siguiente: lo que capture ese otro quedaría a su nombre. Las sesiones de captura personal (trabajador,
+// cuadrilla, externo) se cierran solas tras un rato sin tocar la pantalla. No aplica a quien entró con cuenta ni al
+// encargado (su aparato puede estar de checador todo el día). Cerrar la sesión no borra nada de lo capturado.
+export const MINUTOS_SIN_USO = 5;
+export const ROLES_QUE_SE_CIERRAN_SOLOS = ["trabajador", "cuadrilla", "externo"];
+export function debeCerrarse(sesion, ahora, ultimoToque, minutos = MINUTOS_SIN_USO) {
+  if (!sesion || sesion.cuenta || !ROLES_QUE_SE_CIERRAN_SOLOS.includes(sesion.role)) return false;
+  return Number(ahora) - Number(ultimoToque || 0) >= minutos * 60 * 1000;
+}
+
 // ¿En este aparato se puede registrar asistencia desde la entrada, sin abrir sesión?
 // Sólo si un encargado lo dejó ligado para su gente: una marca hecha desde el teléfono de cada quien no vale.
 export function puertaDeAsistencia(vinculo) {

@@ -68,6 +68,25 @@ export function sobreDeRespaldo(datos, espacio, cuando) {
   return { _respaldo: { espacio, cuando, version: 8 }, ...datos };
 }
 
+// Lo que va en un respaldo y lo que se restaura: SÓLO lo capturado (las colecciones tal como se guardan), nunca lo
+// calculado. Antes el respaldo llevaba también las cuentas ya hechas —existencias, costos— y al restaurarlo lo calculado
+// se volvía punto de partida: el almacén descontaba dos veces lo consumido. Lo calculado se vuelve a calcular solo.
+export function soloLoCapturado(datos, colecciones) {
+  const sale = {};
+  for (const c of colecciones) if (Array.isArray(datos?.[c])) sale[c] = datos[c];
+  return sale;
+}
+// Un respaldo sirve para otra base (una reconstruida) sólo si se le cambia la marca del espacio, a propósito y fuera
+// de la app (herramientas/respaldo-a-otro-espacio.mjs). Aquí está la regla, para poder probarla.
+export function respaldoParaOtroEspacio(obj, nuevoEspacio, cuando) {
+  if (!obj || !obj._respaldo || !obj._respaldo.espacio) throw new Error("No es un respaldo de AgroGestión.");
+  if (!nuevoEspacio) throw new Error("Falta decir a qué espacio va.");
+  const marcar = (r) => (r && typeof r === "object" && !Array.isArray(r) ? { ...r, _espacio: nuevoEspacio } : r);
+  const sale = { _respaldo: { ...obj._respaldo, espacio: nuevoEspacio, venia_de: obj._respaldo.espacio, trasladado: cuando || null } };
+  for (const [k, v] of Object.entries(obj)) if (k !== "_respaldo") sale[k] = Array.isArray(v) ? v.map(marcar) : v;
+  return sale;
+}
+
 // ¿Se puede restaurar este archivo aquí? Sólo si es de ESTE espacio.
 // Un respaldo de antes (sin marca) o de otro espacio no entra: restaurarlo
 // metería registros de prueba a la operación real.

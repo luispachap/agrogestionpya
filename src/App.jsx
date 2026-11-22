@@ -29,7 +29,7 @@ import { juntarFuentes, indirectoDe, costoCompleto, capturadoDespues } from "./i
 import { FUNCIONES, menuDe, buscarEnMenu, prefsDe, conPrefs, ancladasDe, enBarraDe, barraDe, necesitaMenu, alternarInicio, alternarBarra, moverEnInicio, volverALoDeFabrica, anotarUso, masUsadas, ancladasConDatos, TOPE_BARRA, ENFOQUES, PERFILES_CON_ENFOQUE, faltaEnfoque, elegirEnfoque, alternarGrupo, mezclarPrefs, sellarAcomodo, mismoAcomodo } from "./menu.js";
 import { supabase, supabaseListo, ESPACIO, LLAVES, DIRECCION_AL_ABRIR } from "./supabase";
 // Quién entra y qué sesión guardada se puede creer (puro y probado).
-import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo, caminoDeEntrada, quienEntraConPin, entrarConCredencial, puertaDeAsistencia, revisarAlta } from "./acceso.js";
+import { verificarPinDireccion, sesionRestaurable, planDeRecarga, sesionDeCuenta, regresoDelCorreo, caminoDeEntrada, quienEntraConPin, entrarConCredencial, puertaDeAsistencia, revisarAlta, debeCerrarse } from "./acceso.js";
 import { estadoDeIA, consultasDeConversacion, consultarConversacion, verEvidencia, directorioDeCuentas, migrarCatalogos, leerTodo, CATALOGOS, subirColeccion, guardarRegistro, borrarRegistro, vaciarTabla, leerColeccion, leerConsumo, hayCuentaLigada, leerPreferencias, guardarPreferencias, leerEventosDesde, horaDelServidor, cuandoSelle, misPermisos, permisosDeTodos, cambiarPermiso } from "./dataApi";
 import { desfaseDe, selloDeReloj, estadoDelReloj } from "./reloj.js";
 // Pagos al personal: ausencias, lo que corresponde, lo entregado, lo pendiente y los recibos.
@@ -159,7 +159,7 @@ import {
   subirArchivosPendientes, archivosSinSubir,
 } from "./almacenArchivos.js";
 import { revisarConteoInicial, revisarSaldoInicial } from "./arranque.js";
-import { marcarEspacio, llavesQueSeReinician, loDeAntes, sobreDeRespaldo, revisarRespaldo, LLAVES_ANTERIORES } from "./espacio.js";
+import { marcarEspacio, llavesQueSeReinician, loDeAntes, sobreDeRespaldo, revisarRespaldo, soloLoCapturado, LLAVES_ANTERIORES } from "./espacio.js";
 import { esFallaDeRed, CADA_CUANTO_REINTENTAR_MS, tocaBajar, mezclarConNube, planDeSubida, puedeLigarTelefono, vinculoDe, abrePantallasSola } from "./sincroniza.js";
 import { revisarHorometro, compararConsumo, consumoPorHora } from "./maquinaria.js";
 
@@ -7294,6 +7294,20 @@ function AppInner() {
     setSession(null);
   }, [session, vinculo, setVinculo]);
 
+  // Teléfono compartido: la sesión de quien entró con PIN a capturar lo suyo se cierra sola si deja de usar el aparato.
+  const [cerradaSola, setCerradaSola] = useState(false);
+  useEffect(() => {
+    if (!session || !debeCerrarse(session, Infinity, 0)) return;       // sólo los perfiles que se cierran solos
+    let ultimo = Date.now();
+    const toque = () => { ultimo = Date.now(); };
+    const revisar = () => { if (debeCerrarse(session, Date.now(), ultimo)) { setCerradaSola(true); setSession(null); } };
+    const t = setInterval(revisar, 20 * 1000);
+    ["pointerdown", "keydown", "touchstart"].forEach(e => window.addEventListener(e, toque, { passive: true }));
+    document.addEventListener("visibilitychange", revisar);
+    return () => { clearInterval(t); ["pointerdown", "keydown", "touchstart"].forEach(e => window.removeEventListener(e, toque)); document.removeEventListener("visibilitychange", revisar); };
+  }, [session?.id, session?.role, session?.cuenta]);
+  useEffect(() => { if (session) setCerradaSola(false); }, [session?.id]);
+
   // Sincronización inicial: cuando hay sesión real, leer datos de Supabase y refrescar el navegador.
   // Supabase es la fuente de verdad. Si la red falla, se queda con lo que tenga local.
   const [sincronizando, setSincronizando] = useState(false);
@@ -7835,7 +7849,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
     abrir: (acomodar) => setMenuAbierto(acomodar ? "acomodar" : "ver"), cerrar: () => setMenuAbierto(null),
   }), [rolMenu, prefsMenu, cambiarPrefsMenu, page, session]);
 
-  if (!session) return <div className="agro-root"><style>{CSS}</style><LoginScreen data={data} add={add} upd={upd} onLogin={setSession} vinculo={vinculo} eventosListos={eventosListos} /></div>;
+  if (!session) return <div className="agro-root"><style>{CSS}</style><LoginScreen data={data} add={add} upd={upd} onLogin={setSession} vinculo={vinculo} eventosListos={eventosListos} cerradaSola={cerradaSola} /></div>;
 
   const isAdmin = session.role === "admin";
   const isCuad = session.role === "cuadrilla";
@@ -8009,7 +8023,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "mapa" && <MapaAgricola data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} onNav={setPage} />}
               {page === "asistencia" && <PaseLista data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "resumen" && <ResumenSemanal data={data} onClose={() => setPage("home")} />}
-              {page === "respaldo" && <RespaldoDatos data={data} setData={setData} onClose={() => setPage("home")} />}
+              {page === "respaldo" && <RespaldoDatos data={data} crudos={rawData} setData={setData} pendientes={pending.length} onClose={() => setPage("home")} />}
               {page === "checador" && <Checador data={data} add={add} session={session} onNav={setPage} onClose={() => setPage("home")} listo={eventosListos} cerrado={clavado ? cerrado : null} onCerrar={cerrarChecador} onAbrir={abrirChecador} />}
               {page === "credenciales" && <Credenciales data={data} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "reparto" && <Reparto data={data} add={add} session={session} onNav={setPage} onClose={() => setPage("home")} />}
@@ -8194,7 +8208,7 @@ export default function App() {
 
 // UNA SOLA ENTRADA. Nadie escoge su perfil: se escribe el PIN o el correo, o se enseña la credencial, y la app sabe
 // quién es. Registrar asistencia va aparte y no abre sesión. Las reglas están en acceso.js.
-function LoginScreen({ data, add, upd, onLogin, vinculo = null, eventosListos = true }) {
+function LoginScreen({ data, add, upd, onLogin, vinculo = null, eventosListos = true, cerradaSola = false }) {
   const [externo, setExterno] = useState(false);       // «soy externo y no tengo PIN»: entra con su nombre
   const [cred, setCred] = useState(null);              // null · { leyendo:true } · { texto, persona } — la credencial ya leída, falta el PIN
   const [checando, setChecando] = useState(false);     // la puerta de asistencia: checar sin abrir sesión
@@ -8380,6 +8394,7 @@ function LoginScreen({ data, add, upd, onLogin, vinculo = null, eventosListos = 
         <div className="login-brand">Agroselectos P&amp;A</div>
       </div>
       <div className="login-sheet">
+        {cerradaSola && <div className="card login-cerrada-sola" role="status" style={{ padding: 10, marginBottom: 10, border: "1px solid var(--gold)" }}><div className="text-sm">La sesión se cerró sola por no usarse un rato. Lo que se había capturado está guardado. Entra otra vez con tu PIN.</div></div>}
         {checando && puerta.ok ? <>
           <h3>Registrar mi entrada o salida</h3>
           <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Sólo queda anotada tu hora. No abre la app ni enseña nada de nadie. Este aparato lo dejó {puerta.quien.nombre}.</div>
@@ -16691,18 +16706,16 @@ function EditorRegistro({ seccion, registro, campos, titulo, upd, del, onClose, 
 /* ════════════ RESPALDO DE DATOS — ADMIN ════════════ */
 /* Exportar e importar toda la información en un archivo, para no perder
    datos y poder pasarlos entre dispositivos antes de tener base de datos. */
-function RespaldoDatos({ data, setData, onClose }) {
+function RespaldoDatos({ data, crudos, setData, pendientes = 0, onClose }) {
   const [msg, setMsg] = useState(null);
   const fileRef = useRef(null);
-  const [reseteando, setReseteando] = useState(false);
-
-  // Clasificación de colecciones
-  const MOVIMIENTOS = ["siembras", "actividades", "bonificaciones", "incidencias", "entradas_inv", "cosechas", "ingresos", "egresos", "compras", "solicitudes_compra", "bitacora", "avances_fase", "tareas", "prestamos", "cajachica", "creditos", "ciclos", "asistencia", "aplicaciones", "envios_bodega"];
-  const CATALOGOS_COL = ["ranchos", "parcelas", "cultivos", "trabajadores", "cuadrillas", "externos", "maquinaria", "encargados", "proveedores", "agronomos"];
+  const [subiendo, setSubiendo] = useState(false);
+  // Lo que se respalda es lo CAPTURADO (las colecciones como se guardan), no las cuentas ya hechas: ésas se recalculan.
+  const COLECCIONES = [...new Set([...Object.keys(INITIAL).filter(k => Array.isArray(INITIAL[k])), ...TABLAS_NUBE, "eventos"])];
 
   const exportar = () => {
     try {
-      const contenido = JSON.stringify(sobreDeRespaldo(data, ESPACIO, new Date().toISOString()), null, 2);
+      const contenido = JSON.stringify(sobreDeRespaldo(soloLoCapturado(crudos || data, COLECCIONES), ESPACIO, new Date().toISOString()));
       const blob = new Blob([contenido], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -16712,7 +16725,7 @@ function RespaldoDatos({ data, setData, onClose }) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setMsg({ tipo: "ok", txt: "Respaldo descargado. Guárdalo en un lugar seguro." });
+      setMsg({ tipo: "ok", txt: pendientes > 0 ? `Respaldo descargado. Ojo: este aparato tiene ${pendientes} registro(s) que todavía no suben a la nube; van dentro del respaldo.` : "Respaldo descargado. Guárdalo fuera del teléfono (correo, computadora o memoria)." });
     } catch (e) {
       setMsg({ tipo: "err", txt: "No se pudo exportar: " + e.message });
     }
@@ -16722,79 +16735,36 @@ function RespaldoDatos({ data, setData, onClose }) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => {
+    reader.onload = async ev => {
       try {
         // Sólo entra un respaldo de ESTE espacio. Uno de antes (o de pruebas)
         // metería registros inventados a la operación real.
         const rev = revisarRespaldo(JSON.parse(ev.target.result), ESPACIO);
         if (!rev.entra) { setMsg({ tipo: "err", txt: rev.dice }); return; }
-        const obj = rev.datos;
-        if (!Array.isArray(obj.parcelas)) {
+        if (!Array.isArray(rev.datos.parcelas)) {
           setMsg({ tipo: "err", txt: "El archivo no parece un respaldo válido." });
           return;
         }
-        if (confirm(`${rev.dice}\n\n¿Reemplazar TODOS los datos de este teléfono con los del respaldo? Esto no se puede deshacer.`)) {
-          setData(obj);
-          setMsg({ tipo: "ok", txt: "Datos restaurados correctamente." });
+        const obj = soloLoCapturado(rev.datos, COLECCIONES);
+        if (!confirm(`${rev.dice}\n\n¿Reemplazar TODOS los datos de este aparato con los del respaldo y volver a subirlos a la nube? Lo que ya esté en la nube no se duplica.`)) return;
+        setData(prev => ({ ...prev, ...Object.fromEntries(COLECCIONES.map(c => [c, []])), ...obj }));
+        if (!supabaseListo) { setMsg({ tipo: "ok", txt: "Datos restaurados en este aparato." }); return; }
+        // Y a la nube: registro por registro con su mismo identificador, así que lo que ya estaba no se repite.
+        setSubiendo(true); let subidos = 0; const fallas = [];
+        for (const c of TABLAS_NUBE) {
+          if (!Array.isArray(obj[c]) || obj[c].length === 0) continue;
+          try { subidos += await subirColeccion(c, obj[c]); } catch (err) { fallas.push(`${c} (${err?.message || "sin detalle"})`); }
         }
+        setSubiendo(false);
+        setMsg(fallas.length === 0
+          ? { tipo: "ok", txt: `Datos restaurados en este aparato y ${subidos} registro(s) puestos en la nube.` }
+          : { tipo: "err", txt: `Restaurado en este aparato, pero NO todo subió a la nube. Subieron ${subidos} registro(s); faltó: ${fallas.join("; ")}. No borres el archivo de respaldo.` });
       } catch (err) {
+        setSubiendo(false);
         setMsg({ tipo: "err", txt: "El archivo está dañado o no es un respaldo." });
       }
     };
     reader.readAsText(file);
-  };
-
-  // Reinicio de datos. modo: "movimientos" | "todo" | "inventario"
-  const reiniciar = async (modo) => {
-    let coleccionesABorrar = [];
-    let descripcion = "";
-    if (modo === "movimientos") {
-      coleccionesABorrar = MOVIMIENTOS;
-      descripcion = "todos los movimientos (actividades, compras, cosechas, ingresos, egresos, etc.)";
-    } else if (modo === "todo") {
-      coleccionesABorrar = [...MOVIMIENTOS, ...CATALOGOS_COL, "inventario"];
-      descripcion = "TODOS los datos (movimientos Y catálogos: parcelas, trabajadores, cultivos, todo)";
-    } else if (modo === "inventario") {
-      coleccionesABorrar = []; // el inventario no se borra, se pone existencia en cero
-      descripcion = "las existencias del inventario (se quedan en cero, sin borrar los insumos)";
-    }
-
-    // Confirmación 1
-    if (!confirm(`Vas a borrar ${descripcion}.\n\nEsto NO se puede deshacer. ¿Descargaste un respaldo?\n\nToca Aceptar solo si estás seguro.`)) return;
-    // Confirmación 2: escribir BORRAR
-    const palabra = prompt(`Para confirmar, escribe la palabra:\n\nBORRAR`);
-    if (palabra !== "BORRAR") { setMsg({ tipo: "err", txt: "Reinicio cancelado (no se escribió BORRAR)." }); return; }
-
-    setReseteando(true);
-    try {
-      // 1. Actualizar local
-      setData(prev => {
-        const next = { ...prev };
-        if (modo === "inventario") {
-          next.inventario = (prev.inventario || []).map(i => ({ ...i, existencia: 0 }));
-        } else {
-          coleccionesABorrar.forEach(c => { next[c] = []; });
-        }
-        return next;
-      });
-      // 2. Replicar a la nube (vaciar tablas)
-      if (supabaseListo) {
-        if (modo === "inventario") {
-          // Re-subir inventario con existencia en cero
-          const invCero = (data.inventario || []).map(i => ({ ...i, existencia: 0 }));
-          try { await subirColeccion("inventario", invCero); } catch (e) { console.warn("inventario nube:", e?.message); }
-        } else {
-          for (const c of coleccionesABorrar) {
-            try { await vaciarTabla(c); } catch (e) { console.warn(`vaciar ${c}:`, e?.message); }
-          }
-        }
-      }
-      setMsg({ tipo: "ok", txt: "Listo. Los datos se reiniciaron correctamente." });
-    } catch (e) {
-      setMsg({ tipo: "err", txt: "Hubo un problema al reiniciar: " + (e?.message || "") });
-    } finally {
-      setReseteando(false);
-    }
   };
 
   // Conteo rápido de lo que hay
@@ -16838,9 +16808,9 @@ function RespaldoDatos({ data, setData, onClose }) {
         <div className="card">
           <div className="card-title">Restaurar desde un respaldo</div>
           <div className="text-xs text-muted mb-3">Sólo se aceptan respaldos de esta misma operación. Los de cuando la app estaba a prueba no se cargan.</div>
-          <div className="text-xs text-muted mb-3">Carga un archivo de respaldo. Reemplaza todos los datos actuales por los del archivo.</div>
+          <div className="text-xs text-muted mb-3">Carga un archivo de respaldo: reemplaza los datos de este aparato por los del archivo y los vuelve a poner en la nube. Es para recuperar la información si se perdió; no hace falta para cambiar de teléfono (para eso basta entrar con tu cuenta).</div>
           <input ref={fileRef} type="file" accept="application/json,.json" onChange={importar} style={{ display: "none" }} />
-          <button className="btn btn-outline" onClick={() => fileRef.current && fileRef.current.click()}><Ic e="📤" /> Elegir archivo de respaldo</button>
+          <button className="btn btn-outline" disabled={subiendo} onClick={() => fileRef.current && fileRef.current.click()}><Ic e="📤" /> {subiendo ? "Subiendo a la nube…" : "Elegir archivo de respaldo"}</button>
         </div>
 
         {(() => {
@@ -16871,7 +16841,9 @@ function RespaldoDatos({ data, setData, onClose }) {
             Borra la copia guardada en <b>este dispositivo</b> y vuelve a leer todo desde la nube. Úsalo cuando este teléfono muestre datos viejos o distintos a los demás (por ejemplo, tras una limpieza en el servidor). <b>No afecta la nube ni a otros dispositivos.</b>
           </div>
           <button className="btn btn-outline" style={{ width: "100%", borderColor: "var(--gold)", color: "var(--gold)" }} onClick={() => {
-            if (!window.confirm("Se borrará la copia de datos de ESTE dispositivo y se recargará desde la nube. Lo que aún no se haya subido se perderá. ¿Continuar?")) return;
+            // Con capturas sin subir NO se hace: aquí es el único lugar donde están.
+            if (pendientes > 0) { setMsg({ tipo: "err", txt: `Este aparato tiene ${pendientes} registro(s) que todavía no suben a la nube. Recargar ahora los perdería: espera a tener señal (o descarga antes un respaldo).` }); return; }
+            if (!window.confirm("Se borrará la copia de datos de ESTE dispositivo y se recargará desde la nube. ¿Continuar?")) return;
             try {
               // Sólo el cajón de ESTE espacio. Lo de antes no se toca.
               [LLAVES.datos, LLAVES.cola, LLAVES.fallidas].forEach(k => localStorage.removeItem(k));
@@ -16882,41 +16854,10 @@ function RespaldoDatos({ data, setData, onClose }) {
           }}><Ic e="🔄" /> Recargar este dispositivo desde la nube</button>
         </div>
 
-        {/* ZONA DE REINICIO — peligrosa, va al final y bien marcada */}
-        <div className="card" style={{ border: "1px solid rgba(232,90,82,.4)", background: "rgba(232,90,82,.04)" }}>
-          <div className="card-title" style={{ color: "var(--red)" }}>Reiniciar datos</div>
-          <div className="text-xs text-muted mb-3">
-            Esto borra datos de forma permanente. Úsalo para limpiar lo capturado durante las pruebas antes de arrancar en serio.
-            <b> Descarga un respaldo antes</b> (botón de arriba). Cada opción pide confirmación y escribir la palabra BORRAR.
-          </div>
-
-          <div style={{ marginBottom: 10 }}>
-            <button className="btn btn-outline" style={{ width: "100%", borderColor: "var(--red)", color: "var(--red)" }}
-                    disabled={reseteando} onClick={() => reiniciar("movimientos")}>
-              Borrar solo movimientos
-            </button>
-            <div className="text-xs text-muted" style={{ marginTop: 4, paddingLeft: 2 }}>Borra actividades, compras, cosechas, dinero, etc. <b>Conserva</b> tus parcelas, trabajadores y cultivos.</div>
-          </div>
-
-          <div style={{ marginBottom: 10 }}>
-            <button className="btn btn-outline" style={{ width: "100%", borderColor: "var(--red)", color: "var(--red)" }}
-                    disabled={reseteando} onClick={() => reiniciar("inventario")}>
-              Poner inventario en cero
-            </button>
-            <div className="text-xs text-muted" style={{ marginTop: 4, paddingLeft: 2 }}>Deja las existencias en cero sin borrar el catálogo de insumos.</div>
-          </div>
-
-          <div>
-            <button className="btn btn-danger" style={{ width: "100%" }}
-                    disabled={reseteando} onClick={() => reiniciar("todo")}>
-              Borrar TODO (volver a cero)
-            </button>
-            <div className="text-xs text-muted" style={{ marginTop: 4, paddingLeft: 2 }}>Borra movimientos Y catálogos. La app queda como recién instalada. Tendrás que volver a subir el Excel.</div>
-          </div>
-        </div>
-
+        {/* Aquí estaba «Reiniciar datos» (borrar movimientos, poner el inventario en cero, borrar todo). Era de cuando la
+            app estaba a prueba. En operación no existe: nada de dinero se borra y la existencia nadie la escribe. */}
         <div className="card" style={{ background: "rgba(228,178,63,.05)", border: "1px solid rgba(228,178,63,.2)" }}>
-          <div className="text-xs text-muted">Tus datos se guardan en este dispositivo y se sincronizan con la nube. Aun así, te recomendamos descargar un respaldo de vez en cuando, sobre todo antes de reiniciar datos o hacer cambios grandes.</div>
+          <div className="text-xs text-muted">Tus datos se guardan en este dispositivo y se sincronizan con la nube. Aun así, conviene descargar un respaldo cada semana (al cerrar la semana) y guardarlo fuera del teléfono.</div>
         </div>
       </div>
     </div>
@@ -17826,7 +17767,7 @@ function AgronomoCompras({ data, add, upd, del, setInv, session, onClose }) {
       proveedor: compraForm.proveedor, factura: "", yaEsEgreso: true,
     });
     setCompraForm({ insumoId: "", nuevoNombre: "", cat: "nutricion", unidad: "kg", cantidad: "", costoTotal: "", proveedor: "", fecha: today() });
-    alert("Compra registrada: entró al inventario y se reflejó en finanzas.");
+    alert("Compra registrada: entró al inventario. Su costo contará cuando se use.");
   };
 
   return (
@@ -17838,7 +17779,7 @@ function AgronomoCompras({ data, add, upd, del, setInv, session, onClose }) {
       <div className="section-pad">
         <div className="card ab">
           <div className="card-title">Compra ya realizada</div>
-          <div className="text-xs text-muted mb-3">Registra aquí un insumo que YA compraste. Entra al inventario y su costo se refleja en finanzas como egreso. Si lo que quieres es <b>pedir</b> una compra para que la cotice finanzas, usa "Solicitar compra".</div>
+          <div className="text-xs text-muted mb-3">Registra aquí un insumo que YA compraste. Entra al inventario; el dinero sale hoy en el flujo, y su costo llega a los resultados cuando se usa. Si lo que quieres es <b>pedir</b> una compra para que la cotice finanzas, usa "Solicitar compra".</div>
           <div className="form-group"><label className="form-label">Insumo</label>
             <select className="inp" value={compraForm.insumoId} onChange={e => setCompraForm(f => ({ ...f, insumoId: e.target.value }))}>
               <option value="">Seleccionar...</option>
@@ -23752,7 +23693,7 @@ function PanelSeguridad({ data, add, upd, session, onClose }) {
             Manda una orden para que <b>todos los dispositivos</b> borren su copia local y recarguen desde la nube la próxima vez que abran la app. Úsalo después de una limpieza en el servidor, para no tener que entrar a cada teléfono. No borra nada de la nube.
           </div>
           <button className="btn btn-outline" style={{ width: "100%", borderColor: "var(--gold)", color: "var(--gold)" }} onClick={async () => {
-            if (!window.confirm("Todos los dispositivos borrarán su copia local y recargarán desde la nube al abrir la app. Lo que cada uno no haya subido se perderá. ¿Mandar la orden?")) return;
+            if (!window.confirm("Todos los dispositivos borrarán su copia local y recargarán desde la nube al abrir la app. Un aparato con registros sin subir espera a subirlos antes de recargar. ¿Mandar la orden?")) return;
             const token = `r${Date.now()}`;
             const nuevo = { ...(cfg || { id: "seguridad" }), resetToken: token, resetFecha: today(), resetPor: session.id };
             if (cfg) upd("config_seguridad", nuevo); else add("config_seguridad", nuevo);
@@ -23764,9 +23705,9 @@ function PanelSeguridad({ data, add, upd, session, onClose }) {
         <div className="card" style={{ background: "rgba(245,166,35,.06)", border: "1px solid rgba(245,166,35,.25)" }}>
           <div className="card-title">Recordatorios importantes</div>
           <div className="text-sm" style={{ lineHeight: 1.6 }}>
-            1. <b>Cambia la contraseña de la cuenta técnica</b> en Supabase (estuvo escrita en el código y debe rotarse). Sigue la guía de seguridad.<br />
-            2. Reparte a cada trabajador <b>su PIN personal</b> (en Personal puedes editarlos) — ya no se puede entrar solo con el nombre.<br />
-            3. Para dirección, lo más seguro es entrar con <b>correo y contraseña</b> (cuenta real de Supabase) en lugar de PIN.
+            1. Cada quien entra con <b>su propia cuenta</b> (correo y contraseña). Nadie presta la suya.<br />
+            2. Cada trabajador usa <b>su PIN personal</b> (se pone o se cambia en Equipo). Un PIN no se repite.<br />
+            3. Para dirección y administración, lo seguro es entrar con cuenta. Ponerles PIN aquí es opcional y no se recomienda.
           </div>
         </div>
       </div>

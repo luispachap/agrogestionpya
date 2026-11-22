@@ -54,3 +54,22 @@ test("un_respaldo_de_otro_espacio_tampoco_y_el_de_este_si", () => {
   assert.equal(propio.entra, true); assert.deepEqual(propio.datos, datos);
   assert.equal(revisarRespaldo([1, 2], "abcdefgh").entra, false);
 });
+
+// ── Respaldo fiel y recuperación (cierre de la versión 1.0) ──
+import { soloLoCapturado, respaldoParaOtroEspacio } from "./espacio.js";
+test("el_respaldo_lleva_lo_capturado_y_no_las_cuentas_ya_hechas", () => {
+  const enPantalla = { inventario: [{ id: "i1", existencia: 20 }], eventos: [{ id: "e1" }], actividadesContables: [{ id: "x" }], almacen: { consumos: [] }, indirectos: {}, _seed_encargado: true, egresos: "no es lista" };
+  const r = soloLoCapturado(enPantalla, ["inventario", "eventos", "egresos", "trabajadores"]);
+  assert.deepEqual(Object.keys(r).sort(), ["eventos", "inventario"]);
+  assert.equal(r.inventario[0].existencia, 20, "el punto de partida, tal como se guardó");
+});
+test("un_respaldo_solo_pasa_a_otra_base_si_se_le_cambia_el_espacio_a_proposito", () => {
+  const original = sobreDeRespaldo({ trabajadores: [{ id: "t1", nombre: "PERSONA INVENTADA", _espacio: "viejo" }], eventos: [{ id: "e1", tipo: "marca", _espacio: "viejo", datos: { x: 1 } }] }, "viejo", "2026-11-23T00:00:00Z");
+  assert.equal(revisarRespaldo(original, "nuevo").entra, false, "tal cual, no entra a otra base");
+  const movido = respaldoParaOtroEspacio(original, "nuevo", "2026-11-24T00:00:00Z");
+  assert.equal(revisarRespaldo(movido, "nuevo").entra, true);
+  assert.equal(movido.trabajadores[0]._espacio, "nuevo"); assert.equal(movido.eventos[0]._espacio, "nuevo"); assert.deepEqual(movido.eventos[0].datos, { x: 1 });
+  assert.equal(movido._respaldo.venia_de, "viejo", "y queda dicho de dónde venía");
+  assert.equal(original.trabajadores[0]._espacio, "viejo", "el archivo original no se toca");
+  assert.throws(() => respaldoParaOtroEspacio({ trabajadores: [] }, "nuevo"));
+});

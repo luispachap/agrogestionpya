@@ -15,7 +15,8 @@ plano = lambda t: t.replace("\n", " | ")
 HOY = "2026-11-23"   # lunes
 ADM = N.cuenta(1, "admin@prueba.invalid", "ADMIN DE PRUEBA", "superadmin")
 ENC = N.cuenta(2, "encargado@prueba.invalid", "ENCARGADO CON CUENTA", "encargado")
-nube = N.Nube([ADM, ENC])
+OTRAS = {"dueno": N.cuenta(3, "direccion@prueba.invalid", "DIRECCION DE PRUEBA", "dueno"), "finanzas": N.cuenta(4, "finanzas@prueba.invalid", "FINANZAS DE PRUEBA", "finanzas"), "agronomo": N.cuenta(5, "agronomo@prueba.invalid", "AGRONOMO DE PRUEBA", "agronomo")}
+nube = N.Nube([ADM, ENC, *OTRAS.values()])
 GENTE = [("ANA INVENTADA", "4101"), ("BETO INVENTADO", "4102"), ("CARO INVENTADA", "4103")]
 ir = lambda pg, p: (pg.evaluate("p => window.__agroIr(p)", "home"), pg.wait_for_timeout(250), pg.evaluate("p => window.__agroIr(p)", p), pg.wait_for_timeout(600))
 datos = lambda pg: pg.evaluate("() => window.__agroDatos")
@@ -183,6 +184,15 @@ with sync_playwright() as p:
     caso("y cada parcela carga lo suyo: Caro trabajó 3 h en la Sur y 5 h en la Norte, y su día se reparte así", 130 <= porParcela.get("PARCELA SUR", 0) <= 133 and 916 <= porParcela.get("PARCELA NORTE", 0) <= 920 and set(porParcela) == {"PARCELA NORTE", "PARCELA SUR"}, porParcela)
     ir(A, "nomina"); A.wait_for_timeout(600); t = plano(A.locator("body").inner_text())
     caso("Pagos al personal dice lo mismo: $350 a cada quien, $1,050 en total, nada entregado todavía", t.count("le corresponde") == 3 and "TOTAL A PAGAR | $1,050" in t and t.count("Pendiente | $350") == 3, t[200:700])
+    # Pagarle a Ana: un pago no es costo, y lo valida la base con la cuenta de quien paga
+    A.locator(".card", has_text="ANA INVENTADA").last.get_by_role("button", name="Registrar pago").click(); A.wait_for_timeout(300)
+    A.get_by_label("Cuánto se entregó ($)").fill("350"); A.locator(".modal-sheet").get_by_role("button", name="Registrar pago").click(); A.wait_for_timeout(1800)
+    t = plano(A.locator(".card", has_text="ANA INVENTADA").last.inner_text()); pagos = [e for e in datos(A)["eventos"] if e["tipo"] == "pago_personal"]
+    caso("el pago a Ana queda registrado y AUTORIZADO por la base: entregado $350, pendiente $0", len(pagos) == 1 and pagos[0].get("_validacion") == "autorizado", pagos[0].get("_validacion") if pagos else None)
+    caso("y se ve en pantalla", "Entregado | $350" in t and "Pendiente | $0" in t, t[:220])
+    rP = A.evaluate(RES)
+    caso("pagar no cambió ningún costo: el resultado es el mismo que antes de pagar", rP == rA, [rP["egresos"], rA["egresos"]])
+    subio(A); fA = foto(A); rA = rP
     ir(A, "jornadas"); t = plano(A.locator("body").inner_text())
     caso("Jornadas enseña a los tres con sus ocho horas", "VINIERON | 3" in t and t.count("en el rancho") == 3, t[:300])
     ir(A, "aplicaciones"); t = plano(A.locator("body").inner_text())
@@ -200,12 +210,76 @@ with sync_playwright() as p:
     A.reload(); A.wait_for_timeout(3500); f3 = foto(A)
     caso("al recargar la página, también", f3 == fA, [k for k in fA if fA[k] != f3.get(k)])
     C = aparato("19:40"); entrar(C, ADM); C.wait_for_timeout(4500); f4 = foto(C); r4 = C.evaluate(RES)
+    ir(C, "nomina"); C.wait_for_timeout(600); t = plano(C.locator(".card", has_text="ANA INVENTADA").last.inner_text())
+    caso("y en ese aparato nuevo el pago a Ana sale igual: entregado $350, pendiente $0, una sola vez", "Entregado | $350" in t and "Pendiente | $0" in t and len([e for e in datos(C)["eventos"] if e["tipo"] == "pago_personal"]) == 1, t[:220])
     caso("en un aparato NUEVO, que nunca había abierto la app, baja exactamente lo mismo", f4 == fA and r4 == rA, [(k, fA[k], f4.get(k)) for k in fA if fA[k] != f4.get(k)] or [r4["egresos"], rA["egresos"]])
     caso("entrar, salir, recargar y abrir en otro aparato no volvió a subir ni duplicó nada en la nube", nube.cuantos() == antes and len(nube.subidas) == nsub, [nube.cuantos(), antes, [x for x in nube.subidas[nsub:]][:6]])
     ids = {}
     for t_, i, _ in nube.subidas: ids.setdefault(t_, set()).add(i)
     d = datos(C); unicos = lambda l, k: len({json.dumps(k(x), sort_keys=True) for x in l}) == len(l)
     caso("nada quedó dos veces: una tarea por persona, una marca por momento, una asignación por momento", unicos(d["indicaciones"], lambda x: [x["asignadoA"], x["fecha"], x["parcelaId"]]) and unicos([e for e in d["eventos"] if e["tipo"] == "marca"], lambda e: [e["datos"].get("trabajadorId") or e["datos"].get("personaId") or e["datos"], e["cuando"]]) and unicos(d["trabajadores"], lambda x: x["nombre"]))
+
+    # ══ Todas las pantallas del administrador, con los datos del día y con el rancho VACÍO (como está hoy producción) ══
+    import subprocess
+    PANTALLAS = json.loads(subprocess.run(["node", "-e", "import('./src/menu.js').then(m => console.log(JSON.stringify(m.PANTALLAS_DE)))"], cwd=pathlib.Path(__file__).parent.parent, capture_output=True, text=True).stdout)
+    def recorre(pg, paginas):
+        malas = []
+        for pagina in paginas:
+            n = len(errs); pg.evaluate("p => window.__agroIr(p)", "home"); pg.wait_for_timeout(120); pg.evaluate("p => window.__agroIr(p)", pagina); pg.wait_for_timeout(450)
+            if pg.get_by_text("Algo salió mal").count() or len(errs) > n or len(pg.locator("body").inner_text().strip()) < 20: malas.append((pagina, errs[n:n + 1]))
+        pg.evaluate("p => window.__agroIr(p)", "home"); pg.wait_for_timeout(200)
+        return malas
+    malas = recorre(C, PANTALLAS["admin"])
+    caso(f"las {len(PANTALLAS['admin'])} pantallas del administrador abren con los datos del día, sin tronar", not malas, malas[:4])
+    for rol, c in {**OTRAS, "encargado": ENC}.items():
+        P = aparato("19:45"); ok = entrar(P, c); P.wait_for_timeout(3000); nsub = len(nube.subidas)
+        malas = recorre(P, PANTALLAS[rol]) if ok else [("no entró", [])]
+        caso(f"{rol}: entra con su cuenta y sus {len(PANTALLAS[rol])} pantallas abren con los datos del día", ok and not malas and foto(P)["trabajadores"] == 3, malas[:3])
+        P.context.close()
+    vacia = N.Nube([ADM]); ctxV = b.new_context(viewport={"width": 390, "height": 820}, timezone_id="America/Mexico_City", service_workers="block")
+    ctxV.route("**/*", lambda r: r.continue_() if "localhost" in r.request.url else r.abort()); ctxV.route(N.NUBE + "/**", vacia)
+    V = ctxV.new_page(); V.on("pageerror", lambda e: errs.append(str(e) + " @ " + (e.stack or "")[:400])); V.on("dialog", lambda d: d.accept())
+    V.goto(URL); V.wait_for_timeout(1500); entrar(V, ADM); V.wait_for_timeout(2500)
+    malas = recorre(V, PANTALLAS["admin"])
+    caso("y también con el rancho vacío, como está hoy producción", not malas, malas[:4])
+    caso("abrir las pantallas no escribió nada en la nube", not vacia.cuantos() or set(vacia.cuantos()) <= {"preferencias"}, vacia.cuantos())
+    # ══ Respaldo y recuperación: con SÓLO el archivo se rehace todo, en el aparato y en la nube ══
+    ir(C, "respaldo")
+    with C.expect_download() as dl: C.get_by_role("button", name="Descargar respaldo").click()
+    ruta = dl.value.path(); resp = json.loads(open(ruta, encoding="utf8").read())
+    caso("el respaldo trae lo capturado (y nada de cuentas ya hechas, que se vuelven a calcular)", len(resp["eventos"]) == fA["eventos"] and len(resp["trabajadores"]) == 3 and len(resp["egresos"]) == 2 and not [k for k in resp if k in ("actividadesContables", "almacen", "indirectos", "salidasInv")] and resp["inventario"][0]["existencia"] == 20, sorted(resp)[:12])
+    caso("la pantalla de respaldo ya no ofrece borrar datos ni poner el inventario en cero", C.get_by_text("Borrar TODO").count() == 0 and C.get_by_text("Poner inventario en cero").count() == 0 and C.get_by_text("Reiniciar datos").count() == 0)
+    ir(V, "respaldo"); V.locator('input[type="file"]').set_input_files(ruta)
+    for _ in range(40):
+        V.wait_for_timeout(500)
+        if V.locator(".alert").count() and "restaurad" in V.locator(".alert").first.inner_text().lower(): break
+    dice = plano(V.locator(".alert").first.inner_text()) if V.locator(".alert").count() else "sin mensaje"
+    fR = foto(V); rR = V.evaluate(RES)
+    caso("restaurar en un rancho vacío deja TODO igual: mismos registros, mismos costos, mismo valor del almacén (no descuenta dos veces)", fR == fA and rR == rA, [dice, [(k, fA[k], fR.get(k)) for k in fA if fA[k] != fR.get(k)], rR["inventario"], rA["inventario"]])
+    propias = lambda q: {k: v for k, v in q.items() if k not in ("preferencias",)}
+    caso("y lo vuelve a poner en la nube completo", propias(vacia.cuantos()) == propias(nube.cuantos()), [vacia.cuantos(), nube.cuantos(), dice])
+    ctxW = b.new_context(viewport={"width": 390, "height": 820}, timezone_id="America/Mexico_City", service_workers="block")
+    ctxW.route("**/*", lambda r: r.continue_() if "localhost" in r.request.url else r.abort()); ctxW.route(N.NUBE + "/**", vacia)
+    W = ctxW.new_page(); W.on("pageerror", lambda e: errs.append(str(e))); W.goto(URL); W.wait_for_timeout(1500); entrar(W, ADM); W.wait_for_timeout(4500)
+    fW = foto(W); rW = W.evaluate(RES)
+    caso("otro aparato que entra a esa nube recuperada ve exactamente la misma operación", fW == fA and rW == rA, [(k, fA[k], fW.get(k)) for k in fA if fA[k] != fW.get(k)])
+    V.locator('input[type="file"]').set_input_files(ruta); V.wait_for_timeout(5000)
+    caso("restaurar dos veces el mismo archivo no duplica nada", propias(vacia.cuantos()) == propias(nube.cuantos()) and foto(V) == fA, vacia.cuantos())
+    ctxW.close()
+    ctxV.close()
+
+    # ══ 11. Teléfono compartido: quien entra con PIN no se queda «adentro» para el siguiente ══
+    C.evaluate("p => window.__agroIr(p)", "home"); C.wait_for_timeout(300); C.get_by_role("button", name="Salir").first.click()
+    for _ in range(20):
+        C.wait_for_timeout(400)
+        if C.locator(".login-bg").count(): break
+    C.locator(".login-sheet input").first.fill("4101"); C.get_by_role("button", name="Entrar").click(); C.wait_for_timeout(1200)
+    caso("en ese mismo aparato, Ana entra con su PIN y ve sólo lo suyo", C.locator(".login-bg").count() == 0 and "ANA" in C.locator("body").inner_text().upper() and "Pagos al personal" not in C.locator("body").inner_text(), plano(C.locator("body").inner_text())[:160])
+    C.clock.fast_forward(4 * 60 * 1000); C.wait_for_timeout(400)
+    caso("a los cuatro minutos sin tocarlo sigue abierta", C.locator(".login-bg").count() == 0)
+    C.clock.fast_forward(2 * 60 * 1000); C.wait_for_timeout(600)
+    caso("a los cinco minutos sin uso la sesión se cierra sola y lo dice", C.locator(".login-bg").count() == 1 and C.locator(".login-cerrada-sola").count() == 1, plano(C.locator("body").inner_text())[:200])
+    caso("y lo guardado en el aparato sigue igual", foto(C)["trabajadores"] == 3 and foto(C)["eventos"] == f4["eventos"])
     caso("ninguna pantalla tronó en todo el recorrido", not errs, errs[:2])
     print("   lo que quedó en la nube:", nube.cuantos())
     b.close()

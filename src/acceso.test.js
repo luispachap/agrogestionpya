@@ -186,3 +186,15 @@ test("al_editar_su_propia_ficha_su_pin_y_su_nombre_no_chocan_consigo_misma", () 
   assert.equal(revisarAlta({ id: "t1", nombre: "ANA INVENTADA", pin: "4101" }, ranchoDeAlta, { propioId: "t1", pideSueldo: false }).ok, true);
   assert.equal(revisarAlta({ id: "t1", nombre: "ANA INVENTADA", pin: "5501" }, ranchoDeAlta, { propioId: "t1", pideSueldo: false }).ok, false);
 });
+
+// ── Teléfono compartido: la sesión de captura personal no se queda abierta para el siguiente ──
+import { debeCerrarse, MINUTOS_SIN_USO } from "./acceso.js";
+test("en_un_telefono_compartido_la_sesion_de_quien_entro_con_pin_se_cierra_sola_y_la_del_encargado_no", () => {
+  const t0 = 10_000_000, pasado = t0 + MINUTOS_SIN_USO * 60 * 1000;
+  assert.equal(debeCerrarse({ role: "trabajador", id: "t1" }, pasado, t0), true);
+  assert.equal(debeCerrarse({ role: "cuadrilla", id: "c1" }, pasado, t0), true);
+  assert.equal(debeCerrarse({ role: "trabajador", id: "t1" }, pasado - 1000, t0), false, "mientras se usa, no");
+  assert.equal(debeCerrarse({ role: "encargado", id: "e1" }, pasado * 2, t0), false, "su aparato puede estar de checador todo el día");
+  assert.equal(debeCerrarse({ role: "admin", id: "a1", cuenta: true }, pasado * 2, t0), false, "quien entró con cuenta, tampoco");
+  assert.equal(debeCerrarse(null, pasado, t0), false);
+});

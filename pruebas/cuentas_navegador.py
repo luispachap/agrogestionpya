@@ -150,7 +150,7 @@ with sync_playwright() as p:
     caso("la evidencia se guardó como archivo aparte, no dentro del registro", str(si.get("evidencia", "")).startswith("archivo:") and len(d.get("archivos", [])) == 1)
     caso("y quedó anotado en la bitácora", any(x.get("accion") == "saldo inicial" for x in d.get("auditoria", [])))
 
-    pg.get_by_role("button", name="Inicio", exact=True).click()
+    pg.locator(".tab-pill", has_text="Inicio").click()   # la pestaña de Arranque (abajo también hay un botón «Inicio»)
     pg.locator('input[type="date"]').first.fill("2026-12-01")
     pg.get_by_role("button", name="Declarar inicio de operaciones").click(); pg.wait_for_timeout(1500)
     caso("declarar el inicio pide confirmación dos veces y manda la fecha", (estado["inicio"] or {}).get("p_fecha") == "2026-12-01" and any("UNA sola vez" in m for m in dialogos) and any("INICIO" in m for m in dialogos))
