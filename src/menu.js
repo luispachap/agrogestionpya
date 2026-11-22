@@ -108,7 +108,9 @@ export const PANTALLAS_DE = {
   admin: ["mapa", "checador", "reparto", "cuadrillas-dia", "mano-obra", "jornadas", "credenciales", "aldia", "aplicaciones", "aprobacion-externos", "arranque", "organizacion", "asistencia", "banco", "bitacora", "caja", "calendario", "chat", "ciclos", "comercializacion", "compras", "compras-insumos", "consignaciones", "contabilidad", "contpaqi", "corrida", "cosechas", "deudas", "dron", "eldia", "embarque", "equipo", "estibas", "fito", "ganado", "importar", "indicaciones", "inventario", "mis", "movimientos", "nomina", "operacion", "panel-financiero", "panel-parcelas", "papeles", "parcelas", "pase-lista", "personal", "proveedores", "proyeccion", "registrar-actividad", "registro-masivo", "rendimiento-parcelas", "reporte", "reporte-variedades", "reportes", "respaldo", "resumen", "seguridad", "socios", "solicitudes", "subir-nube", "tareas", "terminados", "entregas", "vales", "variedades"],
   // Banco, Socios y ¿Alcanza? (saldos de las cuentas) NO son del encargado: decisión de Luis, 22 nov. También lo niega la base (hoja 54).
   encargado: ["mapa", "checador", "reparto", "cuadrillas-dia", "jornadas", "credenciales", "aprobacion-externos", "asistencia", "bitacora", "caja", "chat", "corrida", "cosechas", "dron", "eldia", "estibas", "fito", "ganado", "operacion", "papeles", "pase-lista", "personal", "registrar-actividad", "registro-masivo", "solicitudes", "tareas", "entregas", "vales"],
-  trabajador: ["compras", "mis", "pase-lista", "reporte", "solicitudes"],
+  // Luis, 22 nov: sólo un encargado o superior marca la asistencia de otros. El trabajador ya no tiene el pase de lista
+  // (sólo el cabo que un administrador nombró para eso, desde su inicio).
+  trabajador: ["compras", "mis", "reporte", "solicitudes"],
   cuadrilla: ["compras", "mis", "reporte"],
   externo: ["mis", "reporte"],
   agronomo: ["chat", "mapa", "aplicaciones", "compras-insumos", "indicaciones", "operacion", "panel-parcelas", "rendimiento-parcelas", "reporte", "reporte-variedades", "solicitudes", "variedades"],

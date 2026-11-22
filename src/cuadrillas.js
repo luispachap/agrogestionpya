@@ -81,6 +81,9 @@ export const AJUSTES = {
   prest_aguinaldo_dias: { defecto: 15, minimo: 15, maximo: 120, nombre: "Prestaciones · días de aguinaldo por año (la ley pide 15 como mínimo)" },
   prest_prima_pct: { defecto: 25, minimo: 25, maximo: 100, nombre: "Prestaciones · prima vacacional, en % (la ley pide 25 como mínimo)" },
   prest_vac_extra: { defecto: 0, minimo: 0, maximo: 30, nombre: "Prestaciones · días de vacaciones adicionales a los de la ley" },
+  // Luis, 22 nov: un externo nace SIN pago sugerido escrito en el código. El rancho pone la base (300, 350…) y cada
+  // registro la puede cambiar para un caso especial (una parcela con mucha hierba se paga más); nada cuenta sin aprobación.
+  tarifa_externo_dia: { defecto: null, minimo: 1, maximo: 10000, nombre: "Externos · pago por día que se le sugiere al registrar (cada registro lo puede cambiar, y nada cuenta hasta que se aprueba)" },
   horas_jornada: { defecto: 8, minimo: 4, maximo: 12, nombre: "Horas del horario habitual (de ahí en adelante son horas adicionales)" },
 };
 export function ajusteVigente(eventos, clave) {

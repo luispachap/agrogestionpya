@@ -881,7 +881,10 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   horas sólo reparten el día entre parcelas (`calcularCostoManoObra`), y las pantallas de captura deben decir eso mismo.
   **Un día con actividad tecleada no se cuenta otra vez como tiempo sin asignar** aunque la persona haya checado
   (`conTecleado` en `pagadoSinActividad`). Aprobar o rechazar a un externo deja `revisadoPor`/`revisadoEn` (rechazar pide
-  `motivoRechazo`); atender una incidencia deja `resueltaPor`. Recorrido: `auditoria_captura` (57).
+  `motivoRechazo`); atender una incidencia deja `resueltaPor`. **Sólo un encargado o superior marca la asistencia de otros
+  (Luis, 22 nov)**: el trabajador no tiene el pase de lista, salvo el cabo que nombró un administrador (`esCaboSesion`).
+  **Un externo nace sin pago**: la base es la regla `tarifa_externo_dia` (vacía de fábrica); cada registro la puede
+  cambiar y Aprobar externos señala lo que se aparta de ella. Recorrido: `auditoria_captura` (66).
 - **Cada cobro de un embarque es un hecho propio**: identificador, importe, fecha, `registradoPor`, `capturado`,
   `ingresoId` (y `abonoId`); la venta lleva `liquidacionId`. Recorrido: `auditoria_cobros` (15).
 - **Dos decisiones distintas del mismo día no se aplican calladas** (`decisionesEncontradas`, `cuadrillas.js`):

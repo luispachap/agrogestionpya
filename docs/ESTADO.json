@@ -37,9 +37,9 @@
    "resultado": "26 de 26"
   },
   {
-   "que": "Todo junto: lo anterior, compilación y 41 recorridos en navegador",
+   "que": "Todo junto: lo anterior, compilación y 42 recorridos en navegador",
    "con": "sh pruebas/todo.sh",
-   "resultado": "Todo pasa (sobre la versión publicada, `ff5ea42`)"
+   "resultado": "Todo pasa (sobre la versión publicada, `1355741`)"
   },
   {
    "que": "Producción cerrada sin sesión",
@@ -54,7 +54,7 @@
   {
    "que": "Lo publicado es exactamente lo probado, byte por byte",
    "con": "pruebas/real_identico.py",
-   "resultado": "18 de 18 archivos idénticos a `ff5ea42`"
+   "resultado": "18 de 18 archivos idénticos a `1355741`"
   },
   {
    "que": "Producción igual a la base probada",
@@ -77,9 +77,9 @@
    "resultado": "63 de 63"
   },
   {
-   "que": "Captura diaria: actividades, registro de varios, pase de lista, tareas, reportes, jornadas, credenciales y externos (posterior a la publicación)",
+   "que": "Captura diaria: actividades, registro de varios, pase de lista, tareas, reportes, jornadas, credenciales y externos",
    "con": "pruebas/auditoria_captura_navegador.py",
-   "resultado": "57 de 57"
+   "resultado": "66 de 66"
   }
  ],
  "para_listo": [
@@ -164,7 +164,7 @@
    "n": 7,
    "nombre": "Registrar actividad",
    "estado": "PARCIAL",
-   "prueba": "auditoria_captura 57",
+   "prueba": "auditoria_captura 66",
    "probado": "Registrar una actividad a nombre de un trabajador: confirma antes de guardar, queda con quién la hizo y quién la capturó, su costo llega a la parcela; dos actividades el mismo día reparten UN día (no pagan dos); con tractor (cuota por hora) e insumo del almacén (lo descuenta, no es dinero que sale); trabajo general que no se carga a ninguna parcela; sin señal; otro teléfono; quien checó y además tiene actividad cuesta una vez",
    "falta": "Trabajo de bodega de un cultivo, actividad de cosecha con su cantidad, «quién lo ordenó» y capturar otro día"
   },
@@ -172,7 +172,7 @@
    "n": 8,
    "nombre": "Registro de varios",
    "estado": "PARCIAL",
-   "prueba": "auditoria_captura 57",
+   "prueba": "auditoria_captura 66",
    "probado": "La misma actividad para varias personas: pide parcela, actividad y gente; horas por persona; la confirmación dice lo que de verdad se paga; queda una actividad por persona con quién la capturó; costo exacto en la parcela y en Pagos",
    "falta": "Con maquinaria, con encargados y con externos en la misma captura"
   },
@@ -196,7 +196,7 @@
    "n": 11,
    "nombre": "Tareas",
    "estado": "PARCIAL",
-   "prueba": "auditoria_captura 57",
+   "prueba": "auditoria_captura 66",
    "probado": "El encargado manda una tarea a una persona (sin persona o sin texto no sale), ella la ve en «Mis días», la marca hecha y el encargado la ve completada",
    "falta": "Reportar una necesidad desde Tareas, prioridades, borrar una tarea"
   },
@@ -204,7 +204,7 @@
    "n": 12,
    "nombre": "Reportar",
    "estado": "APROBADO",
-   "prueba": "auditoria_captura 57",
+   "prueba": "auditoria_captura 66",
    "probado": "El trabajador reporta (sin descripción no sale), queda con clase, prioridad y quién lo mandó, le llega al administrador con nombre y fecha, y él la marca atendida (queda quién y sigue a la vista)",
    "falta": "—"
   },
@@ -548,7 +548,7 @@
    "n": 55,
    "nombre": "Jornadas",
    "estado": "PARCIAL",
-   "prueba": "auditoria_captura 57",
+   "prueba": "auditoria_captura 66",
    "probado": "Quién está adentro y desde cuándo; de quien no checó dice «sin marca», no «faltó»; cambiar la hora de una marca pide motivo, conserva la original en el historial y dice quién la cambió",
    "falta": "«Era salida», cancelar una marca, poner una marca que faltó"
   },
@@ -556,7 +556,7 @@
    "n": 56,
    "nombre": "Credenciales",
    "estado": "PARCIAL",
-   "prueba": "auditoria_captura 57",
+   "prueba": "auditoria_captura 66",
    "probado": "Emitir una credencial (código propio, sin PIN ni sueldo, con fecha y quién); emitir otra cambia el código y la anterior queda anotada",
    "falta": "Imprimirlas y checar con la credencial (pide cámara: prueba de campo)"
   },
@@ -564,17 +564,17 @@
    "n": 57,
    "nombre": "Pase de lista",
    "estado": "APROBADO",
-   "prueba": "auditoria_captura 57",
-   "probado": "Palomear un día deja la asistencia y NO genera pago ni costo; avisa de los días palomeados sin actividad; desde ahí se captura la actividad que faltaba (pide parcela y actividad) y entonces sí cuenta; en Pagos el día palomeado sale como «vino, falta decir en qué trabajó»",
-   "falta": "Que un trabajador con PIN pueda usar esta pantalla sobre los demás es decisión de Luis (defecto 46)"
+   "prueba": "auditoria_captura 66",
+   "probado": "Palomear un día deja la asistencia y NO genera pago ni costo; avisa de los días palomeados sin actividad; desde ahí se captura la actividad que faltaba (pide parcela y actividad) y entonces sí cuenta; en Pagos el día palomeado sale como «vino, falta decir en qué trabajó»; sólo encargado o superior (y el cabo que nombró un administrador) marca a otros: el trabajador ya no tiene la pantalla",
+   "falta": "—"
   },
   {
    "n": 58,
    "nombre": "Asistencia",
    "estado": "APROBADO",
-   "prueba": "auditoria_captura 57",
-   "probado": "Es la misma pantalla que Pase de lista con otro nombre en el menú: mismo recorrido",
-   "falta": "Lo mismo que Pase de lista"
+   "prueba": "auditoria_captura 66",
+   "probado": "Es la misma pantalla que Pase de lista con otro nombre en el menú: mismo recorrido; sólo encargado o superior (y el cabo que nombró un administrador) marca a otros: el trabajador ya no tiene la pantalla",
+   "falta": "—"
   },
   {
    "n": 59,
@@ -588,15 +588,15 @@
    "n": 60,
    "nombre": "Aprobar externos",
    "estado": "APROBADO",
-   "prueba": "auditoria_captura 57",
-   "probado": "Un externo entra con su nombre, dice el pago acordado y registra; queda pendiente y no cuenta; el encargado aprueba (entonces sí es costo de la parcela) o rechaza con motivo (no cuenta y no se borra); queda quién decidió",
-   "falta": "La tarifa sugerida con que nace un externo es decisión de Luis (defecto 47)"
+   "prueba": "auditoria_captura 66",
+   "probado": "Un externo entra con su nombre, dice el pago acordado y registra; queda pendiente y no cuenta; el encargado aprueba (entonces sí es costo de la parcela) o rechaza con motivo (no cuenta y no se borra); queda quién decidió; nace sin pago escrito en el código: la base es una regla del rancho y al aprobar se señala lo que se aparta de ella",
+   "falta": "—"
   },
   {
    "n": 61,
    "nombre": "Mis días",
    "estado": "APROBADO",
-   "prueba": "auditoria_captura 57",
+   "prueba": "auditoria_captura 66",
    "probado": "El trabajador ve la misma cuenta de la semana que quien paga (corresponde, entregado, falta), sus actividades y sus tareas; no ve Pagos ni Finanzas. El externo ve sus registros pendientes y lo aprobado",
    "falta": "La vista de una cuadrilla que entra con PIN"
   },
@@ -1007,7 +1007,7 @@
    "que": "Al trabajador se le enseñaba «Mi raya acumulada» = días palomeados en el pase de lista × su sueldo, de toda la vida y sin restar lo ya pagado: con dos actividades registradas veía $0, o un acumulado que nadie le debía",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "ahora ve la misma cuenta que quien paga, de la semana: lo que le corresponde, lo entregado y lo que falta"
   },
   {
@@ -1016,7 +1016,7 @@
    "que": "La confirmación prometía sueldo × horas ÷ 8 (4 horas = $240) y en Pagos y en el costo salía el día completo ($480): la pantalla decía una cosa y los libros otra",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "la pantalla enseña lo que de verdad se paga (su día) y explica que las horas sólo reparten el día entre parcelas"
   },
   {
@@ -1025,7 +1025,7 @@
    "que": "Si un trabajador checaba su entrada sin que nadie lo asignara en Equipos de trabajo y además se le tecleaba su actividad, ese día se COSTEABA dos veces (una en la parcela y otra como tiempo sin asignar): un día de $400 costaba $800, aunque se pagaba una vez",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "el día con actividad tecleada ya no se cuenta otra vez como tiempo sin asignar; el pago no cambia"
   },
   {
@@ -1034,7 +1034,7 @@
    "que": "Aprobar el trabajo de un externo (o sea, decir que se paga) o rechazarlo no dejaba quién lo decidió ni por qué",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "queda quién y cuándo; rechazar pide motivo; se ve en «Revisados»"
   },
   {
@@ -1043,7 +1043,7 @@
    "que": "Marcar una incidencia como atendida no decía quién, y desaparecía de la pantalla",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "queda quién la atendió y sigue a la vista en «Ya atendidas»"
   },
   {
@@ -1052,7 +1052,7 @@
    "que": "Dos textos que decían otra cosa: «General de la operación… se reparte entre todos los cultivos» (no se reparte: va a gastos generales) y el título «Registro masivo» en una pantalla que el menú llama «Registro de varios»",
    "nivel": "P3",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": ""
   },
   {
@@ -1060,18 +1060,18 @@
    "modulo": "Pase de lista",
    "que": "POR DECISIÓN DE LUIS: un trabajador que entra con su PIN tiene la pantalla de Pase de lista con TODA la gente, y desde ahí se le ofrece palomear y «Capturar» los días de otros (una actividad capturada es un día que se paga)",
    "nivel": "P1",
-   "estado": "abierto",
+   "estado": "corregido",
    "publicado": false,
-   "nota": "no se cambió: quitarle esa pantalla al trabajador es una decisión de permisos"
+   "nota": "Luis, 22 nov: sólo un encargado o superior marca la asistencia de otros. El trabajador ya no tiene el pase de lista; sólo el cabo que nombró un administrador"
   },
   {
    "n": 47,
    "modulo": "Externos",
    "que": "POR DECISIÓN DE LUIS: un externo nace con $683 por día sugerido, escrito en el código; él puede cambiarlo al registrar y nada cuenta hasta que alguien lo aprueba, pero es un número que nadie del rancho dio",
    "nivel": "P2",
-   "estado": "abierto",
+   "estado": "corregido",
    "publicado": false,
-   "nota": "no se cambió: es una tarifa del negocio"
+   "nota": "Luis, 22 nov: el externo nace sin pago; la base es una regla del rancho (Equipo → Externos) que pone un administrador, cada registro la puede cambiar y, al aprobar, se señala si se aparta de la base"
   }
  ],
  "no_se_pudo": [
@@ -1094,12 +1094,17 @@
   {
    "que": "La app en app.agroselectos.com",
    "estado": "publicado",
-   "detalle": "Versión `ff5ea42`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio."
+   "detalle": "Versión `1355741`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio."
+  },
+  {
+   "que": "Decisiones de Luis: el pase de lista sólo para encargado o superior (y el cabo nombrado); el pago de un externo nace vacío y la base es una regla del rancho",
+   "estado": "sin_publicar",
+   "detalle": "Probado; se publica al pasar la batería completa."
   },
   {
    "que": "Captura diaria: «Mis días» con la cuenta real, registro de varios que dice lo que se paga, el día que se costeaba dos veces, y rastro al aprobar externos y atender incidencias",
-   "estado": "sin_publicar",
-   "detalle": "Corregido y probado; se publica al pasar la batería completa (corrección ordinaria)."
+   "estado": "publicado",
+   "detalle": "22 de noviembre; corrección ordinaria, publicada tras la batería completa."
   },
   {
    "que": "Campo (alta de cultivos, parcelas que no se eliminan con registros, cosechas que no se pisan ni se borran) y dos correcciones de identidad: hechos de nombre propio sin marca y estibas recién cerradas que no subían",
@@ -1183,8 +1188,7 @@
   "Hacer la prueba de campo con la familia.",
   "Otorgarse el permiso para configurar la organización (Arranque → Cuentas), si la va a usar.",
   "Decidir a qué cuenta de Finanzas, si a alguna, se le otorga la consulta de Banco y Socios.",
-  "Decidir si un trabajador con PIN debe seguir teniendo el Pase de lista de toda la gente (hoy puede palomear y capturar días de otros).",
-  "Decidir con qué tarifa nace un externo: hoy la app le sugiere $683 por día, escrito en el código."
+  "Decidir si el checado desde el teléfono propio con GPS y la tabla de colores por cortes se construyen dentro de la 1.0 o después (propuesta en docs/PROPUESTAS-ASISTENCIA.md)."
  ],
  "riesgos": [
   "Riesgo técnico por evaluar (Luis, 22 nov): que una semana cerrada pida reabrirse para cambiar sus decisiones lo cuida la app, no la base. Una decisión que llegue por fuera de la app (o de un teléfono que no sabía del cierre) sí entra; no pasa callada —sale como diferencia contra el cierre, con quién y por qué— pero la base no la rechaza.",

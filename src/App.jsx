@@ -7910,6 +7910,8 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
   const isCuad = session.role === "cuadrilla";
   const isEncargado = session.role === "encargado";
   const isTrab = session.role === "trabajador";
+  // El único trabajador que pasa lista de otros es el cabo que nombró un administrador.
+  const esCaboSesion = isTrab && !!((data.trabajadores || []).find(t => t.id === session.id) || {}).cabo;
   const isAgronomo = session.role === "agronomo";
   const isDueno = session.role === "dueno";
   const isFinanzas = session.role === "finanzas";
@@ -8154,7 +8156,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "home" && <TrabReg data={data} add={add} upd={upd} setInv={setInv} session={session} online={online} onLogout={cerrarSesion} onNav={setPage} />}
               {page === "mis" && <TrabHistorial data={data} add={add} upd={upd} session={session} onLogout={cerrarSesion} />}
               {page === "compras" && <TrabCompras data={data} add={add} setInv={setInv} session={session} online={online} onLogout={cerrarSesion} />}
-              {page === "pase-lista" && <PaseLista data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
+              {page === "pase-lista" && esCaboSesion && <PaseLista data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "reporte" && <TrabReporte data={data} add={add} session={session} onLogout={cerrarSesion} />}
               {page === "solicitudes" && <SolicitudesCompra data={data} add={add} upd={upd} del={del} setInv={setInv} aplicarLote={aplicarLote} session={session} onClose={() => setPage("home")} />}
             </>}
@@ -8408,8 +8410,8 @@ function LoginScreen({ data, add, upd, onLogin, vinculo = null, eventosListos = 
       if (busq.trim().length < 5 || !/\s/.test(busq.trim())) { setError("Escribe tu nombre completo"); return; }
       const nombre = busq.trim().toUpperCase();
       let ext = (data.externos || []).find(e => e.nombre.toUpperCase() === nombre);
-      if (!ext) { const newId = `ext${unico()}`; add("externos", { id: newId, nombre, fecha_registro: today(), sueldo_dia: 683 }); ext = { id: newId, nombre }; }
-      onLogin({ role: "externo", nombre: ext.nombre, id: ext.id, sueldo_dia: ext.sueldo_dia || 683 }); return;
+      if (!ext) { const newId = `ext${unico()}`; add("externos", { id: newId, nombre, fecha_registro: today() }); ext = { id: newId, nombre }; }
+      onLogin({ role: "externo", nombre: ext.nombre, id: ext.id, sueldo_dia: ext.sueldo_dia || null }); return;
     }
     // ---- Camino D: PIN. La app busca de quién es; nadie escoge su perfil. ----
     // (La "cuenta técnica compartida" se retiró: su contraseña habría quedado en el JavaScript público. Hallazgo C-2.)
@@ -9150,6 +9152,9 @@ function AprobacionExternos({ data, upd, onBack, session }) {
         <div className="text-sm" style={{ marginTop: 4 }}>
           Pago: <b>{nombreDeModalidad(a.modalidadPago)}</b> · MO: <b>${(a.costoMO || 0).toLocaleString("es-MX")}</b> · Total: <b>${(a.costoTotal || 0).toLocaleString("es-MX")}</b>
         </div>
+        {showActions && a.modalidadPago === "jornal" && (() => { const base = Number(ext?.sueldo_dia) || Number(ajusteVigente(data.eventos || [], "tarifa_externo_dia").valor) || 0; const pide = Number(a.externo_tarifa ?? a.costoMO) || 0;
+          return !base ? <div className="text-xs text-muted" style={{ marginTop: 4 }}>El rancho no tiene un pago base para externos: no hay con qué compararlo.</div>
+            : pide !== base ? <div className="text-xs" style={{ marginTop: 4, color: "var(--gold)" }}>Lo de siempre es {fmt(base)} por día; aquí se pide {fmt(pide)} ({pide > base ? "+" : "−"}{fmt(Math.abs(pide - base))}). Revisa que sea un caso acordado.</div> : null; })()}
         {!showActions && a.revisadoPor && <div className="text-xs text-muted" style={{ marginTop: 4 }}>{a.estado === "aprobado" ? "Lo aprobó" : "Lo rechazó"} {a.revisadoPor}{a.motivoRechazo ? `: «${a.motivoRechazo}»` : ""}</div>}
         {a.observaciones ? <div className="text-sm text-muted" style={{ fontStyle: "italic", marginTop: 2 }}>{a.observaciones}</div> : null}
         {showActions && (
@@ -11687,6 +11692,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
             <div className="text-xs text-muted mb-3" style={{ padding: "4px 0" }}>
               Los externos se auto-registran con su nombre en la pantalla de inicio. Aquí puedes ver su historial y editar su tarifa.
             </div>
+            <ReglasDelRancho data={data} add={add} session={session} claves={["tarifa_externo_dia"]} />
             {(data.externos || []).length === 0 && (
               <div className="text-muted text-sm" style={{ textAlign: "center", padding: "32px 0" }}>
                 Ningún externo se ha registrado todavía. Cuando ingresen con su nombre en la pantalla de inicio aparecerán aquí.
@@ -11700,7 +11706,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
                   <div className="li-icon"><Ic e="🧑‍🌾" /></div>
                   <div className="li-body">
                     <div className="li-title">{ext.nombre}</div>
-                    <div className="li-sub">Desde: {ext.fecha_registro} · {acts.length} jornadas · ${(ext.sueldo_dia || 683).toLocaleString("es-MX")}/día</div>
+                    <div className="li-sub">Desde: {ext.fecha_registro} · {acts.length} registro{acts.length === 1 ? "" : "s"} · {ext.sueldo_dia ? `${fmt(ext.sueldo_dia)}/día acordado con él` : "sin pago propio: se le sugiere la base del rancho"}</div>
                   </div>
                   <div className="li-right" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
                     <div className="li-val">${total.toLocaleString("es-MX")}</div>
@@ -13654,8 +13660,12 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
 /* ════════════ EXTERNO — REGISTRO DE ACTIVIDAD ════════════ */
 function ExternoReg({ data, add, setInv, session, online, onLogout }) {
   const [paso, setPaso] = useState(1);
-  const FORM0 = { parcelaId: "", tipo: "", modalidad: "jornal", tarifa: session.sueldo_dia || 683, unidades: 0, insumos: [], observaciones: "", fecha: null, hectareas_trab: "" };
+  // Lo que se le sugiere: lo acordado con él (su ficha) o la base del rancho. Sin ninguno, el campo va vacío.
+  const tarifaBase = Number(session.sueldo_dia) || Number(ajusteVigente(data.eventos || [], "tarifa_externo_dia").valor) || "";
+  const FORM0 = { parcelaId: "", tipo: "", modalidad: "jornal", tarifa: tarifaBase, unidades: 0, insumos: [], observaciones: "", fecha: null, hectareas_trab: "" };
   const [form, setForm] = useState(FORM0);
+  // Los registros (y con ellos la base del rancho) pueden llegar después de abrir la pantalla: si el pago sigue vacío, se sugiere en cuanto se sabe.
+  useEffect(() => { if (tarifaBase !== "") setForm(f => (f.tarifa === "" ? { ...f, tarifa: tarifaBase } : f)); }, [tarifaBase]);
   const [insTmp, setInsTmp] = useState({ id: "", cantidad: "" });
   const [enviado, setEnviado] = useState(false);
   const [gps, setGps] = useState(null);
@@ -13781,7 +13791,8 @@ function ExternoReg({ data, add, setInv, session, online, onLogout }) {
             </div>
             <div className="form-group">
               <label className="form-label">{form.modalidad === "jornal" ? "Pago por día ($)" : form.modalidad === "tarea" ? "Pago por la tarea ($)" : "Precio por unidad ($)"}</label>
-              <input type="number" className="inp" value={form.tarifa} onChange={e => setForm(f => ({ ...f, tarifa: parseFloat(e.target.value) || 0 }))} />
+              <input type="number" className="inp" inputMode="decimal" placeholder="¿Cuánto se acordó?" value={form.tarifa} onChange={e => setForm(f => ({ ...f, tarifa: e.target.value === "" ? "" : parseFloat(e.target.value) || 0 }))} />
+              {form.modalidad === "jornal" && tarifaBase !== "" && <div className="text-xs text-muted" style={{ marginTop: 4 }}>Lo de siempre es {fmt(tarifaBase)}. Si en este caso se acordó otro pago, cámbialo: lo revisa tu encargado.</div>}
             </div>
             {form.modalidad === "destajo" && (
               <div className="form-group">
@@ -13799,7 +13810,7 @@ function ExternoReg({ data, add, setInv, session, online, onLogout }) {
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn btn-outline" onClick={() => setPaso(2)}>‹ Atrás</button>
-              <button className="btn btn-accent" style={{ flex: 1 }} onClick={() => setPaso(4)}>Continuar ›</button>
+              <button className="btn btn-accent" style={{ flex: 1 }} onClick={() => { if (!(Number(form.tarifa) > 0)) { alert("Falta cuánto se acordó pagar."); return; } if (form.modalidad === "destajo" && !(Number(form.unidades) > 0)) { alert("Falta cuántas unidades se hicieron."); return; } setPaso(4); }}>Continuar ›</button>
             </div>
           </>
         )}

@@ -141,6 +141,8 @@ with sync_playwright() as p:
     I = datos(B).get("incidencias") or []; foto(B, "07-reportar")
     caso("el reporte queda con qué pasó, su prioridad y quién lo mandó", len(I) == 1 and "BOMBA TIRA ACEITE" in json.dumps(I[0], ensure_ascii=False) and str(I[0].get("prioridad")).lower() == "alta" and "t-ana" in json.dumps(I[0]), I)
     print("   [inc]", json.dumps(I, ensure_ascii=False)[:500])
+    ir(B, "pase-lista"); t = cuerpo(B)
+    caso("Ana (trabajadora) ya no tiene el pase de lista de toda la gente: sólo un encargado o superior marca a otros", "Pase de lista" not in t and "BETO INVENTADO" not in t, t[:300])
     ir(B, "nomina"); t = cuerpo(B)
     caso("a Ana no se le abre Pagos al personal", "Pagos al personal" not in t and "Registrar pago" not in t, t[:200])
     subio(B); salir(B)
@@ -217,21 +219,34 @@ with sync_playwright() as p:
 
     # ══ 10. Un externo: entra con su nombre, registra, y no cuenta hasta que alguien lo aprueba ══
     egresos_antes = B.evaluate(CUENTAS)["egresos"]
+    ir(A, "equipo"); A.locator(".tab-pill", has_text="Externos").first.click(); A.wait_for_timeout(400)
+    caso("el rancho todavía no tiene pago base para externos: la regla está vacía", A.get_by_label(re.compile("Externos · pago por día")).input_value() == "", cuerpo(A)[:400])
     salir(B); B.get_by_text("Soy externo y no tengo PIN").click(); B.wait_for_timeout(600); B.locator("input:visible").first.fill("EXTERNO INVENTADO PEREZ"); B.get_by_role("button", name="Entrar →").click(); B.wait_for_timeout(1500)
     t = cuerpo(B)
     caso("el externo entra sólo con su nombre y no ve nada de los demás", "Externo" in t and "Pagos" not in t and "ANA INVENTADA" not in t, t[:300])
     B.get_by_text("PARCELA UNO").first.click(); B.wait_for_timeout(400); B.get_by_text("Deshierbe", exact=True).first.click(); B.wait_for_timeout(500)
+    caso("sin base del rancho, el pago por día nace vacío (ya no trae $683 escrito en el código)", campo(B, "Pago por día").input_value() == "", campo(B, "Pago por día").input_value())
+    n0 = len(B.dialogos); B.get_by_role("button", name="Continuar ›").click(); B.wait_for_timeout(300)
+    caso("sin decir cuánto se acordó no avanza", any("Falta cuánto se acordó" in d for d in B.dialogos[n0:]) and "Revisa antes de enviar" not in cuerpo(B), B.dialogos[n0:])
     campo(B, "Pago por día").fill("350"); B.get_by_role("button", name="Continuar ›").click(); B.wait_for_timeout(500); t = cuerpo(B)
     caso("el externo dice el pago acordado y lo ve antes de mandar", "$350" in t and "Deshierbe" in t and "PARCELA UNO" in t, t[:500])
     B.get_by_role("button", name="✓ Enviar registro").click(); B.wait_for_timeout(3300)
     ax = [x for x in datos(B)["actividades"] if (x.get("registradoPor") or {}).get("tipo") == "externo"]
     caso("su registro queda PENDIENTE de aprobación y todavía no cuenta: ni costo ni pago", len(ax) == 1 and ax[0]["estado"] == "pendiente_aprobacion" and ax[0]["costoMO"] == 350 and B.evaluate(CUENTAS)["egresos"] == egresos_antes == 3080 and costo_de(B, "p1") == 2120, [ax[0]["estado"], B.evaluate(CUENTAS), costo_de(B, "p1")])
-    B.get_by_text("PARCELA DOS").first.click(); B.wait_for_timeout(400); B.get_by_text("Riego", exact=True).first.click(); B.wait_for_timeout(500); campo(B, "Pago por día").fill("9000"); B.get_by_role("button", name="Continuar ›").click(); B.wait_for_timeout(500); B.get_by_role("button", name="✓ Enviar registro").click(); B.wait_for_timeout(3300)
+    # el administrador pone la base del rancho: $350
+    A.get_by_label(re.compile("Externos · pago por día")).fill("350"); A.locator(".card", has_text="Reglas del rancho").get_by_role("button").first.click(); A.wait_for_timeout(800)
+    aj = [e for e in datos(A)["eventos"] if e["tipo"] == "ajuste" and e["datos"].get("clave") == "tarifa_externo_dia"]
+    caso("el administrador pone la base para externos ($350): queda como cambio de regla, con quién la puso", len(aj) == 1 and aj[0]["datos"]["valor"] == 350 and "Lo puso ADMIN DE PRUEBA" in cuerpo(A), [e["datos"] for e in aj])
+    subio(A); avanza(B, 1 / 60); recarga(B); B.wait_for_timeout(500)   # menos de 5 min: el teléfono del externo se cierra solo si nadie lo toca
+    B.get_by_text("PARCELA DOS").first.click(); B.wait_for_timeout(400); B.get_by_text("Riego", exact=True).first.click(); B.wait_for_timeout(500); t = cuerpo(B)
+    caso("con la base puesta, al externo se le sugiere $350 y se le dice que lo puede cambiar si se acordó otro", campo(B, "Pago por día").input_value() == "350" and "Lo de siempre es $350" in t, [campo(B, "Pago por día").input_value(), t[200:700]])
+    campo(B, "Pago por día").fill("9000"); B.get_by_role("button", name="Continuar ›").click(); B.wait_for_timeout(500); B.get_by_role("button", name="✓ Enviar registro").click(); B.wait_for_timeout(3300)
     ir(B, "mis"); t = cuerpo(B); foto(B, "12-externo-mis-dias")
     caso("en «Mis días» el externo ve que sus registros están pendientes y que nada está aprobado todavía", "2 registro(s) pendiente(s) de aprobación" in t and "$0" in t and "Pendiente" in t, t[:500])
     subio(B); salir(B); B.get_by_placeholder("Tu correo o tu PIN").fill(ENC["correo"]); B.get_by_placeholder("Contraseña", exact=True).fill("contrasena-larga-1"); B.get_by_role("button", name="Entrar").click(); B.wait_for_timeout(3500)
     ir(B, "aprobacion-externos"); t = cuerpo(B); foto(B, "13-aprobar-externos")
     caso("al encargado le llegan los dos registros con quién, dónde y cuánto pide", "Pendientes 2" in t and "EXTERNO INVENTADO PEREZ" in t and "$350" in t and "$9,000" in t, t[:700])
+    caso("y el que se aparta de la base se le señala: «lo de siempre es $350; aquí se pide $9,000»", "Lo de siempre es $350 por día; aquí se pide $9,000" in t and t.count("Lo de siempre es") == 1, t[:900])
     B.respuesta = "  "; B.locator(".card", has_text="$9,000").last.get_by_role("button", name="Rechazar").click(); B.wait_for_timeout(500)
     caso("rechazar sin decir por qué no hace nada", "Pendientes 2" in cuerpo(B))
     B.respuesta = "ESE DIA NO VINO NADIE A REGAR INVENTADO"; B.locator(".card", has_text="$9,000").last.get_by_role("button", name="Rechazar").click(); B.wait_for_timeout(700)
@@ -241,6 +256,13 @@ with sync_playwright() as p:
     B.locator(".tab-pill, button", has_text="Revisados").first.click(); B.wait_for_timeout(400); t = cuerpo(B)
     caso("los dos quedan en «Revisados» con quién decidió y, el rechazado, por qué", "Lo aprobó ENCARGADO DE PRUEBA" in t and "Lo rechazó ENCARGADO DE PRUEBA" in t and "ESE DIA NO VINO NADIE A REGAR INVENTADO" in t and ax[350].get("revisadoPor") == "ENCARGADO DE PRUEBA" and ax[9000].get("motivoRechazo"), t[:700])
     subio(B)
+
+    # ══ 11. El cabo que un administrador nombró sí pasa lista ══
+    ir(A, "equipo"); A.locator(".list-item", has_text="CARO INVENTADA").locator('[title^="Nombrar cabo"]').click(); A.wait_for_timeout(600)
+    caso("el administrador nombra cabo a Caro", next(x for x in datos(A)["trabajadores"] if x["id"] == "t-caro").get("cabo") is True)
+    subio(A); salir(B); avanza(B, 6 / 60); recarga(B)
+    B.locator(".login-sheet input").first.fill("4103"); B.get_by_role("button", name="Entrar").click(); B.wait_for_timeout(1500)
+    caso("Caro, como cabo, tiene el pase de lista desde su inicio y le abre", B.get_by_role("button", name="Abrir").count() >= 1 and (B.get_by_role("button", name="Abrir").first.click() or True) and (B.wait_for_timeout(600) or True) and "Pase de lista" in cuerpo(B) and "BETO INVENTADO" in cuerpo(B), cuerpo(B)[:400])
     caso("la base no rechazó ningún registro por identificador ocupado", not nube.ocupados, nube.ocupados[:4])
     caso("ninguna pantalla tronó", not errs, errs[:3])
     b.close()
