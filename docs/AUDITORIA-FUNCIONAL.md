@@ -2,7 +2,7 @@
 
 > **Generado desde `docs/ESTADO.json` con `node herramientas/estado.mjs`. No se edita a mano:** se cambia el archivo de estado y se vuelve a generar. Es la única fuente de las cifras, los módulos, los pendientes y lo publicado; el tablero de cierre sale de aquí mismo.
 
-Corte: domingo 22 de noviembre de 2026. **16 aprobados · 16 recorridos en parte · 35 sin verificar.**
+Corte: domingo 22 de noviembre de 2026. **21 aprobados · 21 recorridos en parte · 25 sin verificar.**
 
 **Veredicto: NO LISTO** como sistema completo · listo para prueba de campo en la operación diaria. Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).
 
@@ -18,7 +18,7 @@ Corte: domingo 22 de noviembre de 2026. **16 aprobados · 16 recorridos en parte
 
 | Qué | Con qué | Resultado |
 |---|---|---|
-| Reglas y cálculos | `npm test` | 1,287 de 1,287 |
+| Reglas y cálculos | `npm test` | 1,288 de 1,288 |
 | La base, armada desde cero y atacada por perfil | `npm run test:base` | 163 de 163 |
 | Respaldo y restauración, de punta a punta en local | `sh pruebas/respaldo_local/ensayo.sh` | 26 de 26 |
 | Todo junto: lo anterior, compilación y 41 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `ff5ea42`) |
@@ -29,12 +29,14 @@ Corte: domingo 22 de noviembre de 2026. **16 aprobados · 16 recorridos en parte
 | La base de producción rechaza pisar un identificador ocupado | `prueba directa que se deshace sola` | Otra marca: rechazado · sin marca: rechazado · misma marca: corrige |
 | Asistencia con dos teléfonos, semana cerrada y pago hecho | `pruebas/auditoria_ausencias_navegador.py` | 37 de 37 |
 | Campo: rancho vacío, parcelas, cultivos, calendario y cosechas con dos teléfonos | `pruebas/auditoria_campo_navegador.py` | 63 de 63 |
+| Captura diaria: actividades, registro de varios, pase de lista, tareas, reportes, jornadas, credenciales y externos (posterior a la publicación) | `pruebas/auditoria_captura_navegador.py` | 57 de 57 |
 
 ## Qué está publicado y qué no
 
 | Qué | Estado | Detalle |
 |---|---|---|
 | La app en app.agroselectos.com | **Publicado** | Versión `ff5ea42`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio. |
+| Captura diaria: «Mis días» con la cuenta real, registro de varios que dice lo que se paga, el día que se costeaba dos veces, y rastro al aprobar externos y atender incidencias | **Sin publicar** | Corregido y probado; se publica al pasar la batería completa (corrección ordinaria). |
 | Campo (alta de cultivos, parcelas que no se eliminan con registros, cosechas que no se pisan ni se borran) y dos correcciones de identidad: hechos de nombre propio sin marca y estibas recién cerradas que no subían | **Publicado** | 22 de noviembre; corrección ordinaria, publicada tras la batería completa. |
 | Cobros parciales de un embarque desde dos teléfonos (no se pisan; cada cobro con autor, hora y su venta ligada) | **Publicado** | 22 de noviembre, autorizado por Luis. |
 | Un identificador ocupado no se pisa: lo rechaza la base y el teléfono reubica su registro | **Instalado en la base** | Hoja 56 en la base y publicado en la app, 22 de noviembre. |
@@ -49,7 +51,7 @@ Corte: domingo 22 de noviembre de 2026. **16 aprobados · 16 recorridos en parte
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
 
-## Defectos encontrados al usar los módulos (39: 35 corregidos, 0 de ellos sin publicar; 4 abiertos)
+## Defectos encontrados al usar los módulos (47: 41 corregidos, 6 de ellos sin publicar; 6 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -92,6 +94,14 @@ Corte: domingo 22 de noviembre de 2026. **16 aprobados · 16 recorridos en parte
 | 37 | Comparar variedades | El rendimiento de una variedad se enseñaba sin los ajustes de cosecha (1,450 kg) mientras el rendimiento por hectárea sí los contaba (1,400) | P3 | Corregido y publicado |
 | 38 | Calendario, Estado de parcelas | Las etapas de un cultivo (emergencia, bulbificación…) sólo entran por la hoja de Excel: un cultivo dado de alta en la app no tiene etapas y su «avance por fase» sale vacío | P2 | Abierto |
 | 39 | Cosechas | La cosecha se lleva una por parcela para siempre: el «costo por kilo» de la pantalla de Cosechas junta todas las temporadas de esa parcela (el resultado por temporada, en Finanzas y en Comparar variedades, sí separa por fechas) | P2 | Abierto |
+| 40 | Mis días | Al trabajador se le enseñaba «Mi raya acumulada» = días palomeados en el pase de lista × su sueldo, de toda la vida y sin restar lo ya pagado: con dos actividades registradas veía $0, o un acumulado que nadie le debía | P1 | Corregido **sin publicar**: ahora ve la misma cuenta que quien paga, de la semana: lo que le corresponde, lo entregado y lo que falta |
+| 41 | Registro de varios | La confirmación prometía sueldo × horas ÷ 8 (4 horas = $240) y en Pagos y en el costo salía el día completo ($480): la pantalla decía una cosa y los libros otra | P2 | Corregido **sin publicar**: la pantalla enseña lo que de verdad se paga (su día) y explica que las horas sólo reparten el día entre parcelas |
+| 42 | Mano de obra, Reportes | Si un trabajador checaba su entrada sin que nadie lo asignara en Equipos de trabajo y además se le tecleaba su actividad, ese día se COSTEABA dos veces (una en la parcela y otra como tiempo sin asignar): un día de $400 costaba $800, aunque se pagaba una vez | P1 | Corregido **sin publicar**: el día con actividad tecleada ya no se cuenta otra vez como tiempo sin asignar; el pago no cambia |
+| 43 | Aprobar externos | Aprobar el trabajo de un externo (o sea, decir que se paga) o rechazarlo no dejaba quién lo decidió ni por qué | P1 | Corregido **sin publicar**: queda quién y cuándo; rechazar pide motivo; se ve en «Revisados» |
+| 44 | Equipo (incidencias) | Marcar una incidencia como atendida no decía quién, y desaparecía de la pantalla | P2 | Corregido **sin publicar**: queda quién la atendió y sigue a la vista en «Ya atendidas» |
+| 45 | Registrar actividad, Registro de varios | Dos textos que decían otra cosa: «General de la operación… se reparte entre todos los cultivos» (no se reparte: va a gastos generales) y el título «Registro masivo» en una pantalla que el menú llama «Registro de varios» | P3 | Corregido **sin publicar** |
+| 46 | Pase de lista | POR DECISIÓN DE LUIS: un trabajador que entra con su PIN tiene la pantalla de Pase de lista con TODA la gente, y desde ahí se le ofrece palomear y «Capturar» los días de otros (una actividad capturada es un día que se paga) | P1 | Abierto: no se cambió: quitarle esa pantalla al trabajador es una decisión de permisos |
+| 47 | Externos | POR DECISIÓN DE LUIS: un externo nace con $683 por día sugerido, escrito en el código; él puede cambiarlo al registrar y nada cuenta hasta que alguien lo aprueba, pero es un número que nadie del rancho dio | P2 | Abierto: no se cambió: es una tarifa del negocio |
 
 ## Lo que no se pudo ejecutar y por qué
 
@@ -112,12 +122,12 @@ Corte: domingo 22 de noviembre de 2026. **16 aprobados · 16 recorridos en parte
 | 4 | Resumen | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
 | 5 | ¿Cómo vamos? | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
 | 6 | Mensajes | NO VERIFICADO | antes: mensajes, mensajes_movil, dicho | — | Falta la auditoría completa |
-| 7 | Registrar actividad | NO VERIFICADO | antes: ejecutores | — | Falta la auditoría completa |
-| 8 | Registro de varios | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
+| 7 | Registrar actividad | **PARCIAL** | auditoria_captura 57 | Registrar una actividad a nombre de un trabajador: confirma antes de guardar, queda con quién la hizo y quién la capturó, su costo llega a la parcela; dos actividades el mismo día reparten UN día (no pagan dos); con tractor (cuota por hora) e insumo del almacén (lo descuenta, no es dinero que sale); trabajo general que no se carga a ninguna parcela; sin señal; otro teléfono; quien checó y además tiene actividad cuesta una vez | Trabajo de bodega de un cultivo, actividad de cosecha con su cantidad, «quién lo ordenó» y capturar otro día |
+| 8 | Registro de varios | **PARCIAL** | auditoria_captura 57 | La misma actividad para varias personas: pide parcela, actividad y gente; horas por persona; la confirmación dice lo que de verdad se paga; queda una actividad por persona con quién la capturó; costo exacto en la parcela y en Pagos | Con maquinaria, con encargados y con externos en la misma captura |
 | 9 | Aplicaciones | **PARCIAL** | auditoria_agronomo 23 · ejecutores | Aplicación con un producto del inventario: descuenta lo aplicado, carga su costo a la parcela una vez, no vuelve a salir del flujo, avisa si no se dice quién aplicó, recarga, otro aparato; una compra posterior más cara no le cambia el costo | Con aplicadores y quién la indicó (visto en local), reentrada y carencia, reporte de la aplicación |
 | 10 | Indicaciones | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 11 | Tareas | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 12 | Reportar | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
+| 11 | Tareas | **PARCIAL** | auditoria_captura 57 | El encargado manda una tarea a una persona (sin persona o sin texto no sale), ella la ve en «Mis días», la marca hecha y el encargado la ve completada | Reportar una necesidad desde Tareas, prioridades, borrar una tarea |
+| 12 | Reportar | **APROBADO** | auditoria_captura 57 | El trabajador reporta (sin descripción no sale), queda con clase, prioridad y quién lo mandó, le llega al administrador con nombre y fecha, y él la marca atendida (queda quién y sigue a la vista) | — |
 | 13 | Mapa del rancho | NO VERIFICADO | antes: mapa, satelite | — | Falta la auditoría completa |
 | 14 | Parcelas | **APROBADO** | auditoria_campo 63 | Rancho que arranca vacío: alta de rancho y de parcelas (dice qué falta, no se repiten, la parcela nace en su rancho), corregir hectáreas, ubicación, renglón de su ciclo y foto (la foto no viaja dentro del registro), lo que tiene siembra o cosecha no se elimina y lo vacío sí, un rancho con parcelas no se elimina; recarga, otro teléfono, aparato nuevo; el agrónomo no la tiene | Escoger la ubicación en el mapa satelital (pide mapa real) |
 | 15 | Estado de parcelas | **PARCIAL** | auditoria_campo 63 | Enseña cada parcela con su temporada, en qué día del ciclo va, superficie y fecha de siembra; la que no tiene siembra lo dice; el agrónomo la ve | Avance por fase y semáforos (dependen de las etapas del cultivo: defecto 38) |
@@ -160,13 +170,13 @@ Corte: domingo 22 de noviembre de 2026. **16 aprobados · 16 recorridos en parte
 | 52 | Equipos de trabajo | **PARCIAL** | entrega 68 · auditoria_pagos · auditoria_semana | Asignar a una parcela desde ahorita, cambio de parcela, el costo sigue a la asignación | Pago por tarea, vehículo, aclarar el tiempo sin asignar (recorridos en local) |
 | 53 | Cuadrillas | **PARCIAL** | auditoria_semana 26 · eventuales (local) | El día de una cuadrilla por día: vacío no se guarda, costo a la parcela, una cuenta por responsable | Destajo, precio por el trabajo, flete y vehículo propio con cuentas |
 | 54 | Checador | **PARCIAL** | entrega 68 · auditoria_pagos · auditoria_semana | Entrada y salida con PIN, jornada de 8 horas, lo que le toca al checar | Credencial con código (pide cámara), aparato ligado sin sesión |
-| 55 | Jornadas | NO VERIFICADO | antes: entrega | — | Falta la auditoría completa |
-| 56 | Credenciales | NO VERIFICADO | antes: checador | — | Falta la auditoría completa |
-| 57 | Pase de lista | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 58 | Asistencia | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
+| 55 | Jornadas | **PARCIAL** | auditoria_captura 57 | Quién está adentro y desde cuándo; de quien no checó dice «sin marca», no «faltó»; cambiar la hora de una marca pide motivo, conserva la original en el historial y dice quién la cambió | «Era salida», cancelar una marca, poner una marca que faltó |
+| 56 | Credenciales | **PARCIAL** | auditoria_captura 57 | Emitir una credencial (código propio, sin PIN ni sueldo, con fecha y quién); emitir otra cambia el código y la anterior queda anotada | Imprimirlas y checar con la credencial (pide cámara: prueba de campo) |
+| 57 | Pase de lista | **APROBADO** | auditoria_captura 57 | Palomear un día deja la asistencia y NO genera pago ni costo; avisa de los días palomeados sin actividad; desde ahí se captura la actividad que faltaba (pide parcela y actividad) y entonces sí cuenta; en Pagos el día palomeado sale como «vino, falta decir en qué trabajó» | Que un trabajador con PIN pueda usar esta pantalla sobre los demás es decisión de Luis (defecto 46) |
+| 58 | Asistencia | **APROBADO** | auditoria_captura 57 | Es la misma pantalla que Pase de lista con otro nombre en el menú: mismo recorrido | Lo mismo que Pase de lista |
 | 59 | Pagos al personal | **PARCIAL** | auditoria_pagos 40 · auditoria_semana 26 · auditoria_ausencias 36 · auditoria_identidad 27 · entrega | Lo que corresponde, pago (sellado por la base), el préstamo no descuenta solo, cuenta de cuadrilla por responsable, bonos (otorgar es costo, pagar no), recibo con versión, cerrar, confirmar y reabrir la semana, Finanzas y encargado sin permiso, recarga, otro aparato; el mismo pago hecho en dos teléfonos sin señal queda a la vista como entregado de más; salida antes de tiempo (nada se descuenta solo; decisión con motivo, sellada por la base; dos teléfonos decidiendo distinto quedan a la vista y se cancela la que no vale); ausencias (quien no vino es una pregunta, no una falta; permiso con causa y quién autorizó; se paga y va como costo sin parcela, no a la parcela); historial de decisiones con las canceladas; ya pagado, cancelar una decisión no toca el pago y deja el pendiente a la vista; con la semana cerrada no se cambia sin reabrir, y lo que llega tarde de otro teléfono sale como diferencia con su autor y motivo; aparato recién entrado ve lo mismo | Con cuentas faltan: horas adicionales, prestaciones y bajas (recorridos en local: pagos 33, prestaciones 49, bajas 34) |
-| 60 | Aprobar externos | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 61 | Mis días | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
+| 60 | Aprobar externos | **APROBADO** | auditoria_captura 57 | Un externo entra con su nombre, dice el pago acordado y registra; queda pendiente y no cuenta; el encargado aprueba (entonces sí es costo de la parcela) o rechaza con motivo (no cuenta y no se borra); queda quién decidió | La tarifa sugerida con que nace un externo es decisión de Luis (defecto 47) |
+| 61 | Mis días | **APROBADO** | auditoria_captura 57 | El trabajador ve la misma cuenta de la semana que quien paga (corresponde, entregado, falta), sus actividades y sus tareas; no ve Pagos ni Finanzas. El externo ve sus registros pendientes y lo aprobado | La vista de una cuadrilla que entra con PIN |
 | 62 | Arranque | NO VERIFICADO | antes: arranque, cuentas | — | Falta la auditoría completa |
 | 63 | Organización | NO VERIFICADO | antes: organizacion | — | Falta la auditoría completa |
 | 64 | Bitácora | **APROBADO** | auditoria_dinero · auditoria_proveedores · base | Enseña cada cancelación con quién, cuándo y motivo; en la base nadie la edita ni la borra | — |
@@ -196,6 +206,8 @@ Corte: domingo 22 de noviembre de 2026. **16 aprobados · 16 recorridos en parte
 - Hacer la prueba de campo con la familia.
 - Otorgarse el permiso para configurar la organización (Arranque → Cuentas), si la va a usar.
 - Decidir a qué cuenta de Finanzas, si a alguna, se le otorga la consulta de Banco y Socios.
+- Decidir si un trabajador con PIN debe seguir teniendo el Pase de lista de toda la gente (hoy puede palomear y capturar días de otros).
+- Decidir con qué tarifa nace un externo: hoy la app le sugiere $683 por día, escrito en el código.
 
 ## Pendientes menores que pueden esperar
 
@@ -206,10 +218,14 @@ Corte: domingo 22 de noviembre de 2026. **16 aprobados · 16 recorridos en parte
 - El archivo principal pesa 2.7 MB: la primera carga con mala señal es lenta.
 - En producción quedan los datos de la prueba de avisos (1 conversación, 3 mensajes). Hay que retirarlos.
 - Eliminar una siembra del calendario avisa que sus costos quedan sin temporada, pero lo permite.
+- El pase de lista ofrece su propia lista de actividades al capturar un día faltante, en vez del catálogo único.
+- En un teléfono ligado para la gente, cada recarga le vuelve a pedir la contraseña al encargado (así está pensado; puede cansar).
 - Defecto 14 (Deudas / Proveedores): El proveedor se guarda distinto en cada pantalla (texto / ficha).
 - Defecto 16 (Corrida de ajo): Los cortes, conteos y cajas de plástico de la corrida se pueden borrar sin motivo; y la configuración se guarda con un nombre fijo, no por espacio.
 - Defecto 38 (Calendario, Estado de parcelas): Las etapas de un cultivo (emergencia, bulbificación…) sólo entran por la hoja de Excel: un cultivo dado de alta en la app no tiene etapas y su «avance por fase» sale vacío.
 - Defecto 39 (Cosechas): La cosecha se lleva una por parcela para siempre: el «costo por kilo» de la pantalla de Cosechas junta todas las temporadas de esa parcela (el resultado por temporada, en Finanzas y en Comparar variedades, sí separa por fechas).
+- Defecto 46 (Pase de lista): POR DECISIÓN DE LUIS: un trabajador que entra con su PIN tiene la pantalla de Pase de lista con TODA la gente, y desde ahí se le ofrece palomear y «Capturar» los días de otros (una actividad capturada es un día que se paga).
+- Defecto 47 (Externos): POR DECISIÓN DE LUIS: un externo nace con $683 por día sugerido, escrito en el código; él puede cambiarlo al registrar y nada cuenta hasta que alguien lo aprueba, pero es un número que nadie del rancho dio.
 
 ## Riesgos que quedan aunque todo pase
 

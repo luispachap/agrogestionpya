@@ -8067,7 +8067,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "proveedores" && <AdminProveedores data={data} add={add} upd={upd} del={del} cancelar={cancelar} reactivar={reactivar} onBack={() => setPage("contabilidad")} />}
               {page === "inventario" && <AdminInventario data={data} add={add} upd={upd} del={del} setInv={setInv} session={session} />}
               {page === "equipo" && <AdminEquipo data={data} add={add} upd={upd} del={del} session={session} onBack={() => setPage("home")} />}
-              {page === "aprobacion-externos" && <AprobacionExternos data={data} upd={upd} onBack={() => setPage("home")} />}
+              {page === "aprobacion-externos" && <AprobacionExternos data={data} upd={upd} session={session} onBack={() => setPage("home")} />}
               {page === "parcelas" && <AdminParcelas data={data} add={add} upd={upd} del={del} onBack={() => setPage("home")} />}
               {page === "registrar-actividad" && <RegistroActividadAdmin data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "registro-masivo" && <RegistroMasivo data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
@@ -8143,7 +8143,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "registro-masivo" && <RegistroMasivo data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "cosechas" && <GestionCosechas data={data} add={add} upd={upd} del={del} session={session} onClose={() => setPage("home")} />}
               {page === "asistencia" && <PaseLista data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
-              {page === "aprobacion-externos" && <AprobacionExternos data={data} upd={upd} onBack={() => setPage("home")} />}
+              {page === "aprobacion-externos" && <AprobacionExternos data={data} upd={upd} session={session} onBack={() => setPage("home")} />}
               {page === "solicitudes" && <SolicitudesCompra data={data} add={add} upd={upd} del={del} setInv={setInv} aplicarLote={aplicarLote} session={session} onClose={() => setPage("home")} />}
               {page === "operacion" && <PanelOperacion data={data} onClose={() => setPage("home")} />}
               {page === "estibas" && <Estibas data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
@@ -9117,7 +9117,7 @@ function AprobacionExternosBanner({ data, onNav }) {
   );
 }
 
-function AprobacionExternos({ data, upd, onBack }) {
+function AprobacionExternos({ data, upd, onBack, session }) {
   const pendientes = (data.actividades || [])
     .filter(a => a.estado === "pendiente_aprobacion")
     .sort((a, b) => b.fecha.localeCompare(a.fecha));
@@ -9128,8 +9128,10 @@ function AprobacionExternos({ data, upd, onBack }) {
     .sort((a, b) => b.fecha.localeCompare(a.fecha))
     .slice(0, 30);
 
-  const aprobar = a => upd("actividades", { ...a, estado: "aprobado" });
-  const rechazar = a => upd("actividades", { ...a, estado: "rechazado" });
+  // Aprobar es decir «esto se paga»: queda con quién lo decidió y cuándo. Rechazar pide el porqué (el externo lo ve).
+  const revisa = () => ({ revisadoPor: session?.nombre || "", revisadoPorId: session?.id || "", revisadoEn: new Date().toISOString() });
+  const aprobar = a => upd("actividades", { ...a, estado: "aprobado", ...revisa() });
+  const rechazar = a => { const motivo = (prompt("¿Por qué se rechaza? Queda escrito con tu nombre.") || "").trim(); if (!motivo) return; upd("actividades", { ...a, estado: "rechazado", motivoRechazo: motivo, ...revisa() }); };
 
   const renderAct = (a, showActions) => {
     const p = data.parcelas.find(x => x.id === a.parcelaId);
@@ -9148,6 +9150,7 @@ function AprobacionExternos({ data, upd, onBack }) {
         <div className="text-sm" style={{ marginTop: 4 }}>
           Pago: <b>{nombreDeModalidad(a.modalidadPago)}</b> · MO: <b>${(a.costoMO || 0).toLocaleString("es-MX")}</b> · Total: <b>${(a.costoTotal || 0).toLocaleString("es-MX")}</b>
         </div>
+        {!showActions && a.revisadoPor && <div className="text-xs text-muted" style={{ marginTop: 4 }}>{a.estado === "aprobado" ? "Lo aprobó" : "Lo rechazó"} {a.revisadoPor}{a.motivoRechazo ? `: «${a.motivoRechazo}»` : ""}</div>}
         {a.observaciones ? <div className="text-sm text-muted" style={{ fontStyle: "italic", marginTop: 2 }}>{a.observaciones}</div> : null}
         {showActions && (
           <div className="flex-b mt-2" style={{ gap: 8 }}>
@@ -11815,6 +11818,9 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
         {tab === "incid." && (
           <>
             {data.incidencias.filter(i => i.estado === "pendiente").length === 0 && <div className="alert alert-green"><span className="alert-icon"><Ic e="✅" /></span><div className="alert-body"><div className="alert-title">Sin incidencias pendientes</div></div></div>}
+            {data.incidencias.filter(i => i.estado !== "pendiente").length > 0 && <details style={{ marginBottom: 10 }}><summary className="text-xs text-muted" style={{ cursor: "pointer" }}>Ya atendidas ({data.incidencias.filter(i => i.estado !== "pendiente").length})</summary>
+              {data.incidencias.filter(i => i.estado !== "pendiente").map(inc => <div key={inc.id} className="text-xs text-muted" style={{ padding: "4px 0", borderTop: "1px solid var(--border)" }}>{inc.desc || inc.descripcion} · {inc.fecha}{inc.resueltaPor ? ` · atendida por ${inc.resueltaPor}` : ""}</div>)}
+            </details>}
             {data.incidencias.filter(i => i.estado === "pendiente").map(inc => {
               const quien = data.trabajadores.find(t => t.id === inc.trabajadorId)?.nombre || data.cuadrillas.find(c => c.id === inc.trabajadorId)?.nombre || (data.encargados || []).find(e => e.id === inc.trabajadorId)?.nombre || "—";
               const icon = { equipo: "🔧", seguridad: "⛑️", cultivo: "🌿", otro: "💬" };
@@ -11825,7 +11831,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
                   <div className="alert-body"><div className="alert-title">{inc.desc || inc.descripcion}</div><div className="alert-desc">{quien} · {inc.fecha} · {inc.prioridad}</div></div>
                   <div style={{ display: "flex", gap: 4 }}>
                     <button className="btn-ghost" style={{ padding: 2, fontSize: 13 }} onClick={() => setEditItem({ seccion: "incidencias", registro: inc, titulo: "Incidencia", campos: camposInc })}><Ic e="✏️" /></button>
-                    <button className="btn btn-accent btn-sm" onClick={() => upd("incidencias", { ...inc, estado: "resuelta" })}>✓</button>
+                    <button className="btn btn-accent btn-sm" aria-label="Marcar como atendida" onClick={() => upd("incidencias", { ...inc, estado: "resuelta", resueltaPor: session?.nombre || "", resueltaEn: new Date().toISOString() })}>✓</button>
                   </div>
                 </div>
               );
@@ -12324,8 +12330,17 @@ function TrabHistorial({ data, add, upd, session, onLogout }) {
   // Resumen de días y raya
   const yo = data.trabajadores.find(t => t.id === session.id);
   const sueldoDia = yo?.sueldo_dia || session.sueldo_dia || 0;
-  const diasAsistidos = (data.asistencia || []).filter(a => a.trabajadorId === session.id && a.presente).length;
-  const rayaAcumulada = diasAsistidos * sueldoDia;
+  // LO MISMO QUE VE QUIEN PAGA. Antes aquí salía «pase de lista × sueldo», de toda la vida y sin restar lo ya pagado:
+  // el trabajador veía $0 con dos actividades registradas, o un acumulado que nadie le debía. Ahora es la cuenta de
+  // Pagos al personal, de esta semana: lo que corresponde, lo entregado y lo que falta.
+  const semMia = (() => {
+    const { ini, fin } = rangoSemanaNomina(0);
+    if (!yo) return { ini, fin, corresponde: 0, trabajados: 0, entregado: 0, pendiente: 0 };
+    const mo = manoDeObra(data.eventos || [], quienesChecan(data), { desde: ini, hasta: fin, hoy: today(), ahora: new Date().toISOString() });
+    const sem = semanaDe({ trabajador: yo, desde: ini, hasta: fin, hoy: today(), devengado: mo.devengado, actividades: data.actividadesContables || data.actividades || [], ausencias: ausenciasDe(data.eventos || [], { desde: ini, hasta: fin }), asistencia: data.asistencia || [], modo: "checador" });
+    const entregado = sumarDinero(pagosA(data.eventos || [], { tipo: "trabajador", id: yo.id, nombre: yo.nombre }, { desde: ini, hasta: fin }).map(x => x.datos.monto || 0));
+    return { ini, fin, corresponde: sem.corresponde, trabajados: sem.trabajados, entregado, pendiente: sumarDinero(sem.corresponde, -entregado) };
+  })();
   const bonosMios = (data.bonificaciones || []).filter(b => b.trabajadorId === session.id).reduce((s, b) => s + (b.monto || 0), 0);
   const prestamosMios = vivos(data.prestamos).filter(p => p.trabajadorId === session.id && p.estado === "activo")
     .reduce((s, p) => s + ((p.monto || 0) - (p.abonado || 0)), 0);
@@ -12335,9 +12350,12 @@ function TrabHistorial({ data, add, upd, session, onLogout }) {
       <div className="section-pad">
         {/* Resumen de raya — lo que más le importa al trabajador */}
         <div className="card" style={{ background: "rgba(228,178,63,.08)", border: "1px solid rgba(228,178,63,.25)" }}>
-          <div className="stat-label">Mi raya acumulada</div>
-          <div style={{ fontSize: 32, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", color: "var(--accent)" }}>{fmt(rayaAcumulada)}</div>
-          <div className="text-sm text-muted mt-1">{diasAsistidos} día(s) trabajado(s) × {fmt(sueldoDia)}</div>
+          <div className="stat-label">Esta semana me corresponde</div>
+          <div style={{ fontSize: 32, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", color: "var(--accent)" }}>{fmt(semMia.corresponde)}</div>
+          <div className="text-sm text-muted mt-1">{semMia.trabajados} día(s) trabajado(s) · del {semMia.ini} al {semMia.fin}</div>
+          <div className="flex-b text-sm mt-2" style={{ paddingTop: 8, borderTop: "1px solid var(--border)" }}><span className="text-muted">Ya me entregaron</span><span className="font-bold">{fmt(semMia.entregado)}</span></div>
+          <div className="flex-b text-sm" style={{ marginTop: 4 }}><span className="text-muted">Falta por entregar</span><span className="font-bold">{fmt(Math.max(0, semMia.pendiente))}</span></div>
+          <div className="text-xs text-muted" style={{ marginTop: 6 }}>Sale de lo registrado (checador, actividades y permisos pagados). Es la misma cuenta que ve quien paga; si algo no cuadra, díselo a tu encargado.</div>
           {bonosMios > 0 && <div className="flex-b text-sm mt-2" style={{ paddingTop: 8, borderTop: "1px solid var(--border)" }}><span className="text-muted">Bonos ganados</span><span className="font-bold" style={{ color: "var(--safe)" }}>+{fmt(bonosMios)}</span></div>}
           {prestamosMios > 0 && <div className="flex-b text-sm" style={{ marginTop: 4 }}><span className="text-muted">Préstamos por pagar</span><span className="font-bold" style={{ color: "var(--red)" }}>−{fmt(prestamosMios)}</span></div>}
         </div>
@@ -15526,7 +15544,7 @@ function RegistroActividadAdmin({ data, add, upd, setInv, session, onClose }) {
               <div className="parcela-thumb-ph"><Ic e="🏗️" /></div>
               <div className="parcela-body">
                 <div className="pc-name">General de la operación</div>
-                <div className="pc-sub">Reparar, construir, tareas que no son de un cultivo. Se reparte entre todos los cultivos.</div>
+                <div className="pc-sub">Reparar, construir, tareas que no son de un cultivo. No se le carga a ninguna parcela: sale en los gastos generales.</div>
               </div>
             </div>
             <button className="btn btn-outline mt-2" onClick={() => setPaso(1)}>‹ Atrás</button>
@@ -17214,7 +17232,7 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
     <div>
       <div className="top-bar">
         <button className="btn-ghost" onClick={onClose}>‹</button>
-        <h2>Registro masivo</h2>
+        <h2>Registro de varios</h2>
       </div>
       <div className="reg-step">
         <div className="step-indicator">{[1, 2, 3].map(i => <div key={i} className={`step-dot${i <= paso ? " done" : ""}`} />)}</div>
@@ -17409,14 +17427,17 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
             {seleccionados.length > 0 && (
               <div className="card">
                 <div className="card-title">Trabajadores ({seleccionados.length})</div>
+                <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Se paga por día: las horas sólo sirven para repartir el día de cada quien entre las parcelas donde trabajó. Si alguien ya tiene otra actividad ese día, no se le paga dos veces.</div>
                 {seleccionados.map(p => {
                   const cfg = sel[p.id];
                   const horas = parseFloat(cfg.horas) || 8;
-                  const costoMO = (p.sueldo || 0) * (horas / 8);
+                  // Lo que la pantalla promete tiene que ser lo que se cuenta: quien cobra por día cobra SU DÍA aunque
+                  // se anoten menos horas (antes aquí salía sueldo × horas ÷ 8, y en Pagos salía el día completo).
+                  const costoMO = p.sueldo || 0;
                   return (
                     <div key={p.id} className="list-item">
                       <div className="li-icon"><Ic e={p.tipo === "encargado" ? "🧰" : "👷"} /></div>
-                      <div className="li-body"><div className="li-title">{p.nombre}</div><div className="li-sub">{horas} h{cfg.ha ? ` · ${cfg.ha} ha` : ""}</div></div>
+                      <div className="li-body"><div className="li-title">{p.nombre}</div><div className="li-sub">{horas} h{cfg.ha ? ` · ${cfg.ha} ha` : ""} · su día</div></div>
                       <div className="li-right"><div className="li-val">{fmt(costoMO)}</div></div>
                     </div>
                   );
@@ -17457,7 +17478,7 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
               <div className="flex-b">
                 <span className="font-bold">Costo total de mano de obra</span>
                 <span className="font-bold text-accent">{fmt(
-                  seleccionados.reduce((s, p) => s + (p.sueldo || 0) * ((parseFloat(sel[p.id].horas) || 8) / 8), 0)
+                  seleccionados.reduce((s, p) => s + (p.sueldo || 0), 0)
                   + cuadrillasSel.reduce((s, c) => s + calcCostoCuad(selCuad[c.id]), 0)
                   + externosSel.reduce((s, e) => s + calcCostoExt(selExt[e.id]), 0)
                 )}</span>
@@ -19700,7 +19721,7 @@ function AdminMasFunciones({ onNav, onClose }) {
         { page: "tareas", icon: "✅", label: "Tareas", sub: "Asignar y dar seguimiento" },
         { page: "personal", icon: "👷", label: "Personal", sub: "Gestión de trabajadores" },
         { page: "pase-lista", icon: "✅", label: "Pase de lista", sub: "Asistencia + capturar faltantes" },
-        { page: "registro-masivo", icon: "📝", label: "Registro masivo", sub: "Varias actividades de una vez" },
+        { page: "registro-masivo", icon: "📝", label: "Registro de varios", sub: "Varias actividades de una vez" },
         { page: "embarque", icon: "🚛", label: "Salida de camión", sub: "Embarque de ajo y formato" },
         { page: "terminados", icon: "🧄", label: "Ajo terminado", sub: "Inventario por calibre" },
         { page: "corrida", icon: "🏭", label: "Corrida de ajo", sub: "Encajado por calibre + remisión" },

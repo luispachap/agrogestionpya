@@ -876,6 +876,12 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   `usosSemilla`) se UNEN entre teléfonos (`unirCosecha`); **un registro de cosecha no se borra: se cancela con motivo**
   (`cancelarRegistroDeCosecha`; toda suma pasa por `registrosVivos`; lo cancelado gana al unir). Recorrido:
   `auditoria_campo` (63). La nube de imitación ya respeta `id=eq.` y deja lápida al borrar.
+- **Captura diaria (22 nov)**: «Mis días» del trabajador enseña la MISMA cuenta que Pagos (semana: corresponde,
+  entregado, falta) — nunca pase de lista × sueldo. **Quien cobra por día cobra su día aunque se anoten menos horas**: las
+  horas sólo reparten el día entre parcelas (`calcularCostoManoObra`), y las pantallas de captura deben decir eso mismo.
+  **Un día con actividad tecleada no se cuenta otra vez como tiempo sin asignar** aunque la persona haya checado
+  (`conTecleado` en `pagadoSinActividad`). Aprobar o rechazar a un externo deja `revisadoPor`/`revisadoEn` (rechazar pide
+  `motivoRechazo`); atender una incidencia deja `resueltaPor`. Recorrido: `auditoria_captura` (57).
 - **Cada cobro de un embarque es un hecho propio**: identificador, importe, fecha, `registradoPor`, `capturado`,
   `ingresoId` (y `abonoId`); la venta lleva `liquidacionId`. Recorrido: `auditoria_cobros` (15).
 - **Dos decisiones distintas del mismo día no se aplican calladas** (`decisionesEncontradas`, `cuadrillas.js`):

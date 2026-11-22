@@ -54,7 +54,11 @@ export function pagadoSinActividad({ personas = [], partes = [], actividades = [
   const items = [], sinSueldo = [];
   const porId = new Map(personas.map(p => [p.id, p]));
   const conTrabajo = new Set(partes.map(p => `${p.trabajadorId}|${p.fecha}`));
-  for (const a of actividades) if (!a._deEventos && a.registradoPor?.id && (Number(a.costoMO) || 0) > 0) conTrabajo.add(`${a.registradoPor.id}|${a.fecha}`);
+  // Días con una actividad TECLEADA que ya carga su mano de obra. Si esa persona además checó ese día y nadie la
+  // asignó en Equipos de trabajo, su tiempo «sin asignar» NO es otro costo: es el mismo día, que la actividad tecleada
+  // ya dijo dónde fue. Antes se contaba dos veces (una en la parcela y otra aquí): un día de $400 costaba $800.
+  const conTecleado = new Set();
+  for (const a of actividades) if (!a._deEventos && a.registradoPor?.id && (Number(a.costoMO) || 0) > 0) { conTrabajo.add(`${a.registradoPor.id}|${a.fecha}`); conTecleado.add(`${a.registradoPor.id}|${a.fecha}`); }
   const conAusencia = new Set();
   for (const e of ausencias) {
     const k = `${e.datos.trabajadorId}|${e.fecha}`; conAusencia.add(k);
@@ -67,6 +71,7 @@ export function pagadoSinActividad({ personas = [], partes = [], actividades = [
   }
   for (const x of partes) {
     if (x.parcelaId || x.vehiculoId || !(x.monto > 0)) continue;
+    if (conTecleado.has(`${x.trabajadorId}|${x.fecha}`)) continue;
     const p = porId.get(x.trabajadorId);
     items.push({ personaId: x.trabajadorId, nombre: p?.nombre || "", fecha: x.fecha, concepto: x.causa ? DE_CAUSA[x.causa] || "otra" : "por_aclarar", causa: x.nota || (x.sinHoras ? "checó entrada y no se sabe cuánto tiempo estuvo" : ""), monto: x.monto, estimado: !!x.estimado, evs: x.evs || [], minutos: x.minutos ?? null });
   }

@@ -81,3 +81,13 @@ test("repartir_no_pierde_centavos", () => {
   const r = repartirPorActividades({ personaId: "t-ana", nombre: "Ana", fecha: "2026-11-18", monto: 100, concepto: "permiso" }, base);
   assert.equal(sumarDinero(r.partes.map(p => p.monto)), 100);
 });
+
+import { pagadoSinActividad as psa } from "./personal.js";
+test("quien_checo_sin_que_lo_asignaran_y_ademas_tiene_su_actividad_tecleada_cuesta_un_dia_no_dos", () => {
+  const personas = [{ id: "t1", nombre: "Beto", sueldo_dia: 400, historialSueldo: [{ desde: "2026-01-01", sueldo_dia: 400 }] }];
+  const sinAsignar = [{ trabajadorId: "t1", fecha: "2026-11-19", parcelaId: null, monto: 400, modalidad: "dia" }];
+  const tecleada = [{ id: "a1", fecha: "2026-11-19", registradoPor: { id: "t1" }, costoMO: 400, parcelaId: "p2" }];
+  assert.equal(psa({ personas, partes: sinAsignar, actividades: [], hoy: "2026-11-19" }).items.length, 1, "sin actividad tecleada, su día sin asignar sí es costo sin parcela (por aclarar)");
+  assert.deepEqual(psa({ personas, partes: sinAsignar, actividades: tecleada, hoy: "2026-11-19" }).items, [], "con su actividad tecleada ese día, no se cuenta otra vez");
+  assert.equal(psa({ personas, partes: sinAsignar, actividades: [{ ...tecleada[0], fecha: "2026-11-18" }], hoy: "2026-11-19" }).items.length, 1, "la actividad de OTRO día no lo tapa");
+});
