@@ -18,7 +18,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 
 | Qué | Con qué | Resultado |
 |---|---|---|
-| Reglas y cálculos | `npm test` | 1,276 de 1,276 |
+| Reglas y cálculos | `npm test` | 1,277 de 1,277 |
 | La base, armada desde cero y atacada por perfil | `npm run test:base` | 163 de 163 |
 | Respaldo y restauración, de punta a punta en local | `sh pruebas/respaldo_local/ensayo.sh` | 26 de 26 |
 | Todo junto: lo anterior, compilación y 39 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `574caf5`) |
