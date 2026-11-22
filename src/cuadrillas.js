@@ -261,17 +261,22 @@ export function tramosDeTrabajo(eventos, { desde, hasta, hoy, ahora } = {}) {
 // "por revisar". La decisión la toma una persona, con nombre y motivo.
 export const TIPO_DECISION = "decision_jornada";
 export const PAGO_DE_JORNADA = { completo: "Se paga el día completo", medio: "Se paga medio día", horas: "Se pagan las horas trabajadas", ninguno: "No se paga ese día" };
-export function decidirJornada({ permitido, trabajadorId, fecha, situacion, pago, motivo, quien, cuando, azar }) {
+// Con la semana ya cerrada no se decide (ni se cancela una decisión) por encima del cierre: se reabre, con motivo y con
+// su permiso, y se vuelve a cerrar. Lo que aun así llegue después (otro teléfono sin señal) sale como diferencia.
+export const SEMANA_CERRADA = "Esa semana ya está cerrada. Para cambiar cómo se paga ese día hay que reabrirla (con motivo) y volver a cerrarla: así el cambio queda con quién lo autorizó.";
+const enOrden = (a, b) => a.capturado.localeCompare(b.capturado) || String(a.id).localeCompare(String(b.id));   // mismo orden en todos los teléfonos
+export function decidirJornada({ permitido, trabajadorId, fecha, situacion, pago, motivo, quien, cuando, azar, semanaCerrada }) {
   { const no = negado(quien, permitido, "Cómo se paga un día así lo decide un administrador."); if (no) return { ok: false, dice: no }; }
   if (!trabajadorId || !fecha) return { ok: false, dice: "Falta decir de quién y de qué día." };
   if (!situacion) return { ok: false, dice: "Falta decir qué pasó." };
   if (!PAGO_DE_JORNADA[pago]) return { ok: false, dice: "Falta decidir cómo se paga ese día." };
   if (!String(motivo || "").trim()) return { ok: false, dice: "Falta el porqué de la decisión: queda escrito con tu nombre." };
+  if (semanaCerrada) return { ok: false, dice: SEMANA_CERRADA };
   return { ok: true, evento: nuevoEvento({ tipo: TIPO_DECISION, cuando: `${fecha}T12:00:00-06:00`, fecha, capturado: cuando, quien, azar, datos: { trabajadorId, situacion, pago, motivo: String(motivo).trim() } }) };
 }
 export function decisionesDeJornada(eventos) {
   const m = new Map();
-  for (const e of vigentes(eventos).filter(x => x.tipo === TIPO_DECISION).sort((a, b) => a.capturado.localeCompare(b.capturado))) m.set(`${e.datos.trabajadorId}|${e.fecha}`, e);
+  for (const e of vigentes(eventos).filter(x => x.tipo === TIPO_DECISION).sort(enOrden)) m.set(`${e.datos.trabajadorId}|${e.fecha}`, e);
   return m;
 }
 // DOS DECISIONES DISTINTAS PARA EL MISMO DÍA. Dos administradores pueden decidir cómo se paga la misma salida, cada uno
@@ -279,12 +284,22 @@ export function decisionesDeJornada(eventos) {
 // deja a uno creyendo que se pagó medio día y al otro que completo. Se enseñan las dos, con quién y por qué.
 export function decisionesEncontradas(eventos, { desde, hasta } = {}) {
   const por = new Map();
-  for (const e of vigentes(eventos).filter(x => x.tipo === TIPO_DECISION && (!desde || x.fecha >= desde) && (!hasta || x.fecha <= hasta)).sort((a, b) => a.capturado.localeCompare(b.capturado))) {
+  for (const e of vigentes(eventos).filter(x => x.tipo === TIPO_DECISION && (!desde || x.fecha >= desde) && (!hasta || x.fecha <= hasta)).sort(enOrden)) {
     const k = `${e.datos.trabajadorId}|${e.fecha}`; if (!por.has(k)) por.set(k, []); por.get(k).push(e);
   }
   return [...por.values()].filter(l => new Set(l.map(e => e.datos.pago)).size > 1).map(l => ({
     trabajadorId: l[0].datos.trabajadorId, fecha: l[0].fecha, vale: l[l.length - 1].id,
     decisiones: l.map(e => ({ ev: e.id, pago: e.datos.pago, situacion: e.datos.situacion, motivo: e.datos.motivo, quien: e.quien?.nombre || "", capturado: e.capturado })) }));
+}
+// EL HISTORIAL COMPLETO de las decisiones de un periodo: las vigentes, las canceladas (con quién y por qué) y las que
+// la base todavía no valida o rechazó. De cada día dice cuál es la que se está aplicando. Nada se borra ni se esconde.
+export function historialDeDecisiones(eventos, { desde, hasta } = {}) {
+  const vale = new Set([...decisionesDeJornada(eventos).values()].map(e => e.id)), cuentan = new Set(vigentes(eventos).map(e => e.id));
+  return (eventos || []).filter(x => x.tipo === TIPO_DECISION && (!desde || x.fecha >= desde) && (!hasta || x.fecha <= hasta)).sort(enOrden).map(e => ({
+    ev: e.id, trabajadorId: e.datos.trabajadorId, fecha: e.fecha, pago: e.datos.pago, situacion: e.datos.situacion, motivo: e.datos.motivo,
+    quien: e.quien?.nombre || "", capturado: e.capturado, vale: vale.has(e.id),
+    estado: e.estado === "cancelado" ? "cancelada" : e._validacion === "rechazado" ? "rechazada" : cuentan.has(e.id) ? "vigente" : "por_validar",
+    cancelada: e.cancelado ? { por: e.cancelado.por?.nombre || "", motivo: e.cancelado.motivo, cuando: e.cancelado.cuando } : null }));
 }
 export function manoDeObra(eventos, trabajadores, { desde, hasta, hoy, ahora } = {}) {
   const { tramos, avisos } = tramosDeTrabajo(eventos, { desde, hasta, hoy, ahora });

@@ -18,7 +18,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 
 | Qué | Con qué | Resultado |
 |---|---|---|
-| Reglas y cálculos | `npm test` | 1,277 de 1,277 |
+| Reglas y cálculos | `npm test` | 1,281 de 1,281 |
 | La base, armada desde cero y atacada por perfil | `npm run test:base` | 163 de 163 |
 | Respaldo y restauración, de punta a punta en local | `sh pruebas/respaldo_local/ensayo.sh` | 26 de 26 |
 | Todo junto: lo anterior, compilación y 39 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `574caf5`) |
@@ -27,7 +27,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos a `574caf5` |
 | Producción igual a la base probada | `node pruebas/base/paridad.mjs --consulta` | 7 huellas iguales (última hoja instalada: 56) |
 | La base de producción rechaza pisar un identificador ocupado | `prueba directa que se deshace sola` | Otra marca: rechazado · sin marca: rechazado · misma marca: corrige |
-| Asistencia con dos teléfonos (corrección posterior a la publicación) | `pruebas/auditoria_ausencias_navegador.py` | 19 de 19 |
+| Asistencia con dos teléfonos (corrección posterior a la publicación) | `pruebas/auditoria_ausencias_navegador.py` | 36 de 36 |
 
 ## Qué está publicado y qué no
 
@@ -79,7 +79,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | 26 | Finanzas, Inventario, Aplicaciones | Si dos personas capturaban el mismo gasto, la misma entrada o la misma aplicación, cada una en su teléfono, contaba dos veces y nada lo señalaba | P2 | Corregido y publicado: Finanzas → Resultados avisa «capturas que parecen repetidas», con quién capturó cada una; una persona cancela la que sobra o dice «son distintos». La app no quita nada sola |
 | 27 | Todos los registros (base) | La unicidad de los identificadores dependía sólo del azar del teléfono: si dos registros DISTINTOS llegaban con el mismo identificador, la base dejaba que el segundo quedara encima del primero (y en los eventos, descartaba el segundo sin decir nada) | P1 | Corregido y publicado: hoja 56: cada registro capturado lleva una marca de nacimiento y la base rechaza cualquier otro registro en un identificador ocupado, en todas las tablas; el teléfono reubica solo su registro con otro identificador, así que ninguno se pierde. Probado con un choque forzado y atacando la base; comprobado también en producción con una prueba que se deshace sola |
 | 28 | Consignaciones | Un cobro de un embarque no decía quién lo capturó ni a qué hora, y no quedaba ligado a la venta que generó | P2 | Corregido y publicado: cada cobro lleva su identificador, importe, fecha, autor, hora de captura y la liga con su venta (y con su abono, si fue a cuenta de una deuda); la venta apunta de regreso al cobro |
-| 29 | Pagos al personal (Asistencia) | Si dos administradores decidían distinto cómo se paga la misma salida antes de tiempo, cada uno en su teléfono, se aplicaba la última sin avisarle a nadie (uno creía medio día y el otro completo) | P1 | Corregido **sin publicar**: Asistencia enseña las dos decisiones con quién y por qué, dice cuál se está aplicando y deja cancelar, con motivo, la que no vale |
+| 29 | Pagos al personal (Asistencia) | Si dos administradores decidían distinto cómo se paga la misma salida antes de tiempo, cada uno en su teléfono, se aplicaba la última sin avisarle a nadie (uno creía medio día y el otro completo) | P1 | Corregido **sin publicar**: Asistencia enseña las dos decisiones con quién, cuándo y por qué, dice cuál se está aplicando (la misma en todos los teléfonos) y deja cancelar, con motivo, la que no vale. Siempre vale una sola: nunca dos pagos ni dos cargos. Hay un historial de decisiones donde las canceladas se quedan con quién las canceló y por qué. Con la semana cerrada no se decide ni se cancela sin reabrirla; lo que llegue de otro teléfono sin señal sale como diferencia contra el cierre, diciendo quién y por qué |
 
 ## Lo que no se pudo ejecutar y por qué
 
@@ -152,7 +152,7 @@ Corte: domingo 22 de noviembre de 2026. **11 aprobados · 14 recorridos en parte
 | 56 | Credenciales | NO VERIFICADO | antes: checador | — | Falta la auditoría completa |
 | 57 | Pase de lista | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
 | 58 | Asistencia | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 59 | Pagos al personal | **PARCIAL** | auditoria_pagos 40 · auditoria_semana 26 · auditoria_ausencias 19 · auditoria_identidad 27 · entrega | Lo que corresponde, pago (sellado por la base), el préstamo no descuenta solo, cuenta de cuadrilla por responsable, bonos (otorgar es costo, pagar no), recibo con versión, cerrar, confirmar y reabrir la semana, Finanzas y encargado sin permiso, recarga, otro aparato; el mismo pago hecho en dos teléfonos sin señal queda a la vista como entregado de más; salida antes de tiempo (nada se descuenta solo; decisión con motivo, sellada por la base; dos teléfonos decidiendo distinto quedan a la vista y se cancela la que no vale); ausencias (quien no vino es una pregunta, no una falta; permiso con causa y quién autorizó; se paga y va como costo sin parcela, no a la parcela) | Con cuentas faltan: horas adicionales, prestaciones y bajas (recorridos en local: pagos 33, prestaciones 49, bajas 34) |
+| 59 | Pagos al personal | **PARCIAL** | auditoria_pagos 40 · auditoria_semana 26 · auditoria_ausencias 36 · auditoria_identidad 27 · entrega | Lo que corresponde, pago (sellado por la base), el préstamo no descuenta solo, cuenta de cuadrilla por responsable, bonos (otorgar es costo, pagar no), recibo con versión, cerrar, confirmar y reabrir la semana, Finanzas y encargado sin permiso, recarga, otro aparato; el mismo pago hecho en dos teléfonos sin señal queda a la vista como entregado de más; salida antes de tiempo (nada se descuenta solo; decisión con motivo, sellada por la base; dos teléfonos decidiendo distinto quedan a la vista y se cancela la que no vale); ausencias (quien no vino es una pregunta, no una falta; permiso con causa y quién autorizó; se paga y va como costo sin parcela, no a la parcela); historial de decisiones con las canceladas; ya pagado, cancelar una decisión no toca el pago y deja el pendiente a la vista; con la semana cerrada no se cambia sin reabrir, y lo que llega tarde de otro teléfono sale como diferencia con su autor y motivo; aparato recién entrado ve lo mismo | Con cuentas faltan: horas adicionales, prestaciones y bajas (recorridos en local: pagos 33, prestaciones 49, bajas 34) |
 | 60 | Aprobar externos | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
 | 61 | Mis días | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
 | 62 | Arranque | NO VERIFICADO | antes: arranque, cuentas | — | Falta la auditoría completa |

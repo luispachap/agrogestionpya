@@ -348,3 +348,29 @@ test("dos_decisiones_distintas_para_el_mismo_dia_se_ensenan_las_dos_y_se_dice_cu
   assert.deepEqual(decisionesEncontradas([ev("a", "medio", "Luis", "2026-11-19T17:00:00Z"), ev("b", "medio", "Migue", "2026-11-19T17:12:00Z")]), [], "si decidieron lo mismo no hay nada que aclarar");
   assert.deepEqual(decisionesEncontradas([ev("a", "medio", "Luis", "2026-11-19T17:00:00Z"), ev("b", "completo", "Migue", "2026-11-19T17:12:00Z", { estado: "cancelado" })]), [], "cancelada la que sobra, se acaba el aviso");
 });
+
+import { decidirJornada, decisionesDeJornada, historialDeDecisiones, SEMANA_CERRADA } from "./cuadrillas.js";
+import { cancelarEvento as cancelarDec } from "./eventos.js";
+test("a_la_misma_hora_los_dos_telefonos_escogen_la_misma_decision", () => {
+  const q = { id: "u1", nombre: "Luis" }, f = "2026-11-19";
+  const dec = (id, pago) => ({ id, tipo: "decision_jornada", estado: "vigente", fecha: f, capturado: `${f}T18:00:00.000Z`, quien: q, datos: { trabajadorId: "t1", pago, motivo: "m" } });
+  const a = dec("da", "medio"), b = dec("db", "completo");
+  assert.equal(decisionesDeJornada([a, b]).get(`t1|${f}`).id, "db");
+  assert.equal(decisionesDeJornada([b, a]).get(`t1|${f}`).id, "db");
+});
+test("con_la_semana_cerrada_no_se_decide_por_encima_del_cierre", () => {
+  const r = decidirJornada({ permitido: true, trabajadorId: "t1", fecha: "2026-11-19", situacion: "abandono", pago: "medio", motivo: "se fue", quien: { id: "u1", nombre: "Luis", rol: "admin" }, cuando: "2026-11-23T15:00:00Z", semanaCerrada: true });
+  assert.equal(r.ok, false); assert.equal(r.dice, SEMANA_CERRADA);
+});
+test("cancelar_una_decision_pide_motivo_y_el_historial_la_conserva_con_quien_y_por_que", () => {
+  const q = { id: "u1", nombre: "Luis" }, f = "2026-11-19";
+  const a = { id: "da", tipo: "decision_jornada", estado: "vigente", fecha: f, capturado: `${f}T18:00:00.000Z`, quien: q, datos: { trabajadorId: "t1", pago: "medio", situacion: "abandono", motivo: "se fue" } };
+  const b = { ...a, id: "db", capturado: `${f}T18:05:00.000Z`, quien: { id: "u2", nombre: "Migue" }, datos: { ...a.datos, pago: "completo", motivo: "tenía permiso" } };
+  assert.equal(cancelarDec(b, { motivo: " ", quien: q, cuando: `${f}T19:00:00Z` }).ok, false, "sin motivo no se cancela");
+  const c = cancelarDec(b, { motivo: "se capturó mal", quien: q, cuando: `${f}T19:00:00Z` }).evento;
+  const h = historialDeDecisiones([a, c]);
+  assert.equal(h.length, 2, "las dos siguen en el historial");
+  assert.deepEqual(h.map(x => [x.ev, x.estado, x.vale]), [["da", "vigente", true], ["db", "cancelada", false]]);
+  assert.deepEqual(h[1].cancelada, { por: "Luis", motivo: "se capturó mal", cuando: `${f}T19:00:00.000Z` });
+  assert.equal(h[1].motivo, "tenía permiso", "lo que decía la cancelada no se toca"); assert.equal(h[1].quien, "Migue");
+});

@@ -44,7 +44,7 @@ with sync_playwright() as p:
         ctx = b.new_context(viewport={"width": 390, "height": 820}, timezone_id="America/Mexico_City", service_workers="block")
         ctx.route("**/*", lambda r: r.continue_() if "localhost" in r.request.url else r.abort()); ctx.route(N.NUBE + "/**", nube)
         pg = ctx.new_page(); pg.dialogos = []
-        pg.on("pageerror", lambda e: errs.append(str(e) + " @ " + (e.stack or "")[:400])); pg.on("dialog", lambda d: (pg.dialogos.append(d.message), d.accept("Se capturó mal") if d.type == "prompt" else d.accept()))
+        pg.on("pageerror", lambda e: errs.append(str(e) + " @ " + (e.stack or "")[:400])); pg.on("dialog", lambda d: (pg.dialogos.append(d.message), d.accept(pg.respuesta) if d.type == "prompt" else d.accept())); pg.respuesta = "Se capturó mal"
         pg.clock.install(time=f"{HOY}T{hh}:00-06:00"); pg.goto(URL); pg.wait_for_timeout(1500); hora(pg)
         pg.get_by_placeholder("Tu correo o tu PIN").fill(cuenta["correo"]); pg.get_by_placeholder("Contraseña", exact=True).fill("contrasena-larga-1"); pg.get_by_role("button", name="Entrar").click()
         for _ in range(30):
@@ -100,10 +100,19 @@ with sync_playwright() as p:
     tab(A, "Asistencia"); t = plano(A.locator("body").inner_text())
     enc = A.locator(".card", has_text="Dos decisiones distintas para el mismo día"); te = plano(enc.inner_text()) if enc.count() else ""
     caso("las dos decisiones quedan a la vista con quién y por qué, y se dice cuál se está aplicando", "SE FUE SIN AVISAR INVENTADO" in te and "TENIA PERMISO INVENTADO" in te and "es la que se está aplicando" in te and "ADMIN DE PRUEBA" in te, te[:700])
+    caso("y de cada una se dice cuándo se tomó", te.count("2026-11-19,") >= 2, te[:400])
+    caso("con las dos vigentes nunca hay dos pagos ni dos cargos: un solo día para Ana y un solo importe en la parcela (jamás $600)", cA["egresos"] != 600 and "$600" not in tA and len([x for x in A.evaluate("() => window.__agroDatos.actividadesContables || []") if x.get("trabajadorId") and x.get("fecha") == HOY]) <= 1, [cA["egresos"], tA[:120]])
+    A.respuesta = "  "; enc.get_by_role("button", name="Cancelar la decisión de ADMIN DE PRUEBA").last.click(); A.wait_for_timeout(800)
+    caso("cancelar sin decir el motivo no cancela nada", all(e["estado"] == "vigente" for e in de(A, "decision_jornada")) and any("Por qué se cancela" in d for d in A.dialogos), A.dialogos[-2:])
+    A.respuesta = "Se capturó mal"
     enc.get_by_role("button", name="Cancelar la decisión de ADMIN DE PRUEBA").last.click(); A.wait_for_timeout(1500)
     cX = A.evaluate(CUENTAS); dj = de(A, "decision_jornada")
     caso("cancelada (con motivo) la que no valía, se aplica la otra: medio día, $200 a Ana y $200 a la parcela, y el aviso se va", cX["egresos"] == 200 and sorted(e["estado"] for e in dj) == ["cancelado", "vigente"] and A.locator(".card", has_text="Dos decisiones distintas para el mismo día").count() == 0, [cX["egresos"], [[e["estado"], e["datos"]["pago"]] for e in dj]])
     cA = cX; subio(A)
+    h = A.locator(".card", has_text="Decisiones sobre salidas antes de tiempo"); th = plano(h.inner_text()) if h.count() else ""
+    can = [e for e in dj if e["estado"] == "cancelado"]
+    caso("el historial conserva las dos: la vigente («es la que se está aplicando») y la cancelada, con quién la canceló, cuándo y por qué", "Es la que se está aplicando" in th and "Cancelada por ADMIN DE PRUEBA" in th and "Se capturó mal" in th and "TENIA PERMISO INVENTADO" in th and "SE FUE SIN AVISAR INVENTADO" in th, th[:700])
+    caso("la decisión cancelada sigue guardada íntegra (lo que decía no se tocó) con su sello de cancelación", len(can) == 1 and can[0]["datos"]["motivo"] == "TENIA PERMISO INVENTADO" and can[0]["cancelado"]["motivo"] == "Se capturó mal" and can[0]["cancelado"]["por"]["nombre"] == "ADMIN DE PRUEBA", can[0].get("cancelado") if can else None)
 
     # ══ 3. Beto no vino: es una pregunta, no una falta ══
     sin = A.locator(".card", has_text="No vinieron y nadie ha dicho por qué")
@@ -126,6 +135,49 @@ with sync_playwright() as p:
     caso("el otro teléfono ve lo mismo de Beto", "$400" in tarjeta(C, "BETO INVENTADO").inner_text(), plano(tarjeta(C, "BETO INVENTADO").inner_text())[:200])
     recarga(A); cR = A.evaluate(CUENTAS)
     caso("después de recargar nada cambia", cR["egresos"] == c3["egresos"] and cR["sale"] == c3["sale"], [cR["egresos"], cR["sale"]])
+
+    # ══ 4. Ya pagado y ya cerrado: una decisión nueva no cambia calladamente ni lo pagado ni lo cerrado ══
+    ir(A, "nomina"); A.wait_for_timeout(400)
+    tarjeta(A, "ANA INVENTADA").get_by_role("button", name="Registrar pago").click(); A.wait_for_timeout(300)
+    A.get_by_label("Cuánto se entregó ($)").fill("200"); modal(A).get_by_role("button", name="Registrar pago").click(); A.wait_for_timeout(1600)
+    pago0 = de(A, "pago_personal"); c4 = A.evaluate(CUENTAS); subio(A)
+    caso("a Ana se le entregan sus $200 (pago sellado por la base)", len(pago0) == 1 and pago0[0].get("_validacion") == "autorizado" and c4["sale"] == cR["sale"] + 200, [len(pago0), c4["sale"], cR["sale"]])
+    tab(A, "Asistencia"); A.respuesta = "SE REVISO DESPUES INVENTADO"
+    A.locator(".card", has_text="Decisiones sobre salidas antes de tiempo").get_by_role("button", name=re.compile("^Cancelar la decisión")).first.click(); A.wait_for_timeout(1500)
+    pago1 = de(A, "pago_personal"); c5 = A.evaluate(CUENTAS); tab(A, "Planta"); t = plano(tarjeta(A, "ANA INVENTADA").inner_text())
+    caso("cancelar la decisión DESPUÉS de pagar no toca el pago: siguen entregados $200 y el dinero que salió es el mismo", pago1 == pago0 and c5["sale"] == c4["sale"], [c5["sale"], c4["sale"]])
+    caso("y la diferencia queda a la vista: le corresponden $400, entregado $200, pendiente $200", "$400" in t and re.search(r"Entregado \| \$200", t) and re.search(r"Pendiente \| \$200", t), t[:300])
+    tab(A, "Asistencia"); decide(A, "medio", "SE CONFIRMA MEDIO DIA INVENTADO"); subio(A)
+    avanza(C, 6 / 60); recarga(C); avanza(C, 3 / 60); recarga(C)
+    caso("vuelta a decidir (medio día), los dos teléfonos quedan en lo mismo y sin pendiente", A.evaluate(CUENTAS)["egresos"] == C.evaluate(CUENTAS)["egresos"] == 600 and len([e for e in de(C, "decision_jornada") if e["estado"] == "vigente"]) == 1, [A.evaluate(CUENTAS)["egresos"], C.evaluate(CUENTAS)["egresos"]])
+    ir(A, "nomina"); A.wait_for_timeout(400); ci(A).get_by_role("button", name="Cerrar el cálculo de la semana").click(); A.wait_for_timeout(1600)
+    cs = de(A, "cierre_semana"); subio(A); cC0 = A.evaluate(CUENTAS)
+    caso("la semana se cierra (foto sellada)", len(cs) == 1 and cs[0].get("_validacion") == "autorizado", plano(ci(A).inner_text())[:200])
+    tab(A, "Asistencia"); antes = de(A, "decision_jornada"); n0 = len(A.dialogos)
+    A.locator(".card", has_text="Decisiones sobre salidas antes de tiempo").get_by_role("button", name=re.compile("^Cancelar la decisión")).first.click(); A.wait_for_timeout(900)
+    caso("con la semana cerrada no se deja cancelar ni cambiar una decisión: pide reabrirla, con motivo", de(A, "decision_jornada") == antes and any("ya está cerrada" in d and "reabrirla" in d for d in A.dialogos[n0:]), A.dialogos[n0:])
+    # el otro teléfono, sin señal y sin saber del cierre, sí la cancela: llega DESPUÉS del cierre
+    nube.caida = True; avanza(C, 1); ir(C, "nomina"); tab(C, "Asistencia"); C.respuesta = "CANCELADA SIN SABER DEL CIERRE INVENTADO"
+    C.locator(".card", has_text="Decisiones sobre salidas antes de tiempo").get_by_role("button", name=re.compile("^Cancelar la decisión")).first.click(); C.wait_for_timeout(1200)
+    nube.caida = False
+    avanza(C, 2 / 60); subio(C); avanza(A, 1.2); recarga(A); avanza(A, 3 / 60); recarga(A)
+    ir(A, "nomina"); A.wait_for_timeout(500); t = plano(ci(A).inner_text()); cs2 = de(A, "cierre_semana"); c6 = A.evaluate(CUENTAS)
+    caso("lo que llegó después del cierre NO cambia la foto del cierre ni el pago hecho", cs2[0]["datos"] == cs[0]["datos"] and de(A, "pago_personal") == pago0 and c6["sale"] == cC0["sale"], [c6["sale"], cC0["sale"]])
+    caso("y no pasa callado: el cierre dice cuánto cambió, quién lo cambió y por qué", "Después del cierre cambió $200" in t and "canceló una decisión" in t and "CANCELADA SIN SABER DEL CIERRE INVENTADO" in t and "ADMIN DE PRUEBA" in t, t[:700])
+    ci(A).get_by_role("button", name="Reabrir la semana").click(); A.wait_for_timeout(300)
+    if ci(A).get_by_role("button", name="Reabrir la semana").count() and len(de(A, "reapertura_semana")) == 0 and A.get_by_label("Por qué se reabre").count():
+        A.get_by_label("Por qué se reabre").fill("LLEGO UNA DECISION DESPUES INVENTADO"); ci(A).get_by_role("button", name="Reabrir la semana").click(); A.wait_for_timeout(1600)
+    ra = de(A, "reapertura_semana")
+    caso("para que el cambio entre al cierre hay que reabrir, con motivo y con permiso (sellado por la base); el cierre anterior se queda", len(ra) == 1 and ra[0].get("_validacion") == "autorizado" and "LLEGO UNA DECISION" in json.dumps(ra[0], ensure_ascii=False) and len(de(A, "cierre_semana")) == 1 and de(A, "cierre_semana")[0]["datos"] == cs[0]["datos"], plano(ci(A).inner_text())[:300])
+    subio(A)
+
+    # ══ 5. Volver a entrar en un aparato nuevo: todo sigue igual ══
+    D = aparato(ADM, "18:30"); hora(D); D.wait_for_timeout(1500)
+    dD = de(D, "decision_jornada"); cD = D.evaluate(CUENTAS); recarga(A); cA2 = A.evaluate(CUENTAS)
+    ir(D, "nomina"); tab(D, "Asistencia"); th = plano(D.locator(".card", has_text="Decisiones sobre salidas antes de tiempo").inner_text())
+    caso("un aparato recién entrado trae las tres decisiones con su historia completa (ninguna perdida ni repetida)", len(dD) == 3 and len({e["id"] for e in dD}) == 3 and sorted(e["estado"] for e in dD) == ["cancelado"] * 3 and all(e["cancelado"]["motivo"] and e["cancelado"]["por"]["nombre"] for e in dD), [[e["estado"], e["datos"]["pago"], (e.get("cancelado") or {}).get("motivo")] for e in dD])
+    caso("y enseña cada cancelación con quién y por qué", th.count("Cancelada por ADMIN DE PRUEBA") == 3 and "CANCELADA SIN SABER DEL CIERRE INVENTADO" in th and "SE REVISO DESPUES INVENTADO" in th and "Se capturó mal" in th, th[:900])
+    caso("las cuentas son las mismas en el aparato nuevo y en el de siempre, y el pago sigue siendo uno", cD["egresos"] == cA2["egresos"] and cD["sale"] == cA2["sale"] and len(de(D, "pago_personal")) == 1, [cD["egresos"], cA2["egresos"], cD["sale"], cA2["sale"]])
 
     caso("ninguna pantalla tronó", not errs, errs[:3])
     b.close()

@@ -24,7 +24,7 @@
   {
    "que": "Reglas y cálculos",
    "con": "npm test",
-   "resultado": "1,277 de 1,277"
+   "resultado": "1,281 de 1,281"
   },
   {
    "que": "La base, armada desde cero y atacada por perfil",
@@ -69,7 +69,7 @@
   {
    "que": "Asistencia con dos teléfonos (corrección posterior a la publicación)",
    "con": "pruebas/auditoria_ausencias_navegador.py",
-   "resultado": "19 de 19"
+   "resultado": "36 de 36"
   }
  ],
  "para_listo": [
@@ -570,8 +570,8 @@
    "n": 59,
    "nombre": "Pagos al personal",
    "estado": "PARCIAL",
-   "prueba": "auditoria_pagos 40 · auditoria_semana 26 · auditoria_ausencias 19 · auditoria_identidad 27 · entrega",
-   "probado": "Lo que corresponde, pago (sellado por la base), el préstamo no descuenta solo, cuenta de cuadrilla por responsable, bonos (otorgar es costo, pagar no), recibo con versión, cerrar, confirmar y reabrir la semana, Finanzas y encargado sin permiso, recarga, otro aparato; el mismo pago hecho en dos teléfonos sin señal queda a la vista como entregado de más; salida antes de tiempo (nada se descuenta solo; decisión con motivo, sellada por la base; dos teléfonos decidiendo distinto quedan a la vista y se cancela la que no vale); ausencias (quien no vino es una pregunta, no una falta; permiso con causa y quién autorizó; se paga y va como costo sin parcela, no a la parcela)",
+   "prueba": "auditoria_pagos 40 · auditoria_semana 26 · auditoria_ausencias 36 · auditoria_identidad 27 · entrega",
+   "probado": "Lo que corresponde, pago (sellado por la base), el préstamo no descuenta solo, cuenta de cuadrilla por responsable, bonos (otorgar es costo, pagar no), recibo con versión, cerrar, confirmar y reabrir la semana, Finanzas y encargado sin permiso, recarga, otro aparato; el mismo pago hecho en dos teléfonos sin señal queda a la vista como entregado de más; salida antes de tiempo (nada se descuenta solo; decisión con motivo, sellada por la base; dos teléfonos decidiendo distinto quedan a la vista y se cancela la que no vale); ausencias (quien no vino es una pregunta, no una falta; permiso con causa y quién autorizó; se paga y va como costo sin parcela, no a la parcela); historial de decisiones con las canceladas; ya pagado, cancelar una decisión no toca el pago y deja el pendiente a la vista; con la semana cerrada no se cambia sin reabrir, y lo que llega tarde de otro teléfono sale como diferencia con su autor y motivo; aparato recién entrado ve lo mismo",
    "falta": "Con cuentas faltan: horas adicionales, prestaciones y bajas (recorridos en local: pagos 33, prestaciones 49, bajas 34)"
   },
   {
@@ -899,7 +899,7 @@
    "nivel": "P1",
    "estado": "corregido",
    "publicado": false,
-   "nota": "Asistencia enseña las dos decisiones con quién y por qué, dice cuál se está aplicando y deja cancelar, con motivo, la que no vale"
+   "nota": "Asistencia enseña las dos decisiones con quién, cuándo y por qué, dice cuál se está aplicando (la misma en todos los teléfonos) y deja cancelar, con motivo, la que no vale. Siempre vale una sola: nunca dos pagos ni dos cargos. Hay un historial de decisiones donde las canceladas se quedan con quién las canceló y por qué. Con la semana cerrada no se decide ni se cancela sin reabrirla; lo que llegue de otro teléfono sin señal sale como diferencia contra el cierre, diciendo quién y por qué"
   }
  ],
  "no_se_pudo": [

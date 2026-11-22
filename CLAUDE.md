@@ -866,7 +866,10 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
 - **Cada cobro de un embarque es un hecho propio**: identificador, importe, fecha, `registradoPor`, `capturado`,
   `ingresoId` (y `abonoId`); la venta lleva `liquidacionId`. Recorrido: `auditoria_cobros` (15).
 - **Dos decisiones distintas del mismo día no se aplican calladas** (`decisionesEncontradas`, `cuadrillas.js`):
-  Asistencia enseña las dos con quién y por qué y deja cancelar la que no vale. Recorrido: `auditoria_ausencias` (19).
+  Asistencia enseña las dos con quién, cuándo y por qué y deja cancelar la que no vale; vale UNA (la última; a igual
+  hora, por identificador: igual en todos los teléfonos). `historialDeDecisiones` enseña también las canceladas. **Con la
+  semana cerrada no se decide ni se cancela una decisión** (`SEMANA_CERRADA`): se reabre con motivo; lo que llegue tarde
+  de otro teléfono sale en la diferencia contra el cierre con su autor y motivo. Recorrido: `auditoria_ausencias` (36).
 
 ## Cómo verificar tu trabajo
 

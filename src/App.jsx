@@ -12,7 +12,7 @@ import {
 } from "./checador.js";
 // Cuadrillas: a dónde se mandó a cada quien, y la mano de obra que sale de ahí.
 import {
-  asignar, terminar, anotarTareas, aclararTiempo, CAUSAS_SIN_ASIGNAR, repartoActual, manoDeObra, decisionesEncontradas, agrupar, actividadesDeManoDeObra, capturasDobles, unaSolaManoDeObra, decidirJornada, PAGO_DE_JORNADA,
+  asignar, terminar, anotarTareas, aclararTiempo, CAUSAS_SIN_ASIGNAR, repartoActual, manoDeObra, decisionesEncontradas, historialDeDecisiones, SEMANA_CERRADA, agrupar, actividadesDeManoDeObra, capturasDobles, unaSolaManoDeObra, decidirJornada, PAGO_DE_JORNADA,
   ajusteVigente, cambiarAjuste, AJUSTES, horasDe, acumular,
 } from "./cuadrillas.js";
 // Cuadrillas: los grupos eventuales que llegan juntos, con su responsable y su transporte.
@@ -22492,6 +22492,7 @@ function CierreSemana({ data, add, session, ini, fin, renglones }) {
       {dif.hay && <div style={{ borderLeft: "3px solid var(--gold)", paddingLeft: 10, marginBottom: 10 }}>
         <div className="text-sm font-bold">Después del cierre cambió {fmt(dif.total)}</div>
         {dif.lista.map(x => <div key={`${x.a.tipo}${x.a.id}`} className="text-xs text-muted">{x.a.nombre}: al cerrar eran {fmt(x.era)}, hoy son {fmt(x.es)}</div>)}
+        {historialDeDecisiones(data.eventos || [], { desde: ini, hasta: fin }).filter(d => (d.capturado > s.cierre.capturado && d.estado !== "por_validar" && d.estado !== "rechazada") || (d.cancelada && d.cancelada.cuando > s.cierre.capturado)).map(d => <div key={d.ev} className="text-xs" style={{ marginTop: 2 }}>Después del cierre, {d.cancelada && d.cancelada.cuando > s.cierre.capturado ? `${d.cancelada.por} canceló una decisión («${d.cancelada.motivo}»)` : `${d.quien} decidió «${PAGO_DE_JORNADA[d.pago] || d.pago}» («${d.motivo}»)`} sobre el día {d.fecha}.</div>)}
         <div className="text-xs text-muted">El cierre no se cambia solo. O se reabre y se cierra otra vez, o esta diferencia queda a la vista como ajuste.</div>
       </div>}
       {s.estado === "cerrada" && (s.confirmacion
@@ -23051,7 +23052,7 @@ function PanelAsistencia({ data, add, upd, session, ini, fin, semanas, mo, cerra
     r.eventos.forEach(e => add("eventos", e)); setAus(null); setDice("");
   };
   const guardarDec = () => {
-    const r = decidirJornada({ permitido: puedeOp("decidir_asistencia"), trabajadorId: dec.caso.trabajadorId, fecha: dec.caso.fecha, situacion: dec.situacion, pago: dec.pago, motivo: dec.motivo, quien, cuando: new Date().toISOString() });
+    const r = decidirJornada({ permitido: puedeOp("decidir_asistencia"), trabajadorId: dec.caso.trabajadorId, fecha: dec.caso.fecha, situacion: dec.situacion, pago: dec.pago, motivo: dec.motivo, quien, cuando: new Date().toISOString(), semanaCerrada: cerrada });
     if (!r.ok) { setDice(r.dice); return; }
     add("eventos", r.evento); setDec(null); setDice("");
   };
@@ -23060,6 +23061,15 @@ function PanelAsistencia({ data, add, upd, session, ini, fin, semanas, mo, cerra
     if (!r.ok) { setDice(r.dice); return; }
     if (cambioPermitido(jus.evento, r.anterior)) upd("eventos", r.anterior); add("eventos", r.nuevo); setJus(null); setDice("");
   };
+  const cuandoDe = (iso) => `${fechaLocal(new Date(iso))}, ${horaCorta(iso)}`;
+  const cancelarDec = (id) => {
+    if (cerrada) { alert(SEMANA_CERRADA); return; }
+    const motivo = prompt("¿Por qué se cancela esta decisión? Queda escrito con tu nombre."); if (!motivo || !motivo.trim()) return;
+    const ev = (data.eventos || []).find(x => x.id === id); const r = ev && cancelarEvento(ev, { motivo: motivo.trim(), quien: quienDe(session), cuando: new Date().toISOString() });
+    if (r?.ok) upd("eventos", r.evento); else if (r?.dice) alert(r.dice);
+  };
+  const historial = historialDeDecisiones(data.eventos || [], { desde: ini, hasta: fin });
+  const nombreDeQuien = (id) => (data.trabajadores || []).find(t => t.id === id)?.nombre || (data.encargados || []).find(t => t.id === id)?.nombre || "—";
   const alternaSabado = (t) => { const d = Array.isArray(t.diasAsistencia) && t.diasAsistencia.length ? t.diasAsistencia : DIAS_DE_SIEMPRE; upd("trabajadores", { ...t, diasAsistencia: d.includes(6) ? d.filter(x => x !== 6) : [...d, 6].sort() }); };
   return (<>
     {cerrada && <div className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">Esta semana ya está cerrada. Lo que registres aquí no cambia el cierre: saldrá como diferencia contra él, hasta que alguien la reabra y la cierre otra vez.</div></div>}
@@ -23071,11 +23081,23 @@ function PanelAsistencia({ data, add, upd, session, ini, fin, semanas, mo, cerra
         {enc.map(c => <div key={`${c.trabajadorId}-${c.fecha}`} style={{ padding: "6px 0", borderTop: "1px solid var(--border)" }}>
           <div className="text-sm"><b>{nombreDe(c.trabajadorId)}</b> · {c.fecha}</div>
           {c.decisiones.map(d => <div key={d.ev} className="flex-b" style={{ gap: 8, marginTop: 4 }}>
-            <span className="text-xs">{PAGO_DE_JORNADA[d.pago] || d.pago}{d.ev === c.vale ? " (es la que se está aplicando)" : ""} — {d.quien}: «{d.motivo}»</span>
-            {seOfrece(session, "decidir_asistencia") && <button className="btn btn-outline btn-sm" style={{ flex: "0 0 auto" }} aria-label={`Cancelar la decisión de ${d.quien}`} onClick={() => { const motivo = prompt("¿Por qué se cancela esta decisión?"); if (!motivo || !motivo.trim()) return; const ev = (data.eventos || []).find(x => x.id === d.ev); const r = ev && cancelarEvento(ev, { motivo: motivo.trim(), quien: quienDe(session), cuando: new Date().toISOString() }); if (r?.ok) upd("eventos", r.evento); else if (r?.dice) alert(r.dice); }}>Cancelar ésta</button>}
+            <span className="text-xs">{PAGO_DE_JORNADA[d.pago] || d.pago}{d.ev === c.vale ? " (es la que se está aplicando)" : ""} — {d.quien}, {cuandoDe(d.capturado)}: «{d.motivo}»</span>
+            {seOfrece(session, "decidir_asistencia") && <button className="btn btn-outline btn-sm" style={{ flex: "0 0 auto" }} aria-label={`Cancelar la decisión de ${d.quien}`} onClick={() => cancelarDec(d.ev)}>Cancelar ésta</button>}
           </div>)}
         </div>)}
       </div>; })()}
+    {historial.length > 0 && <div className="card">
+      <div className="card-title">Decisiones sobre salidas antes de tiempo</div>
+      <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Todas las que se han tomado esta semana, también las canceladas. Ninguna se borra.</div>
+      {historial.map(d => <div key={d.ev} style={{ padding: "6px 0", borderTop: "1px solid var(--border)" }}>
+        <div className="flex-b" style={{ gap: 8 }}>
+          <span className="text-sm" style={d.estado === "cancelada" ? { textDecoration: "line-through", opacity: .7 } : null}><b>{nombreDeQuien(d.trabajadorId)}</b> · {d.fecha} · {PAGO_DE_JORNADA[d.pago] || d.pago}</span>
+          {d.estado === "vigente" && seOfrece(session, "decidir_asistencia") && <button className="acc-link" style={{ flex: "0 0 auto" }} aria-label={`Cancelar la decisión del ${d.fecha} de ${nombreDeQuien(d.trabajadorId)} tomada por ${d.quien}`} onClick={() => cancelarDec(d.ev)}>Cancelar</button>}
+        </div>
+        <div className="text-xs text-muted">La tomó {d.quien || "—"} el {cuandoDe(d.capturado)}: «{d.motivo}»</div>
+        <div className="text-xs" style={{ color: d.estado === "vigente" && d.vale ? "var(--green)" : "var(--muted)" }}>{d.estado === "cancelada" ? `Cancelada por ${d.cancelada?.por || "—"} el ${d.cancelada?.cuando ? cuandoDe(d.cancelada.cuando) : "—"}: «${d.cancelada?.motivo || ""}»` : d.estado === "rechazada" ? "La base no la autorizó: no cuenta." : d.estado === "por_validar" ? "Por validar: todavía no llega a la base y no cuenta." : d.vale ? "Es la que se está aplicando." : "Vigente, pero no se aplica: hay otra más reciente para ese día."}</div>
+      </div>)}
+    </div>}
     {mo.salidasPorRevisar.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}>
       <div className="card-title">Salieron antes: por revisar</div>
       <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Mientras nadie decida, su día se paga completo. No hay descuento automático.</div>

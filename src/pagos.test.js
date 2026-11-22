@@ -68,6 +68,17 @@ test("salir_antes_no_descuenta_nada_solo_queda_por_revisar_y_la_decision_la_toma
   assert.equal(con("medio").partes[0].parcelaId, "p7", "y a la parcela le llega lo que de verdad se pagó");
   assert.ok(con("medio").partes[0].evs.length >= 4, "la decisión queda en el rastro de ese importe");
 });
+test("dos_decisiones_contrarias_del_mismo_dia_dan_un_solo_dia_pagado_y_un_solo_cargo_a_la_parcela", () => {
+  let evs = [];
+  evs = [...evs, marcar({ eventos: evs, trabajador: ANA, via: "pin", ahora: c(L, "07:00"), fecha: L, quien: ENC, azar: az() }).evento];
+  evs = [...evs, asignar({ trabajadorIds: ["t-ana"], parcelaId: "p7", actividad: "Riego", desde: c(L, "07:00"), fecha: L, quien: ENC, azar: az() }).evento];
+  evs = [...evs, marcar({ eventos: evs, trabajador: ANA, via: "pin", ahora: c(L, "11:00"), fecha: L, quien: ENC, azar: az() }).evento];
+  const decide = (pago, cuando) => nuevoEvento({ tipo: TIPO_DECISION, cuando: c(L), fecha: L, capturado: cuando, quien: ADMIN, azar: az(), datos: { trabajadorId: "t-ana", situacion: "abandono", pago, motivo: "m" } });
+  const medio = decide("medio", c(HOY, "10:00")), completo = decide("completo", c(HOY, "10:05"));
+  const cuenta = (lista) => { const r = manoDeObra(lista, [ANA], { desde: L, hasta: L, hoy: HOY, ahora: c(HOY, "18:00") }); return [r.total, r.partes.reduce((n, p) => n + p.monto, 0), r.partes.filter(p => p.parcelaId === "p7").length]; };
+  assert.deepEqual(cuenta([...evs, medio, completo]), [400, 400, 1], "vale la última: UN día completo, UN cargo a la parcela — nunca 600");
+  assert.deepEqual(cuenta([...evs, completo, medio]), [400, 400, 1], "y llegue en el orden que llegue");
+  });
 
 // ── Cuadrillas y temporales ──
 const parte = (mas) => ({ clase: "pago", cuadrillaId: "cq1", cuadrilla: "Los de Villa", responsable: "Don Chuy", independiente: false, persona: "Ana", fecha: L, monto: 350, ...mas });
