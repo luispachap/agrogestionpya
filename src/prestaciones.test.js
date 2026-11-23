@@ -218,3 +218,27 @@ test("al_costo_solo_va_lo_generado_desde_que_se_lleva_el_sistema_y_cada_renglon_
   assert.equal(sumarDinero(rs.filter(r => r.concepto === "aguinaldo").map(r => r.monto)), 2130);
   assert.match(rs[0].que, /Aguinaldo que se generó · año 2026/); assert.match(rs[0].detalle, /÷ 365/);
 });
+
+test("el_aguinaldo_y_las_vacaciones_de_quien_cobra_por_semana_salen_de_la_semana_entre_siete_y_su_dia_de_pago_sigue_entre_seis", async () => {
+  // Luis, 23 nov: «el aguinaldo se calcula en base a salario semanal entre 7 ese es el verdadero salario diario pero
+  // necesitamos aplicar todo el costo a los cultivos, por eso para lo demás es entre 6».
+  const { sueldoVigente } = await import("./calculos.js");
+  const semanal = { id: "t-sem", nombre: "Beto", sueldo_semana: 3500, sueldo_dia: 583.33, fechaIngreso: "2024-03-01",
+    historialSueldo: [{ desde: "2024-03-01", sueldo_dia: 583.33, anterior: 583.33, sueldo_semana: 3500 }] };
+  const cond = condicionesDe(semanal);
+  const ag = cond.baseDe("aguinaldo", "2026-11-19"), vac = cond.baseDe("vacaciones", "2026-11-19");
+  assert.equal(ag.monto, 500, "3,500 ÷ 7"); assert.equal(vac.monto, 500);
+  assert.match(ag.origen, /entre 7/);
+  // El día que se le paga (y que se carga a la parcela) no cambia: la semana entre sus seis días.
+  assert.equal(sueldoVigente(semanal, "2026-11-16").sueldo, 583.33, "lunes: su parte de la semana");
+  // Faltar un día deja de pagar 1 1/6 días de ley: 583.33 ≈ 500 × 7/6.
+  assert.equal(Math.round(500 * 7 / 6 * 100) / 100, 583.33);
+  // Quien viene cinco días también tiene su diario de ley entre 7: el calendario no cambia la base de ley.
+  const cinco = { ...semanal, diasAsistencia: [1, 2, 3, 4, 5] };
+  assert.equal(condicionesDe(cinco).baseDe("aguinaldo", "2026-11-19").monto, 500);
+  assert.equal(sueldoVigente(cinco, "2026-11-16").sueldo, 700, "pero su día de pago es la semana entre cinco");
+  // Lo que diga su ficha manda sobre la regla.
+  assert.equal(condicionesDe({ ...semanal, prestaciones: { baseAguinaldo: 520 } }).baseDe("aguinaldo", "2026-11-19").monto, 520);
+  // Quien cobra por día (sin sueldo de la semana) sigue con su sueldo por día.
+  assert.equal(condicionesDe(ANA).baseDe("aguinaldo", "2026-11-19").monto, 365);
+});

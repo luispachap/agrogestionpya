@@ -392,6 +392,11 @@ export function calcularCostoManoObra(actividades, trabajadores) {
 export const DIAS_DE_SIEMPRE = [1, 2, 3, 4, 5, 6];
 export const diaDeLaSemana = (fecha) => { const d = new Date(fecha + "T12:00:00Z").getUTCDay(); return d === 0 ? 7 : d; };
 const diasDelCalendario = (t) => (Array.isArray(t?.diasAsistencia) && t.diasAsistencia.length ? [...new Set(t.diasAsistencia.map(Number))].sort((a, b) => a - b) : DIAS_DE_SIEMPRE);
+// EL SALARIO DIARIO DE LEY (Luis, 23 nov): «el aguinaldo se calcula en base a salario semanal entre 7, ése es el
+// verdadero salario diario». La semana entre 7 es la base de aguinaldo, vacaciones, prima, finiquito y salario integrado.
+// El costo y el pago de cada día siguen siendo la semana entre los días de su calendario (6): faltar un día deja de
+// pagar semana ÷ 6 = 1 1/6 días de ley. Son dos usos del mismo sueldo, no dos sueldos.
+export const diarioDeLey = (semana) => Math.round((parseFloat(semana) || 0) / 7 * 100) / 100;
 export const promedioDeSemana = (semana, trabajador) => Math.round((parseFloat(semana) || 0) / diasDelCalendario(trabajador).length * 100) / 100;
 export function parteDelDia(semana, trabajador, fecha) {
   const s = parseFloat(semana) || 0; if (!(s > 0)) return 0;
@@ -416,7 +421,7 @@ export function sueldoVigente(trabajador, fecha) {
   if (!trabajador) return { sueldo: 0, origen: "sin_dato", estimado: true };
   // Quien cobra por semana: el día vale su parte de la semana (y se dice el promedio y la semana de donde salió).
   const de = (r, origen, estimado) => { const sem = parseFloat(r.sueldo_semana) || 0;
-    return sem > 0 ? { sueldo: parteDelDia(sem, trabajador, fecha), promedio: promedioDeSemana(sem, trabajador), semana: sem, origen, estimado } : { sueldo: parseFloat(r.sueldo_dia) || 0, origen, estimado }; };
+    return sem > 0 ? { sueldo: parteDelDia(sem, trabajador, fecha), promedio: promedioDeSemana(sem, trabajador), deLey: diarioDeLey(sem), semana: sem, origen, estimado } : { sueldo: parseFloat(r.sueldo_dia) || 0, origen, estimado }; };
   const hist = (trabajador.historialSueldo || []).filter(h => h && h.desde).sort((a, b) => (a.desde < b.desde ? -1 : 1));
   if (hist.length > 0 && fecha) {
     let vigente = null;

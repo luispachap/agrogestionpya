@@ -161,3 +161,15 @@ test("las_indemnizaciones_usan_las_percepciones_de_su_ficha_y_avisan_si_el_salar
   assert.ok(!propone("renuncia").avisos.some(a => /es un piso/.test(a)), "en un finiquito no hay indemnización: no estorba");
   assert.equal(de(p, "prima_antiguedad").monto, de(propone("despido_injustificado"), "prima_antiguedad").monto, "la prima de antigüedad NO va con salario integrado");
 });
+
+test("la_prima_de_antiguedad_de_quien_cobra_por_semana_usa_la_semana_entre_siete", () => {
+  const BETO = { id: "t-beto", nombre: "Beto", sueldo_semana: 3500, sueldo_dia: 583.33, fechaIngreso: "2010-01-01",
+    historialSueldo: [{ desde: "2010-01-01", sueldo_dia: 583.33, anterior: 583.33, sueldo_semana: 3500 }] };
+  const p = proponerBaja({ persona: BETO, causa: "renuncia", fecha: DIA, cuenta: cuenta(BETO), minimo: SM(300) });
+  const pa = de(p, "prima_antiguedad");
+  assert.equal(pa.aplica, "si", "renuncia con 15 años o más");
+  // 500 está entre el mínimo (300) y el doble (600): la base es su diario de ley, 3,500 ÷ 7.
+  assert.match(pa.explica, /años × 500 \(/, pa.explica);
+  const conSeis = proponerBaja({ persona: { ...BETO, sueldo_semana: undefined, historialSueldo: [{ desde: "2010-01-01", sueldo_dia: 583.33, anterior: 583.33 }] }, causa: "renuncia", fecha: DIA, cuenta: cuenta(BETO), minimo: SM(300) });
+  assert.ok(de(conSeis, "prima_antiguedad").monto > pa.monto, "con 583.33 por día saldría más: la base ya no es la semana entre seis");
+});

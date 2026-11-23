@@ -102,8 +102,9 @@ export function condicionesDe(persona, reglas = {}, remuneraciones = []) {
   const baseDe = (concepto, fecha) => {
     const propia = Number(concepto === "aguinaldo" ? f.baseAguinaldo : f.baseVacaciones);
     if (propia > 0) return { monto: propia, origen: "la base de su ficha", estimado: false };
-    // Quien cobra por semana: la base es el promedio de su semana, no la parte del día que cayó la fecha.
-    if (fijo) { const v = sueldoVigente(persona, fecha); return { monto: v.promedio ?? v.sueldo, origen: `${v.semana ? `su sueldo de la semana (${v.semana}) entre sus días` : "su sueldo por día"}${v.origen === "historial" ? " de esa fecha" : " de hoy (no hay historial de esa fecha)"}`, estimado: v.estimado === true }; }
+    // Quien cobra por semana: la base es su salario diario de LEY, la semana entre 7 (Luis, 23 nov), no la parte del
+    // día que se le paga (semana entre 6) ni la que cayó en la fecha.
+    if (fijo) { const v = sueldoVigente(persona, fecha); return { monto: v.deLey ?? v.sueldo, origen: `${v.semana ? `su sueldo de la semana (${v.semana}) entre 7, su salario diario` : "su sueldo por día"}${v.origen === "historial" ? " de esa fecha" : " de hoy (no hay historial de esa fecha)"}`, estimado: v.estimado === true }; }
     const p = promedioDiario(remuneraciones, fecha, nProm);
     if (p.monto == null) return { monto: null, origen: "", estimado: true, revisar: `no hay días trabajados registrados hasta el ${fecha} con qué promediar lo que gana` };
     return { monto: p.monto, origen: `el promedio de sus últimos ${p.dias} días trabajados (${p.desde} a ${p.hasta})`, estimado: p.dias < nProm, revisar: p.dias < nProm ? `el promedio sale de sólo ${p.dias} día${p.dias === 1 ? "" : "s"} trabajado${p.dias === 1 ? "" : "s"}; se piden ${nProm}` : "" };

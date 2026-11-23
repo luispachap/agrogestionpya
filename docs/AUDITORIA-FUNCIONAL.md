@@ -274,7 +274,6 @@ Corte: domingo 22 de noviembre de 2026 (noche). **66 aprobados · 1 recorridos e
 - Otorgarse el permiso para configurar la organización (Arranque → Cuentas), si la va a usar.
 - Decidir a qué cuenta de Finanzas, si a alguna, se le otorga la consulta de Banco y Socios.
 - ContPAQi: las compras para el almacén salen en la cuenta de gastos (como cualquier egreso). ¿Quieres una cuenta de inventario aparte para ellas?
-- El IVA de las compras: hoy lo que entra al almacén vale sin IVA y el IVA no cuenta como costo (sólo sale en el flujo). ¿Se recupera (acreditable) o debe ser parte del costo?
 - Capturar en Personal → Préstamos → «Lo que ya debían» el saldo de cada préstamo que se sigue descontando (con la foto de la hoja firmada).
 - Con Miguel: cuántos cortes tiene el día y de qué horas (hoy, provisional: 7–10, 10–13 y 14–17), si el encargado pinta durante el día o al final, y si la tabla por cortes reemplaza «Registro de varios».
 - Checar desde el teléfono propio: a quién se activa, qué radio cuenta como «en el rancho» (hoy 300 m) y qué precisión (hoy 100 m); y si una marca «por revisar» (GPS impreciso) cuenta para el pago mientras nadie la revisa (hoy cuenta y se ve marcada). Para usarlo, cada rancho necesita su ubicación.
@@ -282,7 +281,6 @@ Corte: domingo 22 de noviembre de 2026 (noche). **66 aprobados · 1 recorridos e
 - Las categorías aparte (corona, grano, deshecho, pata de perro) entran al almacén como artículos SIN precio. ¿Se venden? ¿Con qué valor se llevan?
 - La tendencia de calidad de la corrida dice «quizá convenga bajar el ritmo… tú decides». ¿Se queda así o sólo informa (la regla es que la app informa y Migue manda)?
 - La lectura con IA (fotos de tickets, etiquetas, horómetro) sigue sin llave: es un gasto que autorizas tú. Mientras, la foto se guarda y se captura a mano.
-- Aguinaldo: con el sueldo de la semana entre 6, ¿el aguinaldo se paga sobre semana ÷ 7? Si sí, se pone en «base de aguinaldo» de cada ficha.
 - Los minutos entre que alguien checa y lo asignan a una parcela quedan «por aclarar». ¿Se quiere una tolerancia (por ejemplo 15 minutos) para no tener que aclararlos?
 
 ## Pendientes menores que pueden esperar

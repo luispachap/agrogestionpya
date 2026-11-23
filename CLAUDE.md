@@ -903,9 +903,13 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
 - **EL SUELDO DE LA SEMANA ENTRE 6 (Luis, 22 nov):** «para asignar la totalidad del sueldo semanal entre las
   actividades». La ficha lleva `sueldo_semana`; `sueldoVigente` da a cada día de su calendario su PARTE (`parteDelDia`,
   `repartirDinero`: la semana completa suma exacto y el centavo que sobra va al último día), un día fuera de su
-  calendario vale el promedio, y `sueldo_dia` es ese promedio (`conSueldoSemanal` al dar de alta o editar; base de
-  prestaciones: `promedio`). Si en la práctica el aguinaldo se paga sobre semana ÷ 7, va en «base de aguinaldo» de la
-  ficha. Quien no tiene `sueldo_semana` sigue igual que siempre.
+  calendario vale el promedio, y `sueldo_dia` es ese promedio (`conSueldoSemanal` al dar de alta o editar). Quien no
+  tiene `sueldo_semana` sigue igual que siempre.
+  **Las prestaciones van sobre la semana ÷ 7 (Luis, 23 nov: «ése es el verdadero salario diario»)**: `diarioDeLey`
+  (`sueldoVigente().deLey`) es la base de aguinaldo, vacaciones, prima vacacional, prima de antigüedad y salario
+  integrado (todo pasa por `condicionesDe().baseDe`). Pago y costo siguen ÷ 6: faltar un día deja de pagar semana ÷ 6 =
+  1 1/6 días de ley, y eso no es un descuento automático, es no pagar un día que no se registró. La «base de aguinaldo»
+  de la ficha sigue mandando sobre la regla.
 - **«Sueldo» a secas no es sueldo por día** (`sueldoEsPorDia`, importación): una hoja «Empleado | Sueldo» propone la
   ficha SIN sueldo y lo dice; y en una lista de pagos un apodo de dos letras ya es nombre.
 - **Dos decisiones distintas del mismo día no se aplican calladas** (`decisionesEncontradas`, `cuadrillas.js`):
