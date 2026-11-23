@@ -14,9 +14,18 @@
 // ════════════════════════════════════════════════════════════════════════
 export const CAMPOS_DE_CORRIDA_VIVA = ["cultivo", "estibaOrigenId", "poolIds", "modoRevoltura", "cajasPorEstiba", "folioCorrida", "corridaId",
   "responsable", "contador", "rendTramo", "contadorTramo", "aportesPrevios", "tramos", "estibasCerradas", "plasticoEventos", "lecturas",
-  "ritmoActual", "conteos", "metaDia", "avisarCada", "minCorte"];
+  "ritmoActual", "conteos", "metaDia", "avisarCada", "minCorte", "quitados"];
 
 const suma = (o) => Object.values(o || {}).reduce((s, x) => s + (Number(x) || 0), 0);
+// QUITAR NO ES BORRAR (defecto 16): un corte, un conteo o una entrada de limpio que se quita a media corrida sale de
+// las cuentas, pero se queda en `quitados` con qué era, por qué se quitó, a qué hora y quién; viaja en el reporte del día.
+export function quitarDeLaCorrida(lista, id, { tipo, motivo, hora, quien }) {
+  const r = (lista || []).find(x => x.id === id);
+  if (!r) return { ok: false, dice: "Ese renglón ya no está." };
+  if (!String(motivo || "").trim()) return { ok: false, dice: "Para quitarlo hay que decir por qué." };
+  return { ok: true, lista: lista.filter(x => x.id !== id), quitado: { tipo, registro: r, motivo: String(motivo).trim(), hora, quien: quien || "" } };
+}
+
 // ¿Hay algo que valga la pena retomar?
 export function tieneAlgo(e) {
   if (!e) return false;

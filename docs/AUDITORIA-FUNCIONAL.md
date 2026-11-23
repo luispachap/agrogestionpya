@@ -18,13 +18,13 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 
 | Qué | Con qué | Resultado |
 |---|---|---|
-| Reglas y cálculos | `npm test` | 1,296 de 1,296 |
-| La base, armada desde cero y atacada por perfil | `npm run test:base` | 163 de 163 |
+| Reglas y cálculos | `npm test` | 1,309 de 1,309 |
+| La base, armada desde cero y atacada por perfil | `npm run test:base` | 164 de 164 |
 | Respaldo y restauración, de punta a punta en local | `sh pruebas/respaldo_local/ensayo.sh` | 26 de 26 |
-| Todo junto: lo anterior, compilación y 54 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `d82e923`) |
+| Todo junto: lo anterior, compilación y 55 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `52fbafb`) |
 | Producción cerrada sin sesión | `pruebas/real_sin_sesion.py` | 6 de 6 |
 | El sitio publicado, en Android y iPhone imitados | `pruebas/real_sitio.py` | 18 de 18 |
-| Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos a `d82e923` |
+| Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos a `52fbafb` |
 | Producción igual a la base probada | `node pruebas/base/paridad.mjs --consulta` | 7 huellas iguales (última hoja instalada: 56) |
 | La base de producción rechaza pisar un identificador ocupado | `prueba directa que se deshace sola` | Otra marca: rechazado · sin marca: rechazado · misma marca: corrige |
 | Asistencia con dos teléfonos, semana cerrada y pago hecho | `pruebas/auditoria_ausencias_navegador.py` | 37 de 37 |
@@ -46,7 +46,8 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 
 | Qué | Estado | Detalle |
 |---|---|---|
-| La app en app.agroselectos.com | **Publicado** | Versión `d82e923`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio (18 de 18). |
+| La app en app.agroselectos.com | **Publicado** | Versión `52fbafb`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio (18 de 18). |
+| La hoja de pagos que se firma: lo que ya debían al arrancar, prestar en un paso, pago en dos partes, sueldo por semana entre 6 y la importación que no confunde el sueldo de la semana | **Publicado** | 23 de noviembre, de madrugada; hoja 57 instalada en la base y las siete huellas de producción iguales a las de la base probada. |
 | Captura diaria: «Mis días» con la cuenta real, registro de varios que dice lo que se paga, el día que se costeaba dos veces, y rastro al aprobar externos y atender incidencias | **Publicado** | 22 de noviembre; corrección ordinaria, publicada tras la batería completa. |
 | Campo (alta de cultivos, parcelas que no se eliminan con registros, cosechas que no se pisan ni se borran) y dos correcciones de identidad: hechos de nombre propio sin marca y estibas recién cerradas que no subían | **Publicado** | 22 de noviembre; corrección ordinaria, publicada tras la batería completa. |
 | Cobros parciales de un embarque desde dos teléfonos (no se pisan; cada cobro con autor, hora y su venta ligada) | **Publicado** | 22 de noviembre, autorizado por Luis. |
@@ -62,7 +63,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
 
-## Defectos encontrados al usar los módulos (73: 70 corregidos, 4 de ellos sin publicar; 3 abiertos)
+## Defectos encontrados al usar los módulos (73: 73 corregidos, 3 de ellos sin publicar; 0 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -79,9 +80,9 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 | 11 | Corrida de ajo | Salir de la pantalla o recargar a media corrida borraba las cajas contadas, las tarimas, los cortes y los conteos, y partía el reporte del día | P1 | Corregido y publicado |
 | 12 | Ajo terminado | El inventario de ajo terminado se podía ajustar sin decir el motivo | P1 | Corregido y publicado |
 | 13 | Respaldo | Una copia restaurada dejaba abiertas a toda cuenta las funciones de la base (incluida la que firma autorizaciones) | P0 | Corregido y publicado: corregido antes de estrenarse; nunca estuvo en producción |
-| 14 | Deudas / Proveedores | El proveedor se guarda distinto en cada pantalla (texto / ficha) | P2 | Abierto |
+| 14 | Deudas / Proveedores | El proveedor se guarda distinto en cada pantalla (texto / ficha) | P2 | Corregido **sin publicar**: Una deuda nueva apunta a la ficha del proveedor; un nombre que ya existe usa esa ficha; las de antes se leen como de la ficha que se llama igual |
 | 15 | Caja chica / Almacén | Una compra de almacén pagada de caja (o capturada en Finanzas) y además metida con costo en Inventario salía dos veces del flujo. Reproducido: $10,000 por una compra de $5,000 | P1 | Corregido y publicado: Inventario → Entradas propone el gasto que coincide y una persona dice «es la misma compra»; Finanzas avisa cuántas hay |
-| 16 | Corrida de ajo | Los cortes, conteos y cajas de plástico de la corrida se pueden borrar sin motivo; y la configuración se guarda con un nombre fijo, no por espacio | P2 | Abierto |
+| 16 | Corrida de ajo | Los cortes, conteos y cajas de plástico de la corrida se pueden borrar sin motivo; y la configuración se guarda con un nombre fijo, no por espacio | P2 | Corregido **sin publicar**: Quitar un corte, conteo o entrada de limpio pide el porqué y queda en el reporte del día; la configuración se guarda por espacio |
 | 17 | Consignaciones | Los cobros de un embarque viven dentro del embarque: dos teléfonos cobrando parte del mismo, uno sin señal, dejaban al embarque con un solo cobro ($9,000 en vez de $15,000; las dos ventas sí quedaban) | P1 | Corregido y publicado: reproducido y corregido: los cobros se unen por identificador, igual que los abonos de un crédito |
 | 18 | Solicitudes de compra | Al registrar la compra de un artículo que ya existía, la existencia NO subía (5 + 4 seguían siendo 5) y el costo de lo ya consumido cambiaba hacia atrás (el resultado pasó de $2,500 a $7,294 sin que nadie gastara) | P0 | Corregido y publicado: la mercancía entra como movimiento del almacén, con identificador fijo por solicitud (dos teléfonos no la meten doble) |
 | 19 | Conteo y mermas | Una merma o un faltante se valuaba al costo de HOY: una compra posterior más cara le cambiaba el importe a una merma vieja, y con él el resultado de un mes ya visto | P1 | Corregido y publicado: vale lo que costaba el día que pasó, y ese costo queda escrito en el propio registro al capturarlo |
@@ -104,7 +105,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 | 36 | Calendario | La fecha de cosecha real aceptaba cualquier texto (o una fecha anterior a la siembra), y de esa fecha salen los costos de la temporada | P2 | Corregido y publicado |
 | 37 | Comparar variedades | El rendimiento de una variedad se enseñaba sin los ajustes de cosecha (1,450 kg) mientras el rendimiento por hectárea sí los contaba (1,400) | P3 | Corregido y publicado |
 | 38 | Calendario, Estado de parcelas | Las etapas de un cultivo (emergencia, bulbificación…) sólo entran por la hoja de Excel: un cultivo dado de alta en la app no tiene etapas y su «avance por fase» sale vacío | P2 | Corregido y publicado: Las etapas se escriben en la app (Variedades → el cultivo → Etapas), revisadas: con nombre, en orden, sin encimarse y sin pasar de lo que dura el cultivo |
-| 39 | Cosechas | La cosecha se lleva una por parcela para siempre: el «costo por kilo» de la pantalla de Cosechas junta todas las temporadas de esa parcela (el resultado por temporada, en Finanzas y en Comparar variedades, sí separa por fechas) | P2 | Abierto |
+| 39 | Cosechas | La cosecha se lleva una por parcela para siempre: el «costo por kilo» de la pantalla de Cosechas junta todas las temporadas de esa parcela (el resultado por temporada, en Finanzas y en Comparar variedades, sí separa por fechas) | P2 | Corregido **sin publicar**: El costo por kilo es el de la temporada (entre su siembra y su cosecha), con una tabla por temporada en el detalle |
 | 40 | Mis días | Al trabajador se le enseñaba «Mi raya acumulada» = días palomeados en el pase de lista × su sueldo, de toda la vida y sin restar lo ya pagado: con dos actividades registradas veía $0, o un acumulado que nadie le debía | P1 | Corregido y publicado: ahora ve la misma cuenta que quien paga, de la semana: lo que le corresponde, lo entregado y lo que falta |
 | 41 | Registro de varios | La confirmación prometía sueldo × horas ÷ 8 (4 horas = $240) y en Pagos y en el costo salía el día completo ($480): la pantalla decía una cosa y los libros otra | P2 | Corregido y publicado: la pantalla enseña lo que de verdad se paga (su día) y explica que las horas sólo reparten el día entre parcelas |
 | 42 | Mano de obra, Reportes | Si un trabajador checaba su entrada sin que nadie lo asignara en Equipos de trabajo y además se le tecleaba su actividad, ese día se COSTEABA dos veces (una en la parcela y otra como tiempo sin asignar): un día de $400 costaba $800, aunque se pagaba una vez | P1 | Corregido y publicado: el día con actividad tecleada ya no se cuenta otra vez como tiempo sin asignar; el pago no cambia |
@@ -135,10 +136,10 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 | 67 | Hoja de Fito | Un fertilizante del catálogo con la fórmula en el nombre («Urea 46-00-00») no se reconocía y la hoja decía «no se sabe si hay» | P2 | Corregido y publicado: Se reconoce por el inicio del nombre; si dos artículos podrían ser el mismo, no se escoge ninguno y se dice |
 | 68 | El día, Pagos y Cierre de mes | Una reapertura hecha desde un teléfono con la hora atrasada podía quedar «antes» del cierre y no contar: se seguía viendo cerrada | P2 | Corregido y publicado: El orden entre cierre y reapertura sale de la hora corregida de cada teléfono |
 | 69 | El día | La casilla «Pasa a mañana» de una tarea sin terminar no tenía nombre para quien usa lector de pantalla | P3 | Corregido y publicado: Ya lo tiene |
-| 70 | Importar documentos | Una hoja con «Empleado | Sueldo» (la lista de nómina semanal) se tomaba como lista de personal y proponía dar de alta con SUELDO POR DÍA el importe de la semana ($3,500), y la pantalla de confirmar no enseñaba ese sueldo | P1 | Corregido **sin publicar**: «Sueldo» a secas ya no se supone por día: la ficha nace sin sueldo, se enseña lo que decía la hoja y se avisa |
-| 71 | Importar documentos | En una lista de pagos al personal, un apodo de menos de cinco letras («Gera», «Rigo») se tiraba como «sin nombre»: 6 de 23 renglones de la nómina del rancho | P2 | Corregido **sin publicar**: Con dos letras basta, igual que en una raya |
-| 72 | Personal, Pagos al personal | No había cómo anotar lo que un trabajador ya debía de préstamos dados antes de la app (la nómina en papel los descuenta cada semana): sus abonos no tenían a qué préstamo ir | P1 | Corregido **sin publicar**: «Lo que ya debían»: saldo a una fecha de corte, con quién responde y evidencia; lo valida la base (hoja 57) y no entra al flujo |
-| 73 | Pagos al personal, Equipo | Con el sueldo de la semana entre 6 (decisión de Luis), la semana completa salía dos centavos abajo: 583.33 × 6 = 3,499.98 | P2 | Corregido **sin publicar**: Sueldo por semana en la ficha: cada día vale su parte, repartida al centavo |
+| 70 | Importar documentos | Una hoja con «Empleado | Sueldo» (la lista de nómina semanal) se tomaba como lista de personal y proponía dar de alta con SUELDO POR DÍA el importe de la semana ($3,500), y la pantalla de confirmar no enseñaba ese sueldo | P1 | Corregido y publicado: «Sueldo» a secas ya no se supone por día: la ficha nace sin sueldo, se enseña lo que decía la hoja y se avisa |
+| 71 | Importar documentos | En una lista de pagos al personal, un apodo de menos de cinco letras («Gera», «Rigo») se tiraba como «sin nombre»: 6 de 23 renglones de la nómina del rancho | P2 | Corregido y publicado: Con dos letras basta, igual que en una raya |
+| 72 | Personal, Pagos al personal | No había cómo anotar lo que un trabajador ya debía de préstamos dados antes de la app (la nómina en papel los descuenta cada semana): sus abonos no tenían a qué préstamo ir | P1 | Corregido y publicado: «Lo que ya debían»: saldo a una fecha de corte, con quién responde y evidencia; lo valida la base (hoja 57) y no entra al flujo |
+| 73 | Pagos al personal, Equipo | Con el sueldo de la semana entre 6 (decisión de Luis), la semana completa salía dos centavos abajo: 583.33 × 6 = 3,499.98 | P2 | Corregido y publicado: Sueldo por semana en la ficha: cada día vale su parte, repartida al centavo |
 
 ## Lo que no se pudo ejecutar y por qué
 
@@ -260,9 +261,6 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 - Eliminar una siembra del calendario avisa que sus costos quedan sin temporada, pero lo permite.
 - El pase de lista ofrece su propia lista de actividades al capturar un día faltante, en vez del catálogo único.
 - En un teléfono ligado para la gente, cada recarga le vuelve a pedir la contraseña al encargado (así está pensado; puede cansar).
-- Defecto 14 (Deudas / Proveedores): El proveedor se guarda distinto en cada pantalla (texto / ficha).
-- Defecto 16 (Corrida de ajo): Los cortes, conteos y cajas de plástico de la corrida se pueden borrar sin motivo; y la configuración se guarda con un nombre fijo, no por espacio.
-- Defecto 39 (Cosechas): La cosecha se lleva una por parcela para siempre: el «costo por kilo» de la pantalla de Cosechas junta todas las temporadas de esa parcela (el resultado por temporada, en Finanzas y en Comparar variedades, sí separa por fechas).
 
 ## Riesgos que quedan aunque todo pase
 

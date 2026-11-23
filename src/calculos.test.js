@@ -608,3 +608,17 @@ test("el_sueldo_de_la_semana_queda_en_su_historial_desde_el_alta_y_al_cambiarlo"
   const act = sellarSueldoDelDia_s({ id: "a1", fecha: "2026-11-21", registradoPor: { id: "t1" } }, [alta]);
   assert.equal(act.sueldoDia, 583.35, "la foto de una actividad es la parte de ESE día");
 });
+
+import { fichaDeProveedor as fichaDeProveedor_t, esDelProveedor as esDelProveedor_t, nombreDelProveedor as nombreDelProveedor_t } from "./calculos.js";
+// Defecto 14: el mismo proveedor salía como dos (texto en Deudas, ficha en Proveedores) y su deuda no se juntaba.
+test("un_proveedor_es_una_sola_ficha_en_deudas_y_en_proveedores", () => {
+  const provs = [{ id: "pv1", nombre: "Agroquímicos del Norte" }, { id: "pv2", nombre: "Ferretería Inventada" }];
+  assert.equal(fichaDeProveedor_t("  agroquimicos   del NORTE ", provs).id, "pv1", "sin acentos ni mayúsculas ni espacios de más");
+  assert.equal(fichaDeProveedor_t("Otro", provs), null); assert.equal(fichaDeProveedor_t("", provs), null);
+  assert.ok(esDelProveedor_t({ proveedorId: "pv1" }, provs[0]));
+  assert.ok(!esDelProveedor_t({ proveedorId: "pv2", proveedor: "Agroquímicos del Norte" }, provs[0]), "si trae ficha, manda la ficha");
+  assert.ok(esDelProveedor_t({ proveedor: "AGROQUIMICOS DEL NORTE" }, provs[0]), "una deuda de antes, sólo con el texto, es de la ficha que se llama igual");
+  assert.ok(!esDelProveedor_t({ proveedor: "" }, provs[0]));
+  assert.equal(nombreDelProveedor_t({ proveedorId: "pv2", proveedor: "viejo" }, provs), "Ferretería Inventada");
+  assert.equal(nombreDelProveedor_t({ proveedor: "Sólo texto" }, provs), "Sólo texto");
+});

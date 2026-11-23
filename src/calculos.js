@@ -683,3 +683,16 @@ export function usoDeParcela(data, parcelaId) {
   if (ev) partes.push({ que: "registros de trabajo, almacén o mapa", cuantos: ev });
   return { usada: partes.length > 0, partes, dice: partes.length ? `No se puede eliminar: tiene ${partes.map(p => `${p.cuantos} ${p.que}`).join(", ")}. Lo registrado se quedaría sin su parcela.` : "" };
 }
+
+// UN PROVEEDOR, UNA FICHA (defecto 14). Deudas guardaba el proveedor como texto y Proveedores como ficha: el mismo
+// proveedor salía como dos y su deuda no se juntaba. Ahora una deuda nueva apunta a la ficha (`proveedorId`); si se
+// escribe un nombre que ya existe (sin importar acentos ni mayúsculas) se usa esa ficha; y las deudas de antes, que
+// sólo traen el texto, se leen como de la ficha que se llama igual. Nada se reescribe.
+const nombreLlano = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
+export const fichaDeProveedor = (nombre, proveedores = []) => (nombreLlano(nombre) ? (proveedores || []).find(p => nombreLlano(p.nombre) === nombreLlano(nombre)) || null : null);
+export function esDelProveedor(credito, proveedor) {
+  if (!credito || !proveedor) return false;
+  if (credito.proveedorId) return credito.proveedorId === proveedor.id;
+  return !!nombreLlano(credito.proveedor) && nombreLlano(credito.proveedor) === nombreLlano(proveedor.nombre);
+}
+export const nombreDelProveedor = (credito, proveedores = []) => (proveedores || []).find(p => p.id === credito?.proveedorId)?.nombre || credito?.proveedor || "";

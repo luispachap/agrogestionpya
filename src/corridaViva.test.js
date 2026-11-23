@@ -33,3 +33,14 @@ test("una_foto_dañada_o_un_telefono_lleno_no_truenan_la_corrida", () => {
   const lleno = { getItem: () => null, setItem: () => { throw new Error("lleno"); }, removeItem: () => {} };
   assert.equal(guardarCorridaViva(lleno, "k", viva, "2026-11-22"), false);
 });
+
+import { quitarDeLaCorrida as quitar_t } from "./corridaViva.js";
+// Defecto 16: los cortes, conteos y entradas de limpio se podían borrar sin motivo ni rastro.
+test("quitar_un_corte_de_la_corrida_pide_el_porque_y_deja_rastro", () => {
+  const lista = [{ id: "c1", hora: "08:15", total: 40 }, { id: "c2", hora: "08:30", total: 82 }];
+  assert.equal(quitar_t(lista, "c1", { tipo: "corte", motivo: " ", hora: "08:40" }).ok, false, "sin motivo no se quita");
+  assert.equal(quitar_t(lista, "nada", { tipo: "corte", motivo: "x", hora: "08:40" }).ok, false);
+  const r = quitar_t(lista, "c1", { tipo: "corte", motivo: "Se contó dos veces", hora: "08:40", quien: "Miguel" });
+  assert.ok(r.ok); assert.deepEqual(r.lista.map(x => x.id), ["c2"], "sale de las cuentas");
+  assert.deepEqual(r.quitado, { tipo: "corte", registro: lista[0], motivo: "Se contó dos veces", hora: "08:40", quien: "Miguel" }, "y queda con qué era, por qué, a qué hora y quién");
+});

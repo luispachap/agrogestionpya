@@ -52,13 +52,13 @@ import { ESTADOS as ESTADOS_DOC, CLASES as CLASES_DOC, CAMPOS_DE, NOMBRE_DE_CAMP
 import { abrirArchivo, originalDe, guardarPropuesta, leerPropuesta, olvidarPropuesta, imagenParaIA, paginasParaIA, pedirInterpretacion, leerPresupuestoIA } from "./importador.js";
 import { NIVELES as NIVELES_IA, necesitaIA, pedidoDeHoja, pedidoDeTexto, resultadoConIA, metricasDeIA, costoMaximo, enDolares, estadoDelPresupuesto, NOMBRE_DE_RESULTADO } from "./interpretacion.js";
 import { entenderHoja, fecharRaya } from "./importacion.js";
-import { parteDe, partesDe, resultadoPorCultivo, historialDeParcela } from "./ciclos.js";
+import { parteDe, partesDe, resultadoPorCultivo, historialDeParcela, cosechaPorTemporada } from "./ciclos.js";
 import { CLASES_DE_CLAVE, catalogoDeClaves, listaDeClaves, aprenderClave, relacionDeRenglon, decirRelacion, clavesPorPreguntar, usoDeClaves, referenciasDeClaves, sugerenciasDe, parecidasDe, decirFuente, CLASE_REFERENCIA, ligarParcela, ligasDeParcelas, TIPOS_DE_LIGA } from "./claves.js";
 import { fuentesPorDia, cotejar } from "./cotejo.js";
 import MapaAgricola from "./Mapa.jsx";
 import { limitesDe, conPoligonos } from "./mapa.js";
 import { resultadoDelRancho, flujoDeEfectivo, NOMBRE_DE_FLUJO, DESTINOS_DE_INSUMO, insumosPorClasificar, gastosDeLaMismaCompra, ligarEntradaAGasto, comprasQuizaDobles } from "./resultado.js";
-import { leerCorridaViva, guardarCorridaViva, borrarCorridaViva } from "./corridaViva.js";
+import { leerCorridaViva, guardarCorridaViva, borrarCorridaViva, quitarDeLaCorrida } from "./corridaViva.js";
 import { CLASES_DE_SALIDA, ORDEN_DE_CLASES, nombreDeClase, claseDeSalida, revisarSalida, egresoDeCaja, estadoDeSalida, pendientesDeCaja, eventosParaLigar, revisarLiga, saldoDeCaja } from "./caja.js";
 // El resultado y el flujo del rancho: TODAS las pantallas los sacan de aquí, para que digan lo mismo.
 // Cada ajuste de valuación sigue a su consumo: a la parcela, al uso general, o al vehículo (que lo lleva en su propia cuenta).
@@ -152,7 +152,7 @@ import {
   fechaLocal, mesLocal, sumarDias, mesAnterior, diasEntre,
   saldoCredito, diasParaVencer, cubetaVencimiento, CUBETAS_VENCIMIENTO,
   estaCancelado, vivos, delRancho, esPersonal, marcarCancelado, ganaAlSincronizar,
-  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana,
+  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana, fichaDeProveedor, esDelProveedor, nombreDelProveedor,
 } from "./calculos";
 // El lector de papeles: la cascada de gratis a caro (QR y XML sin costo,
 // patrón aprendido para lo ya conocido, IA sólo para un formato nuevo).
@@ -1592,9 +1592,13 @@ function reporteCosechaParcela(data, parcelaId) {
   const total = totalCosecha(cos);
   const unidad = cos?.unidad || "kg";
   const porHa = p && p.hectareas ? total / p.hectareas : 0;
-  // Costo por unidad cosechada
+  // Costo por unidad cosechada: el de la TEMPORADA más reciente con cosecha (defecto 39). Sin siembras registradas, el de
+  // toda la parcela, como antes (y la pantalla lo dice).
   const rep = reporteParcela(data, parcelaId);
-  const costoPorUnidad = total > 0 ? rep.total / total : 0;
+  const temporadas = cosechaPorTemporada({ cosecha: cos, siembras: data.siembras || [], parcelaId, hoy: today(),
+    costoEntre: (desde, hasta) => ((costoDe(data, { desde, hasta }).renglones || []).find(x => x.parcelaId === parcelaId) || {}).directo || 0 });
+  const vigente = temporadas.find(t => t.cantidad > 0);
+  const costoPorUnidad = vigente ? vigente.costoPorUnidad : total > 0 ? rep.total / total : 0;
   // Producto vendido y disponible: ventas vinculadas a esta parcela
   const ventas = delRancho(data.ingresos).filter(g => g.parcelaId === parcelaId && (g.categoria === "venta_cosecha" || g.cosechaCantidad));
   const vendido = ventas.reduce((s, g) => s + (parseFloat(g.cosechaCantidad) || 0), 0);
@@ -1604,7 +1608,7 @@ function reporteCosechaParcela(data, parcelaId) {
   const enviadoBodega = (data.envios_bodega || []).filter(e => e.parcelaId === parcelaId)
     .reduce((s, e) => s + (parseFloat(e.cantidad) || 0), 0);
   const disponible = total - vendido - usadoSemilla - enviadoBodega;
-  return { p, cos, total, unidad, porHa, costoTotal: rep.total, costoPorUnidad, ingresoTotal: rep.ingresoTotal, vendido, usadoSemilla, enviadoBodega, disponible };
+  return { p, cos, total, unidad, porHa, costoTotal: rep.total, costoPorUnidad, temporadas, temporadaVigente: vigente || null, ingresoTotal: rep.ingresoTotal, vendido, usadoSemilla, enviadoBodega, disponible };
 }
 
 // Registra una cosecha en la parcela a partir de una actividad de tipo Cosecha.
@@ -15241,7 +15245,7 @@ function AdminProveedores({ data, add, upd, del, cancelar, reactivar, onBack }) 
             <BandaVencimientos porVencimiento={porVencimiento} />
             {creditos.length === 0 && <div className="text-muted text-sm" style={{ textAlign: "center", padding: "32px 0" }}>Sin créditos registrados. Usa "+" para agregar uno.</div>}
             {[...creditos].sort((a, b) => b.fecha.localeCompare(a.fecha)).map(cr => {
-              const prov = proveedores.find(p => p.id === cr.proveedorId);
+              const prov = proveedores.find(p => esDelProveedor(cr, p));
               const { abonado, saldo } = saldoCredito(cr);
               return (
                 <div key={cr.id} className="card" style={{ padding: 14, cursor: "pointer" }} onClick={() => setDetalle(cr.id)}>
@@ -15269,7 +15273,7 @@ function AdminProveedores({ data, add, upd, del, cancelar, reactivar, onBack }) 
           <>
             {proveedores.length === 0 && <div className="text-muted text-sm" style={{ textAlign: "center", padding: "32px 0" }}>Sin proveedores. Usa "+" para agregar uno.</div>}
             {proveedores.map(p => {
-              const creds = creditos.filter(c => c.proveedorId === p.id);
+              const creds = creditos.filter(c => esDelProveedor(c, p));
               const deuda = creds.reduce((s, c) => s + saldoCredito(c).saldo, 0);
               return (
                 <div key={p.id} className="list-item">
@@ -15870,7 +15874,7 @@ function GestionCosechas({ data, add, upd, del, session, onClose }) {
               </div>
               {r.total > 0 && (
                 <div className="flex-b text-xs" style={{ marginTop: 4 }}>
-                  <span className="text-muted">Costo/{r.unidad}: <span className="font-bold text-accent">{fmt(r.costoPorUnidad)}</span></span>
+                  <span className="text-muted">Costo/{r.unidad}{r.temporadaVigente ? ` (temporada desde ${r.temporadaVigente.desde})` : ""}: <span className="font-bold text-accent">{fmt(r.costoPorUnidad)}</span></span>
                   <span className="text-accent" style={{ fontWeight: 700 }}>Ver detalle ›</span>
                 </div>
               )}
@@ -15988,7 +15992,7 @@ function CosechaDetalle({ data, parcelaId, add, upd, session, onClose }) {
         </div>
         <div className="stat-row">
           <div className="stat-card"><div className="stat-label">Rendimiento/ha</div><div className="stat-val" style={{ fontSize: 16 }}>{fmtN(Math.round(r.porHa))} {r.unidad}</div></div>
-          <div className="stat-card"><div className="stat-label">Costo directo por {r.unidad}</div><div className="stat-val" style={{ fontSize: 16, color: "var(--accent)" }}>{fmt(r.costoPorUnidad)}</div></div>
+          <div className="stat-card"><div className="stat-label">Costo directo por {r.unidad}{r.temporadaVigente ? ", esta temporada" : ""}</div><div className="stat-val" style={{ fontSize: 16, color: "var(--accent)" }}>{fmt(r.costoPorUnidad)}</div></div>
         </div>
         <div className="stat-row">
           <div className="stat-card wide">
@@ -15996,6 +16000,14 @@ function CosechaDetalle({ data, parcelaId, add, upd, session, onClose }) {
             <div className="stat-val" style={{ fontSize: 18 }}>{fmt(r.costoTotal)}</div>
             <div className="stat-sub">{r.total > 0 ? `Producir cada ${r.unidad === "kg" ? "kilo" : r.unidad.replace(/s$/, "")} costó ${fmt(r.costoPorUnidad)}` : "Aún sin cosecha registrada"}</div>
           </div>
+          {r.temporadas.length > 0 && <div className="card" aria-label="Costo por temporada">
+            <div className="card-title">Por temporada</div>
+            <div className="text-xs text-muted" style={{ marginBottom: 6 }}>El costo de la parcela entre la siembra y la cosecha de cada temporada, entre lo cosechado en esas fechas.</div>
+            {r.temporadas.map(t => <div key={t.id} className="flex-b text-sm" style={{ padding: "4px 0", borderTop: "1px solid var(--border-soft)" }}>
+              <span>{t.cultivo}{t.variedad ? ` ${t.variedad}` : ""} · {t.desde}{t.hasta ? ` a ${t.hasta}` : " (en curso)"}</span>
+              <span className="text-muted">{t.cantidad > 0 ? `${fmtN(t.cantidad)} ${r.unidad} · ${fmt(t.costoPorUnidad)}/${r.unidad}` : `${fmt(t.costo)} sin cosecha todavía`}</span>
+            </div>)}
+          </div>}
         </div>
         {r.total > 0 && (
           <div className="card" style={{ background: "rgba(132,192,1,.05)", border: "1px solid rgba(132,192,1,.2)" }}>
@@ -18499,14 +18511,17 @@ function GestionDeudas({ data, add, upd, del, cancelar, reactivar, session, onCl
   const [tab, setTab] = useState("debemos");
   const [showForm, setShowForm] = useState(false);
   const [detalle, setDetalle] = useState(null);
-  const F0 = { concepto: "", proveedor: "", monto: "", fecha: today(), vencimiento: "", condiciones: "" };
+  const F0 = { concepto: "", proveedorId: "", proveedor: "", monto: "", fecha: today(), vencimiento: "", condiciones: "" };
   const [form, setForm] = useState(F0);
   const [abono, setAbono] = useState({ id: null, monto: "" });
 
   const crearCredito = () => {
     if (!form.concepto || !form.monto) { alert("Falta concepto o monto"); return; }
+    // El proveedor es la ficha de Proveedores. Un nombre nuevo crea su ficha (sin datos inventados); uno que ya existe usa esa.
+    let ficha = (data.proveedores || []).find(p => p.id === form.proveedorId) || fichaDeProveedor(form.proveedor, data.proveedores);
+    if (!ficha && String(form.proveedor || "").trim()) { ficha = { id: `pv${unico()}`, nombre: String(form.proveedor).trim().replace(/\s+/g, " ") }; add("proveedores", ficha); }
     add("creditos", {
-      id: `cr${unico()}`, concepto: form.concepto, proveedor: form.proveedor,
+      id: `cr${unico()}`, concepto: form.concepto, proveedorId: ficha?.id || "", proveedor: ficha?.nombre || "",
       monto: parseFloat(form.monto) || 0, fecha: form.fecha, estado: "activo", abonos: [],
       vencimiento: form.vencimiento || "", condiciones: form.condiciones || "",
       registradoPor: { rol: session.role, id: session.id, nombre: session.nombre },
@@ -18541,7 +18556,7 @@ function GestionDeudas({ data, add, upd, del, cancelar, reactivar, session, onCl
               <div className="font-syne font-bold" style={{ fontSize: 16 }}>{cr.concepto}</div>
               <span className={`badge badge-${cr.estado === "pagado" ? "green" : "gold"}`}>{cr.estado}</span>
             </div>
-            <div className="confirm-row"><span className="cr-label">Proveedor</span><span className="cr-val">{cr.proveedor || "—"}</span></div>
+            <div className="confirm-row"><span className="cr-label">Proveedor</span><span className="cr-val">{nombreDelProveedor(cr, data.proveedores) || "—"}</span></div>
             <div className="confirm-row"><span className="cr-label">Monto original</span><span className="cr-val">{fmt(cr.monto)}</span></div>
             <div className="confirm-row"><span className="cr-label">Abonado</span><span className="cr-val">{fmt(sc.abonado)}</span></div>
             <div className="confirm-row"><span className="cr-label">Saldo</span><span className="cr-val" style={{ color: "var(--red)" }}>{fmt(sc.saldo)}</span></div>
@@ -18592,7 +18607,14 @@ function GestionDeudas({ data, add, upd, del, cancelar, reactivar, session, onCl
           <div className="card ab">
             <div className="card-title">Nuevo crédito con proveedor</div>
             <div className="form-group"><label className="form-label">Concepto</label><input className="inp" placeholder="Ej: Compra de fertilizante a crédito" value={form.concepto} onChange={e => setForm(f => ({ ...f, concepto: e.target.value }))} /></div>
-            <div className="form-group"><label className="form-label">Proveedor</label><input className="inp" value={form.proveedor} onChange={e => setForm(f => ({ ...f, proveedor: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label" htmlFor="deu-prov">Proveedor</label>
+              <select id="deu-prov" className="inp" value={form.proveedorId} onChange={e => setForm(f => ({ ...f, proveedorId: e.target.value, proveedor: "" }))}>
+                <option value="">Otro (escribir el nombre)</option>
+                {(data.proveedores || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+              {!form.proveedorId && <input className="inp" aria-label="Nombre del proveedor" placeholder="Nombre del proveedor" style={{ marginTop: 6 }} value={form.proveedor} onChange={e => setForm(f => ({ ...f, proveedor: e.target.value }))} />}
+              {!form.proveedorId && fichaDeProveedor(form.proveedor, data.proveedores) && <div className="text-xs text-muted">Ya está en Proveedores: se usa esa ficha.</div>}
+            </div>
             <div className="form-group"><label className="form-label">Monto ($)</label><input type="number" className="inp" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} /></div>
             <div className="form-group"><label className="form-label">Fecha</label><input type="date" className="inp" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} /></div>
             {/* Sin vencimiento, el saldo es un número, no una deuda: nadie se
@@ -18622,7 +18644,7 @@ function GestionDeudas({ data, add, upd, del, cancelar, reactivar, session, onCl
                 <div className="font-bold" style={estiloCancelado(cr)}>{cr.concepto}</div>
                 <span className={`badge badge-${estaCancelado(cr) ? "red" : cr.estado === "pagado" ? "green" : "gold"}`}>{estaCancelado(cr) ? "cancelado" : cr.estado}</span>
               </div>
-              <div className="text-sm text-muted" style={estiloCancelado(cr)}>{cr.proveedor || "—"} · {cr.fecha}</div>
+              <div className="text-sm text-muted" style={estiloCancelado(cr)}>{nombreDelProveedor(cr, data.proveedores) || "—"} · {cr.fecha}</div>
               <EtiquetaVencimiento credito={cr} saldo={sc.saldo} />
               <SelloCancelado registro={cr} seccion="creditos" reactivar={reactivar} />
               <div className="flex-b mt-2">
@@ -20904,7 +20926,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
   const [nuevaLimpioCajas, setNuevaLimpioCajas] = useState(""); // tarima de limpio sin registrar
   // Configuración recordada de corridas anteriores (taras pre-pesadas y tamaño de estiba):
   // Migue no vuelve a teclear las taras de cada pallet en cada corrida.
-  const cfgCorrida = (() => { try { return JSON.parse(localStorage.getItem("agro_corrida_cfg") || "{}"); } catch { return {}; } })();
+  const cfgCorrida = (() => { try { return JSON.parse(localStorage.getItem(LLAVES.corridaCfg) || "{}"); } catch { return {}; } })();
   const [cajasPorEstiba, setCajasPorEstiba] = useState(dv("cajasPorEstiba", parseFloat(cfgCorrida.cajasPorEstiba) || 50));
   const [folioCorrida] = useState(dv("folioCorrida", `COR-${Date.now().toString().slice(-6)}`));
   const [corridaId] = useState(dv("corridaId", `cor${unico()}`));
@@ -20965,7 +20987,16 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
   const [plasticoEventos, setPlasticoEventos] = useState(dv("plasticoEventos", [])); // [{id, hora, cajas, nota, estibaId}]
   // El limpio (plástico) entra a la corrida automáticamente al seleccionar tarimas
   // del pool o por alta rápida — no hay captura manual redundante.
-  const borrarPlastico = (id) => setPlasticoEventos(ev => ev.filter(e => e.id !== id));
+  // Quitar algo de la corrida pide el porqué y deja rastro (`quitados`), que viaja en el reporte del día.
+  const [quitados, setQuitados] = useState(dv("quitados", []));
+  const quitar = (tipo, lista, poner, id, pregunta) => {
+    const motivo = window.prompt(pregunta);
+    if (motivo == null) return;
+    const r = quitarDeLaCorrida(lista, id, { tipo, motivo, hora: horaActual, quien: session?.nombre || "" });
+    if (!r.ok) { alert(r.dice); return; }
+    poner(r.lista); setQuitados(q => [...q, r.quitado]);
+  };
+  const borrarPlastico = (id) => quitar("limpio", plasticoEventos, setPlasticoEventos, id, "¿Por qué se quita esta entrada de limpio?");
 
   // ── Cortes de cartón: lecturas de cuántas cajas de cartón acumuladas hay (para el rate) ──
   const [lecturas, setLecturas] = useState(dv("lecturas", [])); // [{id, hora, total, ritmo}]
@@ -20979,7 +21010,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
     setPedirCorte(false);
     setSugerirCalidad(true); // tras el corte, Migue toma muestra de calidad
   };
-  const borrarCorte = (id) => setLecturas(l => l.filter(x => x.id !== id));
+  const borrarCorte = (id) => quitar("corte", lecturas, setLecturas, id, "¿Por qué se quita este corte?");
 
   // ── Conteos FÍSICOS de limpio: el método real de Migue. En cierto momento cuenta
   //    cuántas cajas de limpio quedan y la app recalibra la proporción real. Cada
@@ -20996,7 +21027,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
     setConteos(cs => [...cs, { id: `cf${unico()}`, hora: horaActual, limpioQueda, cartonAcum }]);
     setConteoInput(""); setPedirConteo(false);
   };
-  const borrarConteo = (id) => setConteos(cs => cs.filter(c => c.id !== id));
+  const borrarConteo = (id) => quitar("conteo", conteos, setConteos, id, "¿Por qué se quita este conteo?");
 
   // ── Meta del día y recordatorios ──
   const [metaDia, setMetaDia] = useState(dv("metaDia", ""));
@@ -21007,8 +21038,8 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
   useEffect(() => {
     if (terminada.current) return;
     guardarCorridaViva(localStorage, LLAVES.corrida, { cultivo, estibaOrigenId, poolIds, modoRevoltura, cajasPorEstiba, folioCorrida, corridaId, responsable,
-      contador, rendTramo, contadorTramo, aportesPrevios, tramos, estibasCerradas, plasticoEventos, lecturas, ritmoActual, conteos, metaDia, avisarCada, minCorte }, today());
-  }, [cultivo, estibaOrigenId, poolIds, modoRevoltura, cajasPorEstiba, folioCorrida, corridaId, responsable, contador, rendTramo, contadorTramo, aportesPrevios, tramos, estibasCerradas, plasticoEventos, lecturas, ritmoActual, conteos, metaDia, avisarCada, minCorte]);
+      contador, rendTramo, contadorTramo, aportesPrevios, tramos, estibasCerradas, plasticoEventos, lecturas, ritmoActual, conteos, metaDia, avisarCada, minCorte, quitados }, today());
+  }, [cultivo, estibaOrigenId, poolIds, modoRevoltura, cajasPorEstiba, folioCorrida, corridaId, responsable, contador, rendTramo, contadorTramo, aportesPrevios, tramos, estibasCerradas, plasticoEventos, lecturas, ritmoActual, conteos, metaDia, avisarCada, minCorte, quitados]);
   const olvidarViva = () => { terminada.current = true; borrarCorridaViva(localStorage, LLAVES.corrida); };
 
   // ═══════ CÁLCULOS EN VIVO (recalibrados con conteos físicos reales) ═══════
@@ -21127,7 +21158,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
 
   // Guardar la configuración cada vez que cambie
   useEffect(() => {
-    try { localStorage.setItem("agro_corrida_cfg", JSON.stringify({ cajasPorEstiba, taraCal })); } catch { /* ignorar */ }
+    try { localStorage.setItem(LLAVES.corridaCfg, JSON.stringify({ cajasPorEstiba, taraCal })); } catch { /* ignorar */ }
   }, [cajasPorEstiba, taraCal]);
 
   const sumar = (cal, n) => {
@@ -21255,7 +21286,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
       // Cajas contadas sin estiba (ya descontadas del saldo de su tarima al terminar el día).
       cajasSueltas: extra.cajasSueltas || 0,
       // Monitoreo en vivo (para que el análisis del día viaje a la nube):
-      plasticoEventos: plasticoOrden, cortes: lecturasOrden, conteosFisicos: conteosOrden,
+      plasticoEventos: plasticoOrden, cortes: lecturasOrden, conteosFisicos: conteosOrden, ...(quitados.length ? { quitados } : {}),
       ritmoFinal: ritmoActual, metaDia: parseFloat(metaDia) || 0,
       rateCartonFinal: Number(rateCarton.toFixed(3)), propCartonPorPlasticoFinal: Number(propCartonPorPlastico.toFixed(3)),
       estado: extra.estado || "abierta",
@@ -21566,6 +21597,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
                 ))}
               </div>
             )}
+            {quitados.length > 0 && <div className="text-xs text-muted" style={{ marginTop: 8 }} aria-label="Quitado de la corrida">Quitado hoy: {quitados.map((q, i) => <div key={i}>{q.hora} · {q.tipo === "corte" ? `corte de ${fmtN(q.registro.total)} cajas` : q.tipo === "conteo" ? `conteo de ${fmtN(q.registro.limpioQueda)} cajas de limpio` : `limpio de ${fmtN(q.registro.cajas)} cajas`} · {q.motivo}{q.quien ? ` (${q.quien})` : ""}</div>)}</div>}
             {lecturasOrden.length > 0 && (
               <div style={{ marginTop: 8 }}>
                 {lecturasOrden.map((l, i) => (

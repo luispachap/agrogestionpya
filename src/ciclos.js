@@ -89,3 +89,20 @@ export function resultadoPorCultivo(registros = [], siembras = []) {
   return { cultivos, sinCiclo: { ...sinCiclo, parcelas: [...sinCiclo.parcelas.values()] }, general, sinParcela, costo, ingresos,
     cuadra: sumarDinero([repartido, sinCiclo.costo, general.costo, sinParcela.costo]) === costo };
 }
+
+// LA COSECHA POR TEMPORADA (defecto 39). La cosecha de una parcela es un solo registro para siempre; el costo por kilo,
+// en cambio, es de UNA temporada: lo que costó la parcela entre su siembra y su cosecha, entre lo cosechado en esas
+// fechas (o lo ligado a esa siembra) más los ajustes de esas fechas. La pantalla de Cosechas juntaba todas las temporadas.
+//   costoEntre(desde, hasta) → el costo de ESA parcela en esas fechas (lo pone quien llama: el cierre de mes).
+export function cosechaPorTemporada({ cosecha, siembras = [], parcelaId, costoEntre, hoy }) {
+  const vivos = (cosecha?.registros || []).filter(r => r && !r.cancelado), ajustes = cosecha?.ajustes || [];
+  return (siembras || []).filter(s => s.parcelaId === parcelaId && s.estado !== "cancelada" && s.fechaSiembra).map(s => {
+    const { ini, fin } = rangoDeSiembra(s), hasta = fin < hoy ? fin : hoy;
+    const dentro = (f) => !!f && f >= ini && f <= fin;
+    const cantidad = vivos.filter(r => (r.siembraId ? r.siembraId === s.id : dentro(r.fecha))).reduce((a, r) => a + (parseFloat(r.cantidad) || 0), 0)
+      + ajustes.filter(a => dentro(a.fecha)).reduce((x, a) => x + (parseFloat(a.delta) || 0), 0);
+    const costo = costoEntre(ini, hasta) || 0;
+    return { id: s.id, cultivo: s.cultivoNombre || "", variedad: s.variedadNombre || "", desde: ini, hasta: s.fechaCosechaReal || s.fechaCosechaEstimada || "", cerrada: !!s.fechaCosechaReal,
+      costo, cantidad, costoPorUnidad: cantidad > 0 ? Math.round(costo / cantidad * 100) / 100 : null };
+  }).sort((a, b) => b.desde.localeCompare(a.desde));
+}

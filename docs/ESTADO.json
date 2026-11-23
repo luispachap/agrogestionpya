@@ -24,12 +24,12 @@
   {
    "que": "Reglas y cálculos",
    "con": "npm test",
-   "resultado": "1,296 de 1,296"
+   "resultado": "1,309 de 1,309"
   },
   {
    "que": "La base, armada desde cero y atacada por perfil",
    "con": "npm run test:base",
-   "resultado": "163 de 163"
+   "resultado": "164 de 164"
   },
   {
    "que": "Respaldo y restauración, de punta a punta en local",
@@ -37,9 +37,9 @@
    "resultado": "26 de 26"
   },
   {
-   "que": "Todo junto: lo anterior, compilación y 54 recorridos en navegador",
+   "que": "Todo junto: lo anterior, compilación y 55 recorridos en navegador",
    "con": "sh pruebas/todo.sh",
-   "resultado": "Todo pasa (sobre la versión publicada, `d82e923`)"
+   "resultado": "Todo pasa (sobre la versión publicada, `52fbafb`)"
   },
   {
    "que": "Producción cerrada sin sesión",
@@ -54,7 +54,7 @@
   {
    "que": "Lo publicado es exactamente lo probado, byte por byte",
    "con": "pruebas/real_identico.py",
-   "resultado": "18 de 18 archivos idénticos a `d82e923`"
+   "resultado": "18 de 18 archivos idénticos a `52fbafb`"
   },
   {
    "que": "Producción igual a la base probada",
@@ -827,9 +827,9 @@
    "modulo": "Deudas / Proveedores",
    "que": "El proveedor se guarda distinto en cada pantalla (texto / ficha)",
    "nivel": "P2",
-   "estado": "abierto",
-   "publicado": null,
-   "nota": ""
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Una deuda nueva apunta a la ficha del proveedor; un nombre que ya existe usa esa ficha; las de antes se leen como de la ficha que se llama igual"
   },
   {
    "n": 15,
@@ -845,9 +845,9 @@
    "modulo": "Corrida de ajo",
    "que": "Los cortes, conteos y cajas de plástico de la corrida se pueden borrar sin motivo; y la configuración se guarda con un nombre fijo, no por espacio",
    "nivel": "P2",
-   "estado": "abierto",
-   "publicado": null,
-   "nota": ""
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Quitar un corte, conteo o entrada de limpio pide el porqué y queda en el reporte del día; la configuración se guarda por espacio"
   },
   {
    "n": 17,
@@ -1052,9 +1052,9 @@
    "modulo": "Cosechas",
    "que": "La cosecha se lleva una por parcela para siempre: el «costo por kilo» de la pantalla de Cosechas junta todas las temporadas de esa parcela (el resultado por temporada, en Finanzas y en Comparar variedades, sí separa por fechas)",
    "nivel": "P2",
-   "estado": "abierto",
+   "estado": "corregido",
    "publicado": false,
-   "nota": ""
+   "nota": "El costo por kilo es el de la temporada (entre su siembra y su cosecha), con una tabla por temporada en el detalle"
   },
   {
    "n": 40,
@@ -1332,7 +1332,7 @@
    "que": "Una hoja con «Empleado | Sueldo» (la lista de nómina semanal) se tomaba como lista de personal y proponía dar de alta con SUELDO POR DÍA el importe de la semana ($3,500), y la pantalla de confirmar no enseñaba ese sueldo",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "«Sueldo» a secas ya no se supone por día: la ficha nace sin sueldo, se enseña lo que decía la hoja y se avisa"
   },
   {
@@ -1341,7 +1341,7 @@
    "que": "En una lista de pagos al personal, un apodo de menos de cinco letras («Gera», «Rigo») se tiraba como «sin nombre»: 6 de 23 renglones de la nómina del rancho",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Con dos letras basta, igual que en una raya"
   },
   {
@@ -1350,7 +1350,7 @@
    "que": "No había cómo anotar lo que un trabajador ya debía de préstamos dados antes de la app (la nómina en papel los descuenta cada semana): sus abonos no tenían a qué préstamo ir",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "«Lo que ya debían»: saldo a una fecha de corte, con quién responde y evidencia; lo valida la base (hoja 57) y no entra al flujo"
   },
   {
@@ -1359,7 +1359,7 @@
    "que": "Con el sueldo de la semana entre 6 (decisión de Luis), la semana completa salía dos centavos abajo: 583.33 × 6 = 3,499.98",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Sueldo por semana en la ficha: cada día vale su parte, repartida al centavo"
   }
  ],
@@ -1385,7 +1385,12 @@
   {
    "que": "La app en app.agroselectos.com",
    "estado": "publicado",
-   "detalle": "Versión `d82e923`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio (18 de 18)."
+   "detalle": "Versión `52fbafb`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio (18 de 18)."
+  },
+  {
+   "que": "La hoja de pagos que se firma: lo que ya debían al arrancar, prestar en un paso, pago en dos partes, sueldo por semana entre 6 y la importación que no confunde el sueldo de la semana",
+   "estado": "publicado",
+   "detalle": "23 de noviembre, de madrugada; hoja 57 instalada en la base y las siete huellas de producción iguales a las de la base probada."
   },
   {
    "que": "Captura diaria: «Mis días» con la cuenta real, registro de varios que dice lo que se paga, el día que se costeaba dos veces, y rastro al aprobar externos y atender incidencias",

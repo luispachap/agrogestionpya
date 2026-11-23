@@ -58,3 +58,17 @@ test("el_historial_de_una_parcela_ensena_sus_ciclos_sus_huecos_y_sus_traslapes",
   const t = historialDeParcela(S, "p2"); assert.equal(t.traslapes.length, 1); assert.equal(t.traslapes[0].otroCultivo, false);
   assert.deepEqual(historialDeParcela(S, "p3").ciclos, [], "el ciclo cancelado no es historial");
 });
+
+import { cosechaPorTemporada as cosechaPorTemporada_t } from "./ciclos.js";
+// Defecto 39: el costo por kilo de Cosechas juntaba todas las temporadas de la parcela.
+test("el_costo_por_kilo_de_una_cosecha_es_el_de_su_temporada_no_el_de_todas", () => {
+  const siembras = [{ id: "s1", parcelaId: "p1", cultivoNombre: "Ajo", fechaSiembra: "2025-09-01", fechaCosechaReal: "2026-05-15" },
+    { id: "s2", parcelaId: "p1", cultivoNombre: "Ajo", fechaSiembra: "2026-09-01", fechaCosechaEstimada: "2027-05-15" },
+    { id: "s3", parcelaId: "p1", cultivoNombre: "Ajo", fechaSiembra: "2024-09-01", estado: "cancelada" }];
+  const cosecha = { registros: [{ fecha: "2026-05-10", cantidad: 1000 }, { fecha: "2026-05-12", cantidad: 500, cancelado: { motivo: "x" } }, { fecha: "2026-11-20", cantidad: 200, siembraId: "s2" }], ajustes: [{ fecha: "2026-05-14", delta: -100 }] };
+  const costos = { "2025-09-01|2026-05-15": 45000, "2026-09-01|2026-11-21": 30000 };
+  const t = cosechaPorTemporada_t({ cosecha, siembras, parcelaId: "p1", hoy: "2026-11-21", costoEntre: (a, b) => costos[`${a}|${b}`] });
+  assert.equal(t.length, 2, "la cancelada no cuenta");
+  assert.deepEqual(t.map(x => [x.id, x.cantidad, x.costo, x.costoPorUnidad]), [["s2", 200, 30000, 150], ["s1", 900, 45000, 50]], "cada temporada con su costo entre su cosecha (lo cancelado no cuenta; el ajuste de su fecha sí)");
+  assert.equal(t[0].cerrada, false); assert.equal(t[1].cerrada, true);
+});
