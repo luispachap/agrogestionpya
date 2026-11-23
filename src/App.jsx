@@ -152,7 +152,7 @@ import {
   fechaLocal, mesLocal, sumarDias, mesAnterior, diasEntre,
   saldoCredito, diasParaVencer, cubetaVencimiento, CUBETAS_VENCIMIENTO,
   estaCancelado, vivos, delRancho, esPersonal, marcarCancelado, ganaAlSincronizar,
-  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta,
+  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana,
 } from "./calculos";
 // El lector de papeles: la cascada de gratis a caro (QR y XML sin costo,
 // patrón aprendido para lo ya conocido, IA sólo para un formato nuevo).
@@ -7582,8 +7582,8 @@ function AppInner() {
   const upd = useCallback((sec, item) => {
     // Un cambio de sueldo se ANOTA (desde cuándo y cuánto ganaba antes): así
     // el costo de los meses pasados no se recalcula con el sueldo nuevo.
-    if (sec === "trabajadores") item = anotarCambioDeSueldo(trabajadoresRef.current.find(t => t.id === item.id), item, today());
-    if (sec === "encargados") item = anotarCambioDeSueldo(encargadosRef.current.find(t => t.id === item.id), item, today());
+    if (sec === "trabajadores") item = anotarCambioDeSueldo(trabajadoresRef.current.find(t => t.id === item.id), conSueldoSemanal(item), today());
+    if (sec === "encargados") item = anotarCambioDeSueldo(encargadosRef.current.find(t => t.id === item.id), conSueldoSemanal(item), today());
     // El saldo de un préstamo se calcula de sus abonos: al guardarlo no se le escribe lo calculado.
     if (sec === "prestamos") { if (item._deEventos) return; item = paraGuardarPrestamo(item); }   // un préstamo que sale de sus eventos no se guarda como renglón
     // Que alguien esté de baja sale de su evento, no de su ficha: al guardar la ficha no se le escribe.
@@ -7656,7 +7656,7 @@ function AppInner() {
   const add = useCallback((sec, item) => {
     if (sec === "actividades") item = sellarSueldoDelDia(item, trabajadoresRef.current);
     // El sueldo con que se da de alta a alguien vale desde ese día (si no, todo lo suyo salía como «sueldo estimado»).
-    if (sec === "trabajadores" || sec === "encargados") item = sueldoDeAlta(item, today());
+    if (sec === "trabajadores" || sec === "encargados") item = sueldoDeAlta(conSueldoSemanal(item), today());
     // Quién lo ordenó, capturó, ejecutó y confirmó van aparte, sin suponer a nadie. No cambia pagos ni costos.
     if (CLASES_CON_QUIENES.includes(sec)) item = conQuienes(sec, item, { sesion: sesionRef.current, catalogos: catalogosRef.current });
     if (sec === "inventario") item = paraGuardarArticulo(item);
@@ -11656,6 +11656,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
         <div className="section-pad">
           <div className="card ab">
             <div className="card-title">Nuevo Trabajador</div>
+            <div className="form-group"><label className="form-label" htmlFor="alta-semana">Sueldo por semana (si cobra por semana)</label><input id="alta-semana" type="number" inputMode="decimal" className="inp" value={tForm.sueldo_semana || ""} onChange={e => { const v = e.target.value; setTForm(f => ({ ...f, sueldo_semana: v, ...(Number(v) > 0 ? { sueldo_dia: promedioDeSemana(v, f) } : {}) })); }} />{Number(tForm.sueldo_semana) > 0 && <div className="text-xs text-muted">Entre los 6 días de lunes a sábado: {fmt(promedioDeSemana(tForm.sueldo_semana, tForm))} por día. La semana completa suma exacto {fmt(Number(tForm.sueldo_semana))}.</div>}</div>
             {[["Nombre completo", "text", "nombre"], ["Código de nómina (ej. E00)", "text", "codigoNomina"], ["Sueldo/día", "number", "sueldo_dia"], ["PIN de acceso", "text", "pin"]].map(([l, t, k]) => (
               <div key={k} className="form-group"><label className="form-label">{l}</label><input type={t} className="inp" value={tForm[k]} onChange={e => setTForm(f => ({ ...f, [k]: t === "number" ? parseFloat(e.target.value) || 0 : e.target.value }))} /></div>
             ))}
@@ -11711,13 +11712,13 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
               <div className="li-icon"><Ic e={ci[t.categoria] || "👤"} /></div>
               <div className="li-body">
                 <div className="li-title">{t.nombre}{t.cabo ? <span style={{ color: "var(--accent)", fontSize: 11, marginLeft: 6 }}>· CABO</span> : null}</div>
-                <div className="li-sub">{nombreDeCategoria(t.categoria)}{t.codigoNomina ? ` · ${t.codigoNomina}` : ""} · {fmt(t.sueldo_dia)}/día · PIN {t.pin}</div>
+                <div className="li-sub">{nombreDeCategoria(t.categoria)}{t.codigoNomina ? ` · ${t.codigoNomina}` : ""} · {Number(t.sueldo_semana) > 0 ? `${fmt(t.sueldo_semana)}/semana · ` : ""}{fmt(t.sueldo_dia)}/día · PIN {t.pin}</div>
                 <div className="li-sub">{acts.length} actividades · Bonif: {fmt(bons)}{prestamoSaldo > 0 ? <span style={{ color: "var(--gold)" }}> · 💸 Debe {fmt(prestamoSaldo)}</span> : null}</div>
               </div>
               <div className="li-right" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
                 <div className="li-val">{fmt(mo + bons)}</div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button className="btn-ghost" style={{ padding: 2, fontSize: 13 }} onClick={() => setEditItem({ seccion: "trabajadores", registro: t, titulo: t.nombre, campos: [["nombre", "Nombre", "text"], ["fechaIngreso", "Fecha de ingreso", "date"], ["codigoNomina", "Código nómina", "text"], ["categoria", "Categoría", "select", [{ v: "jornalero", l: "general" }, { v: "tractorista", l: "tractorista" }, { v: "dronero", l: "dronero" }, { v: "maquinista", l: "maquinista" }, { v: "supervisor", l: "supervisor" }, { v: "especialista", l: "especialista" }]], ["sueldo_dia", "Sueldo por día", "number"], ["retencion_pct", "Retención (%, 0 = íntegro)", "number"], ["pin", "PIN de acceso", "text"]] })}><Ic e="✏️" /></button>
+                  <button className="btn-ghost" style={{ padding: 2, fontSize: 13 }} onClick={() => setEditItem({ seccion: "trabajadores", registro: t, titulo: t.nombre, campos: [["nombre", "Nombre", "text"], ["fechaIngreso", "Fecha de ingreso", "date"], ["codigoNomina", "Código nómina", "text"], ["categoria", "Categoría", "select", [{ v: "jornalero", l: "general" }, { v: "tractorista", l: "tractorista" }, { v: "dronero", l: "dronero" }, { v: "maquinista", l: "maquinista" }, { v: "supervisor", l: "supervisor" }, { v: "especialista", l: "especialista" }]], ["sueldo_semana", "Sueldo por semana (si cobra por semana: el de por día sale solo)", "number"], ["sueldo_dia", "Sueldo por día", "number"], ["retencion_pct", "Retención (%, 0 = íntegro)", "number"], ["pin", "PIN de acceso", "text"]] })}><Ic e="✏️" /></button>
                   <button className="btn-ghost" style={{ padding: 2, fontSize: 13, opacity: t.cabo ? 1 : 0.35 }} title="Nombrar cabo (puede pasar lista de sus compañeros)" onClick={() => {
                     if (!t.cabo && !window.confirm(`¿Nombrar cabo a ${t.nombre}? Desde su propio acceso podrá pasar lista y registrar los días de sus compañeros.`)) return;
                     upd("trabajadores", { ...t, cabo: !t.cabo });

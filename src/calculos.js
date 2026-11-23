@@ -382,6 +382,28 @@ export function calcularCostoManoObra(actividades, trabajadores) {
   return { costoPorParcela, desglosePorParcela, sinSueldo, estimados };
 }
 
+/* ──── El sueldo de la SEMANA ──── */
+// Luis, 22 nov: «el sueldo por día es el de la semana entre 6», para que TODO el sueldo semanal se reparta entre las
+// actividades de los días trabajados. Quien cobra por semana lleva en su ficha `sueldo_semana`, y cada día de su
+// calendario (lunes a sábado si no se dice otro) vale su PARTE, repartida al centavo: la semana completa suma exacto lo
+// que gana —3,500 = 583.33 × 5 + 583.35—, no 3,499.98. El centavo que sobra se lo lleva el último día de su calendario.
+// Un día fuera de su calendario (un domingo que sí vino) vale el promedio. Su `sueldo_dia` es ese promedio: es el que se
+// enseña y la base de sus prestaciones.
+export const DIAS_DE_SIEMPRE = [1, 2, 3, 4, 5, 6];
+export const diaDeLaSemana = (fecha) => { const d = new Date(fecha + "T12:00:00Z").getUTCDay(); return d === 0 ? 7 : d; };
+const diasDelCalendario = (t) => (Array.isArray(t?.diasAsistencia) && t.diasAsistencia.length ? [...new Set(t.diasAsistencia.map(Number))].sort((a, b) => a - b) : DIAS_DE_SIEMPRE);
+export const promedioDeSemana = (semana, trabajador) => Math.round((parseFloat(semana) || 0) / diasDelCalendario(trabajador).length * 100) / 100;
+export function parteDelDia(semana, trabajador, fecha) {
+  const s = parseFloat(semana) || 0; if (!(s > 0)) return 0;
+  const dias = diasDelCalendario(trabajador), i = fecha ? dias.indexOf(diaDeLaSemana(fecha)) : -1;
+  return i >= 0 ? repartirDinero(s, dias.map(() => 1))[i] : promedioDeSemana(s, trabajador);
+}
+// Al guardar una ficha que cobra por semana, su sueldo por día es el promedio (no se teclea aparte).
+export function conSueldoSemanal(persona) {
+  const s = parseFloat(persona?.sueldo_semana);
+  return s > 0 ? { ...persona, sueldo_semana: Math.round(s * 100) / 100, sueldo_dia: promedioDeSemana(s, persona) } : persona;
+}
+
 /* ──── El sueldo de cada fecha, con su evidencia ──── */
 // ¿Cuánto ganaba esta persona ESE día? De mejor a peor evidencia:
 //   "historial"         — hay un cambio de sueldo anotado que cubre la fecha.
@@ -392,23 +414,26 @@ export function calcularCostoManoObra(actividades, trabajadores) {
 // Nunca se escribe un sueldo viejo con el valor de hoy como si fuera un hecho.
 export function sueldoVigente(trabajador, fecha) {
   if (!trabajador) return { sueldo: 0, origen: "sin_dato", estimado: true };
+  // Quien cobra por semana: el día vale su parte de la semana (y se dice el promedio y la semana de donde salió).
+  const de = (r, origen, estimado) => { const sem = parseFloat(r.sueldo_semana) || 0;
+    return sem > 0 ? { sueldo: parteDelDia(sem, trabajador, fecha), promedio: promedioDeSemana(sem, trabajador), semana: sem, origen, estimado } : { sueldo: parseFloat(r.sueldo_dia) || 0, origen, estimado }; };
   const hist = (trabajador.historialSueldo || []).filter(h => h && h.desde).sort((a, b) => (a.desde < b.desde ? -1 : 1));
   if (hist.length > 0 && fecha) {
     let vigente = null;
     for (const h of hist) if (h.desde <= fecha) vigente = h;
-    if (vigente) return { sueldo: parseFloat(vigente.sueldo_dia) || 0, origen: "historial", estimado: false };
+    if (vigente) return de(vigente, "historial", false);
     const antes = parseFloat(hist[0].anterior);
     if (antes > 0) return { sueldo: antes, origen: "anterior_conocido", estimado: true };
   }
-  return { sueldo: parseFloat(trabajador.sueldo_dia) || 0, origen: "catalogo_actual", estimado: true };
+  return de(trabajador, "catalogo_actual", true);
 }
 
 // Al dar de ALTA a alguien, el sueldo que se le pone vale desde ese día: se anota como el primer renglón de su
 // historial. Sin esto, todo lo que trabajara salía marcado como «sueldo estimado» aunque el sueldo fuera el suyo.
 export function sueldoDeAlta(persona, hoy) {
-  const s = parseFloat(persona && persona.sueldo_dia) || 0;
+  const s = parseFloat(persona && persona.sueldo_dia) || 0, sem = parseFloat(persona && persona.sueldo_semana) || 0;
   if (!persona || !(s > 0) || (persona.historialSueldo || []).length > 0) return persona;
-  return { ...persona, historialSueldo: [{ desde: hoy, sueldo_dia: s, anterior: s }] };
+  return { ...persona, historialSueldo: [{ desde: hoy, sueldo_dia: s, anterior: s, ...(sem > 0 ? { sueldo_semana: sem } : {}) }] };
 }
 
 // Al cambiarle el sueldo a alguien se ANOTA el cambio: desde qué día, cuánto,
@@ -416,11 +441,12 @@ export function sueldoDeAlta(persona, hoy) {
 export function anotarCambioDeSueldo(antes, despues, hoy) {
   if (!despues) return despues;
   const viejo = parseFloat(antes && antes.sueldo_dia) || 0, nuevo = parseFloat(despues.sueldo_dia) || 0;
-  if (!antes || viejo === nuevo) return despues;
+  const semViejo = parseFloat(antes && antes.sueldo_semana) || 0, semNuevo = parseFloat(despues.sueldo_semana) || 0;
+  if (!antes || (viejo === nuevo && semViejo === semNuevo)) return despues;
   const hist = [...(despues.historialSueldo || antes.historialSueldo || [])];
   // Dos cambios el mismo día (una corrección de dedo) son uno solo.
   const mismoDia = hist.findIndex(h => h.desde === hoy);
-  const renglon = { desde: hoy, sueldo_dia: nuevo, anterior: mismoDia >= 0 ? hist[mismoDia].anterior : viejo };
+  const renglon = { desde: hoy, sueldo_dia: nuevo, anterior: mismoDia >= 0 ? hist[mismoDia].anterior : viejo, ...(semNuevo > 0 ? { sueldo_semana: semNuevo } : {}) };
   if (mismoDia >= 0) hist[mismoDia] = renglon; else hist.push(renglon);
   return { ...despues, historialSueldo: hist };
 }
@@ -505,7 +531,8 @@ export function sellarSueldoDelDia(actividad, trabajadores) {
   if (!actividad || parseFloat(actividad.sueldoDia) > 0) return actividad;
   const id = actividad.trabajadorId || (actividad.registradoPor && actividad.registradoPor.id);
   const t = id && (trabajadores || []).find(x => x.id === id);
-  const sueldo = parseFloat(t && t.sueldo_dia) || 0;
+  // Quien cobra por semana: la foto es la parte de la semana que vale ESE día (no el promedio).
+  const sueldo = t && parseFloat(t.sueldo_semana) > 0 ? parteDelDia(t.sueldo_semana, t, actividad.fecha) : parseFloat(t && t.sueldo_dia) || 0;
   if (!t || sueldo <= 0) return actividad;
   return { ...actividad, sueldoDia: sueldo, trabajadorNombre: actividad.trabajadorNombre || t.nombre || "" };
 }

@@ -579,3 +579,32 @@ test("las_etapas_de_un_cultivo_se_capturan_en_la_app_en_orden_sin_encimarse_y_si
   assert.match(revisarEtapas([{ etapa: "Riego", diaInicio: 0, diaFin: 10 }, { etapa: "riego", diaInicio: 10, diaFin: 20 }]).dice, /se repite/);
   assert.match(revisarEtapas([{ etapa: "Siembra", diaInicio: "", diaFin: 10 }]).dice, /faltan sus días/);
 });
+
+import { conSueldoSemanal as conSueldoSemanal_s, sueldoVigente as sueldoVigente_s, sumarDinero as sumarDinero_s, sueldoDeAlta as sueldoDeAlta_s, anotarCambioDeSueldo as anotarCambioDeSueldo_s, sellarSueldoDelDia as sellarSueldoDelDia_s } from "./calculos.js";
+// Luis, 22 nov: el sueldo por día es el de la semana entre 6. Con 583.33 × 6 la semana salía en 3,499.98.
+test("el_sueldo_de_la_semana_entre_seis_suma_exacto_la_semana_y_no_deja_centavos_sueltos", () => {
+  const ana = conSueldoSemanal_s({ id: "t1", nombre: "Ana", sueldo_semana: 3500 });
+  assert.equal(ana.sueldo_dia, 583.33, "el promedio es su sueldo por día");
+  const semana = ["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20", "2026-11-21"];
+  const partes = semana.map(f => sueldoVigente_s(ana, f).sueldo);
+  assert.deepEqual(partes, [583.33, 583.33, 583.33, 583.33, 583.33, 583.35], "el centavo que sobra va al último día de su calendario");
+  assert.equal(sumarDinero_s(partes), 3500);
+  assert.equal(sueldoVigente_s(ana, "2026-11-22").sueldo, 583.33, "un domingo que sí vino vale el promedio");
+  assert.equal(sueldoVigente_s(ana, "2026-11-21").promedio, 583.33);
+  const cinco = conSueldoSemanal_s({ id: "t2", sueldo_semana: 3500, diasAsistencia: [1, 2, 3, 4, 5] });
+  assert.equal(cinco.sueldo_dia, 700); assert.equal(sueldoVigente_s(cinco, "2026-11-21").sueldo, 700, "quien no viene los sábados: su semana entre 5");
+  const raro = conSueldoSemanal_s({ id: "t3", sueldo_semana: 4231.6 });
+  assert.equal(sumarDinero_s(semana.map(f => sueldoVigente_s(raro, f).sueldo)), 4231.6);
+  assert.equal(conSueldoSemanal_s({ id: "t4", sueldo_dia: 350 }).sueldo_dia, 350, "quien cobra por día no cambia");
+});
+
+test("el_sueldo_de_la_semana_queda_en_su_historial_desde_el_alta_y_al_cambiarlo", () => {
+  const alta = sueldoDeAlta_s(conSueldoSemanal_s({ id: "t1", sueldo_semana: 3500 }), "2026-11-16");
+  assert.deepEqual(alta.historialSueldo, [{ desde: "2026-11-16", sueldo_dia: 583.33, anterior: 583.33, sueldo_semana: 3500 }]);
+  const sube = anotarCambioDeSueldo_s(alta, conSueldoSemanal_s({ ...alta, sueldo_semana: 3600 }), "2026-12-07");
+  assert.equal(sube.historialSueldo.length, 2); assert.equal(sube.historialSueldo[1].sueldo_semana, 3600); assert.equal(sube.historialSueldo[1].sueldo_dia, 600);
+  assert.equal(sueldoVigente_s(sube, "2026-11-21").sueldo, 583.35, "noviembre se queda con el sueldo de noviembre");
+  assert.equal(sueldoVigente_s(sube, "2026-12-12").sueldo, 600);
+  const act = sellarSueldoDelDia_s({ id: "a1", fecha: "2026-11-21", registradoPor: { id: "t1" } }, [alta]);
+  assert.equal(act.sueldoDia, 583.35, "la foto de una actividad es la parte de ESE día");
+});

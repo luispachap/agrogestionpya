@@ -25,7 +25,8 @@
 //    la ley pida. Lo dice el propio recibo.
 // ════════════════════════════════════════════════════════════════════════
 import { nuevoEvento, vigentes, corregirEvento, rastroDe, negado } from "./eventos.js";
-import { sumarDinero, sueldoVigente, sumarDias, fmt } from "./calculos.js";
+import { sumarDinero, sueldoVigente, sumarDias, fmt, DIAS_DE_SIEMPRE, diaDeLaSemana } from "./calculos.js";
+export { DIAS_DE_SIEMPRE, diaDeLaSemana };
 
 export const T_AUSENCIA = "ausencia", T_PAGO = "pago_personal", T_RECIBO = "recibo_personal", T_HORAS = "horas_reconocidas";
 const PUEDE = ["admin", "encargado"];
@@ -44,8 +45,6 @@ export const CLASES_DE_PERSONAL = { planta: "Trabajador de planta", cuadrilla: "
 
 // ── El calendario de cada quien ────────────────────────────────────────────
 // 1 = lunes … 7 = domingo. Si no se ha dicho nada: de lunes a sábado.
-export const DIAS_DE_SIEMPRE = [1, 2, 3, 4, 5, 6];
-export const diaDeLaSemana = (fecha) => { const d = new Date(fecha + "T12:00:00Z").getUTCDay(); return d === 0 ? 7 : d; };
 export const leToca = (trabajador, fecha) => (Array.isArray(trabajador?.diasAsistencia) && trabajador.diasAsistencia.length ? trabajador.diasAsistencia : DIAS_DE_SIEMPRE).includes(diaDeLaSemana(fecha));
 // Asistencia por calendario (encargados): periodos { desde, hasta } en que su día se paga por estar en su calendario.
 // Apagarla cierra el periodo; lo anterior sigue valiendo como estaba.
