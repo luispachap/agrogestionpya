@@ -115,18 +115,18 @@
   {
    "n": 1,
    "nombre": "Operación",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "PARCIAL",
+   "prueba": "auditoria_agronomia 30",
+   "probado": "Lo que va en proceso por etapa (con el avance reportado en campo) y lo atrasado contra el calendario del cultivo; se llama igual en el menú y en la pantalla",
+   "falta": "«Cosecha en curso»; y con un cultivo dado de alta en la app (todavía sin etapas: defecto 38) no tiene qué enseñar"
   },
   {
    "n": 2,
    "nombre": "El día",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: plan, jornada, reasignacion, entrega",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_eldia 15 · antes: plan, jornada, reasignacion",
+   "probado": "Con cuentas y dos teléfonos: lo planeado contra lo que se sabe, el cierre que pide el porqué, la foto del cierre, lo que pasa a mañana una sola vez, reabrir con motivo desde otro teléfono (aunque traiga otra hora), y que nada de esto crea pagos ni costos",
+   "falta": "El pronóstico del clima (pide internet: prueba de campo)"
   },
   {
    "n": 3,
@@ -155,10 +155,10 @@
   {
    "n": 6,
    "nombre": "Mensajes",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: mensajes, mensajes_movil, dicho",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_mensajes 12 · mensajes 24 · mensajes_movil 34 · dicho 32 · base",
+   "probado": "Una compra dicha por el encargado se completa y se confirma desde otro teléfono: un solo gasto con quién lo dijo y quién lo confirmó; la plática no genera nada; recargar no duplica; la privacidad la ataca la base",
+   "falta": "Los avisos al teléfono (sin probar en un teléfono real)"
   },
   {
    "n": 7,
@@ -187,10 +187,10 @@
   {
    "n": 10,
    "nombre": "Indicaciones",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_agronomia 30",
+   "probado": "El agrónomo manda a una persona, en una parcela, con insumo; al marcarla hecha queda la actividad a nombre de quien la hizo, el insumo sale del almacén y su costo se carga una vez (no sale otra vez del flujo); otro teléfono",
+   "falta": "El botón de WhatsApp abre la app del teléfono (prueba de campo)"
   },
   {
    "n": 11,
@@ -275,10 +275,10 @@
   {
    "n": 21,
    "nombre": "Hoja de Fito",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_agronomia 30",
+   "probado": "Una hoja que no cuadra (total ≠ dosis × hectáreas) no deja mandar nada; la buena encuentra la parcela, dice qué falta en la bodega y lo que no está en el catálogo como «no se sabe»; sin destinatario no se manda",
+   "falta": "Una hoja en PDF y una en foto de las de Fito (la foto pasa por la lectura con IA)"
   },
   {
    "n": 22,
@@ -291,10 +291,10 @@
   {
    "n": 23,
    "nombre": "Ganado",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_agronomia 30",
+   "probado": "Potreros (varios), alta con arete único, báscula (ganancia diaria), jeringa con retiro (NO se puede vender) y sin retiro (no se sabe, nunca «se puede»), lista para venta en tres grupos, cuadre del hato que no se ajusta solo, baja con motivo, otro teléfono",
+   "falta": "—"
   },
   {
    "n": 24,
@@ -387,10 +387,10 @@
   {
    "n": 35,
    "nombre": "Importar documentos",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: importar, ia, rayas",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_importar 11 · importar 19 · ia 16",
+   "probado": "Con cuentas y dos teléfonos: lo de después del arranque se propone y entra al confirmar (una vez, con su folio y su documento); lo de antes va al histórico y no a Finanzas; el mismo archivo no entra dos veces, tampoco desde otro teléfono",
+   "falta": "La lectura con IA de verdad (espera la llave)"
   },
   {
    "n": 36,
@@ -611,10 +611,10 @@
   {
    "n": 63,
    "nombre": "Organización",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: organizacion",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_organizacion 11 · organizacion 24",
+   "probado": "Sin el permiso otorgado ni el superadministrador la captura; con él: estructura provisional, responsable por confirmar, persona en su equipo, de quién depende, otro teléfono; no crea trabajo ni da permisos",
+   "falta": "La estructura real, con Miguel, Fito y Dirección"
   },
   {
    "n": 64,
@@ -1196,7 +1196,7 @@
    "que": "La plantilla pedía la «Contraseña inicial» de cada cuenta y armaba un SQL que creaba cuentas directo en la base; también leía PIN de la hoja, reemplazaba el catálogo del teléfono y sobrescribía en la nube lo que tuviera el mismo identificador",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Ya no hay hoja de cuentas ni PIN; sólo se dan de alta los que faltan, por el camino de siempre"
   },
   {
@@ -1205,7 +1205,7 @@
    "que": "Se podía poner a Dirección el PIN de un trabajador, o el mismo PIN a dos perfiles: con un PIN repetido ninguno de los dos podía entrar",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Se rechaza y se dice por qué"
   },
   {
@@ -1214,7 +1214,7 @@
    "que": "La estimación contaba a todos (también a los dados de baja) por seis días fijos, y a quien cobra a destajo como cero",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Sueldo vigente por los días de cada quien, sólo activos; destajo y sin sueldo aparte"
   },
   {
@@ -1223,8 +1223,53 @@
    "que": "Una compra aplicada desde el buzón y cargada completa al almacén se quedaba «por clasificar» en Finanzas",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Si todo lo del papel entró al almacén, queda como compra para el almacén; si entró una parte, se dice"
+  },
+  {
+   "n": 65,
+   "modulo": "Ganado",
+   "que": "Después de registrar el primer potrero ya no aparecía el botón para registrar otro",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "El botón está siempre"
+  },
+  {
+   "n": 66,
+   "modulo": "Operación",
+   "que": "La pantalla se llamaba «Operación en vivo» y en el menú «Operación»",
+   "nivel": "P3",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Se llama igual en los dos"
+  },
+  {
+   "n": 67,
+   "modulo": "Hoja de Fito",
+   "que": "Un fertilizante del catálogo con la fórmula en el nombre («Urea 46-00-00») no se reconocía y la hoja decía «no se sabe si hay»",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Se reconoce por el inicio del nombre; si dos artículos podrían ser el mismo, no se escoge ninguno y se dice"
+  },
+  {
+   "n": 68,
+   "modulo": "El día, Pagos y Cierre de mes",
+   "que": "Una reapertura hecha desde un teléfono con la hora atrasada podía quedar «antes» del cierre y no contar: se seguía viendo cerrada",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "El orden entre cierre y reapertura sale de la hora corregida de cada teléfono"
+  },
+  {
+   "n": 69,
+   "modulo": "El día",
+   "que": "La casilla «Pasa a mañana» de una tarea sin terminar no tenía nombre para quien usa lector de pantalla",
+   "nivel": "P3",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Ya lo tiene"
   }
  ],
  "no_se_pudo": [
@@ -1248,7 +1293,7 @@
   {
    "que": "La app en app.agroselectos.com",
    "estado": "publicado",
-   "detalle": "Versión `ac35461`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio (18 de 18)."
+   "detalle": "Versión `5991b63`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio (18 de 18)."
   },
   {
    "que": "Captura diaria: «Mis días» con la cuenta real, registro de varios que dice lo que se paga, el día que se costeaba dos veces, y rastro al aprobar externos y atender incidencias",
@@ -1321,9 +1366,9 @@
    "detalle": "Lo otorga el administrador a su propia cuenta."
   },
   {
-   "que": "Semana, Papeles, Subir catálogos y Seguridad",
+   "que": "Ganado, Operación, Hoja de Fito y el orden de cierres y reaperturas",
    "estado": "sin_publicar",
-   "detalle": "Recorridos auditoria_control 32, auditoria_papeles 15 y auditoria_numeros 35; se publica al pasar la batería completa."
+   "detalle": "Recorridos auditoria_agronomia 30, auditoria_eldia 15, auditoria_organizacion 11, auditoria_mensajes 12 y auditoria_importar 11; se publica al pasar la batería completa."
   }
  ],
  "pendientes_menores": [

@@ -17,6 +17,7 @@
 //     dice una persona, no la app), y qué pasa a mañana. Reabrir pide motivo y deja la foto anterior.
 //   · Nada de aquí crea rayas, pagos ni costos: ningún módulo de dinero lee la jornada ni su cierre.
 import { nuevoEvento, vigentes } from "./eventos.js";
+import { momentoDe } from "./movimientos.js";
 import { jornadasDe } from "./checador.js";
 import { tramosDeTrabajo } from "./cuadrillas.js";
 import { avancesDe } from "./avances.js";
@@ -101,8 +102,12 @@ export function jornadaDe({ fecha, indicaciones = [], eventos = [], incidencias 
 
 /* ── Cerrar la jornada ── */
 // La foto vigente de un día (la última que no se reabrió) y cuántas versiones lleva.
+// El orden entre un cierre y su reapertura sale de la hora CORREGIDA de cada teléfono (`momentoDe`: con su desfase contra
+// el servidor), no del reloj de cada uno: con dos teléfonos con la hora distinta, una reapertura hecha DESPUÉS de un
+// cierre podía quedar «antes» y no contar (se veía cerrada aunque alguien la reabrió).
+const t_ = (e) => momentoDe(e).t, enOrden = (a, b) => (t_(a) - t_(b)) || String(a.id).localeCompare(String(b.id));
 export function cierreDe(eventos, fecha) {
-  const vivos = vigentes(eventos || []).filter(e => e.fecha === fecha && (e.tipo === T_CIERRE || e.tipo === T_REAPERTURA)).sort((a, b) => String(a.cuando).localeCompare(String(b.cuando)));
+  const vivos = vigentes(eventos || []).filter(e => e.fecha === fecha && (e.tipo === T_CIERRE || e.tipo === T_REAPERTURA)).sort(enOrden);
   const cierres = vivos.filter(e => e.tipo === T_CIERRE), ultimo = vivos[vivos.length - 1] || null;
   const foto = (e) => ({ evento: e.id, version: e.datos.version, cuando: e.cuando, quien: e.quien?.nombre || "", ...e.datos });
   return { cerrada: !!ultimo && ultimo.tipo === T_CIERRE, vigente: ultimo && ultimo.tipo === T_CIERRE ? foto(ultimo) : null, versiones: cierres.length, anteriores: cierres.slice(0, ultimo?.tipo === T_CIERRE ? -1 : undefined).map(foto),

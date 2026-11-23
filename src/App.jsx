@@ -3115,7 +3115,7 @@ function ElDia({ data, add, upd, session, onClose }) {
                         {Object.entries(MOTIVOS_DE_JORNADA).map(([k, n]) => <option key={k} value={k}>{n}</option>)}
                       </select>
                       {m.motivo && <input className="inp" style={{ marginTop: 4 }} aria-label={`Nota: ${t.nombre}`} placeholder={m.motivo === "otro" ? "Di qué pasó" : "Nota (opcional)"} value={m.nota || ""} onChange={e => setMotivosJ(x => ({ ...x, [t.id]: { ...x[t.id], nota: e.target.value } }))} />}
-                      <label className="text-xs" style={{ display: "flex", gap: 6, marginTop: 6 }}><input type="checkbox" checked={!!pasanJ[t.id]} onChange={e => setPasanJ(x => ({ ...x, [t.id]: e.target.checked }))} />Pasa a mañana</label>
+                      <label className="text-xs" style={{ display: "flex", gap: 6, marginTop: 6 }}><input type="checkbox" aria-label={`Pasa a mañana: ${t.nombre}`} checked={!!pasanJ[t.id]} onChange={e => setPasanJ(x => ({ ...x, [t.id]: e.target.checked }))} />Pasa a mañana</label>
                     </div>
                   )}
                   {!cierreJ.cerrada && !t.pideMotivo && t.estado !== "hecha" && puedeCerrarJ && (
@@ -5331,9 +5331,9 @@ function Ganado({ data, add, upd, session, onClose }) {
 
       {tab === "potreros" && (
         <div className="section-pad">
-          {potreros.length === 0 && (
+          {(
             <div className="card">
-              <div className="text-sm text-muted">Todavía no hay potreros. Se registran igual que las parcelas, con sus hectáreas y cuántas unidades animal aguantan.</div>
+              {potreros.length === 0 && <div className="text-sm text-muted">Todavía no hay potreros. Se registran igual que las parcelas, con sus hectáreas y cuántas unidades animal aguantan.</div>}
               <button className="btn btn-outline mt-2" onClick={() => {
                 const nombre = prompt("Nombre del potrero:"); if (!nombre) return;
                 const ha = prompt("¿Cuántas hectáreas tiene? (déjalo en blanco si no se sabe)");
@@ -19601,7 +19601,7 @@ function PanelOperacion({ data, onClose, onVerParcela }) {
     <div>
       <div className="top-bar">
         {onClose && <button className="btn-ghost" onClick={onClose}>‹</button>}
-        <h2>Operación en vivo</h2>
+        <h2>Operación</h2>
       </div>
       <div className="section-pad">
         <div className="text-xs text-muted mb-3" style={{ paddingLeft: 4 }}>

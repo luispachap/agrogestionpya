@@ -81,6 +81,17 @@ export function canonico(s) {
   return APRETADO.get(t.replace(/[\s.]/g, "")) || null;
 }
 
+// En el catálogo de la bodega el nombre suele traer algo más: «Urea 46-00-00», «MAP 11-52-00», «Nitrato de calcio
+// granulado». Si empieza con el nombre de uno de los once y luego viene un espacio, es ése. (Sólo para buscarlo en la
+// bodega: si dos artículos del catálogo caen en el mismo, no se escoge ninguno.)
+const POR_INICIO = Object.keys(ALIAS).sort((a, b) => b.length - a.length);
+export function canonicoDeCatalogo(s) {
+  const directo = canonico(s); if (directo) return directo;
+  const t = normalizar(s).replace(/\s+/g, " ").trim();
+  const k = POR_INICIO.find(k => t.startsWith(k + " "));
+  return k ? ALIAS[k] : null;
+}
+
 // Palabras de encabezado: no son ni fertilizante ni producto extra.
 const ENCABEZADOS = [
   "FERTILIZANTES", "FERTILIZANTE", "DOSIS KG/HA", "DOSIS", "FERTILIZANTE TOTAL",
@@ -280,12 +291,14 @@ export function validarFertiriego(hoja) {
 // se trata: parar una aplicación por un saco que nadie pidió es justo lo que
 // hay que evitar.
 export function alcanzaParaLaAplicacion({ hoja, inventario }) {
-  const porNombre = new Map();
+  const porNombre = new Map(), dudosos = new Map();
   for (const i of inventario || []) {
-    const c = canonico(i.nombre);
-    if (c) porNombre.set(c, i);
+    const c = canonicoDeCatalogo(i.nombre);
+    if (c && porNombre.has(c) && porNombre.get(c).id !== i.id) dudosos.set(c, [...(dudosos.get(c) || [porNombre.get(c)]), i]);
+    else if (c) porNombre.set(c, i);
     porNombre.set(normalizar(i.nombre), i);
   }
+  for (const c of dudosos.keys()) porNombre.delete(c);   // dos artículos que podrían ser el mismo: no se escoge
 
   const pedidos = [
     ...(hoja.fertilizantes || []).filter(f => (f.total ?? 0) > 0)
@@ -301,7 +314,9 @@ export function alcanzaParaLaAplicacion({ hoja, inventario }) {
         ...p, insumoId: null, existencia: null, alcanza: null, falta: null, costoDeReponer: null,
         // Que no esté en el catálogo NO quiere decir que no haya: quiere decir
         // que no se sabe. Son cosas distintas y se dicen distinto.
-        dice: `"${p.nombre}" no está en el catálogo de la bodega, así que no se sabe si hay. No quiere decir que no haya.`,
+        dice: dudosos.get(p.nombre)
+          ? `"${p.nombre}" podría ser ${dudosos.get(p.nombre).map(v => `«${v.nombre}»`).join(" o ")} del catálogo: no se escoge uno, así que no se sabe si hay.`
+          : `"${p.nombre}" no está en el catálogo de la bodega, así que no se sabe si hay. No quiere decir que no haya.`,
       };
     }
     const hay = Number(it.existencia) || 0;

@@ -221,3 +221,14 @@ test("quitar_a_alguien_del_plan_tambien_queda_a_la_vista_con_su_motivo", async (
   assert.deepEqual([q.clase, q.motivo, q.nuevaId, q.ahora], ["quitada", "Se fue a su casa, se sintió mal", null, ""]);
   assert.equal(j.tareas.length, 6); assert.deepEqual(j.fueraDelPlan, [], "lo que trabajó donde decía el plan que se le quitó no es «fuera del plan»");
 });
+
+test("una_reapertura_hecha_despues_del_cierre_cuenta_aunque_el_telefono_que_reabrio_traiga_la_hora_atrasada", async () => {
+  const { cierreDe, T_CIERRE, T_REAPERTURA } = await import("./jornada.js");
+  // El encargado cierra a las 18:01 con la hora bien; el administrador reabre en otro teléfono que va 5 minutos atrasado:
+  // su reloj dice 18:00, pero de verdad eran las 18:05.
+  const cierre = { id: "c1", tipo: T_CIERRE, fecha: "2026-11-23", cuando: "2026-11-24T00:01:00.000Z", capturado: "2026-11-24T00:01:00.000Z", reloj: { desfase: 0 }, quien: { nombre: "ENC" }, datos: { version: 1, tareas: [], pasan: [] } };
+  const reap = { id: "r1", tipo: T_REAPERTURA, fecha: "2026-11-23", cuando: "2026-11-24T00:00:00.000Z", capturado: "2026-11-24T00:00:00.000Z", reloj: { desfase: 5 * 60000 }, quien: { nombre: "ADM" }, datos: { motivo: "faltó un avance" } };
+  const c = cierreDe([cierre, reap], "2026-11-23");
+  assert.equal(c.cerrada, false, "la reapertura fue después: la jornada está reabierta");
+  assert.equal(c.reabierta?.quien, "ADM");
+});

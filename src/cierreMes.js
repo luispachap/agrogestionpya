@@ -15,6 +15,12 @@ import { sumarDinero } from "./calculos.js";
 import { indirectoDe } from "./indirectos.js";
 import { estadoDeCompra } from "./compras.js";
 import { claseDeInsumo } from "./resultado.js";
+import { momentoDe } from "./movimientos.js";
+// El orden entre un cierre y su reapertura sale de la hora CORREGIDA de cada teléfono (`momentoDe`: con su desfase contra
+// el servidor), no del reloj de cada uno: con dos teléfonos con la hora distinta, una reapertura hecha DESPUÉS de un
+// cierre podía quedar «antes» y no contar (se veía cerrada aunque alguien la reabrió).
+const t_ = (e) => momentoDe(e).t, enOrden = (a, b) => (t_(a) - t_(b)) || String(a.id).localeCompare(String(b.id));
+
 
 export const T_CIERRE_MES = "cierre_mes", T_REAPERTURA_MES = "reapertura_mes";
 const limpio = (s) => String(s || "").trim();
@@ -106,11 +112,11 @@ export function costoDelMes({ mes, desde: d0 = "", hasta: h0 = "", parcelas = []
   return { ...k, rancho: sumarDinero(k.completo, bodega.total, sinParcela.total, k.pendiente, k.noProduccion, generales.total) };
 }
 
-const deEseMes = (eventos, tipo, mes) => vigentes(eventos).filter(e => e.tipo === tipo && e.datos.mes === mes).sort((a, b) => a.cuando.localeCompare(b.cuando));
+const deEseMes = (eventos, tipo, mes) => vigentes(eventos).filter(e => e.tipo === tipo && e.datos.mes === mes).sort(enOrden);
 export function estadoDeMes(eventos, mes) {
   const cierres = deEseMes(eventos, T_CIERRE_MES, mes).map((e, i) => ({ ...e, version: i + 1 })), reaperturas = deEseMes(eventos, T_REAPERTURA_MES, mes);
   const ultimo = cierres[cierres.length - 1] || null, reap = reaperturas[reaperturas.length - 1] || null;
-  return { estado: !ultimo ? "abierto" : reap && reap.cuando > ultimo.cuando ? "reabierto" : "cerrado", cierre: ultimo, cierres, reaperturas };
+  return { estado: !ultimo ? "abierto" : reap && enOrden(reap, ultimo) > 0 ? "reabierto" : "cerrado", cierre: ultimo, cierres, reaperturas };
 }
 export const mesesCerrados = (eventos) => [...new Set(vigentes(eventos).filter(e => e.tipo === T_CIERRE_MES).map(e => e.datos.mes))].sort();
 

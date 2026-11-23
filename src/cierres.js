@@ -15,13 +15,19 @@
 // ════════════════════════════════════════════════════════════════════════
 import { nuevoEvento, vigentes, negado } from "./eventos.js";
 import { sumarDinero, fmt } from "./calculos.js";
+import { momentoDe } from "./movimientos.js";
+// El orden entre un cierre y su reapertura sale de la hora CORREGIDA de cada teléfono (`momentoDe`: con su desfase contra
+// el servidor), no del reloj de cada uno: con dos teléfonos con la hora distinta, una reapertura hecha DESPUÉS de un
+// cierre podía quedar «antes» y no contar (se veía cerrada aunque alguien la reabrió).
+const t_ = (e) => momentoDe(e).t, enOrden = (a, b) => (t_(a) - t_(b)) || String(a.id).localeCompare(String(b.id));
+
 
 export const T_CIERRE = "cierre_semana", T_REAPERTURA = "reapertura_semana", T_CONFIRMACION = "confirmacion_pagos";
 const limpio = (s) => String(s || "").trim();
 // `permitido`: lo que la base dijo de la cuenta de este aparato para «cerrar_semana». No basta el perfil:
 // es un permiso que un administrador le asigna a una cuenta. Sin servidor, manda el perfil con que se entró.
 export const puedeCerrar = (quien, permitido) => !negado(quien, permitido, "no");
-const deLaSemana = (eventos, tipo, desde, hasta) => vigentes(eventos).filter(e => e.tipo === tipo && e.datos.desde === desde && e.datos.hasta === hasta).sort((a, b) => a.cuando.localeCompare(b.cuando));
+const deLaSemana = (eventos, tipo, desde, hasta) => vigentes(eventos).filter(e => e.tipo === tipo && e.datos.desde === desde && e.datos.hasta === hasta).sort(enOrden);
 export const cierresDe = (eventos, desde, hasta) => deLaSemana(eventos, T_CIERRE, desde, hasta).map((e, i) => ({ ...e, version: i + 1 }));
 export const reaperturasDe = (eventos, desde, hasta) => deLaSemana(eventos, T_REAPERTURA, desde, hasta);
 export const confirmacionesDe = (eventos, desde, hasta) => deLaSemana(eventos, T_CONFIRMACION, desde, hasta).map((e, i) => ({ ...e, version: i + 1 }));
@@ -30,7 +36,7 @@ export const confirmacionesDe = (eventos, desde, hasta) => deLaSemana(eventos, T
 export function estadoDeSemana(eventos, desde, hasta) {
   const cierres = cierresDe(eventos, desde, hasta), reap = reaperturasDe(eventos, desde, hasta), conf = confirmacionesDe(eventos, desde, hasta);
   const ultimo = cierres[cierres.length - 1] || null, ultimaReap = reap[reap.length - 1] || null;
-  const reabierta = !!ultimo && !!ultimaReap && ultimaReap.cuando > ultimo.cuando;
+  const reabierta = !!ultimo && !!ultimaReap && enOrden(ultimaReap, ultimo) > 0;
   return { estado: !ultimo ? "abierta" : reabierta ? "reabierta" : "cerrada", cierre: ultimo, cierres, reaperturas: reap,
     confirmacion: conf.filter(c => ultimo && c.datos.cierre === ultimo.id).pop() || null, confirmaciones: conf };
 }

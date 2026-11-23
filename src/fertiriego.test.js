@@ -323,3 +323,12 @@ test("el_resumen_se_lee_de_un_vistazo_en_el_telefono", () => {
   assert.ok(ind.resumen.includes("10 ha"));
   assert.ok(ind.resumen.includes("Fosfonitrato 200"));
 });
+
+test("la_urea_del_catalogo_se_encuentra_aunque_se_llame_urea_46_00_00_y_si_hay_dos_no_se_escoge_ninguna", () => {
+  const hoja = { ok: true, fertilizantes: [{ nombre: "UREA", dosis: 20, total: 40 }, { nombre: "MAP", dosis: 10, total: 20 }], extras: [] };
+  const r = alcanzaParaLaAplicacion({ hoja, inventario: [{ id: "u", nombre: "Urea 46-00-00", existencia: 8 }, { id: "m1", nombre: "MAP 11-52-00", existencia: 30 }, { id: "m2", nombre: "MAP soluble", existencia: 5 }] });
+  const de = (n) => r.filas.find(f => f.nombre === n);
+  assert.equal(de("UREA").insumoId, "u"); assert.equal(de("UREA").falta, 32);
+  assert.equal(de("MAP").insumoId, null, "dos MAP en el catálogo: no se adivina cuál");
+  assert.match(de("MAP").dice, /podría ser «MAP 11-52-00» o «MAP soluble»/);
+});
