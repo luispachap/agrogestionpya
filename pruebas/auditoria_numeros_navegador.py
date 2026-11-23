@@ -63,7 +63,7 @@ with sync_playwright() as p:
     def aparato(cuenta):
         ctx = b.new_context(viewport={"width": 390, "height": 820}, timezone_id="America/Mexico_City", service_workers="block", device_scale_factor=2 if FOTOS else 1)
         ctx.route("**/*", lambda r: r.continue_() if "localhost" in r.request.url else r.abort()); ctx.route(N.NUBE + "/**", nube)
-        pg = ctx.new_page(); pg.on("pageerror", lambda e: errs.append(str(e) + " @ " + (e.stack or "")[:400])); pg.on("dialog", lambda d: d.accept())
+        pg = ctx.new_page(); pg.on("pageerror", lambda e: errs.append(str(e) + " @ " + (e.stack or "")[:400])); pg.on("dialog", lambda d: d.accept("MOTIVO INVENTADO") if d.type == "prompt" else d.accept())
         pg.clock.install(time=f"{HOY}T18:30:00-06:00")      # a las seis y media de la tarde: con toISOString() ya sería «mañana»
         pg.goto(URL); pg.wait_for_timeout(1500)
         pg.get_by_placeholder("Tu correo o tu PIN").fill(cuenta["correo"]); pg.get_by_placeholder("Contraseña", exact=True).fill("contrasena-larga-1"); pg.get_by_role("button", name="Entrar").click()
@@ -116,7 +116,7 @@ with sync_playwright() as p:
     ci = next(x for x in A.evaluate("() => window.__agroDatos.ciclos") if x["id"] == "ci1")
     caso("cerrar la temporada pide confirmar y le pone la fecha de hoy como fin", ci["estado"] == "cerrado" and ci["fechaFin"] == HOY, ci)
     A.locator(".card", has_text="TEMPORADA INVENTADA").first.click(); A.wait_for_timeout(400); A.get_by_role("button", name="Reabrir temporada").click(); A.wait_for_timeout(400)
-    caso("y se puede reabrir", next(x for x in A.evaluate("() => window.__agroDatos.ciclos") if x["id"] == "ci1")["estado"] == "activo")
+    caso("y se puede reabrir (diciendo por qué)", next(x for x in A.evaluate("() => window.__agroDatos.ciclos") if x["id"] == "ci1")["estado"] == "activo")
     A.get_by_role("button", name="‹").first.click(); A.wait_for_timeout(300)
     A.locator(".top-bar button.btn-accent").click(); A.wait_for_timeout(300)
     A.get_by_placeholder("Ej: Primavera-Verano 2025").fill("OTOÑO INVENTADO"); A.locator(".form-group", has=A.locator("label", has_text="Fecha de inicio")).locator("input").fill("2026-11-01")
