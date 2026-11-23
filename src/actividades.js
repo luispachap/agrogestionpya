@@ -163,3 +163,23 @@ export function ponerRequisito({ eventos = [], requisitoId, actividadId, clase, 
   if (!ev.datos.requisitoId) ev.datos.requisitoId = ev.id;
   return { ok: true, evento: ev, dice: clase === "legal" && aplicabilidad !== "validada" ? "Requisito legal registrado como «por validar». No restringe nada hasta documentar la norma y validar que aplica." : "Requisito registrado. Por ahora es informativo: todavía no restringe ninguna asignación." };
 }
+
+// EXPERIENCIA OBSERVADA (nivel 1 de docs/ESPECIALIDADES.md): quién ha hecho una actividad, según lo REGISTRADO — la mano
+// de obra del checador y la actividad tecleada (`data.actividadesContables`: ya trae una sola fuente por día). Se CALCULA,
+// no se guarda; si un registro se corrige o se cancela, cambia sola. Sólo informa: no es especialidad, no ordena a nadie,
+// no autoriza ni impide (RESTRICCIONES_ACTIVAS sigue en false) y ningún módulo de dinero la lee.
+export function experienciaObservada(actividades = [], { actividad, hasta, meses = 12, catalogo = null, personas = null } = {}) {
+  const clave = (t) => (catalogo ? catalogo.normalizar(t).actividadId || `t:${claveDe(t)}` : `t:${claveDe(t)}`);
+  const buscada = clave(actividad); if (!claveDe(actividad)) return [];
+  const desde = (() => { const d = new Date(`${hasta}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() - meses); return d.toISOString().slice(0, 10); })();
+  const solo = personas ? new Set(personas) : null, m = new Map();
+  for (const a of actividades || []) {
+    if (!a || a.cancelado || !a.fecha || a.fecha > hasta || a.fecha < desde) continue;
+    const id = a.trabajadorId || (["planta", "encargado", "trabajador"].includes(a.registradoPor?.tipo || a.registradoPor?.rol) ? a.registradoPor?.id : null);
+    if (!id || (solo && !solo.has(id)) || clave(a.tipo) !== buscada) continue;
+    const x = m.get(id) || { personaId: id, dias: new Set(), horas: 0, ultima: "" };
+    x.dias.add(a.fecha); x.horas += Number(a.horas ?? a.horas_trab) || 0; if (a.fecha > x.ultima) x.ultima = a.fecha; m.set(id, x);
+  }
+  return [...m.values()].map(x => ({ personaId: x.personaId, dias: x.dias.size, horas: Math.round(x.horas * 10) / 10, ultima: x.ultima }))
+    .sort((a, b) => b.dias - a.dias || b.horas - a.horas || a.personaId.localeCompare(b.personaId));
+}

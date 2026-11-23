@@ -42,7 +42,7 @@ import { CONCEPTOS_PERSONAL, POLITICAS, baseDePersonas, pagadoSinActividad, fuen
 import { T_DETERMINADA, T_PAGO_PRESTACION, CONCEPTOS_PRESTACION, cuentaDe as cuentaDePrestaciones, renglonesAlCosto, proponer as proponerPrestacion, determinar as determinarPrestacion, pagarPrestacion, nombreDePeriodo, periodosDe as periodosDePrestacion, determinadasRepetidas, T_SALDO_INICIAL, capturarSaldoInicial, CONCEPTOS_DE_SALDO, RELACIONES, remuneracionesDe } from "./prestaciones.js";
 import { estadoDeSemana, cerrarSemana, reabrirSemana, diferenciasDelCierre, confirmarPagos } from "./cierres.js";
 import { dondeEstoy, marcaDesdeSuTelefono, textoDeMarcaGps, reglasDeGps, puedeChecarConGps } from "./gps.js";
-import { cortesVigentes, pintar as pintarCorte, borrarCelda, tablaDelDia, celdasDelDia, valorDe as valorDeCelda } from "./cortes.js";
+import { cortesVigentes, pintar as pintarCorte, borrarCelda, tablaDelDia, celdasDelDia, valorDe as valorDeCelda, instanteDeCorte as instanteDeCortePara, llaveDePincel, mismoPincel, propuestaDelPlan, marcasPorLoPintado, actividadDeExterno, pintadosCon } from "./cortes.js";
 import { pdfComoDataUrl } from "./pdfSimple.js";
 import { costoDelMes, cerrarMes, reabrirMes, estadoDeMes, ajustesPosteriores } from "./cierreMes.js";
 import { solicitarPrestamo, autorizarPrestamo, rechazarPrestamo, entregarPrestamo, prestamosDe, ESTADOS_DE_PRESTAMO, saldoInicialDePrestamo, corregirSaldoInicial, prestarDeUnaVez, abonoAcordado } from "./prestamos.js";
@@ -123,7 +123,7 @@ import { conLimite, activarAvisos, desactivarAvisos, avisoDePrueba, misPreferenc
 import { idConAsistente, abrirConAsistente, esConAsistente, misConversaciones, mensajesDe, crearConversacion, puedeEscribir as puedeEscribirEn, relacionar as relacionarMensaje, conRelacion, paraElAsistente, respuestaDelAsistente, propuestasDeLaPlatica, esPlatica, REGLAS as REGLAS_DE_MENSAJES, ASISTENTE, GENERAL as CONV_GENERAL, ROLES_CON_MENSAJES, ROLES_QUE_ABREN, NOMBRE_DE_GRUPO, nombreDeMiembro, hallazgosDe, antecedentes, temasDe, deDondeSalio, comoEvidencia, admiteArchivos, carpetaDe, pedirConsulta, conversacionesDe as todasLasConversaciones, PERMISO_EVIDENCIA, PERMISO_SUPERVISION } from "./mensajeria.js";
 import { planDelDia as planMandadoDe, loQueLeToca, quitarAsignacion, cambiarAsignacion } from "./asignaciones.js";
 import { conQuienes, quienesDe, textoDe as textoDeQuienes, CLASES as CLASES_CON_QUIENES } from "./ejecucion.js";
-import { catalogoEn as catalogoDeActividades, porLigar as actividadesPorLigar, guardarActividad, ligarTexto as ligarTextoDeActividad, ponerRequisito, DE_FABRICA as ACTIVIDADES_DE_FABRICA, AMBITOS as AMBITOS_DE_ACTIVIDAD, CLASES_DE_REQUISITO } from "./actividades.js";
+import { experienciaObservada, catalogoEn as catalogoDeActividades, porLigar as actividadesPorLigar, guardarActividad, ligarTexto as ligarTextoDeActividad, ponerRequisito, DE_FABRICA as ACTIVIDADES_DE_FABRICA, AMBITOS as AMBITOS_DE_ACTIVIDAD, CLASES_DE_REQUISITO } from "./actividades.js";
 import { organizacionEn, superiorDe, crearUnidad, cambiarUnidad, cerrarUnidad, nombrarResponsable, quitarResponsable, adscribir, quitarAdscripcion, apoyar, cancelarHecho, historialDe as historialDeOrg, estructuraProvisional, CLASES as CLASES_DE_UNIDAD, OPERACION as OPERACION_ORG, LO_QUE_NO_ES as LO_QUE_NO_ES_EL_MAPA, T_UNIDAD as T_UNIDAD_ORG } from "./organizacion.js";
 import { jornadaDe, cerrarJornada, reabrirJornada, cierreDe as cierreDeJornada, diferenciasDelCierre as diferenciasDeJornada, tareasParaManana, MOTIVOS as MOTIVOS_DE_JORNADA, ESTADOS as ESTADOS_DE_JORNADA, ROLES_QUE_CIERRAN as ROLES_QUE_CIERRAN_JORNADA } from "./jornada.js";
 import { repartirElDia, aQueSeVaCadaQuien, quienNoTieneNada, chocanLasTareas, indicacionParaElTrabajador, comoVaElDia } from "./plan.js";
@@ -143,7 +143,7 @@ import {
 // Hablarle a la app: entender lo dicho, y oírlo.
 import { entenderLoDicho } from "./voz.js";
 import { preparar as prepararOperaciones, ejecutar as ejecutarOperacion, confirmarDelChat, aclarar as aclararPropuesta, preguntaDe, decirPropuesta, NATURALEZAS, OPERACIONES as OPERACIONES_DICHAS } from "./operaciones.js";
-import { sugerenciasDeContinuidad } from "./avances.js";
+import { sugerenciasDeContinuidad, registrarAvance, UNIDADES_DE_AVANCE } from "./avances.js";
 import { comoPuedeOir, dictar, grabar } from "./dictado.js";
 import { Ic, ThemeBtn, aplicarTemaGuardado, saludoHora, fechaLarga } from "./icons.jsx";
 // Cálculos puros (dinero, fechas, cancelación). Viven aparte para poder
@@ -2664,39 +2664,54 @@ const quienesChecan = (d) => (d.trabajadores || []).concat(d.encargados || []);
    La lógica pura vive en src/clima.js, src/plan.js y src/prediccion.js. */
 
 // LA TABLA POR CORTES (src/cortes.js): gente en renglones, cortes del día en columnas; se escoge un pincel (actividad
-// en una parcela) y se pinta. Cada celda es una asignación de siempre: el costo sale del motor de mano de obra.
-// Cortes PROVISIONALES (regla «cortes_dia») hasta validarlos con Miguel.
+// en una parcela, o manejando un vehículo) y se pinta. Cada celda es una asignación de siempre: el costo sale del motor
+// de mano de obra. Cortes PROVISIONALES (regla «cortes_dia») hasta validarlos con Miguel.
+// Luis (23 nov): «el pintar es un digno sucesor de Registro de varios y del reparto; pásale sus funciones, que no se
+// pierda nada». Aquí también: vehículo y para qué parcela, el plan de cada quien y «pintar como el plan», lo que quedó
+// pendiente de otros días, quién lo ha hecho antes (sólo informa), destajo (también de externos), avance, la comida como
+// descanso y la entrada y salida de quien no checó (con motivo). Las pantallas viejas siguen hasta validarlo con Miguel.
 const LETRAS = (t) => String(t || "").split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).join("").toUpperCase();
+const capital = (t) => { const s = String(t || "").trim(); return s ? s[0].toUpperCase() + s.slice(1) : ""; };
 function TablaPorCortes({ data, add, session }) {
   const hoy = today();
   const [fecha, setFecha] = useState(hoy);
-  const [pinceles, setPinceles] = useState([]);           // [{ parcelaId, actividad }]
-  const [sel, setSel] = useState(null);                    // el pincel («parcela|actividad») o "borrar"
-  const [nuevo, setNuevo] = useState({ parcelaId: "", actividad: "" });
+  const [pinceles, setPinceles] = useState([]);           // [{ parcelaId, vehiculoId, vehiculo, beneficiaId, actividad }]
+  const [sel, setSel] = useState(null);                    // la llave del pincel, o "borrar"
+  const [nuevo, setNuevo] = useState({ donde: "", beneficiaId: "", actividad: "" });
   const [dice, setDice] = useState("");
+  const [hoja, setHoja] = useState(null);                  // { clase: "destajo" | "avance", pincel, ... }
+  const [agregados, setAgregados] = useState({});          // { fecha: [ids] }: gente agregada a mano a un día para pintarla
   const cortes = cortesVigentes(data.eventos);
   const personas = [...(data.trabajadores || []), ...(data.encargados || [])].filter(p => p.activo !== false && !p._porBaja);
-  const t = tablaDelDia({ eventos: data.eventos, personas, asistencia: data.asistencia, fecha, cortes, hoy, ahora: new Date().toISOString() });
+  const ahora = new Date().toISOString();
+  const t = tablaDelDia({ eventos: data.eventos, personas, asistencia: data.asistencia, fecha, cortes, hoy, ahora, incluir: agregados[fecha] || [] });
   const nombreParcela = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "—";
-  const actividades = [...new Set([...catalogoDeActividades(data.eventos, hoy).nombres(["campo"]), ...(data.eventos || []).filter(e => e.tipo === "asignacion").map(e => e.datos.actividad)])].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  const faltan = personas.filter(p => !t.filas.some(f => f.persona.id === p.id)).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
+  const nombrePersona = (id) => personas.find(p => p.id === id)?.nombre || (data.trabajadores || []).find(p => p.id === id)?.nombre || "—";
+  const maquina = (id) => (data.maquinaria || []).find(m => m.id === id);
+  const donde = (v) => (v?.vehiculoId ? `${v.vehiculo || maquina(v.vehiculoId)?.nombre || "Vehículo"}${v.beneficiaId ? ` → ${nombreParcela(v.beneficiaId)}` : ""}` : nombreParcela(v?.parcelaId));
+  const catalogo = catalogoDeActividades(data.eventos, hoy);
+  const esVehiculo = nuevo.donde.startsWith("v:");
+  const actividades = [...new Set([...catalogo.nombres(esVehiculo ? ["vehiculo", "campo"] : ["campo"]), ...(data.eventos || []).filter(e => e.tipo === "asignacion").map(e => e.datos.actividad)])].filter(Boolean).sort((a, b) => a.localeCompare(b));
   // Los pinceles de ese día: los que se escogieron aquí y los que ya están pintados (cada uno con su color fijo).
   const todos = [...pinceles];
-  for (const c of t.celdas.values()) if (c.valor?.parcelaId && !todos.some(x => x.parcelaId === c.valor.parcelaId && x.actividad === c.valor.actividad)) todos.push({ parcelaId: c.valor.parcelaId, actividad: c.valor.actividad });
-  const llave = (v) => `${v.parcelaId}|${v.actividad}`;
+  for (const c of t.celdas.values()) if (c.valor && (c.valor.parcelaId || c.valor.vehiculoId) && !todos.some(x => mismoPincel(x, c.valor))) todos.push(c.valor);
+  const llave = llaveDePincel;
   const deLlave = (k) => todos.find(x => llave(x) === k) || null;
-  const colorDe = (v) => { const i = todos.findIndex(x => x.parcelaId === v?.parcelaId && x.actividad === v?.actividad); return i < 0 ? "var(--card2)" : `var(--pincel-${(i % 6) + 1})`; };
+  const colorDe = (v) => { const i = todos.findIndex(x => mismoPincel(x, v)); return i < 0 ? "var(--card2)" : `var(--pincel-${(i % 6) + 1})`; };
   const lunes = (() => { const d = new Date(fecha + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
   const domingo = sumarDias(lunes, 6);
   const semanaCerrada = estadoDeSemana(data.eventos, lunes, domingo).estado === "cerrada";
   const quien = { id: session.id, nombre: session.nombre, rol: session.role === "superadmin" ? "admin" : session.role };
   let paso = 0; const capturado = () => new Date(Date.now() + (paso++)).toISOString();   // en orden, aunque sea el mismo instante
+  const agregarPincel = (v) => { if (!todos.some(x => mismoPincel(x, v))) setPinceles(p => [...p, v]); setSel(llave(v)); };
   const aplicar = (ids, corteId, pincel = sel) => {
     if (pincel == null) { setDice("Primero escoge un pincel (arriba)."); return false; }
     if (!ids.length) return false;
     const base = { trabajadorIds: ids, fecha, corteId, cortes, quien, capturado: capturado(), semanaCerrada };
-    const pz = pincel === "borrar" ? null : deLlave(pincel) || (typeof pincel === "object" ? pincel : null);
+    const pz = pincel === "borrar" ? null : (typeof pincel === "object" ? pincel : deLlave(pincel));
     if (pincel !== "borrar" && !pz) { setDice("Ese pincel ya no está: escógelo otra vez."); return false; }
-    const r = pincel === "borrar" ? borrarCelda(base) : pintarCorte({ ...base, eventos: data.eventos, parcelaId: pz.parcelaId, actividad: pz.actividad });
+    const r = pincel === "borrar" ? borrarCelda(base) : pintarCorte({ ...base, eventos: data.eventos, parcelaId: pz.parcelaId, vehiculoId: pz.vehiculoId || null, vehiculo: pz.vehiculo || "", beneficiaId: pz.beneficiaId || null, actividad: pz.actividad });
     if (!r.ok) { setDice(r.dice); return false; }
     r.eventos.forEach(e => add("eventos", e)); setDice(""); return true;
   };
@@ -2704,7 +2719,7 @@ function TablaPorCortes({ data, add, session }) {
   const repetirAnterior = (i) => {
     const c0 = cortes[i - 1], c1 = cortes[i]; const celdas = t.celdas;
     const grupos = new Map();
-    for (const f of t.filas) { const v = valorDeCelda(celdas, f.persona.id, c0.id); if (!v?.parcelaId || valorDeCelda(celdas, f.persona.id, c1.id)) continue; const k = `${v.parcelaId}|${v.actividad}`; if (!grupos.has(k)) grupos.set(k, { v, ids: [] }); grupos.get(k).ids.push(f.persona.id); }
+    for (const f of t.filas) { const v = valorDeCelda(celdas, f.persona.id, c0.id); if (!v || valorDeCelda(celdas, f.persona.id, c1.id)) continue; const k = llave(v); if (!grupos.has(k)) grupos.set(k, { v, ids: [] }); grupos.get(k).ids.push(f.persona.id); }
     if (!grupos.size) { setDice(`En ${c0.nombre} no hay a quién repetirle (o en ${c1.nombre} ya están pintados).`); return; }
     for (const { v, ids } of grupos.values()) aplicar(ids, c1.id, v);
   };
@@ -2712,68 +2727,237 @@ function TablaPorCortes({ data, add, session }) {
     const ayer = sumarDias(fecha, -1); const celdas = celdasDelDia(data.eventos, { fecha: ayer }); let hubo = 0;
     for (const c of cortes) {
       const grupos = new Map();
-      for (const id of presentes) { const v = valorDeCelda(celdas, id, c.id); if (!v?.parcelaId || valorDeCelda(t.celdas, id, c.id)) continue; const k = `${v.parcelaId}|${v.actividad}`; if (!grupos.has(k)) grupos.set(k, { v, ids: [] }); grupos.get(k).ids.push(id); }
+      for (const id of presentes) { const v = valorDeCelda(celdas, id, c.id); if (!v || valorDeCelda(t.celdas, id, c.id)) continue; const k = llave(v); if (!grupos.has(k)) grupos.set(k, { v, ids: [] }); grupos.get(k).ids.push(id); }
       for (const { v, ids } of grupos.values()) if (aplicar(ids, c.id, v)) hubo++;
     }
     if (!hubo) setDice("Ayer no hay nada pintado de la gente que vino hoy (o ya está pintado).");
   };
+  // El plan de cada quien (las indicaciones de siempre) y «pintar como el plan».
+  const planDe = (id) => (data.indicaciones || []).filter(i => i && i.tipo === "tarea" && i.fecha === fecha && i.asignadoA === id && !i.cancelado && !["cancelada", "cambiada"].includes(i.estado));
+  const hayPlan = presentes.some(id => planDe(id).length);
+  const pintarComoPlan = () => {
+    const r = propuestaDelPlan({ indicaciones: data.indicaciones, fecha, presentes, celdas: t.celdas, cortes, ahora, normalizar: catalogo.normalizar });
+    let hubo = 0; for (const g of r.pintar) if (aplicar(g.ids, g.corteId, g.valor)) hubo++;
+    const dudas = r.dudas.map(d => `${nombrePersona(d.trabajadorId)}: ${d.dice}`);
+    setDice([hubo ? "" : "No hay nada del plan que pintar (o ya está pintado, o sus cortes todavía no empiezan).", ...dudas].filter(Boolean).join(" "));
+  };
+  // Lo que quedó pendiente otros días (avances): se vuelve pincel con un toque. Decide quien dirige el rancho.
+  const pendientes = fecha === hoy ? sugerenciasDeContinuidad(data.eventos || [], hoy, data.parcelas || []) : [];
+  // La comida: el rato entre dos cortes que no se tocan. Para quien checó y se pintó antes y después, un toque lo aclara
+  // como descanso autorizado (lo dice una persona; si no, queda «por aclarar» como siempre).
+  const huecos = cortes.slice(1).map((c, j) => ({ antes: cortes[j], despues: c })).filter(h => h.antes.hasta < h.despues.desde);
+  const comida = (h) => {
+    const desde = instanteDeCortePara(fecha, h.antes.hasta), hasta = instanteDeCortePara(fecha, h.despues.desde);
+    const ya = (id) => (data.eventos || []).some(e => e.tipo === "aclaracion" && estaVigente(e) && e.fecha === fecha && e.datos?.trabajadorId === id && e.datos.desde === desde);
+    const ids = t.filas.filter(f => f.checo && valorDeCelda(t.celdas, f.persona.id, h.antes.id) && valorDeCelda(t.celdas, f.persona.id, h.despues.id) && !ya(f.persona.id)).map(f => f.persona.id);
+    if (!ids.length) { setDice(`Nadie que haya checado está pintado antes y después de ${h.antes.hasta.replace(/^0/, "")} (o ya está aclarado).`); return; }
+    for (const id of ids) { const r = aclararTiempo({ trabajadorId: id, fecha, desde, hasta, causa: "descanso_autorizado", nota: "La comida, entre cortes (tabla por cortes)", quien, cuando: capturado() }); if (r.ok) add("eventos", r.evento); else { setDice(r.dice); return; } }
+    setDice(`Comida aclarada como descanso para ${ids.length}.`);
+  };
+  // Quien se pintó y no checó: su entrada y salida por lo pintado, con motivo (la marca a mano de siempre).
+  const ponerMarcas = (ids) => {
+    const motivo = window.prompt(`¿Por qué se pone a mano la entrada y salida de ${ids.length === 1 ? nombrePersona(ids[0]) : `${ids.length} personas`}? (por ejemplo: «ese rancho no tiene checador»)`);
+    if (!motivo || !motivo.trim()) return;
+    const dichos = [];
+    for (const id of ids) { const r = marcasPorLoPintado({ eventos: data.eventos, trabajadorId: id, fecha, cortes, quien, capturado: capturado(), motivo }); if (r.ok) r.eventos.forEach(e => add("eventos", e)); dichos.push(`${nombrePersona(id)}: ${r.dice}`); }
+    setDice(dichos.join(" "));
+  };
+  const sinChecar = t.filas.filter(f => f.pintadoSinChecar).map(f => f.persona.id);
+  // El pincel escogido: quién lo ha hecho antes (sólo informa) y lo que se puede anotar de él.
+  const pz = sel && sel !== "borrar" ? deLlave(sel) : null;
+  const conEse = pz ? pintadosCon(t.celdas, pz) : [];
+  const experiencia = pz ? experienciaObservada(data.actividadesContables || data.actividades || [], { actividad: pz.actividad, hasta: fecha, catalogo, personas: t.filas.map(f => f.persona.id) }) : [];
+
+  const guardarDestajo = () => {
+    const h = hoja; const { pincel } = h;
+    const conCantidad = conEse.filter(id => Number(h.porPersona[id]) > 0);
+    const externos = (data.externos || []).filter(x => h.ext[x.id]?.incluir);
+    if (!conCantidad.length && !h.soloTotal && !externos.length) { setDice("Falta cuánto hizo cada quien."); return; }
+    const _sb = siembraEnFecha(data, pincel.parcelaId, fecha);
+    if (conCantidad.length || h.soloTotal) {
+      const comun = { parcelaId: pincel.parcelaId, actividad: pincel.actividad, unidad: h.unidad, tarifa: h.tarifa, cuando: capturado(), fecha, quien, capturado: capturado() };
+      const r = h.soloTotal ? anotarTareas({ ...comun, trabajadorIds: conEse, cantidad: h.cantidad, repartirParejo: h.parejo })
+        : anotarTareas({ ...comun, produccion: conCantidad.map(id => ({ trabajadorId: id, cantidad: h.porPersona[id] })) });
+      if (!r.ok) { setDice(r.dice); return; }
+      add("eventos", r.evento);
+    }
+    for (const x of externos) {
+      const c = h.ext[x.id];
+      const r = actividadDeExterno({ id: `a${unico()}`, externo: x, fecha, parcelaId: pincel.parcelaId, actividad: pincel.actividad, siembraId: _sb?.id || null, tarifa: c.tarifa, unidades: c.unidades, hectareas: c.ha, nota: c.nota, quien });
+      if (!r.ok) { setDice(r.dice); return; }
+      add("actividades", r.actividad);
+    }
+    setHoja(null); setDice("Destajo anotado.");
+  };
+  const guardarAvance = () => {
+    const h = hoja;
+    const r = registrarAvance({ parcelaId: h.pincel.parcelaId || h.pincel.beneficiaId, parcelas: data.parcelas || [], actividad: h.pincel.actividad, cantidad: h.cantidad, unidad: h.unidad, unidadDicha: h.unidadDicha, personas: conEse.length || null,
+      pendiente: h.pendienteCantidad || h.pendienteTexto ? { cantidad: h.pendienteCantidad, unidad: h.unidad, texto: h.pendienteTexto } : null, nota: h.nota, quien, cuando: capturado(), fecha });
+    if (!r.ok) { setDice(r.dice); return; }
+    add("eventos", r.evento); setHoja(null); setDice("Avance anotado. Lo pendiente aparece aquí mañana para continuarlo.");
+  };
+
   return (
     <div className="section-pad">
       <div className="card">
         <div className="flex-b" style={{ marginBottom: 6 }}><div className="card-title" style={{ marginBottom: 0 }}>Tabla por cortes</div>
           <input type="date" className="inp" aria-label="Día de la tabla" style={{ width: 150 }} value={fecha} max={hoy} onChange={e => setFecha(e.target.value)} /></div>
-        <div className="text-xs text-muted">Escoge un pincel y toca las celdas. Tocar un corte pinta a todos los que vinieron; tocar un nombre pinta su día. Pintar no es pagar: cada quien cobra su día y los cortes sólo lo reparten entre parcelas.</div>
+        <div className="text-xs text-muted">Escoge un pincel y toca las celdas. Tocar un corte pinta a todos los que vinieron; tocar un nombre pinta su día. Pintar no es pagar: cada quien cobra su día y los cortes sólo lo reparten entre parcelas. Las cuadrillas que llegan con su responsable se registran en «Cuadrillas».</div>
         <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>Cortes provisionales ({cortes.map(c => c.nombre).join(", ")}): falta validarlos con Miguel.</div>
         {semanaCerrada && <div className="text-xs" style={{ color: "var(--red)", marginTop: 4 }}>Esa semana está cerrada: para pintar hay que reabrirla (con motivo).</div>}
       </div>
+      {pendientes.length > 0 && <div className="card">
+        <div className="card-title">Quedó pendiente de otros días</div>
+        {pendientes.map((s, i) => <div key={i} style={{ padding: "4px 0", borderTop: i ? "1px solid var(--border)" : "none" }}>
+          <div className="text-xs">{s.dice}</div>
+          {s.estimacion && <div className="text-xs text-muted">{s.estimacion.dice}</div>}
+          <button className="btn btn-outline btn-sm" style={{ marginTop: 4 }} aria-label={`Hacer pincel: ${capital(s.actividad)} en ${nombreParcela(s.parcelaId)}`} onClick={() => agregarPincel({ parcelaId: s.parcelaId, actividad: catalogo.normalizar(s.actividad).nombre || capital(s.actividad) })}>Hacer pincel de esto</button>
+        </div>)}
+      </div>}
       <div className="card">
         <div className="card-title">Pinceles</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {todos.map((p, i) => <button key={llave(p)} className={`btn btn-sm ${sel === llave(p) ? "btn-accent" : "btn-outline"}`} aria-pressed={sel === llave(p)} aria-label={`Pincel ${p.actividad} en ${nombreParcela(p.parcelaId)}`} style={{ background: sel === llave(p) ? undefined : `var(--pincel-${(i % 6) + 1})` }} onClick={() => setSel(llave(p))}>{LETRAS(p.actividad)} · {p.actividad} · {nombreParcela(p.parcelaId)}</button>)}
+          {todos.map((p, i) => <button key={llave(p)} className={`btn btn-sm ${sel === llave(p) ? "btn-accent" : "btn-outline"}`} aria-pressed={sel === llave(p)} aria-label={`Pincel ${p.actividad} en ${donde(p)}`} style={{ background: sel === llave(p) ? undefined : `var(--pincel-${(i % 6) + 1})` }} onClick={() => setSel(llave(p))}>{LETRAS(p.actividad)} · {p.actividad} · {donde(p)}</button>)}
           <button className={`btn btn-sm ${sel === "borrar" ? "btn-accent" : "btn-outline"}`} aria-pressed={sel === "borrar"} onClick={() => setSel("borrar")}>Borrar</button>
         </div>
         <div className="inp-row" style={{ marginTop: 8 }}>
-          <select className="inp" aria-label="Parcela del pincel nuevo" value={nuevo.parcelaId} onChange={e => setNuevo(n => ({ ...n, parcelaId: e.target.value }))}><option value="">Parcela…</option>{(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select>
-          <select className="inp" aria-label="Actividad del pincel nuevo" value={nuevo.actividad} onChange={e => setNuevo(n => ({ ...n, actividad: e.target.value }))}><option value="">Actividad…</option>{actividades.map(a => <option key={a} value={a}>{a}</option>)}</select>
+          <select className="inp" aria-label="Parcela del pincel nuevo" value={nuevo.donde} onChange={e => setNuevo(n => ({ ...n, donde: e.target.value, beneficiaId: "", actividad: e.target.value.startsWith("v:") && !n.actividad ? "Traslado de personal" : n.actividad }))}>
+            <option value="">Parcela o vehículo…</option>
+            <optgroup label="Parcelas">{(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</optgroup>
+            {(data.maquinaria || []).length > 0 && <optgroup label="Vehículos y maquinaria (operador)">{(data.maquinaria || []).map(m => <option key={m.id} value={`v:${m.id}`}>{m.nombre}</option>)}</optgroup>}
+          </select>
+          <select className="inp" aria-label="Actividad del pincel nuevo" value={nuevo.actividad} onChange={e => setNuevo(n => ({ ...n, actividad: e.target.value }))}><option value="">Actividad…</option>{[...new Set([...actividades, ...(esVehiculo ? ["Traslado de personal"] : [])])].map(a => <option key={a} value={a}>{a}</option>)}</select>
         </div>
+        {esVehiculo && nuevo.actividad !== "Traslado de personal" && <select className="inp" aria-label="Para qué parcela es" style={{ marginTop: 6 }} value={nuevo.beneficiaId} onChange={e => setNuevo(n => ({ ...n, beneficiaId: e.target.value }))}>
+          <option value="">¿Para qué parcela es? (si no es para ninguna, déjalo así)</option>
+          {(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+        </select>}
+        {esVehiculo && <div className="text-xs text-muted" style={{ marginTop: 4 }}>El rato del operador se le carga al vehículo con lo que ya gana; el costo del vehículo se reparte a la parcela que digas.</div>}
         <button className="btn btn-outline btn-sm" style={{ width: "100%", marginTop: 6 }} onClick={() => {
-          if (!nuevo.parcelaId || !nuevo.actividad) { setDice("Para el pincel nuevo escoge la parcela y la actividad."); return; }
-          if (!deLlave(llave(nuevo))) setPinceles(p => [...p, nuevo]);
-          setSel(llave(nuevo));
-          setNuevo({ parcelaId: "", actividad: "" }); setDice("");
+          if (!nuevo.donde || !nuevo.actividad) { setDice("Para el pincel nuevo escoge la parcela (o el vehículo) y la actividad."); return; }
+          const m = esVehiculo ? maquina(nuevo.donde.slice(2)) : null;
+          agregarPincel(m ? { parcelaId: null, vehiculoId: m.id, vehiculo: m.nombre, beneficiaId: nuevo.actividad !== "Traslado de personal" ? nuevo.beneficiaId || null : null, actividad: nuevo.actividad } : { parcelaId: nuevo.donde, actividad: nuevo.actividad });
+          setNuevo({ donde: "", beneficiaId: "", actividad: "" }); setDice("");
         }}>+ Pincel nuevo</button>
+        {pz && <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+          <div className="text-xs"><b>{pz.actividad} · {donde(pz)}</b>{conEse.length ? ` · pintados hoy: ${conEse.length}` : ""}</div>
+          <div className="text-xs text-muted" aria-label="Quién lo ha hecho antes">{experiencia.length ? `Lo han hecho antes (de los de hoy, último año, según lo registrado): ${experiencia.slice(0, 6).map(x => `${nombrePersona(x.personaId)} ${x.dias} día${x.dias === 1 ? "" : "s"}`).join(", ")}. Sólo informa: no es una especialidad ni autoriza a nadie.` : "De los de hoy, nadie tiene registrado haberlo hecho en el último año (o todavía no hay historial)."}</div>
+          <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+            {pz.parcelaId && <button className="btn btn-outline btn-sm" onClick={() => { setHoja({ clase: "destajo", pincel: pz, porPersona: {}, soloTotal: false, cantidad: "", parejo: false, unidad: "caja", tarifa: "", ext: {} }); setDice(""); }}>Anotar destajo</button>}
+            {(pz.parcelaId || pz.beneficiaId) && <button className="btn btn-outline btn-sm" onClick={() => { setHoja({ clase: "avance", pincel: pz, cantidad: "", unidad: "surco", unidadDicha: "", pendienteCantidad: "", pendienteTexto: "", nota: "" }); setDice(""); }}>Anotar avance</button>}
+          </div>
+        </div>}
       </div>
       {dice && <div className="text-sm" role="alert" style={{ color: "var(--gold)", margin: "0 4px 8px" }}>{dice}</div>}
       <div className="card" style={{ padding: 8, overflowX: "auto" }}>
-        {t.filas.length === 0 ? <div className="text-sm text-muted">Ese día todavía no checó nadie ni se pasó lista. La tabla enseña a quien vino.</div> : (
+        {faltan.length > 0 && <select className="inp" aria-label="Agregar a alguien a este día" value="" style={{ marginBottom: 6 }} onChange={e => { const id = e.target.value; if (id) setAgregados(a => ({ ...a, [fecha]: [...(a[fecha] || []), id] })); }}>
+          <option value="">+ Agregar a alguien a este día (no checó ni está en la lista)…</option>
+          {faltan.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+        </select>}
+        {t.filas.length === 0 ? <div className="text-sm text-muted">Ese día todavía no checó nadie ni se pasó lista. La tabla enseña a quien vino; para pintar a alguien que no checó, agrégalo arriba.</div> : (
           <table className="tabla-cortes" style={{ width: "100%", borderCollapse: "separate", borderSpacing: 3, fontSize: 12 }}>
             <thead><tr><th style={{ textAlign: "left" }}>Persona</th>{cortes.map(c => <th key={c.id}><button className="btn-ghost text-xs" aria-label={`Pintar a todos en ${c.nombre}`} onClick={() => aplicar(presentes, c.id)}>{c.nombre}</button></th>)}</tr></thead>
             <tbody>
-              {t.filas.map(f => (
-                <tr key={f.persona.id}>
-                  <td><button className="btn-ghost text-xs" style={{ textAlign: "left", padding: 0 }} aria-label={`Pintar el día de ${f.persona.nombre}`} onClick={() => { for (const c of cortes) aplicar([f.persona.id], c.id); }}>{f.persona.nombre}</button>
-                    {!f.checo && <div className="text-xs" style={{ color: f.pintadoSinChecar ? "var(--gold)" : "var(--muted)" }}>{f.deLista ? "en lista, no checó" : "no checó"}</div>}</td>
-                  {f.fila.map(({ corte, celda }) => {
-                    const v = celda?.valor;
-                    return <td key={corte.id}><button className="celda-corte" aria-label={`${f.persona.nombre}, ${corte.nombre}: ${v ? `${v.actividad} en ${nombreParcela(v.parcelaId)}` : "sin pintar"}`} title={celda?.historial?.length ? `Antes: ${celda.historial.map(h => h.valor ? `${h.valor.actividad} · ${nombreParcela(h.valor.parcelaId)}` : "sin pintar").join(" → ")} (pintó ${celda.por})` : celda ? `Pintó ${celda.por}` : ""}
-                      style={{ width: "100%", minHeight: 44, borderRadius: 8, border: "1px solid var(--border)", background: v ? colorDe(v) : "transparent", color: "var(--text)", fontSize: 11, lineHeight: 1.2 }}
-                      onClick={() => aplicar([f.persona.id], corte.id)}>{v ? <><b>{LETRAS(v.actividad)}</b><br />{nombreParcela(v.parcelaId)}</> : "—"}{celda?.historial?.length ? " ↺" : ""}</button></td>;
-                  })}
-                </tr>
-              ))}
+              {t.filas.map(f => {
+                const plan = planDe(f.persona.id);
+                return (
+                  <tr key={f.persona.id}>
+                    <td><button className="btn-ghost text-xs" style={{ textAlign: "left", padding: 0 }} aria-label={`Pintar el día de ${f.persona.nombre}`} onClick={() => { for (const c of cortes) aplicar([f.persona.id], c.id); }}>{f.persona.nombre}</button>
+                      {!f.checo && <div className="text-xs" style={{ color: f.pintadoSinChecar ? "var(--gold)" : "var(--muted)" }}>{f.deLista ? "en lista, no checó" : "no checó"}</div>}
+                      {plan.length > 0 && <div className="text-xs text-muted" aria-label={`Plan de ${f.persona.nombre}`}>Plan: {plan.map(i => `${capital(i.que) || "tarea"}${i.parcelaId ? ` en ${nombreParcela(i.parcelaId)}` : ""}${i.hora ? ` (${i.hora})` : ""}`).join("; ")}</div>}</td>
+                    {f.fila.map(({ corte, celda }) => {
+                      const v = celda?.valor;
+                      return <td key={corte.id}><button className="celda-corte" aria-label={`${f.persona.nombre}, ${corte.nombre}: ${v ? `${v.actividad} en ${donde(v)}` : "sin pintar"}`} title={celda?.historial?.length ? `Antes: ${celda.historial.map(h => h.valor ? `${h.valor.actividad} · ${donde(h.valor)}` : "sin pintar").join(" → ")} (pintó ${celda.por})` : celda ? `Pintó ${celda.por}` : ""}
+                        style={{ width: "100%", minHeight: 44, borderRadius: 8, border: "1px solid var(--border)", background: v ? colorDe(v) : "transparent", color: "var(--text)", fontSize: 11, lineHeight: 1.2 }}
+                        onClick={() => aplicar([f.persona.id], corte.id)}>{v ? <><b>{LETRAS(v.actividad)}</b><br />{donde(v)}</> : "—"}{celda?.historial?.length ? " ↺" : ""}</button></td>;
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
-        {cortes.length > 1 && t.filas.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+        {t.filas.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+          {hayPlan && <button className="btn btn-outline btn-sm" onClick={pintarComoPlan}>Pintar como el plan</button>}
           {cortes.slice(1).map((c, j) => <button key={c.id} className="btn btn-outline btn-sm" onClick={() => repetirAnterior(j + 1)}>Repetir en {c.nombre} lo de {cortes[j].nombre}</button>)}
           <button className="btn btn-outline btn-sm" onClick={copiarAyer}>Copiar lo de ayer</button>
+          {huecos.map(h => <button key={h.antes.id} className="btn btn-outline btn-sm" onClick={() => comida(h)}>La comida ({h.antes.hasta.replace(/^0/, "").replace(/:00$/, "")}–{h.despues.desde.replace(/^0/, "").replace(/:00$/, "")}) fue descanso</button>)}
         </div>}
       </div>
       {t.avisos.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}>
         <div className="card-title">Para revisar</div>
-        {t.avisos.map((a, i) => <div key={i} className="text-xs" style={{ padding: "3px 0" }}>{a.dice}</div>)}
+        {t.avisos.map((a, i) => <div key={i} className="text-xs" style={{ padding: "3px 0" }}>{a.dice}
+          {a.clase === "pintado_sin_checar" && <button className="acc-link" style={{ marginLeft: 6 }} onClick={() => ponerMarcas([a.persona.id])}>Ponerle entrada y salida por lo pintado</button>}</div>)}
+        {sinChecar.length > 1 && <button className="btn btn-outline btn-sm" style={{ marginTop: 6 }} onClick={() => ponerMarcas(sinChecar)}>Ponerles entrada y salida a los {sinChecar.length} que no checaron</button>}
       </div>}
       <ReglasDelRancho data={data} add={add} session={session} claves={["cortes_dia"]} />
+
+      {hoja?.clase === "destajo" && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setHoja(null); }}>
+          <div className="modal-sheet">
+            <div className="card-title">Destajo · {hoja.pincel.actividad} · {nombreParcela(hoja.pincel.parcelaId)}</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="tc-u">Se paga por</label><input id="tc-u" className="inp" value={hoja.unidad} onChange={e => setHoja(d => ({ ...d, unidad: e.target.value }))} /></div>
+              <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="tc-t">A cómo cada una ($)</label><input id="tc-t" className="inp" type="number" inputMode="decimal" value={hoja.tarifa} onChange={e => setHoja(d => ({ ...d, tarifa: e.target.value }))} /></div>
+            </div>
+            {conEse.length === 0 && <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Nadie del personal está pintado con este pincel ese día. Puedes anotar sólo externos.</div>}
+            {conEse.length > 0 && !hoja.soloTotal && <>
+              <div className="form-label" style={{ marginBottom: 6 }}>Cuánto hizo cada quien</div>
+              {conEse.map(id => <div key={id} className="dj-fila">
+                <label htmlFor={`tc-${id}`}>{nombrePersona(id)}</label>
+                <input id={`tc-${id}`} className="inp" type="number" inputMode="decimal" placeholder="0" value={hoja.porPersona[id] ?? ""} onChange={e => setHoja(d => ({ ...d, porPersona: { ...d.porPersona, [id]: e.target.value } }))} />
+                <span className="text-sm text-muted">{Number(hoja.porPersona[id]) > 0 && Number(hoja.tarifa) > 0 ? fmt(Number(hoja.porPersona[id]) * Number(hoja.tarifa)) : ""}</span>
+              </div>)}
+            </>}
+            {conEse.length > 0 && hoja.soloTotal && <>
+              <div className="form-group"><label className="form-label" htmlFor="tc-c">Total entre los {conEse.length}</label><input id="tc-c" className="inp" type="number" inputMode="decimal" value={hoja.cantidad} onChange={e => setHoja(d => ({ ...d, cantidad: e.target.value }))} /></div>
+              <label className="dj-parejo"><input type="checkbox" checked={hoja.parejo} onChange={e => setHoja(d => ({ ...d, parejo: e.target.checked }))} /> No se sabe cuánto hizo cada quien: repartirlo parejo</label>
+            </>}
+            {conEse.length > 0 && <button className="acc-link" style={{ padding: "8px 0" }} onClick={() => setHoja(d => ({ ...d, soloTotal: !d.soloTotal }))}>{hoja.soloTotal ? "Tengo cuánto hizo cada quien" : "Sólo tengo el total del grupo"}</button>}
+            {(data.externos || []).length > 0 && <>
+              <div className="form-label" style={{ margin: "8px 0 4px" }}>Externos (prestadores: tarifa × unidades, su pago incluye todo)</div>
+              {(data.externos || []).filter(x => x.activo !== false).map(x => { const c = hoja.ext[x.id] || {}; const pon = (k, v) => setHoja(d => ({ ...d, ext: { ...d.ext, [x.id]: { ...(d.ext[x.id] || {}), [k]: v } } }));
+                return <div key={x.id} style={{ marginBottom: 6 }}>
+                  <label className="text-sm"><input type="checkbox" checked={!!c.incluir} onChange={e => pon("incluir", e.target.checked)} /> {x.nombre}</label>
+                  {c.incluir && <div className="inp-row" style={{ marginTop: 4 }}>
+                    <input className="inp" type="number" inputMode="decimal" aria-label={`A cómo, ${x.nombre}`} placeholder="$ por unidad" value={c.tarifa ?? ""} onChange={e => pon("tarifa", e.target.value)} />
+                    <input className="inp" type="number" inputMode="decimal" aria-label={`Unidades, ${x.nombre}`} placeholder="Unidades" value={c.unidades ?? ""} onChange={e => pon("unidades", e.target.value)} />
+                    <input className="inp" type="number" inputMode="decimal" aria-label={`Hectáreas, ${x.nombre}`} placeholder="ha (opcional)" value={c.ha ?? ""} onChange={e => pon("ha", e.target.value)} />
+                  </div>}
+                </div>; })}
+            </>}
+            {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setHoja(null)}>No</button>
+              <button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarDestajo}>Guardar destajo</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {hoja?.clase === "avance" && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setHoja(null); }}>
+          <div className="modal-sheet">
+            <div className="card-title">Avance · {hoja.pincel.actividad} · {nombreParcela(hoja.pincel.parcelaId || hoja.pincel.beneficiaId)}</div>
+            <div className="text-xs text-muted" style={{ marginBottom: 8 }}>El avance no es un pago ni un porcentaje: dice cuánto se hizo y qué quedó pendiente.{conEse.length ? ` Lo hicieron ${conEse.length} persona(s) pintadas con este pincel.` : ""}</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="av-c">Cuánto se avanzó</label><input id="av-c" className="inp" type="number" inputMode="decimal" value={hoja.cantidad} onChange={e => setHoja(d => ({ ...d, cantidad: e.target.value }))} /></div>
+              <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="av-u">En qué</label>
+                <select id="av-u" className="inp" value={hoja.unidad} onChange={e => setHoja(d => ({ ...d, unidad: e.target.value }))}>{Object.keys(UNIDADES_DE_AVANCE).map(u => <option key={u} value={u}>{u === "otra" ? "Otra…" : UNIDADES_DE_AVANCE[u][0]}</option>)}</select></div>
+            </div>
+            {hoja.unidad === "otra" && <input className="inp" aria-label="Cuál otra unidad" placeholder="¿En qué se mide?" value={hoja.unidadDicha} onChange={e => setHoja(d => ({ ...d, unidadDicha: e.target.value }))} style={{ marginBottom: 8 }} />}
+            <div style={{ display: "flex", gap: 8 }}>
+              <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="av-pc">Quedó pendiente (cuánto)</label><input id="av-pc" className="inp" type="number" inputMode="decimal" value={hoja.pendienteCantidad} onChange={e => setHoja(d => ({ ...d, pendienteCantidad: e.target.value }))} /></div>
+              <div className="form-group" style={{ flex: 2 }}><label className="form-label" htmlFor="av-pt">O dicho en palabras</label><input id="av-pt" className="inp" value={hoja.pendienteTexto} onChange={e => setHoja(d => ({ ...d, pendienteTexto: e.target.value }))} /></div>
+            </div>
+            <div className="form-group"><label className="form-label" htmlFor="av-n">Nota (opcional)</label><input id="av-n" className="inp" value={hoja.nota} onChange={e => setHoja(d => ({ ...d, nota: e.target.value }))} /></div>
+            {dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{dice}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setHoja(null)}>No</button>
+              <button className="btn btn-accent" style={{ flex: 1 }} onClick={guardarAvance}>Guardar avance</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

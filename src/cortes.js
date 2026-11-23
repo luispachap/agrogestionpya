@@ -16,7 +16,8 @@
 // ═════════════════════════════════════════════════════════════════════════════
 import { vigentes } from "./eventos.js";
 import { asignar, terminar, ajusteVigente, TIPO_ASIGNACION, TIPO_FIN } from "./cuadrillas.js";
-import { jornadasDe } from "./checador.js";
+import { jornadasDe, marcasDe, marcaQueFalto } from "./checador.js";
+import { vigentesDelPlan } from "./asignaciones.js";
 
 export const JUEGOS_DE_CORTES = {
   tres: [{ id: "c1", desde: "07:00", hasta: "10:00" }, { id: "c2", desde: "10:00", hasta: "13:00" }, { id: "c3", desde: "14:00", hasta: "17:00" }],
@@ -43,21 +44,24 @@ export function celdasDelDia(eventos, { fecha }) {
     if (!esInicio) continue;                     // los fines al acabar un corte son parte de la celda, no la cambian
     for (const id of e.datos.trabajadorIds || []) {
       const k = `${id}|${e.datos.corte}`, ya = celdas.get(k);
-      const valor = e.tipo === TIPO_ASIGNACION ? { parcelaId: e.datos.parcelaId || null, vehiculoId: e.datos.vehiculoId || null, actividad: e.datos.actividad } : null;
+      const valor = e.tipo === TIPO_ASIGNACION ? { parcelaId: e.datos.parcelaId || null, vehiculoId: e.datos.vehiculoId || null, ...(e.datos.vehiculoId ? { vehiculo: e.datos.vehiculo || "", beneficiaId: e.datos.beneficiaId || null } : {}), actividad: e.datos.actividad } : null;
       celdas.set(k, { valor, ev: e.id, por: e.quien?.nombre || "", capturado: e.capturado, historial: [...(ya ? [{ valor: ya.valor, por: ya.por, capturado: ya.capturado }, ...ya.historial] : [])] });
     }
   }
   return celdas;
 }
 export const valorDe = (celdas, trabajadorId, corteId) => celdas.get(`${trabajadorId}|${corteId}`)?.valor || null;
+// Un pincel: una actividad en una parcela, o manejando un vehículo (y, si se dice, para qué parcela fue).
+export const llaveDePincel = (v) => [v?.parcelaId || "", v?.vehiculoId || "", v?.beneficiaId || "", v?.actividad || ""].join("|");
+export const mismoPincel = (a, b) => !!a && !!b && llaveDePincel(a) === llaveDePincel(b);
 
 // Pintar una celda (o varias personas en el mismo corte). Devuelve los eventos a guardar.
-export function pintar({ eventos, trabajadorIds, fecha, corteId, cortes, parcelaId, vehiculoId = null, actividad, quien, capturado, azar, semanaCerrada = false }) {
+export function pintar({ eventos, trabajadorIds, fecha, corteId, cortes, parcelaId, vehiculoId = null, vehiculo = "", beneficiaId = null, actividad, quien, capturado, azar, semanaCerrada = false }) {
   if (semanaCerrada) return { ok: false, dice: "Esa semana ya está cerrada. Para pintar hay que reabrirla (con motivo)." };
   const i = (cortes || []).findIndex(c => c.id === corteId);
   if (i < 0) return { ok: false, dice: "Ese corte no existe." };
   const c = cortes[i], sig = cortes[i + 1] || null;
-  const r = asignar({ trabajadorIds, parcelaId, vehiculoId, actividad, desde: instanteDeCorte(fecha, c.desde), fecha, quien, capturado, azar });
+  const r = asignar({ trabajadorIds, parcelaId: vehiculoId ? null : parcelaId, vehiculoId, vehiculo, beneficiaId: vehiculoId ? beneficiaId : null, actividad, desde: instanteDeCorte(fecha, c.desde), fecha, quien, capturado, azar });
   if (!r.ok) return r;
   const evs = [{ ...r.evento, datos: { ...r.evento.datos, corte: c.id } }];
   // El fin del corte: si el siguiente no empieza ahí mismo, siempre; si empieza ahí, sólo para quien lo tiene vacío.
@@ -82,12 +86,13 @@ export function borrarCelda({ trabajadorIds, fecha, corteId, cortes, quien, capt
 }
 
 // La tabla: quién vino (checó o se le pasó lista) y quién ya está pintado; y los avisos.
-export function tablaDelDia({ eventos, personas = [], asistencia = [], fecha, cortes, hoy, ahora }) {
+// `incluir`: gente que alguien agregó a mano a ese día (un día de antes, o un rancho sin checador), para poder pintarla.
+export function tablaDelDia({ eventos, personas = [], asistencia = [], fecha, cortes, hoy, ahora, incluir = [] }) {
   const celdas = celdasDelDia(eventos, { fecha });
   const checaron = new Set(jornadasDe(eventos, { fecha, hoy, ahora }).map(j => j.trabajadorId));
   const deLista = new Set((asistencia || []).filter(a => a && a.fecha === fecha && a.presente).map(a => a.trabajadorId));
   const pintados = new Set([...celdas.keys()].map(k => k.split("|")[0]));
-  const ids = new Set([...checaron, ...deLista, ...pintados]);
+  const ids = new Set([...checaron, ...deLista, ...pintados, ...(incluir || [])]);
   const filas = (personas || []).filter(p => ids.has(p.id)).map(p => {
     const fila = (cortes || []).map(c => ({ corte: c, celda: celdas.get(`${p.id}|${c.id}`) || null }));
     const algo = fila.some(x => x.celda?.valor);
@@ -104,4 +109,71 @@ export function tablaDelDia({ eventos, personas = [], asistencia = [], fecha, co
 // Repetir: lo que tenía cada persona en un corte (o ayer), en otro corte de hoy. Sólo propone las celdas; pintar es aparte.
 export function lomismoQue(celdas, { trabajadorIds, corteId }) {
   return (trabajadorIds || []).map(id => ({ trabajadorId: id, valor: valorDe(celdas, id, corteId) })).filter(x => x.valor);
+}
+
+// ─── Lo que hacía «Registro de varios» y el reparto, aquí (Luis, 23 nov: «pásale sus funciones, que no se pierda nada») ───
+
+// PINTAR COMO EL PLAN. Lo que el plan (las `indicaciones` de tipo tarea) dice para cada quien, en los cortes que ya
+// empezaron y siguen vacíos. Sólo propone: pintar es aparte y lo hace una persona. Una tarea sin parcela o sin qué
+// hacer no se pinta (se dice). Con varias tareas: cada una desde el corte de su hora; sin horas, no se escoge.
+export function propuestaDelPlan({ indicaciones = [], fecha, presentes = [], celdas, cortes = [], ahora, normalizar = null }) {
+  const empezaron = cortes.filter(c => instanteDeCorte(fecha, c.desde) <= ahora);
+  const delPlan = vigentesDelPlan(indicaciones, fecha).filter(i => i.asignadoA);
+  const nombreDe = (q) => { const t = String(q || "").trim(); if (!t) return ""; const n = normalizar ? normalizar(t) : null; return n?.nombre || (t[0].toUpperCase() + t.slice(1)); };
+  const grupos = new Map(), dudas = [];
+  const poner = (corteId, valor, id) => { const k = `${corteId}|${llaveDePincel(valor)}`; if (!grupos.has(k)) grupos.set(k, { corteId, valor, ids: [] }); grupos.get(k).ids.push(id); };
+  for (const id of presentes) {
+    const suyas = delPlan.filter(i => i.asignadoA === id);
+    if (!suyas.length) continue;
+    const listas = suyas.filter(i => i.parcelaId && nombreDe(i.que));
+    if (listas.length < suyas.length) dudas.push({ trabajadorId: id, dice: "Una tarea de su plan no dice parcela o qué hacer: píntala a mano." });
+    if (!listas.length) continue;
+    if (listas.length > 1 && listas.some(i => !/^\d{1,2}:\d{2}/.test(i.hora || ""))) { dudas.push({ trabajadorId: id, dice: `Tiene ${listas.length} tareas en el plan y no todas dicen a qué hora: píntalo a mano.` }); continue; }
+    const orden = [...listas].sort((a, b) => String(a.hora || "").padStart(5, "0").localeCompare(String(b.hora || "").padStart(5, "0")));
+    for (const c of empezaron) {
+      if (valorDe(celdas, id, c.id)) continue;
+      // La tarea que le toca en ese corte: la última que ya empezó a la hora del corte (o la primera, si ninguna).
+      const t = orden.length === 1 ? orden[0] : [...orden].reverse().find(i => String(i.hora).padStart(5, "0") <= c.desde) || orden[0];
+      poner(c.id, { parcelaId: t.parcelaId, actividad: nombreDe(t.que) }, id);
+    }
+  }
+  return { pintar: [...grupos.values()], dudas };
+}
+
+// SU ENTRADA Y SALIDA POR LO PINTADO. Quien se pintó y no checó (un día de antes, o un rancho sin checador) no tiene
+// horas: su día no se sabe. Un encargado o un administrador puede ponerle entrada y salida desde lo pintado, con su
+// motivo (es la marca a mano de siempre). No se hace solo, ni a quien ya tiene alguna marca ese día.
+export function marcasPorLoPintado({ eventos, trabajadorId, fecha, cortes = [], quien, capturado, motivo, azar }) {
+  if (marcasDe(eventos, { trabajadorId, fecha }).length) return { ok: false, dice: "Ya tiene marcas ese día: lo que falte se pone en Jornadas." };
+  const celdas = celdasDelDia(eventos, { fecha });
+  const pintados = cortes.filter(c => valorDe(celdas, trabajadorId, c.id));
+  if (!pintados.length) return { ok: false, dice: "No tiene nada pintado ese día." };
+  const entra = instanteDeCorte(fecha, pintados[0].desde), sale = instanteDeCorte(fecha, pintados[pintados.length - 1].hasta);
+  const e = marcaQueFalto({ trabajadorId, sentido: "entrada", cuando: entra, fecha, motivo, quien, capturado, azar });
+  if (!e.ok) return e;
+  if (sale > capturado) return { ok: true, eventos: [e.evento], dice: `Se le puso la entrada (${pintados[0].desde}). La salida se pone cuando acabe su último corte.` };
+  const s = marcaQueFalto({ trabajadorId, sentido: "salida", cuando: sale, fecha, motivo, quien, capturado, azar: azar ? azar + 1e-7 : azar });
+  if (!s.ok) return s;
+  return { ok: true, eventos: [e.evento, s.evento], dice: `Entrada ${pintados[0].desde} y salida ${pintados[pintados.length - 1].hasta}, por lo pintado.` };
+}
+
+// EL DESTAJO DE UN EXTERNO (prestador independiente: tarifa × unidades, su pago incluye todo). Es el mismo renglón que
+// guardaba «Registro de varios», para que Aprobar externos, Pagos y los reportes lo lean igual.
+export function actividadDeExterno({ id, externo, fecha, parcelaId, actividad, siembraId = null, tarifa, unidades, hectareas = 0, nota = "", quien }) {
+  const t = Number(tarifa) || 0, u = Number(unidades) || 0;
+  if (!externo?.id) return { ok: false, dice: "Falta quién es el externo." };
+  if (!parcelaId) return { ok: false, dice: "El destajo de un externo va a una parcela." };
+  if (!(t > 0) || !(u > 0)) return { ok: false, dice: `A ${externo.nombre || "ese externo"} le falta a cómo y cuántas unidades.` };
+  const costoMO = Math.round(t * u * 100) / 100;
+  return { ok: true, actividad: { id, fecha, parcelaId, tipo: String(actividad || "").trim(), siembraId, registradoPor: { tipo: "externo", id: externo.id },
+    horas_trab: 0, maquinariaId: null, horas_maq: 0, costoMaq: 0, insumos: [], costoMO, costoInsumos: 0, costoTotal: costoMO,
+    observaciones: String(nota || "").trim(), flete: 0, modalidadPago: "destajo", externo_tarifa: t, externo_unidades: u,
+    hectareas_trab: Number(hectareas) || 0, registradoEnNombrePor: { rol: quien?.rol, id: quien?.id, nombre: quien?.nombre }, registroMasivo: true, deLaTabla: true, cosecha: null } };
+}
+
+// A quiénes se pintó con un pincel ese día (en cualquier corte): para anotar su destajo o su avance.
+export function pintadosCon(celdas, pincel) {
+  const ids = new Set();
+  for (const [k, c] of celdas) if (mismoPincel(c.valor, pincel)) ids.add(k.split("|")[0]);
+  return [...ids];
 }

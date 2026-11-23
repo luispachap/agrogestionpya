@@ -926,6 +926,17 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   `borra` (no se borra nada), lo que todavía no pasa no se pinta, con la semana cerrada no se pinta. Los cortes son la
   regla `cortes_dia` (tres · dos · cuatro), **PROVISIONAL hasta validarla con Miguel**. El modo «plan» (a qué va cada
   quien) NO está construido: el plan sigue siendo las `indicaciones`.
+  **Sucesora de «Registro de varios» y del reparto (Luis, 23 nov: «que no se pierda nada»)**: pincel de vehículo
+  (`vehiculoId` + `beneficiaId`, `llaveDePincel`); agregar a mano a quien no checó (`tablaDelDia({ incluir })`) y ponerle
+  entrada y salida por lo pintado (`marcasPorLoPintado`: la marca a mano de siempre, con motivo, sólo encargado o admin, y
+  nunca a quien ya tiene marcas); «Pintar como el plan» (`propuestaDelPlan`: sólo cortes que ya empezaron y vacíos; dos
+  tareas sin hora no se escogen); lo pendiente de otros días como pincel (`sugerenciasDeContinuidad`); quién lo ha hecho
+  antes (`experienciaObservada`, nivel 1 de ESPECIALIDADES: sólo informa, sobre `actividadesContables`); destajo del
+  personal (`anotarTareas`) y de externos (`actividadDeExterno`: el mismo renglón que «Registro de varios»); avance
+  (`registrarAvance`, alimenta lo pendiente de mañana); «la comida fue descanso» (`aclararTiempo` descanso_autorizado,
+  lo toca una persona). Un pincel que no se usó no se guarda al salir. Las pantallas viejas siguen hasta validarlo con
+  Miguel. Recorrido: `auditoria_cortes2` (23). **La cuota por hora de una máquina** (lo que «Registro de varios» cargaba
+  con `costoMaq`) no la carga la tabla: el operador en el vehículo lleva su costo REAL a la parcela que se dijo.
 - **`src/gps.js`: CHECAR DESDE EL TELÉFONO PROPIO (Luis, 22 nov; construido el 23 nov).** Un administrador activa a la
   persona en su ficha (`checaConGps: "si"`, `ranchoId` = su rancho de siempre); al salir de su cuenta en el teléfono de esa
   persona, el encargado lo liga COMO SUYO (la persona escribe su PIN → `vinculo.soloDe`). Ahí sólo ella checa, con su

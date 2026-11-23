@@ -8,7 +8,7 @@ Uso:  VITE_SUPABASE_URL=http://localhost:5199 VITE_SUPABASE_ANON_KEY=prueba npx 
 import datetime, os, pathlib, re, sys
 sys.path.insert(0, str(pathlib.Path(__file__).parent / "apoyo")); import nube_entera as N
 from playwright.sync_api import sync_playwright
-URL = "http://localhost:5174/"; HOY = "2026-11-19"; FOTOS = os.environ.get("FOTOS")
+URL = os.environ.get("URL", "http://localhost:5174/"); HOY = "2026-11-19"; FOTOS = os.environ.get("FOTOS")
 res = []
 def caso(n, ok, det=""): res.append(bool(ok)); print(("PASA  " if ok else "FALLA ") + n + (" — " + str(det)[:800] if det and not ok else ""), flush=True)
 plano = lambda t: t.replace("\n", " | ")
