@@ -49,7 +49,8 @@ Corte: domingo 22 de noviembre de 2026 (noche). **66 aprobados · 1 recorridos e
 
 | Qué | Estado | Detalle |
 |---|---|---|
-| La app en app.agroselectos.com | **Publicado** | Versión `0d217b0` (23 nov, 3:55 de la mañana), la misma sobre la que corrió la batería completa (67 recorridos); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6. |
+| La app en app.agroselectos.com | **Publicado** | Versión `4edbcb3` (23 nov, 5:30 de la mañana): la batería completa pasó sobre su mismo código (1,347 pruebas de reglas, 164 ataques a la base, 69 recorridos en navegador); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6. |
+| Lo de las respuestas de Luis del 23 nov: la tabla por cortes con lo de «Registro de varios» y del reparto, el tiempo esperando tarea, la calidad de la corrida por origen y ritmo, corona/grano/deshecho/pata de perro al ajo terminado, prestaciones sobre la semana entre 7, y checar con el teléfono propio | **Publicado** | 23 de noviembre, 5:30 de la mañana. Sin hojas nuevas en la base. |
 | La hoja de pagos que se firma: lo que ya debían al arrancar, prestar en un paso, pago en dos partes, sueldo por semana entre 6 y la importación que no confunde el sueldo de la semana | **Publicado** | 23 de noviembre, de madrugada; hoja 57 instalada en la base y las siete huellas de producción iguales a las de la base probada. |
 | Captura diaria: «Mis días» con la cuenta real, registro de varios que dice lo que se paga, el día que se costeaba dos veces, y rastro al aprobar externos y atender incidencias | **Publicado** | 22 de noviembre; corrección ordinaria, publicada tras la batería completa. |
 | Campo (alta de cultivos, parcelas que no se eliminan con registros, cosechas que no se pisan ni se borran) y dos correcciones de identidad: hechos de nombre propio sin marca y estibas recién cerradas que no subían | **Publicado** | 22 de noviembre; corrección ordinaria, publicada tras la batería completa. |
@@ -66,7 +67,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **66 aprobados · 1 recorridos e
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
 
-## Defectos encontrados al usar los módulos (92: 92 corregidos, 2 de ellos sin publicar; 0 abiertos)
+## Defectos encontrados al usar los módulos (92: 92 corregidos, 0 de ellos sin publicar; 0 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -160,8 +161,8 @@ Corte: domingo 22 de noviembre de 2026 (noche). **66 aprobados · 1 recorridos e
 | 88 | Temporadas | Reabrir una temporada la dejaba terminando el día que se cerró (lo de después ya no le entraba), sin pedir porqué; cerrar no dejaba quién; y se podía crear una que termina antes de empezar | P2 | Corregido y publicado: Cerrar deja quién y cuándo; reabrir pide el porqué y quita la fecha de fin que puso el cierre; historial a la vista; las fechas se revisan |
 | 89 | Entregas del almacén | Si la corrección del reloj de un teléfono venía mal medida, el cierre de una entrega podía quedar ordenado ANTES de la entrega: en otro teléfono salía como «cierre sin su entrega» y lo usado no contaba | P1 | Corregido y publicado: Lo que cierra algo (consumo, devolución, baja, «sigue en uso») nunca se recorre antes de lo que cierra. Apareció en el recorrido porque el reloj del servidor de imitación iba atrasado respecto al teléfono: el mismo tipo de error que un teléfono con la hora mal medida |
 | 90 | Mis compras, Finanzas → Compras | Aprobar o rechazar la compra de un trabajador no dejaba quién ni cuándo, y rechazar no pedía porqué (es dinero que la persona ya pagó de su bolsa) | P2 | Corregido y publicado: Aprobar deja quién y cuándo; rechazar pide el porqué y se enseña en la compra; un doble toque al mandar la compra ya no puede mandarla dos veces |
-| 91 | Tabla por cortes | Lo asignado en Equipos de trabajo no se veía en la tabla: salía «checó y no está pintado» (falso), y pintar el corte de antes le ponía fin a esa asignación al acabar el corte, así que el resto del día quedaba sin asignar | P2 | Corregido **sin publicar**: La tabla lo enseña punteado y no lo pisa: no hay aviso falso, pintar el corte de antes no lo termina, y un cambio a medio corte se avisa en la celda |
-| 92 | Checar con el teléfono propio | Con el GPS impreciso, alguien lejísimos de todo rancho quedaba registrado «por revisar» en vez de no registrarse | P2 | Corregido **sin publicar**: Si ni con su margen de error alcanza a estar en un rancho, está lejos: no se registra |
+| 91 | Tabla por cortes | Lo asignado en Equipos de trabajo no se veía en la tabla: salía «checó y no está pintado» (falso), y pintar el corte de antes le ponía fin a esa asignación al acabar el corte, así que el resto del día quedaba sin asignar | P2 | Corregido y publicado: La tabla lo enseña punteado y no lo pisa: no hay aviso falso, pintar el corte de antes no lo termina, y un cambio a medio corte se avisa en la celda |
+| 92 | Checar con el teléfono propio | Con el GPS impreciso, alguien lejísimos de todo rancho quedaba registrado «por revisar» en vez de no registrarse | P2 | Corregido y publicado: Si ni con su margen de error alcanza a estar en un rancho, está lejos: no se registra |
 
 ## Lo que no se pudo ejecutar y por qué
 

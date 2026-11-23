@@ -1518,7 +1518,7 @@
       "que": "Lo asignado en Equipos de trabajo no se veía en la tabla: salía «checó y no está pintado» (falso), y pintar el corte de antes le ponía fin a esa asignación al acabar el corte, así que el resto del día quedaba sin asignar",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "La tabla lo enseña punteado y no lo pisa: no hay aviso falso, pintar el corte de antes no lo termina, y un cambio a medio corte se avisa en la celda"
     },
     {
@@ -1527,7 +1527,7 @@
       "que": "Con el GPS impreciso, alguien lejísimos de todo rancho quedaba registrado «por revisar» en vez de no registrarse",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Si ni con su margen de error alcanza a estar en un rancho, está lejos: no se registra"
     }
   ],
@@ -1553,7 +1553,12 @@
     {
       "que": "La app en app.agroselectos.com",
       "estado": "publicado",
-      "detalle": "Versión `0d217b0` (23 nov, 3:55 de la mañana), la misma sobre la que corrió la batería completa (67 recorridos); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6."
+      "detalle": "Versión `4edbcb3` (23 nov, 5:30 de la mañana): la batería completa pasó sobre su mismo código (1,347 pruebas de reglas, 164 ataques a la base, 69 recorridos en navegador); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6."
+    },
+    {
+      "que": "Lo de las respuestas de Luis del 23 nov: la tabla por cortes con lo de «Registro de varios» y del reparto, el tiempo esperando tarea, la calidad de la corrida por origen y ritmo, corona/grano/deshecho/pata de perro al ajo terminado, prestaciones sobre la semana entre 7, y checar con el teléfono propio",
+      "estado": "publicado",
+      "detalle": "23 de noviembre, 5:30 de la mañana. Sin hojas nuevas en la base."
     },
     {
       "que": "La hoja de pagos que se firma: lo que ya debían al arrancar, prestar en un paso, pago en dos partes, sueldo por semana entre 6 y la importación que no confunde el sueldo de la semana",
