@@ -130,6 +130,11 @@
    "que": "Mapa y Dron con dos teléfonos",
    "con": "pruebas/auditoria_mapa_navegador.py",
    "resultado": "13 de 13"
+  },
+  {
+   "que": "La hoja de pagos que se firma: lo que ya debían, prestar en un paso, pago en dos partes, sueldo por semana, sin señal y otro aparato",
+   "con": "pruebas/auditoria_hoja_pagos_navegador.py",
+   "resultado": "44 de 44"
   }
  ],
  "para_listo": [
@@ -558,16 +563,16 @@
    "n": 50,
    "nombre": "Equipo",
    "estado": "PARCIAL",
-   "prueba": "entrega 68 · auditoria_pagos · auditoria_semana",
-   "probado": "Alta de trabajadores con sueldo y PIN (repetido o sin nombre no entra), llega a otro aparato",
+   "prueba": "entrega 68 · auditoria_pagos · auditoria_semana · auditoria_hoja_pagos 44",
+   "probado": "Alta de trabajadores con sueldo y PIN (repetido o sin nombre no entra), llega a otro aparato; alta con sueldo por semana (el de por día sale solo, la semana suma exacto, queda en su historial)",
    "falta": "Editar, baja, maquinaria, encargados"
   },
   {
    "n": 51,
    "nombre": "Personal",
    "estado": "PARCIAL",
-   "prueba": "auditoria_pagos 40",
-   "probado": "Préstamos de punta a punta: solicitud (no es deuda), autorización por menos, entrega (ahí nace la deuda, no más de lo autorizado), abonos, abono de más, dos aparatos sin señal, el encargado no autoriza ni abona",
+   "prueba": "auditoria_pagos 40 · auditoria_hoja_pagos 44",
+   "probado": "Préstamos de punta a punta: solicitud (no es deuda), autorización por menos, entrega (ahí nace la deuda, no más de lo autorizado), abonos, abono de más, dos aparatos sin señal, el encargado no autoriza ni abona; lo que ya debían al arrancar (fecha de corte, quién responde, evidencia; uno por persona; se corrige con motivo y sus abonos siguen contando; no es dinero que sale)",
    "falta": "Pestañas Actividades y Cuadrillas"
   },
   {
@@ -630,8 +635,8 @@
    "n": 59,
    "nombre": "Pagos al personal",
    "estado": "PARCIAL",
-   "prueba": "auditoria_pagos 40 · auditoria_semana 26 · auditoria_ausencias 36 · auditoria_identidad 27 · entrega",
-   "probado": "Lo que corresponde, pago (sellado por la base), el préstamo no descuenta solo, cuenta de cuadrilla por responsable, bonos (otorgar es costo, pagar no), recibo con versión, cerrar, confirmar y reabrir la semana, Finanzas y encargado sin permiso, recarga, otro aparato; el mismo pago hecho en dos teléfonos sin señal queda a la vista como entregado de más; salida antes de tiempo (nada se descuenta solo; decisión con motivo, sellada por la base; dos teléfonos decidiendo distinto quedan a la vista y se cancela la que no vale); ausencias (quien no vino es una pregunta, no una falta; permiso con causa y quién autorizó; se paga y va como costo sin parcela, no a la parcela); historial de decisiones con las canceladas; ya pagado, cancelar una decisión no toca el pago y deja el pendiente a la vista; con la semana cerrada no se cambia sin reabrir, y lo que llega tarde de otro teléfono sale como diferencia con su autor y motivo; aparato recién entrado ve lo mismo",
+   "prueba": "auditoria_pagos 40 · auditoria_semana 26 · auditoria_ausencias 36 · auditoria_identidad 27 · entrega · auditoria_hoja_pagos 44",
+   "probado": "Lo que corresponde, pago (sellado por la base), el préstamo no descuenta solo, cuenta de cuadrilla por responsable, bonos (otorgar es costo, pagar no), recibo con versión, cerrar, confirmar y reabrir la semana, Finanzas y encargado sin permiso, recarga, otro aparato; el mismo pago hecho en dos teléfonos sin señal queda a la vista como entregado de más; salida antes de tiempo (nada se descuenta solo; decisión con motivo, sellada por la base; dos teléfonos decidiendo distinto quedan a la vista y se cancela la que no vale); ausencias (quien no vino es una pregunta, no una falta; permiso con causa y quién autorizó; se paga y va como costo sin parcela, no a la parcela); historial de decisiones con las canceladas; ya pagado, cancelar una decisión no toca el pago y deja el pendiente a la vista; con la semana cerrada no se cambia sin reabrir, y lo que llega tarde de otro teléfono sale como diferencia con su autor y motivo; aparato recién entrado ve lo mismo; la hoja para firmar (le corresponde, abono, transferencia, efectivo, préstamo nuevo, le queda debiendo, falta por entregar, leyenda de que no sustituye el CFDI); pago en dos partes, cada una con su medio; prestar en un paso con los tres hechos sellados; el abono acordado sólo se sugiere; un préstamo hecho sin señal no cuenta hasta que la base lo valida; el sábado de quien cobra por semana lleva el centavo que sobra",
    "falta": "Con cuentas faltan: horas adicionales, prestaciones y bajas (recorridos en local: pagos 33, prestaciones 49, bajas 34)"
   },
   {
@@ -1338,6 +1343,24 @@
    "estado": "corregido",
    "publicado": false,
    "nota": "Con dos letras basta, igual que en una raya"
+  },
+  {
+   "n": 72,
+   "modulo": "Personal, Pagos al personal",
+   "que": "No había cómo anotar lo que un trabajador ya debía de préstamos dados antes de la app (la nómina en papel los descuenta cada semana): sus abonos no tenían a qué préstamo ir",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "«Lo que ya debían»: saldo a una fecha de corte, con quién responde y evidencia; lo valida la base (hoja 57) y no entra al flujo"
+  },
+  {
+   "n": 73,
+   "modulo": "Pagos al personal, Equipo",
+   "que": "Con el sueldo de la semana entre 6 (decisión de Luis), la semana completa salía dos centavos abajo: 583.33 × 6 = 3,499.98",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Sueldo por semana en la ficha: cada día vale su parte, repartida al centavo"
   }
  ],
  "no_se_pudo": [
@@ -1453,8 +1476,7 @@
   "Decidir a qué cuenta de Finanzas, si a alguna, se le otorga la consulta de Banco y Socios.",
   "ContPAQi: las compras para el almacén salen en la cuenta de gastos (como cualquier egreso). ¿Quieres una cuenta de inventario aparte para ellas?",
   "El IVA de las compras: hoy lo que entra al almacén vale sin IVA y el IVA no cuenta como costo (sólo sale en el flujo). ¿Se recupera (acreditable) o debe ser parte del costo?",
-  "Préstamos que ya se estaban abonando antes de la app: hoy no hay cómo anotar su saldo al corte (los saldos iniciales sólo son de cuentas de dinero). ¿Se agrega «saldo inicial de préstamo» en Arranque (fecha de corte, importe, quién responde, evidencia)? Es función nueva.",
-  "Sueldo por día del personal de planta: ¿semanal ÷ 6 (cuadra la paga de hoy) o ÷ 7 (salario diario de ley, base de aguinaldo y vacaciones; el domingo se anotaría como descanso pagado)?"
+  "Capturar en Personal → Préstamos → «Lo que ya debían» el saldo de cada préstamo que se sigue descontando (con la foto de la hoja firmada)."
  ],
  "riesgos": [
   "Riesgo técnico por evaluar (Luis, 22 nov): que una semana cerrada pida reabrirse para cambiar sus decisiones lo cuida la app, no la base. Una decisión que llegue por fuera de la app (o de un teléfono que no sabía del cierre) sí entra; no pasa callada —sale como diferencia contra el cierre, con quién y por qué— pero la base no la rechaza.",

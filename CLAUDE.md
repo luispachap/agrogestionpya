@@ -900,6 +900,12 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   evidencia; uno por persona; se corrige con `corregirSaldoInicial` (motivo) y el préstamo conserva el identificador del
   primero para que sus abonos sigan contando; NO entra al flujo (el dinero salió antes). Recorrido:
   `auditoria_hoja_pagos` (39).
+- **EL SUELDO DE LA SEMANA ENTRE 6 (Luis, 22 nov):** «para asignar la totalidad del sueldo semanal entre las
+  actividades». La ficha lleva `sueldo_semana`; `sueldoVigente` da a cada día de su calendario su PARTE (`parteDelDia`,
+  `repartirDinero`: la semana completa suma exacto y el centavo que sobra va al último día), un día fuera de su
+  calendario vale el promedio, y `sueldo_dia` es ese promedio (`conSueldoSemanal` al dar de alta o editar; base de
+  prestaciones: `promedio`). Si en la práctica el aguinaldo se paga sobre semana ÷ 7, va en «base de aguinaldo» de la
+  ficha. Quien no tiene `sueldo_semana` sigue igual que siempre.
 - **«Sueldo» a secas no es sueldo por día** (`sueldoEsPorDia`, importación): una hoja «Empleado | Sueldo» propone la
   ficha SIN sueldo y lo dice; y en una lista de pagos un apodo de dos letras ya es nombre.
 - **Dos decisiones distintas del mismo día no se aplican calladas** (`decisionesEncontradas`, `cuadrillas.js`):
