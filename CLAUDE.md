@@ -758,6 +758,11 @@ rápida para tarimas limpiadas durante la corrida.
 → Migue ajusta el ritmo de la corredora (bajo/medio/alto), que queda registrado
 junto a la calidad.
 
+**La calidad y su origen (Luis, 23 nov)**: cada muestra de calidad guarda qué había en la mesa, de qué parcelas venía (la
+traza de las tarimas, `origenDeLaMesa`) y el ritmo. «Calidad por origen y ritmo» (`calidadPorOrigen`, % por cabezas) y la
+tendencia (`tendenciaDeCalidad`) sólo dicen datos: cómo venía, cómo viene, a qué ritmo y de dónde; ya no sugiere bajar ni
+subir el ritmo. Las muestras de antes, sin origen, no se le pegan a ninguno.
+
 **Regla de diseño innegociable**: la app **informa, Migue manda**. Muestra la
 tendencia ("la calidad bajó de 95% a 88%, ibas a ritmo alto") pero **nunca ordena**
 "sube el ritmo". Su criterio de experto ve cosas que la app no. Si la app manda y

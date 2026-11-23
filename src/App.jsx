@@ -1,4 +1,4 @@
-import { unico, conAutor, conNacimiento, conservarNacimiento, esIdentificadorOcupado, revisarCultivo, revisarEtapas, revisarRancho, revisarParcela, usoDeParcela, idDeCosecha, registrosVivos, cancelarRegistroDeCosecha } from "./calculos.js";
+import { origenDeLaMesa, calidadPorOrigen, tendenciaDeCalidad, unico, conAutor, conNacimiento, conservarNacimiento, esIdentificadorOcupado, revisarCultivo, revisarEtapas, revisarRancho, revisarParcela, usoDeParcela, idDeCosecha, registrosVivos, cancelarRegistroDeCosecha } from "./calculos.js";
 import { quizaRepetidos, marcarDistintos } from "./repetidos.js";
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component, createContext, useContext } from "react";
 import { createPortal } from "react-dom";
@@ -21509,7 +21509,10 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
     if (!cal.totalCabezas || (parseFloat(cal.totalCabezas) || 0) <= 0) { alert("Captura el total de cabezas muestreadas"); return; }
     // Sin hora tecleada, la hora es la de ahora; y cuándo se capturó desempata dos muestras del mismo minuto. Sin eso la
     // tendencia comparaba al revés (la muestra vieja contra la nueva).
-    add("control_corrida", { id: `cq${unico()}`, tipo: "calidad", corridaFolio: folioCorrida, ...cal, hora: cal.hora || horaActual, capturado: new Date().toISOString(), malos: malosDe(cal), pctBueno: pctBueno(cal), ritmo: ritmoActual, registradoPor: { rol: session.role, id: session.id, nombre: session.nombre } });
+    // Qué había en la mesa y de qué parcelas venía (Luis, 23 nov): la calidad queda ligada a su origen y al ritmo.
+    const enMesa = modoRevoltura ? poolIds : (estibaOrigenId ? [estibaOrigenId] : poolIds);
+    add("control_corrida", { id: `cq${unico()}`, tipo: "calidad", corridaFolio: folioCorrida, ...cal, hora: cal.hora || horaActual, capturado: new Date().toISOString(), malos: malosDe(cal), pctBueno: pctBueno(cal), ritmo: ritmoActual,
+      origen: origenDeLaMesa({ estibas: data.estibas || [], enMesa, modo: modoRevoltura ? "revoltura" : "preciso" }), registradoPor: { rol: session.role, id: session.id, nombre: session.nombre } });
     alert(`Muestreo guardado. ${(pctBueno(cal) * 100).toFixed(1)}% de bueno.`);
     setCal({ ...Q0, calibre: cal.calibre });
     setSugerirCalidad(false);
@@ -21517,14 +21520,10 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
   const muestreos = (data.control_corrida || []).filter(c => c.tipo === "calidad").sort((a, b) => { const k = (m) => m.fecha + String(m.hora || "").replace(/^(\d):/, "0$1:") + (m.capturado || ""); return k(b).localeCompare(k(a)); }).slice(0, 15); // «9:50» va antes de «10:05»
   // Tendencia de calidad: comparar los dos muestreos más recientes (de hoy).
   const muestreosHoy = muestreos.filter(m => m.fecha === today());
-  const tendenciaCalidad = (() => {
-    if (muestreosHoy.length < 2) return null;
-    const actual = muestreosHoy[0].pctBueno || 0;
-    const previo = muestreosHoy[1].pctBueno || 0;
-    const dif = actual - previo;
-    if (Math.abs(dif) < 0.01) return { dir: "igual", actual, previo, dif };
-    return { dir: dif > 0 ? "mejor" : "peor", actual, previo, dif };
-  })();
+  // La tendencia dicha como dato: cómo venía, cómo viene, a qué ritmo y de dónde. Nunca dice qué hacer (la app informa, Migue manda).
+  const nombreDeParcela = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "parcela que no está en este aparato";
+  const tendenciaCalidad = tendenciaDeCalidad(muestreosHoy, { nombreParcela: nombreDeParcela });
+  const porOrigen = calidadPorOrigen((data.control_corrida || []).filter(c => c.tipo === "calidad" && !c.cancelado));
 
   // ═══════ CATEGORÍAS APARTE (Corona, Grano, Deshecho, Pata de perro) → inventario ═══════
   const [aparte, setAparte] = useState({ categoria: CATEGORIAS_APARTE[0], cajas: "", kilos: "", nota: "" });
@@ -22293,8 +22292,16 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
                   </div>
                 </div>
                 <div className="text-xs text-muted" style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid rgba(255,255,255,.08)" }}>
-                  {tendenciaCalidad.dir === "peor" ? "El ajo viene peor. Quizá convenga bajar el ritmo para darle más atención." : tendenciaCalidad.dir === "mejor" ? "El ajo viene mejor. Si quieres, puedes subir el ritmo." : "Calidad estable."} Tú decides según lo que veas.
+                  {tendenciaCalidad.dice} Tú decides según lo que veas.
                 </div>
+              </div>
+            )}
+            {porOrigen.filas.length > 0 && (
+              <div className="card" aria-label="Calidad por origen y ritmo">
+                <div className="card-title">Calidad por origen y ritmo</div>
+                <div className="text-xs text-muted" style={{ marginBottom: 6 }}>De qué parcelas venía lo que había en la mesa (la traza de las tarimas) y a qué ritmo iba la corredora. El % es de cabezas buenas. Sólo informa.</div>
+                {porOrigen.filas.map((f, i) => <div key={i} className="mo-act"><span>{f.parcelas.map(nombreDeParcela).join(" + ")}<span className="text-xs text-muted"> · {f.tarimas.slice(0, 3).join(", ")}{f.tarimas.length > 3 ? "…" : ""}</span></span><span className="text-muted" style={{ textTransform: "capitalize" }}>{f.ritmo} · {f.muestras} muestra{f.muestras === 1 ? "" : "s"}</span><b>{f.pct}%</b></div>)}
+                {porOrigen.sinOrigen > 0 && <div className="text-xs text-muted" style={{ marginTop: 6 }}>{porOrigen.sinOrigen} muestra{porOrigen.sinOrigen === 1 ? "" : "s"} de antes no dice{porOrigen.sinOrigen === 1 ? "" : "n"} qué había en la mesa: no se le pega a ningún origen.</div>}
               </div>
             )}
             <div className="card">

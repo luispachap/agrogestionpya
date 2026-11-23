@@ -5,10 +5,10 @@ varias tarimas (y cargar más de lo que hay), una salida a nuestra bodega, cobra
 clientes. Dos teléfonos sin señal sobre el mismo lote de ajo terminado. Pixel 7 imitado, cuentas, nube de imitación.
 Uso:  VITE_SUPABASE_URL=http://localhost:5199 VITE_SUPABASE_ANON_KEY=prueba npx vite --port 5174 &
       python3 pruebas/auditoria_corrida_navegador.py"""
-import json, pathlib, sys
+import json, os, pathlib, sys
 sys.path.insert(0, str(pathlib.Path(__file__).parent / "apoyo")); import nube_entera as N
 from playwright.sync_api import sync_playwright
-URL = "http://localhost:5174/"
+URL = os.environ.get("URL", "http://localhost:5174/")
 res = []
 def caso(n, ok, det=""): res.append(bool(ok)); print(("PASA  " if ok else "FALLA ") + n + (" — " + str(det)[:900] if det else ""), flush=True)
 plano = lambda t: t.replace("\n", " | ")
@@ -134,7 +134,13 @@ with sync_playwright() as p:
     A.wait_for_timeout(1200); muestra(100, Calavereado=12)
     t = plano(A.locator("body").inner_text())
     caso("con la segunda (88%) la app dice que EMPEORÓ, de 95.0% a 88.0%, e ibas a ritmo alto", "Empeorando" in t and "de 95.0% a 88.0%" in t and "ibas a ritmo" in t and "alto" in t.lower(), t[t.find("Empeor") - 20 if "Empeor" in t else 0:][:300])
-    caso("informa, no manda: deja la decisión a quien corre", "Tú decides" in t and "Sube el ritmo" not in t and "Baja el ritmo" not in t, "")
+    caso("informa, no manda: deja la decisión a quien corre", "Tú decides" in t and "Sube el ritmo" not in t and "Baja el ritmo" not in t and "convenga" not in t, "")
+    # La calidad y su origen (Luis, 23 nov): cada muestra sabe qué había en la mesa y de qué parcelas venía
+    cq = [c for c in D(A, "control_corrida") if c.get("tipo") == "calidad"]
+    caso("cada muestra guarda qué había en la mesa (revoltura: las dos tarimas) y de qué parcelas venía (las dos)", len(cq) == 2 and all((c.get("origen") or {}).get("parcelas") == ["p1", "p2"] and c["origen"]["modo"] == "revoltura" and {"AS-L-901", "AS-L-902"} <= {x["codigo"] for x in c["origen"]["tarimas"]} for c in cq), [c.get("origen") for c in cq])
+    caso("la tendencia dice de dónde venía lo que había en la mesa", "En la mesa: " in t and "PARCELA UNO" in t[t.find("En la mesa"):][:200], t[t.find("Bajó") if "Bajó" in t else 0:][:300])
+    po = A.get_by_label("Calidad por origen y ritmo"); tp = plano(po.inner_text()) if po.count() else ""
+    caso("CALIDAD POR ORIGEN Y RITMO: parcela uno + dos, a ritmo alto, 2 muestras, 91.5% de cabezas buenas", "PARCELA UNO + PARCELA DOS" in tp and "alto · 2 muestras" in tp.lower() and "91.5%" in tp, tp)
 
     # ── 5 · CATEGORÍAS APARTE: un artículo por categoría y lo que entra es un movimiento ──
     A.get_by_role("button", name="Categorías aparte").click(); A.wait_for_timeout(300)

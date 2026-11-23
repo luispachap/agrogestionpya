@@ -815,3 +815,53 @@ export function reabrirTemporada(ciclo, { motivo, quien, cuando }) {
   const { cierre, ...resto } = ciclo;
   return { ok: true, ciclo: { ...resto, estado: "activo", fechaFin: cierre?.finPuestaAlCerrar ? "" : ciclo.fechaFin, historial: [...(ciclo.historial || []), { que: "reabierta", quien, cuando, motivo: String(motivo).trim() }] } };
 }
+
+/* ──── LA CALIDAD Y SU ORIGEN (Luis, 23 nov) ────
+   «Hay que estudiar la trazabilidad de los ajos y con eso la calidad del ajo en bruto; con eso vamos a saber si subimos o
+   bajamos la velocidad a la corrida… queda registrado que de esa parcela o ese grupo trazable a la tarima que se está
+   corriendo… así fue que bajó la calidad». Cada muestra de calidad guarda qué había en la mesa, de qué parcelas venía
+   (la traza de siempre: padres hasta la parcela) y a qué ritmo iba la corredora. Esto sólo lo junta y lo enseña: la app
+   informa, Migue manda. */
+export function parcelasDeEstiba(estibas, estibaId, visto = new Set()) {
+  if (!estibaId || visto.has(estibaId)) return []; visto.add(estibaId);
+  const e = (estibas || []).find(x => x.id === estibaId); if (!e) return [];
+  const l = [...(e.parcelasOrigen || []), ...(e.parcelaId ? [e.parcelaId] : []), ...(e.padres || []).flatMap(p => parcelasDeEstiba(estibas, p, visto))];
+  return [...new Set(l.filter(Boolean))];
+}
+export function origenDeLaMesa({ estibas = [], enMesa = [], modo = "preciso" }) {
+  const tarimas = [...new Set((enMesa || []).filter(Boolean))].map(id => { const e = estibas.find(x => x.id === id); return e ? { id, codigo: e.codigo || id, fase: e.fase || "", padres: (e.padres || []).map(p => estibas.find(x => x.id === p)?.codigo || p) } : { id, codigo: id, fase: "", padres: [] }; });
+  const parcelas = [...new Set(tarimas.flatMap(t => parcelasDeEstiba(estibas, t.id)))].sort();
+  return { modo, tarimas, parcelas };
+}
+// Juntar las muestras por origen (las parcelas de lo que había en la mesa) y ritmo. El % es de cabezas, no promedio de
+// porcentajes: una muestra de 20 cabezas no pesa lo mismo que una de 200.
+export function calidadPorOrigen(muestras = []) {
+  const grupos = new Map(); let sinOrigen = 0;
+  for (const m of muestras || []) {
+    const t = Number(m.totalCabezas) || 0; if (!(t > 0)) continue;
+    const ps = m.origen?.parcelas || []; if (!ps.length) { sinOrigen++; continue; }
+    const k = `${ps.join("+")}|${m.ritmo || "sin ritmo"}`;
+    const g = grupos.get(k) || { parcelas: ps, ritmo: m.ritmo || "sin ritmo", muestras: 0, cabezas: 0, buenas: 0, tarimas: new Set(), ultima: "" };
+    g.muestras++; g.cabezas += t; g.buenas += t - (Number(m.malos) || 0); (m.origen.tarimas || []).forEach(x => g.tarimas.add(x.codigo)); if ((m.fecha || "") > g.ultima) g.ultima = m.fecha || "";
+    grupos.set(k, g);
+  }
+  const filas = [...grupos.values()].map(g => ({ ...g, tarimas: [...g.tarimas], pct: g.cabezas ? Math.round(g.buenas / g.cabezas * 1000) / 10 : null }))
+    .sort((a, b) => a.parcelas.join().localeCompare(b.parcelas.join()) || ORDEN_RITMO.indexOf(a.ritmo) - ORDEN_RITMO.indexOf(b.ritmo));
+  return { filas, sinOrigen };
+}
+const ORDEN_RITMO = ["bajo", "medio", "alto", "sin ritmo"];
+// La tendencia, dicha como dato: cómo venía, cómo viene, a qué ritmo y de dónde. Nunca dice qué hacer.
+export function tendenciaDeCalidad(muestrasDeHoy = [], { nombreParcela = (id) => id } = {}) {
+  if (muestrasDeHoy.length < 2) return null;
+  const [actual, previo] = muestrasDeHoy;   // la más reciente primero
+  const a = actual.pctBueno || 0, p = previo.pctBueno || 0, dif = a - p;
+  const dir = Math.abs(dif) < 0.01 ? "igual" : dif > 0 ? "mejor" : "peor";
+  const de = (m) => (m.origen?.tarimas?.length ? `${m.origen.tarimas.map(t => t.codigo).join(", ")}${m.origen.parcelas?.length ? ` (${m.origen.parcelas.map(nombreParcela).join(", ")})` : ""}` : "");
+  const cambioOrigen = de(actual) && de(previo) && de(actual) !== de(previo);
+  const partes = [
+    `${dir === "peor" ? "Bajó" : dir === "mejor" ? "Subió" : "Se mantiene"} de ${(p * 100).toFixed(1)}% a ${(a * 100).toFixed(1)}% de bueno.`,
+    actual.ritmo ? `${actual.ritmo === previo.ritmo ? "Ibas" : "Ahora vas"} a ritmo ${actual.ritmo}${previo.ritmo && actual.ritmo !== previo.ritmo ? ` (antes ${previo.ritmo})` : ""}.` : "",
+    de(actual) ? `En la mesa: ${de(actual)}${cambioOrigen ? `; antes: ${de(previo)}` : ""}.` : "Esta muestra no dice qué había en la mesa.",
+  ];
+  return { dir, actual: a, previo: p, dif, ritmo: actual.ritmo || "", cambioOrigen: !!cambioOrigen, dice: partes.filter(Boolean).join(" ") };
+}

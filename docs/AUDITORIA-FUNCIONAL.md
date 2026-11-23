@@ -279,9 +279,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **66 aprobados · 1 recorridos e
 - Checar desde el teléfono propio: a quién se activa, qué radio cuenta como «en el rancho» (hoy 300 m) y qué precisión (hoy 100 m); y si una marca «por revisar» (GPS impreciso) cuenta para el pago mientras nadie la revisa (hoy cuenta y se ve marcada). Para usarlo, cada rancho necesita su ubicación.
 - La salida «a nuestra bodega» saca el ajo del inventario de terminado (como una venta, pero sin cobro). ¿Debe seguir contando como nuestro, en otro lugar?
 - Las categorías aparte (corona, grano, deshecho, pata de perro) entran al almacén como artículos SIN precio. ¿Se venden? ¿Con qué valor se llevan?
-- La tendencia de calidad de la corrida dice «quizá convenga bajar el ritmo… tú decides». ¿Se queda así o sólo informa (la regla es que la app informa y Migue manda)?
 - La lectura con IA (fotos de tickets, etiquetas, horómetro) sigue sin llave: es un gasto que autorizas tú. Mientras, la foto se guarda y se captura a mano.
-- Los minutos entre que alguien checa y lo asignan a una parcela quedan «por aclarar». ¿Se quiere una tolerancia (por ejemplo 15 minutos) para no tener que aclararlos?
 
 ## Pendientes menores que pueden esperar
 

@@ -696,3 +696,22 @@ test("reabrir_una_temporada_pide_el_porque_y_le_quita_la_fecha_de_fin_que_le_pus
   const conFin = cerrarTemporada_t({ ...c, fechaFin: "2026-10-31" }, { hoy: "2026-11-19", quien: "A", cuando: "t" }).ciclo;
   assert.equal(reabrirTemporada_t(conFin, { motivo: "X", quien: "B", cuando: "t" }).ciclo.fechaFin, "2026-10-31", "la fecha que ya tenía se respeta");
 });
+
+test("cada_muestra_de_calidad_sabe_de_que_parcelas_venia_lo_que_habia_en_la_mesa_y_la_tendencia_solo_informa", async () => {
+  const { origenDeLaMesa, calidadPorOrigen, tendenciaDeCalidad } = await import("./calculos.js");
+  const estibas = [
+    { id: "b1", codigo: "AS-B-001", fase: "barbecho", parcelaId: "p1" }, { id: "b2", codigo: "AS-B-002", fase: "barbecho", parcelaId: "p2" },
+    { id: "l1", codigo: "AS-L-001", fase: "limpia", padres: ["b1"] }, { id: "l2", codigo: "AS-L-002", fase: "limpia", padres: ["b1", "b2"] },
+  ];
+  const o1 = origenDeLaMesa({ estibas, enMesa: ["l1"] }), o2 = origenDeLaMesa({ estibas, enMesa: ["l1", "l2"], modo: "revoltura" });
+  assert.deepEqual(o1.parcelas, ["p1"]); assert.deepEqual(o2.parcelas, ["p1", "p2"]); assert.deepEqual(o1.tarimas[0].padres, ["AS-B-001"]);
+  const m = (pct, ritmo, origen, fecha = "2026-11-23", total = 100) => ({ totalCabezas: total, malos: total * (1 - pct), pctBueno: pct, ritmo, origen, fecha });
+  const r = calidadPorOrigen([m(0.95, "medio", o1), m(0.97, "medio", o1, "2026-11-23", 300), m(0.88, "alto", o1), m(0.9, "medio", o2), { totalCabezas: 50, malos: 5, ritmo: "medio" }]);
+  const medio1 = r.filas.find(f => f.parcelas.join() === "p1" && f.ritmo === "medio");
+  assert.equal(medio1.muestras, 2); assert.equal(medio1.pct, 96.5, "por cabezas: (95 + 291) / 400");
+  assert.equal(r.filas.find(f => f.ritmo === "alto").pct, 88); assert.equal(r.sinOrigen, 1, "la muestra de antes, sin origen, no se le pega a nadie");
+  const t = tendenciaDeCalidad([m(0.88, "alto", o2), m(0.95, "medio", o1)], { nombreParcela: (id) => ({ p1: "UNO", p2: "DOS" })[id] });
+  assert.equal(t.dir, "peor"); assert.equal(t.cambioOrigen, true);
+  assert.match(t.dice, /Bajó de 95\.0% a 88\.0% de bueno\. Ahora vas a ritmo alto \(antes medio\)\. En la mesa: AS-L-001, AS-L-002 \(UNO, DOS\); antes: AS-L-001 \(UNO\)\./);
+  assert.doesNotMatch(t.dice, /convenga|deber|baja el ritmo|sube el ritmo/i, "la app informa, Migue manda");
+});
