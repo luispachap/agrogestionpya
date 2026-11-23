@@ -29,6 +29,7 @@
 // ============================================================
 
 import { sumarDinero, fechaLocal, diasEntre, mesLocal, fmt } from "./calculos.js";
+import { vigentes } from "./eventos.js";
 
 function num(v) {
   if (v === null || v === undefined || v === "") return null;
@@ -158,9 +159,13 @@ export function rutinasDelRancho({ data, hoy }) {
     const fechas = (lista || []).map(x => x?.[campoFecha]).filter(Boolean).sort();
     return fechas.length ? fechas[fechas.length - 1] : null;
   };
+  // La asistencia también se registra con el checador, y el trabajo con el reparto y las cuadrillas (eventos): sólo con el
+  // pase de lista y lo tecleado, un rancho que ya checa salía «dejó de aparecer» todos los días — una alarma falsa, y las
+  // alarmas falsas enseñan a ignorar las alarmas.
+  const marcas = vigentes(data?.eventos || []).filter(e => e.tipo === "marca").map(e => ({ fecha: e.fecha || (e.cuando ? fechaLocal(new Date(e.cuando)) : null) }));
   const rutinas = [
-    { clave: "asistencia", que: "El pase de lista", cadaDias: 2, ultima: ultima(data?.asistencia) },
-    { clave: "actividades", que: "El registro de actividades de campo", cadaDias: 3, ultima: ultima(data?.actividades) },
+    { clave: "asistencia", que: "La asistencia (pase de lista o checador)", cadaDias: 2, ultima: ultima([...(data?.asistencia || []), ...marcas]) },
+    { clave: "actividades", que: "El registro del trabajo de campo", cadaDias: 3, ultima: ultima(data?.actividadesContables || data?.actividades) },
     { clave: "egresos", que: "La captura de gastos", cadaDias: 7, ultima: ultima(data?.egresos) },
     { clave: "cajachica", que: "El movimiento de caja chica", cadaDias: 15, ultima: ultima(data?.cajachica) },
   ];

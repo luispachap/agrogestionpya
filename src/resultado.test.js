@@ -127,3 +127,16 @@ test("aplicar_un_producto_que_ya_estaba_en_el_almacen_es_costo_pero_no_es_dinero
   const r = resultadoDelRancho({ egresos: [compra, aplicacion, deTarea, directo] });
   assert.equal(r.egresos, 2250, "al resultado sí van los tres usos (la compra para el almacén no es gasto)");
 });
+
+test("lo_que_se_marca_como_personal_en_socios_no_es_ingreso_ni_gasto_del_rancho_pero_no_se_borra", () => {
+  const egresos = [{ id: "e1", fecha: "2026-11-05", monto: 1500, categoria: "riego", parcelaId: "p1", destino: "rancho" }, { id: "e2", fecha: "2026-11-07", monto: 800, categoria: "otro", destino: "personal" },
+    { id: "e3", fecha: "2026-11-08", monto: 300, categoria: "servicios" }, { id: "e4", fecha: "2026-11-09", monto: 200, categoria: "insumos", destino: "personal" }, { id: "e5", fecha: "2026-11-09", monto: 999, categoria: "otro", traspasoCon: "i9" }];
+  const ingresos = [{ id: "i1", fecha: "2026-11-03", monto: 5000 }, { id: "i2", fecha: "2026-11-04", monto: 700, destino: "personal" }, { id: "i9", fecha: "2026-11-09", monto: 999, traspasoCon: "e5" }];
+  const r = resultadoDelRancho({ ingresos, egresos });
+  assert.equal(r.egresos, 1800, "la despensa de la casa y el traspaso entre bolsas propias no son gasto del rancho; lo no marcado sí");
+  assert.equal(r.ingresos, 5000, "ni lo personal ni el traspaso son ingreso");
+  assert.equal(r.porClasificar.monto, 0, "un insumo marcado como personal no queda «por clasificar»");
+  const f = flujoDeEfectivo({ ingresos, egresos });
+  assert.equal(f.egresos, 1800); assert.equal(f.ingresos, 5000);
+  assert.equal(egresos.length, 5, "nada se borró: la lista sigue completa para Socios y el banco");
+});

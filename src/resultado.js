@@ -28,7 +28,7 @@
 //
 //  Todas las pantallas leen de aquí.
 // ════════════════════════════════════════════════════════════════════════
-import { sumarDinero, vivos } from "./calculos.js";
+import { sumarDinero, vivos, delRancho } from "./calculos.js";
 import { costoAFinanzas } from "./almacen.js";
 import { vigentes } from "./eventos.js";
 import { salidasDeCajaAlFlujo } from "./caja.js";
@@ -80,7 +80,7 @@ export function ligarEntradaAGasto(entrada, egreso, quien = {}, fecha = "") {
 }
 // Las entradas que todavía tienen un gasto con el que podrían ser la misma compra (para avisar donde se lee el dinero).
 export const comprasQuizaDobles = ({ egresos = [], entradas_inv = [] } = {}) => entradas_inv.filter(e => gastosDeLaMismaCompra(e, { egresos, entradas_inv }).length > 0);
-export const insumosPorClasificar = (egresos = []) => vivos(egresos).filter(e => claseDeInsumo(e) === "por_clasificar");
+export const insumosPorClasificar = (egresos = []) => delRancho(egresos).filter(e => claseDeInsumo(e) === "por_clasificar");
 
 //   actividades   las que cuentan (`actividadesContables`)
 //   indirectos    lo de `juntarFuentes`
@@ -89,8 +89,8 @@ export const insumosPorClasificar = (egresos = []) => vivos(egresos).filter(e =>
 export function resultadoDelRancho({ ingresos = [], egresos = [], entradas_inv = [], actividades = [], indirectos = null, compras = null, almacen = {} }) {
   const deFuente = (f) => !indirectos ? 0 : sumarDinero(S((indirectos.partes || []).filter(p => p.fuente === f).map(p => p.monto)), S((indirectos.pendientes || []).filter(p => p.fuente === f).map(p => p.monto)), S((indirectos.noProduccion || []).filter(p => p.fuente === f).map(p => p.monto)));
   const clase = (e) => claseDeInsumo(e);
-  const gastos = vivos(egresos).filter(e => !e.vehiculoId && !["inventario", "por_clasificar"].includes(clase(e)) && !(clase(e) === "produccion" && !e.parcelaId));
-  const directos = vivos(egresos).filter(e => clase(e) === "produccion" && !e.parcelaId), sinClase = insumosPorClasificar(egresos);
+  const gastos = delRancho(egresos).filter(e => !e.vehiculoId && !["inventario", "por_clasificar"].includes(clase(e)) && !(clase(e) === "produccion" && !e.parcelaId));
+  const directos = delRancho(egresos).filter(e => clase(e) === "produccion" && !e.parcelaId), sinClase = insumosPorClasificar(egresos);
   const produccion = [
     { clave: "mo", nombre: "Mano de obra en parcelas y bodega", monto: S(actividades.map(a => n(a.costoMO))) },
     { clave: "insumos", nombre: "Insumos consumidos", monto: S(actividades.map(a => n(a.costoInsumos))), nota: "cuentan cuando se usan, no cuando se compran" },
@@ -113,9 +113,9 @@ export function resultadoDelRancho({ ingresos = [], egresos = [], entradas_inv =
     { clave: "mermas", nombre: "Mermas y faltantes del almacén", monto: n(almacen.mermas) },
   ];
   const lineas = [...produccion, ...generales];
-  const totalIngresos = S(vivos(ingresos).map(g => n(g.monto))), totalEgresos = S(lineas.map(l => l.monto));
+  const totalIngresos = S(delRancho(ingresos).map(g => n(g.monto))), totalEgresos = S(lineas.map(l => l.monto));
   // El inventario: no es gasto. Lo comprado para el almacén que todavía no se usa está aquí.
-  const comprado = sumarDinero(S(vivos(egresos).filter(esCompraDeAlmacen).map(e => n(e.monto))), S(entradas_inv.map(costoAFinanzas)), n(compras?.inventario));
+  const comprado = sumarDinero(S(delRancho(egresos).filter(esCompraDeAlmacen).map(e => n(e.monto))), S(entradas_inv.map(costoAFinanzas)), n(compras?.inventario));
   const inventario = { valor: n(almacen.valor), sinValor: almacen.sinValor || [], comprado, porValuar: n(compras?.porValuar) };
   // Lo que nadie ha dicho qué fue: ni gasto ni inventario todavía. Va aparte, a la vista, para que alguien lo clasifique.
   const porClasificar = { monto: S(sinClase.map(e => n(e.monto))), n: sinClase.length };
@@ -140,11 +140,11 @@ export function flujoDeEfectivo({ ingresos = [], egresos = [], compras = [], ent
   // Una venta cobrada en especie, o a cuenta de una deuda que se tenía con ese cliente, es venta (va al resultado)
   // pero NO es dinero que entra: se cobró con mercancía o bajando una deuda. Contarla en el flujo lo inflaba.
   let sinDinero = 0;
-  for (const g of vivos(ingresos)) {
+  for (const g of delRancho(ingresos)) {
     if (COBROS_SIN_DINERO.includes(g.metodo)) { sinDinero = sumarDinero(sinDinero, n(g.monto)); continue; }
     reg(g.fecha, "ingresos", "ventas", n(g.monto));
   }
-  for (const e of vivos(egresos)) if (!esConsumoDeAlmacen(e)) reg(e.fecha, "egresos", esCompraDeAlmacen(e) ? "almacen" : "gastos", n(e.monto));
+  for (const e of delRancho(egresos)) if (!esConsumoDeAlmacen(e)) reg(e.fecha, "egresos", esCompraDeAlmacen(e) ? "almacen" : "gastos", n(e.monto));
   // La compra del personal sale completa el día que se hizo. Lo que de ella entra al almacén NO sale otra vez.
   for (const c of compras) if (c.estado === "aprobada") reg(c.fecha, "egresos", "compras", n(c.monto));
   for (const e of entradas_inv) reg(e.fecha, "egresos", "almacen", costoAFinanzas(e));

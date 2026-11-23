@@ -235,6 +235,11 @@ export const estaCancelado = (r) => !!(r && r.cancelado);
 
 // Filtra lo cancelado de una lista antes de sumar.
 export const vivos = (lista) => (lista || []).filter(r => !estaCancelado(r));
+// Lo que es DEL RANCHO: sin lo cancelado, sin lo que una persona marcó como personal en Socios y sin los traspasos entre
+// bolsas propias. Lo personal no se borra (sigue en Socios y en el banco, que debe cuadrar): sólo no es ingreso ni gasto
+// del rancho. Toda suma de resultado, costo o flujo pasa por aquí; las listas y la cuenta entre socios usan `vivos`.
+export const esPersonal = (m) => !!m && m.destino === "personal";
+export const delRancho = (lista) => vivos(lista).filter(m => !esPersonal(m) && !m?.traspasoCon);
 
 // Marca un registro como cancelado. NO lo quita: devuelve una copia marcada.
 export function marcarCancelado(registro, { motivo, quien, cuando } = {}) {

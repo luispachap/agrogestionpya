@@ -142,7 +142,7 @@ with sync_playwright() as p:
     caso("el reporte queda con qué pasó, su prioridad y quién lo mandó", len(I) == 1 and "BOMBA TIRA ACEITE" in json.dumps(I[0], ensure_ascii=False) and str(I[0].get("prioridad")).lower() == "alta" and "t-ana" in json.dumps(I[0]), I)
     print("   [inc]", json.dumps(I, ensure_ascii=False)[:500])
     ir(B, "pase-lista"); t = cuerpo(B)
-    caso("Ana (trabajadora) ya no tiene el pase de lista de toda la gente: sólo un encargado o superior marca a otros", "Pase de lista" not in t and "BETO INVENTADO" not in t, t[:300])
+    caso("Ana (trabajadora) ya no tiene el pase de lista de toda la gente: sólo un encargado o superior marca a otros", "BETO INVENTADO" not in t and "La asistencia de los demás la marca un encargado o el cabo" in t and B.locator("button", has_text="Capturar").count() == 0, t[:300])
     ir(B, "nomina"); t = cuerpo(B)
     caso("a Ana no se le abre Pagos al personal", "Pagos al personal" not in t and "Registrar pago" not in t, t[:200])
     subio(B); salir(B)

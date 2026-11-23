@@ -159,6 +159,20 @@ test("las_rutinas_salen_de_lo_que_la_app_ya_guarda", () => {
   assert.ok(r.alDia.some(f => f.clave === "asistencia"));
 });
 
+test("un_rancho_que_checa_y_reparte_no_sale_como_que_dejo_de_registrar_su_asistencia_ni_su_trabajo", () => {
+  const r = rutinasDelRancho({
+    data: {
+      asistencia: [{ fecha: "2026-08-01" }],                         // el pase de lista de antes
+      eventos: [{ id: "ev1", tipo: "marca", fecha: "2026-09-08", cuando: "2026-09-08T14:00:00Z", datos: { sentido: "entrada" } }],
+      actividades: [{ fecha: "2026-08-01" }],                        // lo tecleado de antes
+      actividadesContables: [{ fecha: "2026-08-01" }, { fecha: "2026-09-07", _deEventos: ["ev2"] }],   // y lo que sale del reparto
+    },
+    hoy: "2026-09-08",
+  });
+  assert.ok(r.alDia.some(f => f.clave === "asistencia"), "checó hoy: la asistencia está al día");
+  assert.ok(r.alDia.some(f => f.clave === "actividades"), "el trabajo de ayer está registrado aunque nadie lo haya tecleado");
+});
+
 /* ════════════ CONTRA EL MISMO MES DEL AÑO PASADO ════════════ */
 
 const GASTOS = [

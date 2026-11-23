@@ -558,3 +558,11 @@ test("un_registro_de_cosecha_se_cancela_con_motivo_deja_de_contar_y_no_revive_al
   assert.equal(totalCos(unirCosecha(r.cosecha, cos)), 100, "el otro teléfono todavía lo tenía vivo: unir no lo revive");
   assert.equal(totalCos(unirCosecha(cos, r.cosecha)), 100, "gane quien gane");
 });
+
+test("del_rancho_quita_lo_cancelado_lo_personal_y_los_traspasos_y_vivos_solo_lo_cancelado", async () => {
+  const { delRancho, vivos, esPersonal } = await import("./calculos.js");
+  const l = [{ id: 1, monto: 10 }, { id: 2, monto: 20, destino: "personal" }, { id: 3, monto: 30, cancelado: true }, { id: 4, monto: 40, traspasoCon: "x" }, { id: 5, monto: 50, destino: "rancho" }];
+  assert.deepEqual(delRancho(l).map(x => x.id), [1, 5]);
+  assert.deepEqual(vivos(l).map(x => x.id), [1, 2, 4, 5]);
+  assert.equal(esPersonal(l[1]), true); assert.equal(esPersonal(null), false);
+});

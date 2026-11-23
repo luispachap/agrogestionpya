@@ -79,7 +79,7 @@ with sync_playwright() as p:
     ir(A, "bitacora"); t = plano(A.locator("body").inner_text())
     caso("la pantalla Bitácora lo enseña", "Se capturó dos veces" in t and "LUZ DEL POZO" in t, t[:400])
     ir(A, "movimientos"); t = plano(A.locator("body").inner_text())
-    caso("Movimientos da los mismos totales del periodo: ingresos $10,000 y egresos $800", "INGRESOS DEL PERIODO | $10,000" in t and "EGRESOS DEL PERIODO | $800" in t, t[:500])
+    caso("Movimientos da los mismos totales del periodo: ingresos $10,000 y egresos $800", "ENTRADAS EN LA LISTA | $10,000" in t and "SALIDAS EN LA LISTA | $800" in t, t[:500])
 
     # ── Caja chica: no toda salida es gasto (decisión de Luis, 21 nov) ──
     FLUJO = "() => { const f = window.__agroCuentas().flujo; const d = {}; for (const m of f.meses) for (const k in m.detalle) d[k] = Math.round(((d[k] || 0) + m.detalle[k]) * 100) / 100; return JSON.parse(JSON.stringify({ ingresos: f.ingresos, egresos: f.egresos, detalle: d })); }"

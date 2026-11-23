@@ -16,7 +16,9 @@ plano = lambda t: t.replace("\n", " | ")
 ADM = N.cuenta(1, "admin@prueba.invalid", "ADMIN DE PRUEBA", "superadmin"); DIR = N.cuenta(3, "direccion@prueba.invalid", "DIRECCION DE PRUEBA", "dueno")
 nube = N.Nube([ADM, DIR]); E = {"_espacio": "localhost"}; V = "2026-11-01T00:00:00Z"; t = nube.t
 t["ranchos"] = {"r1": {"id": "r1", "nombre": "RANCHO INVENTADO", "datos": {"hectareas": 40, **E}, "actualizado": V}}
-t["parcelas"] = {p: {"id": p, "nombre": n, "rancho_id": "r1", "cultivo": "Ajo", "datos": {"hectareas": h, "emoji": "🌾", **E}, "actualizado": V} for p, n, h in (("p1", "PARCELA UNO", 2), ("p2", "PARCELA DOS", 3))}
+# La parcela dos tiene anotado «Maíz» (lo que se sembró antes), pero su ciclo de ahora es de ajo: el centro de costos de
+# ContPAQi tiene que salir del ciclo de ese día, no de la etiqueta.
+t["parcelas"] = {p: {"id": p, "nombre": n, "rancho_id": "r1", "cultivo": c, "datos": {"hectareas": h, "emoji": "🌾", **E}, "actualizado": V} for p, n, h, c in (("p1", "PARCELA UNO", 2, "Ajo"), ("p2", "PARCELA DOS", 3, "Maíz"))}
 t["cultivos"] = {"cul_ajo": {"id": "cul_ajo", "nombre": "Ajo", "datos": {"emoji": "🌱", "duracionDias": 240, "unidadCosecha": "kg", "fenologia": [], "variedades": [], **E}, "actualizado": V}}
 # Tres ciclos: el de la temporada pasada en la parcela uno (ya cosechado) y los dos de ahora. El de la parcela uno tiene presupuesto.
 t["siembras"] = {"s0": {"id": "s0", "parcela_id": "p1", "cultivo_id": "cul_ajo", "estado": "cosechada", "datos": {"cultivoNombre": "Ajo", "fechaSiembra": "2025-09-01", "fechaCosechaReal": "2026-05-30", "superficie": 2, **E}, "actualizado": V},
@@ -118,7 +120,25 @@ with sync_playwright() as p:
     ir(D, "panel-financiero"); tx = cuerpo(D)
     caso("Dirección en ¿Cómo vamos?: las mismas cifras", "+$950" in tx and "$2,350 más que en noviembre de 2025" in tx, tx[:900])
 
-    # ── 8 · Recargar no cambia nada ──
+    # ── 8 · ContPAQi: las pólizas cuadran y el centro de costos es el cultivo del ciclo de ese día ──
+    ir(A, "contpaqi")
+    for ph, v in (("Ej: 6000000000", "6000000000"), ("Ej: 1110000000", "1110000000"), ("Ej: 4000000000", "4000000000"), ("Ej: 1120000000", "1120000000"), ("Ej: 6000000100", "6000000100"), ("Ej: 2110000000", "2110000000")):
+        A.get_by_placeholder(ph).fill(v)
+    A.get_by_role("button", name="Guardar cuentas").click(); A.wait_for_timeout(300)
+    A.locator(".form-group", has=A.locator("label", has_text="Desde")).locator("input").fill("2026-11-01"); A.wait_for_timeout(200)
+    with A.expect_download() as dl: A.get_by_role("button", name="Generar Excel de pólizas").click()
+    import openpyxl, tempfile; ruta = str(pathlib.Path(tempfile.mkdtemp()) / dl.value.suggested_filename); dl.value.save_as(ruta)
+    caso("el archivo se llama por los días que trae", dl.value.suggested_filename == "polizas-contpaqi-2026-11-03_a_2026-11-18.xlsx", dl.value.suggested_filename)
+    filas = [r for r in openpyxl.load_workbook(ruta).active.iter_rows(values_only=True)][1:]
+    cargos, abonos = sum(r[6] or 0 for r in filas), sum(r[7] or 0 for r in filas)
+    por = lambda cta, col: sum(r[col] or 0 for r in filas if str(r[4]) == cta)
+    caso("ContPAQi: cada póliza cuadra (cargos = abonos = 13,600)", cargos == abonos == 13600, (cargos, abonos))
+    caso("gastos 7,000 (con la compra para el almacén y lo por clasificar: ver nota), ventas 5,000, mano de obra 1,600 (lo tecleado)", por("6000000000", 6) == 7000 and por("4000000000", 7) == 5000 and por("6000000100", 6) == 1600, (por("6000000000", 6), por("4000000000", 7), por("6000000100", 6)))
+    centros = sorted({str(r[8] or "") for r in filas})
+    caso("el centro de costos sale del ciclo: la parcela dos dice «Maíz» pero ese día tenía ajo", "Maíz" not in centros and sum(r[6] or 0 for r in filas if str(r[4]) == "6000000100" and r[8] == "Ajo") == 1600, centros)
+    caso("las cuentas quedan guardadas para la próxima vez", (datos_cfg := A.evaluate("() => (window.__agroDatos.config_contpaqi || [])[0] || {}")).get("cuentaManoObra") == "6000000100", datos_cfg)
+
+    # ── 9 · Recargar no cambia nada ──
     A.reload(); A.wait_for_timeout(3500); ir(A, "panel-financiero"); tx = cuerpo(A)
     caso("después de recargar: las mismas cifras", "+$950" in tx and "Costos y gastos: $4,050" in tx and "$2,350 más" in tx, tx[:700])
     caso("ninguna pantalla tronó", not errs, errs[:3])

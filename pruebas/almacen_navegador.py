@@ -176,7 +176,7 @@ with sync_playwright() as p:
     caso("el camión junta operador ($100 de 2 h) y diésel ($1,470), cada uno una vez", "CAMION AMARILLO" in v and "$100" in v and "$1,470" in v and "$1,570" in v, v[:200])
     caso("y aparece el viaje de la cuadrilla, sin importe propio", "1 viaje(s) con cuadrilla" in v)
     lo = pg.locator(".card", has_text="Lo que se ganó el personal").inner_text()
-    caso("Ana sigue ganando su día ($400): manejar no fue un segundo pago", "Trabajadores de planta $400" in lo and "Operando vehículos" in lo, lo[:200])
+    caso("Ana sigue ganando su día ($400): manejar no fue un segundo pago", "Con el checador $400" in lo and "Operando vehículos" in lo, lo[:200])
     rv = pg.locator(".card", has_text="A qué benefició cada vehículo").inner_text()
     caso("ese costo del camión aparece repartido a la parcela donde trabajó la cuadrilla, como costo indirecto", "Repartido a parcelas" in rv and "$1,570" in rv and "PARCELA UNO" in rv, rv[:220].replace("\n", " | "))
     # ══ Los reportes de siempre: costo directo y costo completo ══

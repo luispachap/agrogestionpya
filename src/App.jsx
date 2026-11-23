@@ -52,7 +52,7 @@ import { ESTADOS as ESTADOS_DOC, CLASES as CLASES_DOC, CAMPOS_DE, NOMBRE_DE_CAMP
 import { abrirArchivo, originalDe, guardarPropuesta, leerPropuesta, olvidarPropuesta, imagenParaIA, paginasParaIA, pedirInterpretacion, leerPresupuestoIA } from "./importador.js";
 import { NIVELES as NIVELES_IA, necesitaIA, pedidoDeHoja, pedidoDeTexto, resultadoConIA, metricasDeIA, costoMaximo, enDolares, estadoDelPresupuesto, NOMBRE_DE_RESULTADO } from "./interpretacion.js";
 import { entenderHoja, fecharRaya } from "./importacion.js";
-import { parteDe, resultadoPorCultivo, historialDeParcela } from "./ciclos.js";
+import { parteDe, partesDe, resultadoPorCultivo, historialDeParcela } from "./ciclos.js";
 import { CLASES_DE_CLAVE, catalogoDeClaves, listaDeClaves, aprenderClave, relacionDeRenglon, decirRelacion, clavesPorPreguntar, usoDeClaves, referenciasDeClaves, sugerenciasDe, parecidasDe, decirFuente, CLASE_REFERENCIA, ligarParcela, ligasDeParcelas, TIPOS_DE_LIGA } from "./claves.js";
 import { fuentesPorDia, cotejar } from "./cotejo.js";
 import MapaAgricola from "./Mapa.jsx";
@@ -73,11 +73,11 @@ const resultadoDe = (data) => resultadoDelRancho({ ingresos: data.ingresos, egre
 // Lo que costó un periodo (un mes, una semana, un año, una temporada) con las MISMAS reglas del cierre de mes. «¿Cómo vamos?»,
 // el panel del dueño, el resumen semanal y las temporadas leen de aquí: antes sumaban por su lado (las compras para el almacén
 // como gasto y otra vez al usarse, la mano de obra cruda) y no cuadraban con Finanzas ni con el cierre.
-const costoDe = (data, { mes = "", desde = "", hasta = "" } = {}) => costoDelMes({ mes, desde, hasta, parcelas: data.parcelas || [], actividades: data.actividadesContables || data.actividades || [], egresos: vivos(data.egresos), compras: data.compras || [], indirectos: data.indirectos,
+const costoDe = (data, { mes = "", desde = "", hasta = "" } = {}) => costoDelMes({ mes, desde, hasta, parcelas: data.parcelas || [], actividades: data.actividadesContables || data.actividades || [], egresos: delRancho(data.egresos), compras: data.compras || [], indirectos: data.indirectos,
   recibidas: data.almacen?.recibidas || [], consumosGenerales: (data.almacen?.consumos || []).filter(c => !c.enActividad && c.destino?.tipo === "general" && c.costo != null), ajustesValuacion: data.ajustesValuacion?.lista || [],
   mermas: data.almacen ? [...resumenDeAjustesAlm(data.almacen, data.inventario || []).lista.filter(a => a.diferencia < 0), ...(data.almacen.bajas || []).filter(b => b.valor)] : [],
   maquinaria: mes && !desde ? conciliarMaquinaria(data.repartosVehiculos || [], mes) : null });
-const ingresosDe = (data, desde, hasta) => sumarDinero(vivos(data.ingresos).filter(i => i.fecha && i.fecha >= desde && i.fecha <= hasta).map(i => Number(i.monto) || 0));
+const ingresosDe = (data, desde, hasta) => sumarDinero(delRancho(data.ingresos).filter(i => i.fecha && i.fecha >= desde && i.fecha <= hasta).map(i => Number(i.monto) || 0));
 const flujoDe = (data) => flujoDeEfectivo({ ingresos: data.ingresos, egresos: data.egresos, compras: data.compras || [], entradas_inv: data.entradas_inv || [], creditos: data.creditos || [], eventos: data.eventos || [], prestamos: data.prestamos || [], cajachica: data.cajachica || [], hoy: today() });
 import { T_SALARIO_MINIMO, ZONAS as ZONAS_SM, catalogoDe as catalogoSM, salarioMinimoEn, capturarSalarioMinimo, alertaDeSalarioMinimo } from "./salariosMinimos.js";
 import { T_BAJA, T_PAGO_BAJA, CAUSAS_DE_BAJA, CONCEPTOS_DE_BAJA, NOMBRE_DE as NOMBRE_DE_BAJA, proponerBaja, registrarBaja, pagarBaja, bajasDe, pagosDeBaja, renglonesDeBajas } from "./bajas.js";
@@ -151,7 +151,7 @@ import {
   aCentavos, sumarDinero, multiplicarDinero, repartirDinero,
   fechaLocal, mesLocal, sumarDias, mesAnterior, diasEntre,
   saldoCredito, diasParaVencer, cubetaVencimiento, CUBETAS_VENCIMIENTO,
-  estaCancelado, vivos, marcarCancelado, ganaAlSincronizar,
+  estaCancelado, vivos, delRancho, esPersonal, marcarCancelado, ganaAlSincronizar,
   distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta,
 } from "./calculos";
 // El lector de papeles: la cascada de gratis a caro (QR y XML sin costo,
@@ -1283,7 +1283,7 @@ function costoActividad(a) { return a.costoTotal || 0; }
 function reporteParcela(data, parcelaId) {
   const p = data.parcelas.find(x => x.id === parcelaId);
   const acts = (data.actividadesContables || data.actividades).filter(a => a.parcelaId === parcelaId);
-  const egresosP = vivos(data.egresos).filter(e => e.parcelaId === parcelaId);
+  const egresosP = delRancho(data.egresos).filter(e => e.parcelaId === parcelaId);
   const comprasP = (data.compras || []).filter(c => c.estado === "aprobada" && c.parcelaId === parcelaId);
   const costoActs = acts.reduce((s, a) => s + costoActividad(a), 0);
   const costoEgresos = egresosP.reduce((s, e) => s + e.monto, 0);
@@ -1307,7 +1307,7 @@ function reporteParcela(data, parcelaId) {
     if (!porInsumo[key]) porInsumo[key] = { nombre: i.nombre, emoji: i.emoji, unidad: i.unidad, cantidad: 0, costo: 0 };
     porInsumo[key].cantidad += i.cantidad; porInsumo[key].costo += i.costo;
   }));
-  const ingresosP = vivos(data.ingresos).filter(g => g.parcelaId === parcelaId);
+  const ingresosP = delRancho(data.ingresos).filter(g => g.parcelaId === parcelaId);
   const ingresoTotal = ingresosP.reduce((s, g) => s + g.monto, 0);
   return {
     p, acts, total, mo, ins, maq, costoActs, costoEgresos, costoCompras,
@@ -1596,7 +1596,7 @@ function reporteCosechaParcela(data, parcelaId) {
   const rep = reporteParcela(data, parcelaId);
   const costoPorUnidad = total > 0 ? rep.total / total : 0;
   // Producto vendido y disponible: ventas vinculadas a esta parcela
-  const ventas = vivos(data.ingresos).filter(g => g.parcelaId === parcelaId && (g.categoria === "venta_cosecha" || g.cosechaCantidad));
+  const ventas = delRancho(data.ingresos).filter(g => g.parcelaId === parcelaId && (g.categoria === "venta_cosecha" || g.cosechaCantidad));
   const vendido = ventas.reduce((s, g) => s + (parseFloat(g.cosechaCantidad) || 0), 0);
   // Cantidad apartada como semilla para otros ciclos
   const usadoSemilla = (cos?.usosSemilla || []).reduce((s, u) => s + (parseFloat(u.cantidad) || 0), 0);
@@ -1807,7 +1807,7 @@ function resumenCiclo(data, ciclo) {
   const fin = ciclo.fechaFin || "2999-12-31";
   const enRango = f => f && f >= ini && f <= fin;
   const acts = (data.actividadesContables || data.actividades || []).filter(a => enRango(a.fecha) && !a._deEventos);
-  const ing = vivos(data.ingresos).filter(g => enRango(g.fecha));
+  const ing = delRancho(data.ingresos).filter(g => enRango(g.fecha));
   // La temporada se cuenta con las reglas del cierre de mes (`costoDe`). Antes sumaba las entradas al almacén y las compras
   // de insumos como costo, y otra vez cuando esos insumos se usaban en una actividad: la misma urea dos veces.
   const k = costoDe(data, { desde: ini, hasta: fin });
@@ -2051,9 +2051,9 @@ function reporteSiembra(data, siembraId) {
   const { ini, fin } = rangoSiembra(si);
   const enRango = f => f && f >= ini && f <= fin;
   const acts = (data.actividadesContables || data.actividades || []).filter(a => a.parcelaId === si.parcelaId && (a.siembraId === si.id || (!a.siembraId && enRango(a.fecha))));
-  const egr = vivos(data.egresos).filter(e => e.parcelaId === si.parcelaId && enRango(e.fecha));
+  const egr = delRancho(data.egresos).filter(e => e.parcelaId === si.parcelaId && enRango(e.fecha));
   const comp = (data.compras || []).filter(c => c.estado === "aprobada" && c.parcelaId === si.parcelaId && enRango(c.fecha));
-  const ing = vivos(data.ingresos).filter(g => g.parcelaId === si.parcelaId && enRango(g.fecha));
+  const ing = delRancho(data.ingresos).filter(g => g.parcelaId === si.parcelaId && enRango(g.fecha));
   // Si en esa fecha la parcela tenía OTRO ciclo a la vez (dos variedades), a éste le toca sólo su parte: lo que no se
   // marcó de cuál era se reparte, no se carga entero a los dos (`parteDe`, src/ciclos.js). Con un solo ciclo la parte es 1.
   const peso = (x) => (x.siembraId === si.id ? 1 : parteDe({ parcelaId: si.parcelaId, fecha: x.fecha }, si.id, data.siembras || []) || 1);
@@ -5375,7 +5375,8 @@ function AlDia({ data, onClose }) {
   // saldo del banco, con SU FECHA DE CORTE — de ahí, y sólo de ahí.
   const bolsasConSaldo = (data.bolsas || []).map(b => {
     const estados = (data.estados_cuenta || [])
-      .filter(e => e.confiable && normalizarNombre(e.banco || "") && normalizarNombre(b.nombre).includes(normalizarNombre(e.banco)))
+      // Primero el que se subió diciendo de qué bolsa era; los de antes (sin bolsa dicha), por el nombre del banco en el de la bolsa.
+      .filter(e => e.confiable && (e.bolsaId ? e.bolsaId === b.id : (normalizarNombre(e.banco || "") && normalizarNombre(b.nombre).includes(normalizarNombre(e.banco)))))
       .sort((a, c) => String(c.periodo).localeCompare(String(a.periodo)));
     const ult = estados[0];
     const movs = ult?.movimientos || [];
@@ -5398,8 +5399,8 @@ function AlDia({ data, onClose }) {
     compromisos: compromisos.filter(c => parseFloat(c.monto) > 0).map(c => ({ ...c, monto: parseFloat(c.monto) })),
   });
   const rutinas = rutinasDelRancho({ data });
-  const gastos = vivos(data.egresos);
-  const ingresos = vivos(data.ingresos);
+  const gastos = delRancho(data.egresos);
+  const ingresos = delRancho(data.ingresos);
   const compGasto = contraElAnoPasado({ movimientos: gastos });
   const compIngreso = contraElAnoPasado({ movimientos: ingresos });
 
@@ -5409,7 +5410,7 @@ function AlDia({ data, onClose }) {
     <div>
       <div className="top-bar">
         <button className="btn-ghost" onClick={onClose}>‹</button>
-        <h2 style={{ flex: 1 }}>Cómo vamos</h2>
+        <h2 style={{ flex: 1 }}>¿Alcanza?</h2>
       </div>
       <div className="tabs-pill">
         {[["alcanza", "¿Alcanza?"], ["dejo", `Dejó de aparecer${rutinas.dejaronDeAparecer.length ? ` (${rutinas.dejaronDeAparecer.length})` : ""}`], ["ano", "Contra el año pasado"]].map(([v, lb]) => (
@@ -5443,8 +5444,8 @@ function AlDia({ data, onClose }) {
             <div className="card-title">Qué hay que pagar</div>
             {compromisos.map((c, i) => (
               <div key={i} className="inp-row" style={{ marginBottom: 6 }}>
-                <input className="inp" value={c.concepto} onChange={e => setCompromisos(cs => cs.map((x, j) => j === i ? { ...x, concepto: e.target.value } : x))} />
-                <input type="number" className="inp" placeholder="$" style={{ maxWidth: 120 }} value={c.monto}
+                <input className="inp" placeholder="¿Qué hay que pagar?" aria-label={`Qué hay que pagar ${i + 1}`} value={c.concepto} onChange={e => setCompromisos(cs => cs.map((x, j) => j === i ? { ...x, concepto: e.target.value } : x))} />
+                <input type="number" className="inp" placeholder="$" aria-label={`Cuánto ${i + 1}`} style={{ maxWidth: 120 }} value={c.monto}
                        onChange={e => setCompromisos(cs => cs.map((x, j) => j === i ? { ...x, monto: e.target.value } : x))} />
               </div>
             ))}
@@ -5493,7 +5494,7 @@ function AlDia({ data, onClose }) {
             comparar contra el mes pasado produce alarmas falsas, y las alarmas falsas enseñan
             a ignorar las alarmas.
           </div>
-          {[["Gastos", compGasto], ["Ingresos", compIngreso]].map(([titulo, c]) => (
+          {[["Gastos capturados", compGasto], ["Ingresos", compIngreso]].map(([titulo, c]) => (
             <div key={titulo} className="card" style={{ borderLeft: `3px solid ${c.hayConQueComparar ? "var(--accent)" : "var(--muted)"}` }}>
               <div className="card-title">{titulo}</div>
               <div className="text-sm">{c.dice}</div>
@@ -5740,7 +5741,7 @@ function EstadoDeCuenta({ data, add, upd, session, onClose }) {
   const fileRef = useRef(null);
   const [cargando, setCargando] = useState(false);
   const [previa, setPrevia] = useState(null);
-  const [meta, setMeta] = useState({ banco: "", cuenta: "", periodo: "", saldoInicial: "", saldoFinal: "" });
+  const [meta, setMeta] = useState({ banco: "", cuenta: "", periodo: "", saldoInicial: "", saldoFinal: "", bolsaId: "" });
   const [tab, setTab] = useState("subir");
 
   const estados = data.estados_cuenta || [];
@@ -5807,11 +5808,13 @@ function EstadoDeCuenta({ data, add, upd, session, onClose }) {
       const propuestoInicial = primero && primero.saldo !== null
         ? sumarDinero(primero.saldo, -primero.abono, primero.cargo) : "";
       const ultimo = movs[movs.length - 1];
+      // El periodo y los saldos son DE ESTE archivo: se vuelven a proponer con cada archivo que se abre. Antes se quedaban
+      // los del archivo anterior (después de «Descartar») y el nuevo salía «ya está cargado» o «no cuadra» sin serlo.
       setMeta(m => ({
         ...m,
-        periodo: m.periodo || (primero ? primero.fecha.slice(0, 7) : ""),
-        saldoInicial: m.saldoInicial || String(propuestoInicial ?? ""),
-        saldoFinal: m.saldoFinal || String(ultimo?.saldo ?? ""),
+        periodo: primero ? primero.fecha.slice(0, 7) : "",
+        saldoInicial: String(propuestoInicial ?? ""),
+        saldoFinal: String(ultimo?.saldo ?? ""),
       }));
       setPrevia({ archivo: f.name, movimientos: movs, descartadas, aviso: hoja.porque, encabezados: hoja.encabezados });
     } catch (err) {
@@ -5835,6 +5838,7 @@ function EstadoDeCuenta({ data, add, upd, session, onClose }) {
       banco: meta.banco,
       cuenta: enmascararCuenta(meta.cuenta),   // el número completo NO se guarda
       periodo: meta.periodo,
+      bolsaId: meta.bolsaId || null,      // de qué bolsa es: de aquí sale su saldo en ¿Alcanza?
       confiable: validacion.confiable,
       saldoInicial: aNumeroSeguro(meta.saldoInicial),
       saldoFinal: aNumeroSeguro(meta.saldoFinal),
@@ -5845,7 +5849,7 @@ function EstadoDeCuenta({ data, add, upd, session, onClose }) {
       cargadoEn: new Date().toISOString(),
     });
     setPrevia(null);
-    setMeta({ banco: "", cuenta: "", periodo: "", saldoInicial: "", saldoFinal: "" });
+    setMeta({ banco: "", cuenta: "", periodo: "", saldoInicial: "", saldoFinal: "", bolsaId: "" });
     setTab("estados");
   };
 
@@ -5904,13 +5908,20 @@ function EstadoDeCuenta({ data, add, upd, session, onClose }) {
                   <input className="inp" placeholder="Los últimos 4 dígitos bastan" value={meta.cuenta} onChange={e => setMeta(m => ({ ...m, cuenta: e.target.value }))} />
                   <div className="text-xs text-muted mt-2">Sólo se guardan los últimos cuatro: {enmascararCuenta(meta.cuenta) || "****"}. El número completo no se guarda en ningún lado.</div>
                 </div>
+                <div className="form-group"><label className="form-label">¿De qué bolsa es?</label>
+                  <select className="inp" value={meta.bolsaId} onChange={e => setMeta(m => ({ ...m, bolsaId: e.target.value }))}>
+                    <option value="">— sin decir —</option>
+                    {(data.bolsas || []).map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+                  </select>
+                  <div className="text-xs text-muted mt-2">{(data.bolsas || []).length ? "De aquí sale el saldo de esa bolsa en ¿Alcanza?." : "Las bolsas se dan de alta en Socios y bolsas."}</div>
+                </div>
                 <div className="form-group"><label className="form-label">Periodo</label>
                   <input className="inp" placeholder="2026-08" value={meta.periodo} onChange={e => setMeta(m => ({ ...m, periodo: e.target.value }))} /></div>
                 <div className="inp-row">
                   <div style={{ flex: 1 }}><label className="form-label">Saldo inicial</label>
-                    <input type="number" className="inp" value={meta.saldoInicial} onChange={e => setMeta(m => ({ ...m, saldoInicial: e.target.value }))} /></div>
+                    <input type="number" className="inp" aria-label="Saldo inicial" value={meta.saldoInicial} onChange={e => setMeta(m => ({ ...m, saldoInicial: e.target.value }))} /></div>
                   <div style={{ flex: 1 }}><label className="form-label">Saldo final</label>
-                    <input type="number" className="inp" value={meta.saldoFinal} onChange={e => setMeta(m => ({ ...m, saldoFinal: e.target.value }))} /></div>
+                    <input type="number" className="inp" aria-label="Saldo final" value={meta.saldoFinal} onChange={e => setMeta(m => ({ ...m, saldoFinal: e.target.value }))} /></div>
                 </div>
                 <div className="text-xs text-muted mt-2">Vienen del propio estado de cuenta. Si no cuadran con los movimientos, la app te lo va a decir — de eso se trata.</div>
               </div>
@@ -5978,7 +5989,7 @@ function EstadoDeCuenta({ data, add, upd, session, onClose }) {
                 <div className="font-bold text-sm">{e.banco} {e.cuenta}</div>
                 <span className={`badge badge-${e.confiable ? "green" : "red"}`}>{e.confiable ? "cuadra" : "NO CONFIABLE"}</span>
               </div>
-              <div className="text-xs text-muted">{e.periodo} · {(e.movimientos || []).length} movimientos · saldo final {fmt(e.saldoFinal)}</div>
+              <div className="text-xs text-muted">{e.periodo} · {(e.movimientos || []).length} movimientos · saldo final {fmt(e.saldoFinal)}{e.bolsaId ? ` · ${(data.bolsas || []).find(b => b.id === e.bolsaId)?.nombre || "bolsa que ya no está"}` : ""}</div>
               {!e.confiable && <div className="text-xs" style={{ color: "var(--red)", marginTop: 4 }}>{e.validacion?.porque}</div>}
               {!e.confiable && <div className="text-xs text-muted" style={{ marginTop: 4 }}>No alimenta ningún reporte. Consigue otro archivo del banco.</div>}
             </div>
@@ -13555,9 +13566,9 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
                 const acts = data.actividadesContables || data.actividades || [];
                 const R = resultadoPorCultivo([
                   ...acts.map(a => ({ tipo: "costo", monto: (a.costoMO || 0) + (a.costoMaq || 0) + (a.costoInsumos || 0), fecha: a.fecha, parcelaId: a.esBodega ? null : a.parcelaId, siembraId: a.siembraId, bodegaDe: a.esBodega && a.cultivoBodega && a.cultivoBodega !== "__general__" ? a.cultivoBodega : null, general: !!a.esBodega && a.cultivoBodega === "__general__" })).filter(x => x.parcelaId || x.bodegaDe),
-                  ...vivos(data.egresos).filter(e => e.parcelaId).map(e => ({ tipo: "costo", monto: e.monto, fecha: e.fecha, parcelaId: e.parcelaId })),
+                  ...delRancho(data.egresos).filter(e => e.parcelaId).map(e => ({ tipo: "costo", monto: e.monto, fecha: e.fecha, parcelaId: e.parcelaId })),
                   ...(data.compras || []).filter(c => c.estado === "aprobada" && c.parcelaId).map(c => ({ tipo: "costo", monto: c.monto, fecha: c.fecha, parcelaId: c.parcelaId })),
-                  ...vivos(data.ingresos).filter(g => g.parcelaId).map(g => ({ tipo: "ingreso", monto: g.monto, fecha: g.fecha, parcelaId: g.parcelaId })),
+                  ...delRancho(data.ingresos).filter(g => g.parcelaId).map(g => ({ tipo: "ingreso", monto: g.monto, fecha: g.fecha, parcelaId: g.parcelaId })),
                 ], ciclos);
                 const nombreP = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "una parcela";
                 return (<>
@@ -14216,9 +14227,10 @@ function AdminMovimientos({ data, add, upd, del, setInv }) {
           ))}
         </div>
         <div className="stat-row">
-          <div className="stat-card"><div className="stat-label">Ingresos del periodo</div><div className="stat-val" style={{ fontSize: 16, color: "var(--safe)" }}>{fmt(totIngresos)}</div></div>
-          <div className="stat-card"><div className="stat-label">Egresos del periodo</div><div className="stat-val" style={{ fontSize: 16, color: "var(--red)" }}>{fmt(totEgresos)}</div></div>
+          <div className="stat-card"><div className="stat-label">Entradas en la lista</div><div className="stat-val" style={{ fontSize: 16, color: "var(--safe)" }}>{fmt(totIngresos)}</div></div>
+          <div className="stat-card"><div className="stat-label">Salidas en la lista</div><div className="stat-val" style={{ fontSize: 16, color: "var(--red)" }}>{fmt(totEgresos)}</div></div>
         </div>
+        {(filtro === "todos" || filtro === "entrada") && <div className="text-xs text-muted mb-2" style={{ paddingLeft: 4 }}>Es la suma de lo que se ve aquí, no el resultado: una compra para el almacén, su entrada y su uso en una actividad salen las tres. Lo que costó el rancho está en Finanzas → Resultados.</div>}
         <div className="text-xs text-muted mb-3" style={{ paddingLeft: 4 }}>{lista.length} movimiento(s) · toca uno para ver el detalle</div>
         {lista.length === 0 && <div className="text-muted text-sm" style={{ textAlign: "center", padding: "32px 0" }}>Sin movimientos que coincidan</div>}
         {lista.slice(0, limiteRender).map(m => (
@@ -16183,7 +16195,7 @@ function ResumenSemanal({ data, onClose }) {
   // cierre de mes (`costoDe`): antes se sumaban las compras para el almacén como gasto y otra vez al usarse.
   const actsSem = (data.actividadesContables || data.actividades || []).filter(a => enSemana(a.fecha) && !a._deEventos);
   const semana = useMemo(() => costoDe(data, { desde: hace7, hasta: hoyStr }), [data, hace7, hoyStr]);
-  const ingSem = vivos(data.ingresos).filter(g => enSemana(g.fecha));
+  const ingSem = delRancho(data.ingresos).filter(g => enSemana(g.fecha));
   const ingresosSemana = ingresosDe(data, hace7, hoyStr);
   const balanceSemana = sumarDinero(ingresosSemana, -semana.rancho);
 
@@ -16260,32 +16272,28 @@ function ResumenSemanal({ data, onClose }) {
 
         {/* Panorama de meses: ingresos vs gastos, para ver la película completa */}
         {(() => {
-          const porMes = {};
-          const mesDe = f => (f || "").slice(0, 7);
-          vivos(data.ingresos).forEach(g => { const m = mesDe(g.fecha); if (!m) return; if (!porMes[m]) porMes[m] = { a: 0, b: 0 }; porMes[m].a += g.monto || 0; });
-          vivos(data.egresos).forEach(e => { const m = mesDe(e.fecha); if (!m) return; if (!porMes[m]) porMes[m] = { a: 0, b: 0 }; porMes[m].b += e.monto || 0; });
-          (data.actividades || []).forEach(a => { const m = mesDe(a.fecha); if (!m) return; if (!porMes[m]) porMes[m] = { a: 0, b: 0 }; porMes[m].b += costoActividad(a); });
+          // Cada mes con la cuenta del cierre de mes (`costoDe`): antes sumaba la compra para el almacén y otra vez su uso.
+          const conAlgo = new Set([...delRancho(data.ingresos), ...delRancho(data.egresos), ...(data.actividadesContables || data.actividades || [])].map(x => (x.fecha || "").slice(0, 7)).filter(m => /^\d{4}-\d{2}$/.test(m) && m <= hoyStr.slice(0, 7)));
           const MESES = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-          const items = Object.entries(porMes).sort((x, y) => x[0].localeCompare(y[0])).slice(-6)
-            .map(([m, v]) => ({ label: `${MESES[parseInt(m.slice(5), 10)] || m.slice(5)} ${m.slice(2, 4)}`, ...v }));
+          const items = [...conAlgo].sort().slice(-6)
+            .map(m => ({ label: `${MESES[parseInt(m.slice(5), 10)] || m.slice(5)} ${m.slice(2, 4)}`, a: ingresosDe(data, `${m}-01`, `${m}-31`), b: costoDe(data, { mes: m }).rancho }));
           if (items.length < 2) return null;
           return (
             <div className="card">
               <div className="card-title">Ingresos vs gastos por mes</div>
-              <GraficaBarrasPar items={items} leyendaA="Ingresos" leyendaB="Gastos (egresos + actividades)" />
+              <GraficaBarrasPar items={items} leyendaA="Ingresos" leyendaB="Costos y gastos (como en el cierre de mes)" />
             </div>
           );
         })()}
 
         {/* Costo por cultivo: dónde se está yendo el dinero de trabajo */}
         {(() => {
-          const porCultivo = {};
-          (data.actividades || []).forEach(a => {
-            const s = (data.siembras || []).find(x => x.id === a.siembraId);
-            const c = s?.cultivoNombre || "Sin cultivo ligado";
-            porCultivo[c] = (porCultivo[c] || 0) + costoActividad(a);
-          });
-          const datos = Object.entries(porCultivo).map(([label, valor]) => ({ label, valor: Math.round(valor) })).sort((a, b) => b.valor - a.valor);
+          // El cultivo de cada trabajo es el del ciclo que tenía la parcela ESE DÍA (src/ciclos.js), como en Finanzas. Antes
+          // sólo contaba las actividades ligadas a mano a una siembra y casi todo salía «sin cultivo ligado».
+          const R = resultadoPorCultivo((data.actividadesContables || data.actividades || []).map(a => ({ tipo: "costo", monto: costoActividad(a), fecha: a.fecha, parcelaId: a.esBodega ? null : a.parcelaId, siembraId: a.siembraId,
+            bodegaDe: a.esBodega && a.cultivoBodega && a.cultivoBodega !== "__general__" ? a.cultivoBodega : null, general: !!(a.esBodega && a.cultivoBodega === "__general__") })), data.siembras || []);
+          const datos = [...R.cultivos.map(c => ({ label: c.cultivo, valor: Math.round(c.costo) })), { label: "Fuera de un ciclo", valor: Math.round(sumarDinero(R.sinCiclo.costo, R.sinParcela.costo)) }, { label: "Bodega general", valor: Math.round(R.general.costo) }]
+            .filter(d => d.valor > 0).sort((a, b) => b.valor - a.valor);
           if (!datos.some(d => d.valor > 0) || datos.length < 2) return null;
           return (
             <div className="card">
@@ -20022,9 +20030,16 @@ function ExportarContPAQi({ data, upd, add, session, onClose }) {
     alert("Cuentas guardadas. Se usarán en las próximas exportaciones.");
   };
 
-  const cultivoDeParcela = (parcelaId) => {
-    const p = (data.parcelas || []).find(x => x.id === parcelaId);
-    return p ? p.cultivo : "";
+  // El centro de costos es el cultivo del ciclo que tenía la parcela ESE DÍA (src/ciclos.js), no la etiqueta de la parcela:
+  // con la etiqueta, el ajo de una temporada y el maíz de la siguiente salían en el mismo centro (el error del Excel). Si ese
+  // día la parcela tenía dos ciclos, el importe se parte entre los dos (en centavos, la suma exacta). Una parcela que nunca
+  // ha tenido un ciclo registrado usa su cultivo anotado.
+  const porCultivo = (r, monto) => {
+    const p = (data.parcelas || []).find(x => x.id === r.parcelaId);
+    const partes = r.parcelaId ? partesDe({ parcelaId: r.parcelaId, fecha: r.fecha, siembraId: r.siembraId }, data.siembras || []) : [];
+    if (partes.length <= 1) return [{ cultivo: partes[0]?.siembra.cultivoNombre || p?.cultivo || "", monto }];
+    const montos = repartirDinero(monto, partes.map(x => x.parte));
+    return partes.map((x, i) => ({ cultivo: x.siembra.cultivoNombre || "", monto: montos[i] }));
   };
 
   const exportar = () => {
@@ -20034,31 +20049,31 @@ function ExportarContPAQi({ data, upd, add, session, onClose }) {
     const movimientos = [];
 
     // Egresos
-    vivos(data.egresos).filter(e => enRango(e.fecha)).forEach(e => {
+    delRancho(data.egresos).filter(e => enRango(e.fecha)).forEach(e => porCultivo(e, e.monto).forEach(x => {
       movimientos.push({
         fecha: e.fecha, tipo: "egreso", concepto: e.concepto || "Egreso",
-        monto: e.monto, cuenta: cfg.cuentaEgresos, contracuenta: cfg.contraEgresos,
-        cultivo: cultivoDeParcela(e.parcelaId), referencia: e.proveedor || "",
+        monto: x.monto, cuenta: cfg.cuentaEgresos, contracuenta: cfg.contraEgresos,
+        cultivo: x.cultivo, referencia: e.proveedor || "",
       });
-    });
+    }));
     // Ingresos
-    vivos(data.ingresos).filter(g => enRango(g.fecha)).forEach(g => {
+    delRancho(data.ingresos).filter(g => enRango(g.fecha)).forEach(g => porCultivo(g, g.monto).forEach(x => {
       movimientos.push({
         fecha: g.fecha, tipo: "ingreso", concepto: g.concepto || "Ingreso",
-        monto: g.monto, cuenta: cfg.cuentaIngresos, contracuenta: cfg.contraIngresos,
-        cultivo: cultivoDeParcela(g.parcelaId), referencia: g.cliente || "",
+        monto: x.monto, cuenta: cfg.cuentaIngresos, contracuenta: cfg.contraIngresos,
+        cultivo: x.cultivo, referencia: g.cliente || "",
       });
-    });
+    }));
     // Costos de mano de obra (de las actividades)
     (data.actividadesContables || data.actividades || []).filter(a => enRango(a.fecha)).forEach(a => {
       const mo = parseFloat(a.costoMO) || 0;
       if (mo <= 0) return;
-      const cultivo = a.esBodega ? a.cultivoBodega : cultivoDeParcela(a.parcelaId);
-      movimientos.push({
+      const partes = a.esBodega ? [{ cultivo: a.cultivoBodega === "__general__" ? "" : a.cultivoBodega || "", monto: mo }] : porCultivo(a, mo);
+      partes.forEach(x => movimientos.push({
         fecha: a.fecha, tipo: "costoMO", concepto: `Mano de obra: ${a.tipo || "actividad"}`,
-        monto: mo, cuenta: cfg.cuentaManoObra, contracuenta: cfg.contraManoObra,
-        cultivo, referencia: "",
-      });
+        monto: x.monto, cuenta: cfg.cuentaManoObra, contracuenta: cfg.contraManoObra,
+        cultivo: x.cultivo, referencia: "",
+      }));
     });
 
     if (movimientos.length === 0) { alert("No hay movimientos en ese rango de fechas."); return; }

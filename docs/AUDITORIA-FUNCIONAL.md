@@ -2,7 +2,7 @@
 
 > **Generado desde `docs/ESTADO.json` con `node herramientas/estado.mjs`. No se edita a mano:** se cambia el archivo de estado y se vuelve a generar. Es la única fuente de las cifras, los módulos, los pendientes y lo publicado; el tablero de cierre sale de aquí mismo.
 
-Corte: domingo 22 de noviembre de 2026. **21 aprobados · 21 recorridos en parte · 25 sin verificar.**
+Corte: domingo 22 de noviembre de 2026. **26 aprobados · 25 recorridos en parte · 16 sin verificar.**
 
 **Veredicto: NO LISTO** como sistema completo · listo para prueba de campo en la operación diaria. Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).
 
@@ -36,7 +36,7 @@ Corte: domingo 22 de noviembre de 2026. **21 aprobados · 21 recorridos en parte
 | Qué | Estado | Detalle |
 |---|---|---|
 | La app en app.agroselectos.com | **Publicado** | Versión `1355741`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio. |
-| Decisiones de Luis: el pase de lista sólo para encargado o superior (y el cabo nombrado); el pago de un externo nace vacío y la base es una regla del rancho | **Sin publicar** | Probado; se publica al pasar la batería completa. |
+| Decisiones de Luis: el pase de lista sólo para encargado o superior (y el cabo nombrado); el pago de un externo nace vacío y la base es una regla del rancho | **Sin publicar** | Probado; se publica junto con los números de los paneles al pasar la batería completa. |
 | Captura diaria: «Mis días» con la cuenta real, registro de varios que dice lo que se paga, el día que se costeaba dos veces, y rastro al aprobar externos y atender incidencias | **Publicado** | 22 de noviembre; corrección ordinaria, publicada tras la batería completa. |
 | Campo (alta de cultivos, parcelas que no se eliminan con registros, cosechas que no se pisan ni se borran) y dos correcciones de identidad: hechos de nombre propio sin marca y estibas recién cerradas que no subían | **Publicado** | 22 de noviembre; corrección ordinaria, publicada tras la batería completa. |
 | Cobros parciales de un embarque desde dos teléfonos (no se pisan; cada cobro con autor, hora y su venta ligada) | **Publicado** | 22 de noviembre, autorizado por Luis. |
@@ -51,8 +51,10 @@ Corte: domingo 22 de noviembre de 2026. **21 aprobados · 21 recorridos en parte
 | Restaurar conserva quién autorizó y cuándo; nadie puede inventar una autorización | **Instalado en la base** | Hoja 53 en la base y publicado. |
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
+| Los números cuadran entre pantallas: ¿Cómo vamos?, Dirección, Resumen semanal, Temporadas y Mano de obra con la cuenta del cierre de mes | **Sin publicar** | Recorrido auditoria_numeros 28 de 28; se publica al pasar la batería completa. |
+| Socios, Banco, ¿Alcanza? y ContPAQi: lo personal fuera de todas las sumas, el estado de cuenta ligado a su bolsa, el centro de costos por ciclo | **Sin publicar** | Recorridos auditoria_banco 37 de 37 y auditoria_numeros 33 de 33; se publica al pasar la batería completa. |
 
-## Defectos encontrados al usar los módulos (47: 43 corregidos, 2 de ellos sin publicar; 4 abiertos)
+## Defectos encontrados al usar los módulos (60: 56 corregidos, 15 de ellos sin publicar; 4 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -103,6 +105,19 @@ Corte: domingo 22 de noviembre de 2026. **21 aprobados · 21 recorridos en parte
 | 45 | Registrar actividad, Registro de varios | Dos textos que decían otra cosa: «General de la operación… se reparte entre todos los cultivos» (no se reparte: va a gastos generales) y el título «Registro masivo» en una pantalla que el menú llama «Registro de varios» | P3 | Corregido y publicado |
 | 46 | Pase de lista | POR DECISIÓN DE LUIS: un trabajador que entra con su PIN tiene la pantalla de Pase de lista con TODA la gente, y desde ahí se le ofrece palomear y «Capturar» los días de otros (una actividad capturada es un día que se paga) | P1 | Corregido **sin publicar**: Luis, 22 nov: sólo un encargado o superior marca la asistencia de otros. El trabajador ya no tiene el pase de lista; sólo el cabo que nombró un administrador |
 | 47 | Externos | POR DECISIÓN DE LUIS: un externo nace con $683 por día sugerido, escrito en el código; él puede cambiarlo al registrar y nada cuenta hasta que alguien lo aprueba, pero es un número que nadie del rancho dio | P2 | Corregido **sin publicar**: Luis, 22 nov: el externo nace sin pago; la base es una regla del rancho (Equipo → Externos) que pone un administrador, cada registro la puede cambiar y, al aprobar, se señala si se aparta de la base |
+| 48 | ¿Cómo vamos? y Dirección | El resultado del año sumaba por su lado: las compras para el almacén como gasto (y otra vez al usarse), un insumo que nadie clasificó como gasto y la mano de obra sin la del checador. Comparaba contra el mes anterior («650 % más que el mes pasado») y el presupuesto e inversión de un cultivo cargaban lo de ciclos anteriores de la parcela | P1 | Corregido **sin publicar**: Ahora usan la cuenta del cierre de mes; se compara contra el mismo mes del año pasado y cada cultivo con lo de su ciclo |
+| 49 | Resumen | La semana tenía ocho días y el balance contaba compras para el almacén e insumos sin clasificar como gasto | P2 | Corregido **sin publicar**: Siete días y la cuenta del cierre |
+| 50 | Temporadas | El resultado de una temporada contaba la compra de urea, su entrada al almacén y su uso en la actividad: el mismo insumo dos o tres veces | P1 | Corregido **sin publicar**: La temporada se cuenta con las reglas del cierre de mes |
+| 51 | Mano de obra | Con actividades tecleadas y nadie checando, la pantalla decía $0 de mano de obra aunque los reportes sí la contaban | P2 | Corregido **sin publicar**: Lo capturado como actividad se suma y se enseña, una sola fuente por día |
+| 52 | Pase de lista | Un trabajador (no cabo) con un acceso viejo anclado al pase de lista veía una pantalla en blanco | P3 | Corregido **sin publicar**: Ahora se le dice que la asistencia de otros la marca un encargado o el cabo |
+| 53 | Socios y Finanzas | Lo que se marcaba como personal en Socios seguía contando como gasto o ingreso del rancho en Finanzas, el flujo de efectivo, el cierre de mes, los paneles y ContPAQi | P1 | Corregido **sin publicar**: Lo personal (y un traspaso entre bolsas propias) se queda en Socios y en el banco, y ya no es ingreso ni gasto del rancho en ninguna suma |
+| 54 | Banco | Después de «Descartar», el siguiente archivo se quedaba con el periodo y los saldos del anterior: salía «ya está cargado» o «no cuadra» sin serlo | P2 | Corregido **sin publicar**: Cada archivo propone su propio periodo y sus saldos |
+| 55 | ¿Alcanza? | El saldo de cada bolsa se buscaba por parecido entre su nombre y el del banco: una bolsa llamada «Cuenta de Rodolfo» nunca tenía saldo y la respuesta era siempre «no sé» | P2 | Corregido **sin publicar**: Al subir el estado de cuenta se dice de qué bolsa es |
+| 56 | ¿Alcanza? | «Dejó de aparecer» sólo veía el pase de lista y lo tecleado: un rancho que checa y reparte salía todos los días como que dejó de registrar (alarma falsa) | P2 | Corregido **sin publicar**: Cuentan el checador y el trabajo del reparto y las cuadrillas |
+| 57 | ¿Alcanza? | La pantalla se llamaba «Cómo vamos», igual que otra pantalla distinta | P3 | Corregido **sin publicar**: Se llama «¿Alcanza?» |
+| 58 | ContPAQi | El centro de costos salía de la etiqueta de la parcela y no del ciclo de ese día (el error del Excel: el ajo de una temporada y el maíz de la siguiente en el mismo centro) | P2 | Corregido **sin publicar**: Sale del ciclo de ese día; con dos ciclos a la vez, el importe se parte |
+| 59 | Movimientos | «Ingresos/Egresos del periodo» sumaba la compra para el almacén, su entrada y su uso en una actividad como si fueran tres gastos | P2 | Corregido **sin publicar**: Dice «Entradas/Salidas en la lista» y aclara que no es el resultado |
+| 60 | Resumen | La gráfica de meses sumaba compras del almacén y su uso, y el costo por cultivo sólo veía lo ligado a mano («sin cultivo ligado») | P2 | Corregido **sin publicar**: La gráfica usa la cuenta del cierre; el cultivo sale del ciclo de ese día |
 
 ## Lo que no se pudo ejecutar y por qué
 
@@ -119,9 +134,9 @@ Corte: domingo 22 de noviembre de 2026. **21 aprobados · 21 recorridos en parte
 |---|---|---|---|---|---|
 | 1 | Operación | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
 | 2 | El día | NO VERIFICADO | antes: plan, jornada, reasignacion, entrega | — | Falta la auditoría completa |
-| 3 | ¿Alcanza? | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 4 | Resumen | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 5 | ¿Cómo vamos? | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
+| 3 | ¿Alcanza? | **APROBADO** | auditoria_banco 37 | Con una bolsa sin saldo contesta NO SÉ TU SALDO y dice cuál; con las dos al día, ALCANZA o FALTA con la cuenta; agregar pagos; lo que dejó de aparecer (con checador y reparto); noviembre contra noviembre, sin comparar contra el mes anterior | — |
+| 4 | Resumen | **PARCIAL** | auditoria_numeros 28 | Siete días (eran ocho); el balance de la semana con la cuenta del cierre: lo no clasificado y lo comprado para el almacén no son costo | Los contadores de pendientes (compras, incidencias, existencias bajas, tareas) contra sus pantallas |
+| 5 | ¿Cómo vamos? | **APROBADO** | auditoria_numeros 28 | Resultado del año con la misma cuenta que Finanzas y el cierre de mes (sin las compras para el almacén ni lo no clasificado, que se dicen aparte); este mes contra el mismo mes del año pasado, del 1 al mismo día, o «todavía no hay con qué comparar»; presupuesto e inversión por ciclo, no por toda la vida de la parcela; a las 6:30 de la tarde; recarga; administrador y Dirección en dos teléfonos | — |
 | 6 | Mensajes | NO VERIFICADO | antes: mensajes, mensajes_movil, dicho | — | Falta la auditoría completa |
 | 7 | Registrar actividad | **PARCIAL** | auditoria_captura 66 | Registrar una actividad a nombre de un trabajador: confirma antes de guardar, queda con quién la hizo y quién la capturó, su costo llega a la parcela; dos actividades el mismo día reparten UN día (no pagan dos); con tractor (cuota por hora) e insumo del almacén (lo descuenta, no es dinero que sale); trabajo general que no se carga a ninguna parcela; sin señal; otro teléfono; quien checó y además tiene actividad cuesta una vez | Trabajo de bodega de un cultivo, actividad de cosecha con su cantidad, «quién lo ordenó» y capturar otro día |
 | 8 | Registro de varios | **PARCIAL** | auditoria_captura 66 | La misma actividad para varias personas: pide parcela, actividad y gente; horas por persona; la confirmación dice lo que de verdad se paga; queda una actividad por persona con quién la capturó; costo exacto en la parcela y en Pagos | Con maquinaria, con encargados y con externos en la misma captura |
@@ -146,19 +161,19 @@ Corte: domingo 22 de noviembre de 2026. **21 aprobados · 21 recorridos en parte
 | 27 | Salida de camión | **PARCIAL** | auditoria_bodega 48 | Embarque a cliente: tarima pesada, folio, formato, baja del terminado, queda pendiente de cobro, no es venta todavía | Salida a nuestra bodega, varias tarimas y calibres, estiba de origen, cargar más de lo que hay, remisión impresa |
 | 28 | Consignaciones | **PARCIAL** | auditoria_bodega 48 · auditoria_cobros 15 | Pendiente de cobro, cobrar en dinero, nace una sola venta, llega a resultados y flujo, el encargado no entra; pagos parciales desde dos teléfonos sin señal (los dos cobros quedan, cada uno con identidad, importe, fecha, autor y su venta ligada); doble toque registra un solo cobro; el último pago lo deja cobrado sin perder los anteriores | Pago a cuenta de una deuda en pantalla (la regla del flujo sí está probada en cálculo) |
 | 29 | Comercialización | **PARCIAL** | auditoria_bodega 48 | Enseña la venta con su cliente y el precio por kilo | Sólo se comprobó una venta; faltan varios clientes y periodos |
-| 30 | Mano de obra | NO VERIFICADO | antes: cuadrillas | — | Falta la auditoría completa |
-| 31 | Finanzas | **APROBADO** | auditoria_dinero 37 · auditoria_identidad 27 | Gasto general y de parcela, venta, cancelar con motivo, bitácora, flujo y resultados, recarga, otro teléfono, tres perfiles; doble toque, dos teléfonos sin señal con el mismo gasto, aviso de repetidos, quién capturó; un choque forzado de identificadores: la base rechaza el segundo, el teléfono lo dice y lo reubica solo, ninguno se pierde | — |
-| 32 | Movimientos | **APROBADO** | auditoria_dinero 37 | Totales del periodo iguales a Finanzas; lo cancelado no cuenta y sigue visible | — |
+| 30 | Mano de obra | **PARCIAL** | auditoria_numeros 28 · antes: checador, cuadrillas, pagos | Lo capturado como actividad ya cuenta y se ve con su parcela y quién (decía $0 cuando nadie checa); total y cargado a parcelas por semana y por fechas | Aclarar el tiempo sin asignar desde la pantalla, en un recorrido de auditoría con dos teléfonos |
+| 31 | Finanzas | **APROBADO** | auditoria_dinero 37 · auditoria_identidad 27 · auditoria_numeros 28 · auditoria_banco 37 | Gasto general y de parcela, venta, cancelar con motivo, bitácora, flujo y resultados, recarga, otro teléfono, tres perfiles; doble toque, dos teléfonos sin señal con el mismo gasto, aviso de repetidos, quién capturó; un choque forzado de identificadores: la base rechaza el segundo, el teléfono lo dice y lo reubica solo, ninguno se pierde | — |
+| 32 | Movimientos | **APROBADO** | auditoria_dinero 37 · auditoria_numeros | Totales del periodo iguales a Finanzas; lo cancelado no cuenta y sigue visible | — |
 | 33 | Caja chica | **APROBADO** | auditoria_dinero 37 · auditoria_pagos 40 · caja.test | Ligar una salida a su préstamo o a su pago (toma el importe, no cuenta doble, una segunda no encuentra a qué ligarse y queda por ligar). Fondo, las siete clases de salida, por clasificar y clasificar después, cancelar con su gasto ligado, sólo se corrige el concepto, flujo sin duplicar, saldo al centavo | Ligar una salida a un préstamo o pago real: probado en cálculo, sin recorrido en navegador |
 | 34 | Papeles | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
 | 35 | Importar documentos | NO VERIFICADO | antes: importar, ia, rayas | — | Falta la auditoría completa |
-| 36 | Banco | NO VERIFICADO | antes: sólo que abre; permisos por perfil atacados en la base | — | Falta la auditoría completa |
-| 37 | Socios | NO VERIFICADO | antes: sólo que abre; permisos por perfil atacados en la base | — | Falta la auditoría completa |
+| 36 | Banco | **APROBADO** | auditoria_banco 37 | Subir un CSV que cuadra (saldos propuestos, sólo los últimos cuatro de la cuenta, ligado a su bolsa), el mismo dos veces (no entra), uno que no cuadra (señala el renglón y queda NO CONFIABLE, fuera de todo), conciliar contra gasto e ingreso, explicar con palabras, ¿a dónde se fue?, otro teléfono | Un estado en PDF y uno en foto de un banco de verdad (prueba de campo) |
+| 37 | Socios | **APROBADO** | auditoria_banco 37 | Titulares con RFC y bolsas con un solo dueño; marcar cada movimiento (del rancho o personal, con quién lo marcó); la cuenta entre socios; comprobantes por RFC; lo personal sale de Finanzas, el flujo, el cierre, los paneles y ContPAQi sin borrarse; otro teléfono | — |
 | 38 | Deudas | **APROBADO** | auditoria_proveedores 27 · base 4 | Mismo crédito y saldo que Proveedores; abonar; el abono sale en el flujo; cancelar abono; el encargado no entra | El proveedor se guarda distinto que en Proveedores (P2 abierto) |
 | 39 | Semana | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 40 | Reportes | NO VERIFICADO | antes: mes, cruces | — | Falta la auditoría completa |
-| 41 | Temporadas | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
-| 42 | ContPAQi | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
+| 40 | Reportes | **PARCIAL** | auditoria_numeros 28 · antes: mes, cruces | El cierre de mes: cada mes suma lo que dice Finanzas, los once meses suman el año y el periodo sin cerrar se puede consultar | Reporte por parcela, por ciclo y de rendimiento contra las mismas cifras; cerrar y reabrir un mes con dos teléfonos |
+| 41 | Temporadas | **PARCIAL** | auditoria_numeros 28 | El resultado de una temporada con la cuenta del cierre: ya no suma la urea dos veces (la compra y su uso); lo comprado para el almacén y lo por clasificar, aparte | Crear, editar, cerrar y reabrir una temporada desde la pantalla |
+| 42 | ContPAQi | **APROBADO** | auditoria_numeros 33 | Cuentas guardadas; el Excel de pólizas cuadra (cargos = abonos); gastos, ventas y mano de obra (también la tecleada); sin lo personal; el centro de costos es el cultivo del ciclo de ese día | Importarlo en un ContPAQi de verdad (prueba de campo) |
 | 43 | Inventario | **APROBADO** | auditoria_almacen 45 · movimientos.test · resultado.test · auditoria_identidad 27 | Alta (sin nombre o repetido no entra), entrada con costo como movimiento, valor a costo promedio, «es la misma compra» contra un gasto de caja, recarga, otro aparato, Dirección, dos aparatos sin señal | Ficha técnica de agroquímicos y pestaña Cosechas |
 | 44 | Entregas del almacén | **PARCIAL** | auditoria_entregas 13 · auditoria_almacen 45 · almacen 55 (local) | Entregar a una persona (exige quién recibe), entregar no es gastar, se ve quién lo trae, cerrar con lo usado y lo regresado, ahí nace el costo; los dos teléfonos cerrando la misma entrega sin señal: cuenta una vez y queda «por revisar»; uso directo | Con cuentas: herramientas prestadas, «sigue en uso», bajas con causa y traslados entre bodegas (recorridos en local) |
 | 45 | Conteo y mermas | **APROBADO** | auditoria_almacen 45 · movimientos.test | Conteo a ciegas (no enseña el número antes), causa obligatoria si no cuadra, merma con causa, importe al costo del día, baja el valor del inventario y no es salida de dinero | Conteo en otra bodega |
@@ -193,6 +208,7 @@ Corte: domingo 22 de noviembre de 2026. **21 aprobados · 21 recorridos en parte
 4. Agronomía y campo: Hoja de Fito, Variedades, Calendario, Cosechas, Rendimiento, Dron, Ganado, Mapa.
 5. Captura anterior y control: Registro de varios, Tareas, Indicaciones, Pase de lista, Asistencia, Reportar, Seguridad, Subir catálogos, Credenciales, Arranque, Organización, Mensajes, Importar documentos.
 6. Integrales: seguridad por perfil en todos, respaldo y recuperación reales.
+7. Decidido por Luis (22 nov): el checado con GPS desde el teléfono propio y la tabla de colores por cortes se construyen DESPUÉS de cerrar los 67 módulos (diseño en docs/PROPUESTAS-ASISTENCIA.md; los cortes se validan con Miguel).
 
 ## Qué falta para decir «listo»
 
@@ -207,7 +223,7 @@ Corte: domingo 22 de noviembre de 2026. **21 aprobados · 21 recorridos en parte
 - Hacer la prueba de campo con la familia.
 - Otorgarse el permiso para configurar la organización (Arranque → Cuentas), si la va a usar.
 - Decidir a qué cuenta de Finanzas, si a alguna, se le otorga la consulta de Banco y Socios.
-- Decidir si el checado desde el teléfono propio con GPS y la tabla de colores por cortes se construyen dentro de la 1.0 o después (propuesta en docs/PROPUESTAS-ASISTENCIA.md).
+- ContPAQi: las compras para el almacén salen en la cuenta de gastos (como cualquier egreso). ¿Quieres una cuenta de inventario aparte para ellas?
 
 ## Pendientes menores que pueden esperar
 
