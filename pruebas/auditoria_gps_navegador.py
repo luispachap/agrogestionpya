@@ -5,10 +5,10 @@ también. El administrador lo ve distinguido en Jornadas. La ubicación es de IM
 teléfono de verdad es la prueba de campo. Cuentas, 390 px, nube de imitación, datos inventados.
 Uso:  VITE_SUPABASE_URL=http://localhost:5199 VITE_SUPABASE_ANON_KEY=prueba npx vite --port 5174 &
       python3 pruebas/auditoria_gps_navegador.py"""
-import datetime, pathlib, re, sys
+import datetime, os, pathlib, re, sys
 sys.path.insert(0, str(pathlib.Path(__file__).parent / "apoyo")); import nube_entera as N
 from playwright.sync_api import sync_playwright
-URL = "http://localhost:5174/"; HOY = "2026-11-19"
+URL = "http://localhost:5174/"; HOY = "2026-11-19"; FOTOS = os.environ.get("FOTOS")
 res = []
 def caso(n, ok, det=""): res.append(bool(ok)); print(("PASA  " if ok else "FALLA ") + n + (" — " + str(det)[:800] if det and not ok else ""), flush=True)
 plano = lambda t: t.replace("\n", " | ")
@@ -30,6 +30,8 @@ def subio(pg, seg=40):
         if pg.evaluate(COLA) == 0: return True
     return False
 marcas = lambda pg: [e for e in datos(pg)["eventos"] if e["tipo"] == "marca"]
+def foto(pg, nombre):
+    if FOTOS: pathlib.Path(FOTOS).mkdir(parents=True, exist_ok=True); pg.screenshot(path=f"{FOTOS}/{nombre}.png", full_page=True)
 
 with sync_playwright() as p:
     b = p.chromium.launch(); errs = []
@@ -38,7 +40,7 @@ with sync_playwright() as p:
     nube.reloj = lambda: tic() if reloj["ms"] else datetime.datetime.now(datetime.timezone.utc)
     def hora(pg): reloj["ms"] = max(reloj["ms"] or 0, pg.evaluate("() => Date.now()"))
     def aparato(cuenta, hh="07:00", donde=None):
-        ctx = b.new_context(viewport={"width": 390, "height": 820}, timezone_id="America/Mexico_City", service_workers="block", permissions=["geolocation"] if donde else [], geolocation=donde)
+        ctx = b.new_context(viewport={"width": 390, "height": 820}, timezone_id="America/Mexico_City", service_workers="block", permissions=["geolocation"] if donde else [], geolocation=donde, device_scale_factor=2 if FOTOS else 1)
         ctx.route("**/*", lambda r: r.continue_() if "localhost" in r.request.url else r.abort()); ctx.route(N.NUBE + "/**", nube)
         pg = ctx.new_page(); pg.dialogos = []; pg.respuestas = []; pg.confirmar = []
         pg.on("pageerror", lambda e: errs.append(str(e) + " @ " + (e.stack or "")[:400]))
@@ -83,7 +85,7 @@ with sync_playwright() as p:
     teclea(T, "4102")
     caso("BETO no puede checar en el teléfono de Ana", "Este teléfono es de ANA INVENTADA" in cuerpo(T) and not marcas(T), cuerpo(T)[:400])
     # ══ 3. Ana checa en su rancho ══
-    T.clock.run_for(13000); teclea(T, "4101"); t = cuerpo(T)
+    T.clock.run_for(13000); teclea(T, "4101"); t = cuerpo(T); foto(T, "gps-01-entrada-en-su-rancho")
     m = marcas(T)
     caso("ANA checa ENTRADA en su rancho: la marca lleva su posición, la precisión y la distancia (≈100 m de RANCHO UNO)", len(m) == 1 and m[0]["datos"]["desdeSuTelefono"] and m[0]["datos"]["gps"]["ranchoId"] == "r1" and 80 < m[0]["datos"]["gps"]["distanciaM"] < 120 and "ENTRADA" in t and "RANCHO UNO" in t, [t[:300], m[0]["datos"] if m else None])
     caso("y no se abrió la app", T.locator(".login-bg").count() >= 1 and "Finanzas" not in t)
@@ -93,7 +95,7 @@ with sync_playwright() as p:
     caso("LEJOS de todo rancho: no se registra, dice a cuánto está el más cercano y que avise a su encargado", "No estás en ningún rancho" in t and "Avisa a tu encargado" in t and len(marcas(T)) == 1, t[:400])
     # ══ 5. En otro rancho, sin señal: dice a qué fue ══
     T.context.set_geolocation(en(R2)); T.context.set_offline(True)
-    T.respuestas = [""]; teclea(T, "4101")
+    foto(T, "gps-02-lejos"); T.respuestas = [""]; teclea(T, "4101")
     caso("en OTRO rancho, sin decir a qué fue, no se registra", "a qué viniste" in cuerpo(T) and len(marcas(T)) == 1, cuerpo(T)[:400])
     T.clock.run_for(13000); T.respuestas = ["A AYUDAR CON EL RIEGO"]; teclea(T, "4101"); t = cuerpo(T)
     m = marcas(T)
@@ -105,7 +107,7 @@ with sync_playwright() as p:
     T.context.set_offline(False)
     caso("vuelve la señal y suben las tres marcas", subio(T) and len([v for v in nube.t.get("eventos", {}).values() if v.get("tipo") == "marca"]) == 3, [T.evaluate(COLA), len(nube.t.get("eventos", {}))])
     # ══ 7. El administrador lo ve en Jornadas, distinguido ══
-    A.reload(); A.wait_for_timeout(3500); ir(A, "jornadas"); A.get_by_text("ANA INVENTADA").first.click(); A.wait_for_timeout(500); t = cuerpo(A)
+    A.reload(); A.wait_for_timeout(3500); ir(A, "jornadas"); A.get_by_text("ANA INVENTADA").first.click(); A.wait_for_timeout(500); t = cuerpo(A); foto(A, "gps-03-jornadas")
     caso("JORNADAS distingue lo checado desde su teléfono: a cuánto del rancho, en otro rancho con su porqué, y lo por revisar", "Desde su teléfono · a" in t and "RANCHO UNO" in t and "en RANCHO DOS (no es el suyo) · A AYUDAR CON EL RIEGO" in t and "por revisar" in t and "su teléfono" in t, t[:1200])
     # ══ 8. El teléfono del encargado, compartido, sigue como siempre ══
     S = aparato(ENC, "08:00"); S.confirmar = [True, False]; salir(S)
