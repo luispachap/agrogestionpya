@@ -155,6 +155,20 @@ export function entregar({ articulo, cantidad, de = NAVE, recibe, destino, nota 
     datos: { ...ficha(articulo), cantidad: q, de, herramienta: !!articulo.esHerramienta, largo: esDeUsoLargo(articulo), recibe: persona(recibe), destino: d, nota: String(nota || "").trim(), ...(revisarEl ? { revisarEl } : {}) } }) };
 }
 
+// LO QUE CIERRA ALGO VA DESPUÉS DE LO QUE CIERRA. El orden sale de la hora (corregida con el reloj del teléfono); si esa
+// corrección viene mal medida, el cierre de una entrega podía quedar ANTES de la entrega, y entonces salía como «cierre
+// sin su entrega» y lo usado no contaba. Ahora un evento que apunta a otro (`origen`) nunca se recorre antes que él.
+export function despuesDeSuOrigen(lista) {
+  const ids = new Set(lista.map(e => e.id)), visto = new Set(), espera = new Map(), fuera = [];
+  const soltar = (e) => { fuera.push(e); visto.add(e.id); const sig = espera.get(e.id); if (sig) { espera.delete(e.id); sig.forEach(soltar); } };
+  for (const e of lista) {
+    if (e.origen && ids.has(e.origen) && !visto.has(e.origen)) { if (!espera.has(e.origen)) espera.set(e.origen, []); espera.get(e.origen).push(e); }
+    else soltar(e);
+  }
+  for (const resto of espera.values()) resto.forEach(soltar); // (un ciclo no debería existir; si existe, no se pierde nada)
+  return fuera;
+}
+
 // ── El estado: se arma recorriendo los movimientos en el orden en que pasaron ──
 // `inventario` es el catálogo tal como está guardado: su `existencia` es sólo
 // el punto de partida (lo que había antes de que existieran los movimientos).
@@ -168,7 +182,7 @@ export function estadoDelAlmacen(eventos, inventario = []) {
     valuaciones.set(e.origen, { costoUnit: e.datos.costoUnit, ev: e.id, capturado: e.capturado, por: e.quien?.nombre || "", fecha: e.fecha, nota: e.datos.nota || "", anteriores: antes ? [...antes.anteriores, { costoUnit: antes.costoUnit, por: antes.por, fecha: antes.fecha }] : [] });
   }
   const porValuar = [], recibidas = [];
-  const evs = todos.filter(e => e.tipo !== T.resolucion && e.tipo !== T.valuacion).sort((a, b) => mom.get(a.id).t - mom.get(b.id).t || a.capturado.localeCompare(b.capturado) || a.id.localeCompare(b.id));
+  const evs = despuesDeSuOrigen(todos.filter(e => e.tipo !== T.resolucion && e.tipo !== T.valuacion).sort((a, b) => mom.get(a.id).t - mom.get(b.id).t || a.capturado.localeCompare(b.capturado) || a.id.localeCompare(b.id)));
   const relojes = todos.filter(e => mom.get(e.id).nota).map(e => ({ ev: e.id, clase: "reloj", tipo: e.tipo, articulo: e.datos.articulo || "", fecha: e.fecha, quien: e.quien?.nombre || "", nota: mom.get(e.id).nota, minutos: Math.round(Math.abs(mom.get(e.id).movido) / 60000) }));
   const resueltas = new Map(); for (const e of todos) if (e.tipo === T.resolucion && e.origen) resueltas.set(e.origen, { texto: e.datos.texto, por: e.quien?.nombre || "", cuando: e.cuando, ev: e.id });
   const saldos = new Map();                       // articuloId → Map(lugar → cuánto hay)

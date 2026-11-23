@@ -503,3 +503,10 @@ test("ninguna_compra_posterior_ni_tardia_ni_valuacion_cambia_el_costo_de_lo_que_
   // 4) y en cualquier orden de llegada sale lo mismo
   assert.deepEqual(foto(revuelve([...evs, cara, tardia, v.evento])), antes);
 });
+
+import { despuesDeSuOrigen as despuesDeSuOrigen_t } from "./movimientos.js";
+test("el_cierre_de_una_entrega_nunca_cuenta_antes_que_la_entrega_aunque_el_reloj_venga_mal_corregido", () => {
+  const lista = [{ id: "c", origen: "r" }, { id: "x" }, { id: "r" }, { id: "d", origen: "c" }, { id: "y", origen: "fuera" }];
+  assert.deepEqual(despuesDeSuOrigen_t(lista).map(e => e.id), ["x", "r", "c", "d", "y"]);
+  assert.equal(despuesDeSuOrigen_t(lista).length, lista.length, "no se pierde ninguno");
+});
