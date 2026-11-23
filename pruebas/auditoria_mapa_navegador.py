@@ -64,6 +64,7 @@ with sync_playwright() as p:
         pg.wait_for_timeout(2500); return pg
     A = aparato(ADM); ir(A, "mapa"); tx = plano(A.locator(".mp-pagina").inner_text())
     caso("el mapa abre: 0 de 2 parcelas con límite, y no supone ninguna forma", "0 de 2 parcelas con límite" in tx, tx[:300])
+    caso("un rancho sin límite pero con su ubicación se ve como punto con su nombre (la nave)", A.locator(".mp-rancho", has_text="RANCHO INVENTADO").count() == 1, A.locator(".mp-rancho").count())
     A.get_by_label("Parcelas sin límite").click(); A.wait_for_timeout(300); A.get_by_label("Trazar PARCELA UNO").click(); A.wait_for_timeout(500)
     A.evaluate("() => window.__agroMapa.setView([22.9005, -102.6995], 17, { animate: false })"); A.wait_for_timeout(400)
     for q in ((22.9, -102.7), (22.9, -102.699), (22.901, -102.699), (22.901, -102.7)): punto(A, *q)

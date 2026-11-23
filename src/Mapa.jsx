@@ -88,6 +88,8 @@ export default function MapaAgricola({ data, add, upd, session, onClose, onNav }
     for (const r of ranchos.filter(x => !rancho || x.id === rancho)) {
       const l = limiteDe(limites, "rancho", r.id);
       if (l && !(edit?.de.tipo === "rancho" && edit.de.id === r.id)) L.polygon([l.anillo, ...l.huecos], { color: "#fff", weight: 2, dashArray: "6 6", fill: false, interactive: false }).addTo(c.ranchos).bindTooltip(r.nombre, { permanent: true, direction: "top", className: "mp-rotulo mp-rancho" });
+      // Un rancho sin límite pero con su ubicación (la nave, por ejemplo) se ve como un punto con su nombre.
+      else if (!l && esPunto(r)) L.circleMarker([Number(r.lat), Number(r.lng)], { radius: 9, color: "#fff", weight: 3, fillColor: "#000", fillOpacity: 0.55, interactive: false }).addTo(c.ranchos).bindTooltip(r.nombre, { permanent: true, direction: "top", className: "mp-rotulo mp-rancho" });
     }
     for (const p of visibles) {
       const l = limiteDe(limites, "parcela", p.id), ce = cultivoEn(data.siembras || [], p.id, hoy), nombre = ce.cultivos.join(" + ") || "";

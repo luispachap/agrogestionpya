@@ -129,7 +129,7 @@
     {
       "que": "Mapa y Dron con dos teléfonos",
       "con": "pruebas/auditoria_mapa_navegador.py",
-      "resultado": "13 de 13"
+      "resultado": "14 de 14"
     },
     {
       "que": "La hoja de pagos que se firma: lo que ya debían, prestar en un paso, pago en dos partes, sueldo por semana, sin señal y otro aparato",
@@ -336,8 +336,8 @@
       "n": 13,
       "nombre": "Mapa del rancho",
       "estado": "APROBADO",
-      "prueba": "auditoria_mapa 13 · mapa 22 · satelite 22",
-      "probado": "Con cuentas y dos teléfonos: trazar el límite (la superficie se mide; la capturada no cambia sola), contarlo en el mapa, verlo en otro teléfono; quien no es administrador ve y no traza; en local: moño, KML, ficha del ciclo y satélite (vigor y humedad, sin diagnosticar)",
+      "prueba": "auditoria_mapa 14 · mapa 22 · satelite 22",
+      "probado": "Con cuentas y dos teléfonos: trazar el límite (la superficie se mide; la capturada no cambia sola), contarlo en el mapa, verlo en otro teléfono; quien no es administrador ve y no traza; en local: moño, KML, ficha del ciclo y satélite (vigor y humedad, sin diagnosticar); un rancho sin límite pero con su ubicación (la nave) se ve como punto con su nombre",
       "falta": "Con el GPS y la imagen de fondo de verdad (prueba de campo)"
     },
     {
