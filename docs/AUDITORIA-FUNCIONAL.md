@@ -61,7 +61,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
 
-## Defectos encontrados al usar los módulos (69: 66 corregidos, 0 de ellos sin publicar; 3 abiertos)
+## Defectos encontrados al usar los módulos (71: 68 corregidos, 2 de ellos sin publicar; 3 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -134,6 +134,8 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 | 67 | Hoja de Fito | Un fertilizante del catálogo con la fórmula en el nombre («Urea 46-00-00») no se reconocía y la hoja decía «no se sabe si hay» | P2 | Corregido y publicado: Se reconoce por el inicio del nombre; si dos artículos podrían ser el mismo, no se escoge ninguno y se dice |
 | 68 | El día, Pagos y Cierre de mes | Una reapertura hecha desde un teléfono con la hora atrasada podía quedar «antes» del cierre y no contar: se seguía viendo cerrada | P2 | Corregido y publicado: El orden entre cierre y reapertura sale de la hora corregida de cada teléfono |
 | 69 | El día | La casilla «Pasa a mañana» de una tarea sin terminar no tenía nombre para quien usa lector de pantalla | P3 | Corregido y publicado: Ya lo tiene |
+| 70 | Importar documentos | Una hoja con «Empleado | Sueldo» (la lista de nómina semanal) se tomaba como lista de personal y proponía dar de alta con SUELDO POR DÍA el importe de la semana ($3,500), y la pantalla de confirmar no enseñaba ese sueldo | P1 | Corregido **sin publicar**: «Sueldo» a secas ya no se supone por día: la ficha nace sin sueldo, se enseña lo que decía la hoja y se avisa |
+| 71 | Importar documentos | En una lista de pagos al personal, un apodo de menos de cinco letras («Gera», «Rigo») se tiraba como «sin nombre»: 6 de 23 renglones de la nómina del rancho | P2 | Corregido **sin publicar**: Con dos letras basta, igual que en una raya |
 
 ## Lo que no se pudo ejecutar y por qué
 
@@ -242,6 +244,8 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 - Decidir a qué cuenta de Finanzas, si a alguna, se le otorga la consulta de Banco y Socios.
 - ContPAQi: las compras para el almacén salen en la cuenta de gastos (como cualquier egreso). ¿Quieres una cuenta de inventario aparte para ellas?
 - El IVA de las compras: hoy lo que entra al almacén vale sin IVA y el IVA no cuenta como costo (sólo sale en el flujo). ¿Se recupera (acreditable) o debe ser parte del costo?
+- Préstamos que ya se estaban abonando antes de la app: hoy no hay cómo anotar su saldo al corte (los saldos iniciales sólo son de cuentas de dinero). ¿Se agrega «saldo inicial de préstamo» en Arranque (fecha de corte, importe, quién responde, evidencia)? Es función nueva.
+- Sueldo por día del personal de planta: ¿semanal ÷ 6 (cuadra la paga de hoy) o ÷ 7 (salario diario de ley, base de aguinaldo y vacaciones; el domingo se anotaría como descanso pagado)?
 
 ## Pendientes menores que pueden esperar
 

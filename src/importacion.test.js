@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatoDe, esBasura, leerCfdi, entenderHoja, aprenderHoja, extraerDeHoja, entenderTexto, situar, llaveDe, proponer, incorporar, resumenDeBandeja, relacionados, resumenDelHistorico, categoriaDe, enmascarar, firmaDe } from "./importacion.js";
+import { formatoDe, esBasura, leerCfdi, entenderHoja, aprenderHoja, extraerDeHoja, entenderTexto, situar, llaveDe, proponer, incorporar, resumenDeBandeja, relacionados, resumenDelHistorico, categoriaDe, enmascarar, firmaDe, sueldoEsPorDia } from "./importacion.js";
 
 const XML = (mas = {}) => `<?xml version="1.0" encoding="UTF-8"?>
 <cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Version="4.0" Serie="A" Folio="${mas.folio || "1234"}" Fecha="${mas.fecha || "2026-11-25"}T10:15:00" SubTotal="1000.00" Moneda="${mas.moneda || "MXN"}" Total="${mas.total || "1160.00"}" TipoDeComprobante="${mas.tipo || "I"}" FormaPago="03" MetodoPago="PUE">
@@ -226,4 +226,26 @@ test("un_renglon_de_datos_no_se_toma_por_encabezado_aunque_diga_proveedor_o_tota
   const filas = [["F.", "Quién", "Cuánto"], ["27/11/2026", "PROVEEDOR 3 DE PRUEBA", 120], ["28/11/2026", "TOTAL FERRETERIA", "300.00"]];
   assert.equal(entenderHoja(filas).clase, "desconocido", "los títulos no se reconocen, y los datos de abajo no son títulos");
   assert.equal(entenderHoja([["Fecha", "Proveedor", "Total"], ["27/11/2026", "PROVEEDOR 3", 120]]).i, 0);
+});
+
+// Una foto de la lista de nómina del rancho (22 nov): «Empleado | Sueldo | Dispersado | Préstamo | Efectivo | Firma». El
+// sueldo es el de la SEMANA y los nombres son apodos.
+test("un_sueldo_sin_decir_por_dia_no_se_da_de_alta_como_sueldo_por_dia", () => {
+  const filas = [["Lista de nomina"], ["16 al 21 de noviembre 2026"], ["Empleado", "Sueldo", "Dispersado", "Prestamo", "Efectivo", "Prestamo Solicitado", "Firma"],
+    ["Abc Defg", 3500, "", 0, 2900, "", ""], ["Abcd Efgh", "4,231.60", "2,500.60", 0, "1,731.00", "", ""]];
+  const r = proponer(doc({ hojas: [{ nombre: "Hoja1", filas }] }), CTX);
+  assert.equal(r.clase, "personal");
+  assert.ok(r.propuestas.length === 2 && r.propuestas.every(p => p.datos.sueldo_dia == null), "3,500 es la semana: no se vuelve sueldo por día");
+  assert.deepEqual(r.propuestas.map(p => p.datos.sueldoEscrito), [3500, 4231.6], "se enseña lo que decía la hoja");
+  assert.match(r.excepciones.join(" "), /no dice si el sueldo es por día/);
+  const { ops } = incorporar(doc({}), r, { fecha: "2026-11-30" });
+  assert.ok(ops.every(o => o.item.sueldo_dia === undefined), "la ficha nace sin sueldo: se pone al revisarla");
+  for (const [enc, porDia] of [["Sueldo diario", true], ["SALARIO DIARIO", true], ["Pago por día", true], ["SD", true], ["Cuota diaria", true], ["Sueldo", false], ["Salario", false], ["Sueldo semanal", false]]) assert.equal(sueldoEsPorDia(enc), porDia, enc);
+});
+
+test("en_una_lista_de_pagos_un_apodo_corto_es_un_nombre", () => {
+  const filas = [["Nombre", "Importe"], ["Abcd", "2,128.00"], ["Ab", 1731], ["A", 500], ["Abcdefg", 1000]];
+  const x = extraerDeHoja(entenderHoja(filas), filas);
+  assert.deepEqual(x.registros.map(r => [r.nombre, r.monto]), [["Abcd", 2128], ["Ab", 1731], ["Abcdefg", 1000]], "un apodo de cuatro letras («Gera», «Rigo») no se tira");
+  assert.equal(x.descartadas.length, 1, "una sola letra no es un nombre");
 });

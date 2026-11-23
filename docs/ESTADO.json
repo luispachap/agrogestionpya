@@ -1320,6 +1320,24 @@
    "estado": "corregido",
    "publicado": true,
    "nota": "Ya lo tiene"
+  },
+  {
+   "n": 70,
+   "modulo": "Importar documentos",
+   "que": "Una hoja con «Empleado | Sueldo» (la lista de nómina semanal) se tomaba como lista de personal y proponía dar de alta con SUELDO POR DÍA el importe de la semana ($3,500), y la pantalla de confirmar no enseñaba ese sueldo",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "«Sueldo» a secas ya no se supone por día: la ficha nace sin sueldo, se enseña lo que decía la hoja y se avisa"
+  },
+  {
+   "n": 71,
+   "modulo": "Importar documentos",
+   "que": "En una lista de pagos al personal, un apodo de menos de cinco letras («Gera», «Rigo») se tiraba como «sin nombre»: 6 de 23 renglones de la nómina del rancho",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Con dos letras basta, igual que en una raya"
   }
  ],
  "no_se_pudo": [
@@ -1434,7 +1452,9 @@
   "Otorgarse el permiso para configurar la organización (Arranque → Cuentas), si la va a usar.",
   "Decidir a qué cuenta de Finanzas, si a alguna, se le otorga la consulta de Banco y Socios.",
   "ContPAQi: las compras para el almacén salen en la cuenta de gastos (como cualquier egreso). ¿Quieres una cuenta de inventario aparte para ellas?",
-  "El IVA de las compras: hoy lo que entra al almacén vale sin IVA y el IVA no cuenta como costo (sólo sale en el flujo). ¿Se recupera (acreditable) o debe ser parte del costo?"
+  "El IVA de las compras: hoy lo que entra al almacén vale sin IVA y el IVA no cuenta como costo (sólo sale en el flujo). ¿Se recupera (acreditable) o debe ser parte del costo?",
+  "Préstamos que ya se estaban abonando antes de la app: hoy no hay cómo anotar su saldo al corte (los saldos iniciales sólo son de cuentas de dinero). ¿Se agrega «saldo inicial de préstamo» en Arranque (fecha de corte, importe, quién responde, evidencia)? Es función nueva.",
+  "Sueldo por día del personal de planta: ¿semanal ÷ 6 (cuadra la paga de hoy) o ÷ 7 (salario diario de ley, base de aguinaldo y vacaciones; el domingo se anotaría como descanso pagado)?"
  ],
  "riesgos": [
   "Riesgo técnico por evaluar (Luis, 22 nov): que una semana cerrada pida reabrirse para cambiar sus decisiones lo cuida la app, no la base. Una decisión que llegue por fuera de la app (o de un teléfono que no sabía del cierre) sí entra; no pasa callada —sale como diferencia contra el cierre, con quién y por qué— pero la base no la rechaza.",

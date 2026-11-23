@@ -220,6 +220,10 @@ export const NOMBRE_DE_CAMPO = { claves: "Claves (A07, Bod, SF4…)", cultivo: "
 
 /* ════════════ 4 · DE LA HOJA A RENGLONES LIMPIOS ════════════ */
 const texto = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
+// «Sueldo» a secas no dice si es por día, por semana o por mes: la lista de nómina semanal del rancho trae «Sueldo $3,500»
+// y eso es la SEMANA. Sólo se toma como sueldo POR DÍA si el encabezado lo dice; si no, se enseña lo escrito y una
+// persona pone el sueldo por día al revisar la ficha.
+export const sueldoEsPorDia = (encabezado) => /DIARI|POR DIA|\bSD\b|SUELDO DIA|CUOTA/.test(normalizar(encabezado));
 const pareceTotal = (fila) => fila.some(c => /^(GRAN )?(SUB)?TOTAL(ES)?\b|^SUMA\b/.test(normalizar(c)));
 // Devuelve { registros, descartadas }. Un renglón que no se puede leer NO se adivina: va a `descartadas` con su razón.
 export function extraerDeHoja(entendida, filas) {
@@ -234,12 +238,14 @@ export function extraerDeHoja(entendida, filas) {
     if (clase === "personal") {
       const nombre = texto(de(fila, "nombre")); if (nombre.length < 5 || !/\s/.test(nombre)) { descarta("No trae un nombre completo."); continue; }
       const sueldo = aNumero(de(fila, "sueldo")), ingreso = mapa.ingreso != null ? aFecha(de(fila, "ingreso")) : null;
-      registros.push({ clase: "personal", nombre, puesto: texto(de(fila, "puesto")), sueldo: sueldo > 0 ? sueldo : null, fechaIngreso: ingreso, renglon: n + 1 });
+      const porDia = mapa.sueldo != null && sueldoEsPorDia((entendida.encabezados || [])[mapa.sueldo]);
+      registros.push({ clase: "personal", nombre, puesto: texto(de(fila, "puesto")), sueldo: porDia && sueldo > 0 ? sueldo : null, ...(!porDia && sueldo > 0 ? { sueldoEscrito: sueldo } : {}), fechaIngreso: ingreso, renglon: n + 1 });
     } else if (clase === "proveedores") {
       const nombre = texto(de(fila, "proveedor")); if (nombre.length < 3) { descarta("No trae el nombre del proveedor."); continue; }
       registros.push({ clase: "proveedores", nombre, rfc: texto(de(fila, "rfc")).toUpperCase(), telefono: texto(de(fila, "telefono")), giro: texto(de(fila, "concepto")), renglon: n + 1 });
     } else if (clase === "nomina") {
-      const nombre = texto(de(fila, "nombre")); if (nombre.length < 5) { descarta("No trae el nombre de la persona."); continue; }
+      // Los nombres de una lista de pagos son apodos, igual que en una raya («Gera», «Rigo»): con dos letras basta.
+      const nombre = texto(de(fila, "nombre")); if (nombre.length < 2) { descarta("No trae el nombre de la persona."); continue; }
       if (!(importe > 0)) { descarta("No se pudo leer cuánto se le pagó."); continue; }
       registros.push({ clase: "nomina", fecha, nombre, monto: importe, dias: aNumero(de(fila, "dias")), periodo: texto(de(fila, "periodo")), puesto: texto(de(fila, "puesto")), renglon: n + 1 });
     } else if (clase === "raya") {
@@ -447,7 +453,7 @@ export function proponer(doc, contexto = {}) {
     descartadas.push(...x.descartadas.map(d => ({ ...d, hoja: h.nombre })));
     for (const r of x.registros) {
       const lugar = situar(r.fecha, inicio), origen = { hoja: h.nombre, renglon: r.renglon };
-      if (r.clase === "personal") propone({ destino: "trabajadores", accion: "agregar", origen, datos: { clase: "personal", nombre: r.nombre, puesto: r.puesto, sueldo_dia: r.sueldo, fechaIngreso: r.fechaIngreso } });
+      if (r.clase === "personal") propone({ destino: "trabajadores", accion: "agregar", origen, datos: { clase: "personal", nombre: r.nombre, puesto: r.puesto, sueldo_dia: r.sueldo, ...(r.sueldoEscrito ? { sueldoEscrito: r.sueldoEscrito } : {}), fechaIngreso: r.fechaIngreso } });
       else if (r.clase === "proveedores") propone({ destino: "proveedores", accion: "agregar", origen, datos: { clase: "proveedores", nombre: r.nombre, rfc: r.rfc, telefono: r.telefono, giro: r.giro } });
       else if (r.clase === "nomina") propone({ ...comoHistorico(r, "nomina", { contraparte: r.nombre, concepto: [r.puesto, r.periodo, r.dias ? `${r.dias} días` : ""].filter(Boolean).join(" · "), referencia: lugar === "operacion" }), origen, llave: llaveDe(r) });
       else if (r.clase === "raya") {
@@ -480,6 +486,7 @@ export function proponer(doc, contexto = {}) {
         propone({ destino: "egresos", accion: "agregar", origen, llave: llaveDe(r), datos: { fecha: r.fecha, concepto: r.concepto || (r.proveedor ? `Compra a ${r.proveedor}` : "Gasto importado"), proveedor: r.proveedor, monto: r.monto, categoria: categoriaDe(`${r.concepto} ${r.proveedor}`), folio: r.folio, ...(p.length === 1 ? { parcelaId: p[0].id } : {}) } });
       } else propone({ ...comoHistorico(r, "gasto", { contraparte: r.proveedor, concepto: r.concepto, parcela: r.parcela }), origen, llave: llaveDe(r) });
     }
+    if (x.registros.some(r => r.clase === "personal" && r.sueldoEscrito)) excepciones.push(`La columna «${e.encabezados[e.mapa.sueldo]}» de «${h.nombre}» no dice si el sueldo es por día, por semana o por mes: NO se toma como sueldo por día. Las altas se proponen sin sueldo; a cada persona se le pone su sueldo por día al revisar su ficha en Equipo.`);
     if (x.registros.some(r => r.clase === "nomina" && situar(r.fecha, inicio) === "operacion")) excepciones.push(`La hoja «${h.nombre}» trae pagos al personal posteriores al arranque. NO se crean pagos: se registran en Pagos al personal. Quedan como referencia.`);
     if (x.registros.some(r => r.clase === "actividades" && situar(r.fecha, inicio) === "operacion")) excepciones.push(`La hoja «${h.nombre}» trae actividades posteriores al arranque. NO se crean solas (la mano de obra sale del checador y de las asignaciones): quedan como referencia.`);
     if (x.registros.some(r => r.clase === "combustible" && situar(r.fecha, inicio) === "operacion" && !(r.monto > 0))) excepciones.push(`En «${h.nombre}» hay cargas de combustible posteriores al arranque sin importe: no se proponen como gasto, quedan como referencia.`);
