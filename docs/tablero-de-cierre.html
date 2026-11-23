@@ -67,18 +67,18 @@ ol.lista { margin: 0; padding-left: 1.4em; display: flex; flex-direction: column
 <div class="hoja">
   <header style="display:flex;flex-direction:column;gap:6px">
     <h1>AgroGestión 1.0 · tablero de cierre</h1>
-    <div class="corte">Corte: domingo 22 de noviembre de 2026 (noche) · 66 módulos aprobados, 1 en parte y 0 sin verificar, de 67 · 92 defectos encontrados, 92 corregidos, todos publicados</div>
+    <div class="corte">Corte: lunes 23 de noviembre de 2026, 5:30 de la mañana · 66 módulos aprobados, 1 en parte y 0 sin verificar, de 67 · 92 defectos encontrados, 92 corregidos, todos publicados</div>
   </header>
 
   <div class="veredicto">
     <div class="sello">NO LISTO <small>como sistema completo · listo para prueba de campo en la operación diaria</small></div>
     <p>Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).</p>
-    <div class="razones"><div><b>No hay un respaldo real todavía</b><span>La copia de cada noche está preparada y ensayada en local. Falta el primer respaldo real y restaurarlo en un proyecto aislado. Hasta entonces no conviene capturar dinero real como registro definitivo.</span></div><div><b>Nada se ha probado en el rancho</b><span>Todo es con datos inventados y teléfonos imitados: señal, cámara, GPS, impresora y correo reales no se pueden imitar.</span></div><div><b>Los 67 módulos ya se revisaron, pero 27 quedan en parte</b><span>Cada uno dice qué le falta probar. Casi todo lo que falta es de Bodega, Personal y Pagos con cuentas, y de lo que pide un teléfono de verdad.</span></div></div>
+    <div class="razones"><div><b>No hay un respaldo real todavía</b><span>La copia de cada noche está preparada y ensayada en local. Falta el primer respaldo real y restaurarlo en un proyecto aislado. Hasta entonces no conviene capturar dinero real como registro definitivo.</span></div><div><b>Nada se ha probado en el rancho</b><span>Todo es con datos inventados y teléfonos imitados: señal, cámara, GPS, impresora y correo reales no se pueden imitar.</span></div><div><b>66 de 67 módulos aprobados; uno en parte</b><span>Papeles: las fotos necesitan la lectura con IA. Todo lo demás se usó como una persona, con cuentas, dos teléfonos, sin señal y recargando.</span></div></div>
   </div>
 
   <section>
     <h2>Qué lo vuelve LISTO</h2>
-    <ol class="pasos"><li><b>Respaldo real</b><span>Luis crea el repositorio privado y sus tres secretos (docs/RESPALDO-AUTOMATICO.md). Después se corre el primer respaldo y se restaura en un proyecto aislado.</span></li><li><b>Prueba de campo</b><span>Una hora, en los teléfonos de verdad, con la guía docs/PRUEBA-DEL-DOMINGO.md.</span></li><li><b>Terminar la auditoría</b><span>Recorrer como persona cada módulo que falta, corregir lo que salga y volver a probar.</span></li><li><b>Criterio de Miguel, Fito y Dirección</b><span>Organización, jornada y especialidades esperan su validación; no es una decisión técnica.</span></li></ol>
+    <ol class="pasos"><li><b>Respaldo real</b><span>Luis crea el repositorio privado y sus tres secretos (docs/RESPALDO-AUTOMATICO.md). Después se corre el primer respaldo y se restaura en un proyecto aislado.</span></li><li><b>Prueba de campo</b><span>Lunes o martes, en los teléfonos de verdad: 20 pasos en el documento «AgroGestión — Prueba de campo» (también en docs/OPERACION-1.0.md, sección 7).</span></li><li><b>Papeles con fotos</b><span>De los 67 módulos queda uno en parte: leer fotos de tickets, etiquetas y horómetro necesita la llave de la IA (un gasto que autoriza Luis).</span></li><li><b>Criterio de Miguel, Fito y Dirección</b><span>Organización, jornada y especialidades esperan su validación; no es una decisión técnica.</span></li></ol>
     <div class="dos">
       <div class="si"><h3>Lo que sí se puede hacer ya, como prueba de campo</h3><ul class="lista"><li>Dar de alta al personal y las parcelas reales</li><li>Checar, mandar el plan, repartir, cambiar y cerrar la jornada</li><li>Registrar incidencias y aplicaciones</li><li>Ver lo que corresponde pagar</li></ul></div>
       <div class="no"><h3>Lo que todavía no</h3><ul class="lista"><li>Capturar dinero real como registro definitivo (hasta tener respaldo real)</li><li>Dar por bueno un módulo que diga NO VERIFICADO</li><li>Confiar en un teléfono sin haber hecho en él la prueba de campo</li></ul></div>
@@ -99,19 +99,19 @@ ol.lista { margin: 0; padding-left: 1.4em; display: flex; flex-direction: column
   <section>
     <h2>Pruebas ejecutadas sobre la versión vigente</h2>
     <div class="tabla"><table><thead><tr><th>Qué</th><th>Con qué</th><th>Resultado</th></tr></thead><tbody>
-      <tr><td>Reglas y cálculos</td><td><code>npm test</code></td><td class="n">1,309 de 1,309</td></tr>
+      <tr><td>Reglas y cálculos</td><td><code>npm test</code></td><td class="n">1,347 de 1,347</td></tr>
       <tr><td>La base, armada desde cero y atacada por perfil</td><td><code>npm run test:base</code></td><td class="n">164 de 164</td></tr>
       <tr><td>Respaldo y restauración, de punta a punta en local</td><td><code>sh pruebas/respaldo_local/ensayo.sh</code></td><td class="n">26 de 26</td></tr>
-      <tr><td>Todo junto: lo anterior, compilación y 55 recorridos en navegador</td><td><code>sh pruebas/todo.sh</code></td><td class="n">Todo pasa (sobre la versión publicada, <code>52fbafb</code>)</td></tr>
+      <tr><td>Todo junto: lo anterior, compilación y 69 recorridos en navegador</td><td><code>sh pruebas/todo.sh</code></td><td class="n">Todo pasa (sobre la versión publicada, <code>4edbcb3</code>)</td></tr>
       <tr><td>Producción cerrada sin sesión</td><td><code>pruebas/real_sin_sesion.py</code></td><td class="n">6 de 6</td></tr>
       <tr><td>El sitio publicado, en Android y iPhone imitados</td><td><code>pruebas/real_sitio.py</code></td><td class="n">18 de 18</td></tr>
-      <tr><td>Lo publicado es exactamente lo probado, byte por byte</td><td><code>pruebas/real_identico.py</code></td><td class="n">18 de 18 archivos idénticos a <code>52fbafb</code></td></tr>
-      <tr><td>Producción igual a la base probada</td><td><code>node pruebas/base/paridad.mjs --consulta</code></td><td class="n">7 huellas iguales (última hoja instalada: 56)</td></tr>
+      <tr><td>Lo publicado es exactamente lo probado, byte por byte</td><td><code>pruebas/real_identico.py</code></td><td class="n">18 de 18 archivos idénticos a <code>4edbcb3</code></td></tr>
+      <tr><td>Producción igual a la base probada</td><td><code>node pruebas/base/paridad.mjs --consulta</code></td><td class="n">7 huellas iguales (última hoja instalada: 57; esta noche no se instaló ninguna)</td></tr>
       <tr><td>La base de producción rechaza pisar un identificador ocupado</td><td><code>prueba directa que se deshace sola</code></td><td class="n">Otra marca: rechazado · sin marca: rechazado · misma marca: corrige</td></tr>
       <tr><td>Asistencia con dos teléfonos, semana cerrada y pago hecho</td><td><code>pruebas/auditoria_ausencias_navegador.py</code></td><td class="n">37 de 37</td></tr>
       <tr><td>Campo: rancho vacío, parcelas, cultivos, calendario y cosechas con dos teléfonos</td><td><code>pruebas/auditoria_campo_navegador.py</code></td><td class="n">63 de 63</td></tr>
       <tr><td>Captura diaria: actividades, registro de varios, pase de lista, tareas, reportes, jornadas, credenciales y externos</td><td><code>pruebas/auditoria_captura_navegador.py</code></td><td class="n">66 de 66</td></tr>
-      <tr><td>Los números cuadran entre Finanzas, Cierre de mes, ¿Cómo vamos?, Dirección, Resumen, Temporadas, Mano de obra, Semana y ContPAQi</td><td><code>pruebas/auditoria_numeros_navegador.py</code></td><td class="n">35 de 35</td></tr>
+      <tr><td>Los números cuadran entre Finanzas, Cierre de mes, ¿Cómo vamos?, Dirección, Resumen, Temporadas, Mano de obra, Semana y ContPAQi</td><td><code>pruebas/auditoria_numeros_navegador.py</code></td><td class="n">39 de 39</td></tr>
       <tr><td>Socios, Banco y ¿Alcanza?: lo personal fuera de todo, estados que cuadran y que no, conciliar</td><td><code>pruebas/auditoria_banco_navegador.py</code></td><td class="n">37 de 37</td></tr>
       <tr><td>Papeles: factura en XML, almacén, la misma dos veces, foto sin lectura</td><td><code>pruebas/auditoria_papeles_navegador.py</code></td><td class="n">15 de 15</td></tr>
       <tr><td>Control: PINs de dirección, orden de recarga con un gasto sin subir, Subir catálogos, Arranque</td><td><code>pruebas/auditoria_control_navegador.py</code></td><td class="n">32 de 32</td></tr>
@@ -125,6 +125,18 @@ ol.lista { margin: 0; padding-left: 1.4em; display: flex; flex-direction: column
       <tr><td>Equipo, Personal, Jornadas y Mano de obra con cuentas y dos teléfonos</td><td><code>pruebas/auditoria_personal_navegador.py</code></td><td class="n">23 de 23</td></tr>
       <tr><td>Equipos de trabajo y Cuadrillas con cuentas y dos teléfonos</td><td><code>pruebas/auditoria_cuadrillas_navegador.py</code></td><td class="n">23 de 23</td></tr>
       <tr><td>Horas adicionales, prestaciones y bajas con cuentas</td><td><code>pruebas/auditoria_prestaciones_navegador.py</code></td><td class="n">25 de 25</td></tr>
+      <tr><td>Corrida de ajo de la parcela al cobro: revoltura, cambio de tarima, calidad por origen y ritmo, categorías al ajo terminado, dos teléfonos sobre el mismo lote</td><td><code>pruebas/auditoria_corrida_navegador.py</code></td><td class="n">52 de 52</td></tr>
+      <tr><td>Captura: trabajo de bodega, cosecha, quién lo ordenó, tractor y externos en una captura, tareas</td><td><code>pruebas/auditoria_captura2_navegador.py</code></td><td class="n">22 de 22</td></tr>
+      <tr><td>Campo: calendario, aplicaciones canceladas, siembras, semilla propia, temporadas</td><td><code>pruebas/auditoria_ciclo_navegador.py</code></td><td class="n">30 de 30</td></tr>
+      <tr><td>Reportes y temporadas contra Finanzas, cierre de mes en dos teléfonos</td><td><code>pruebas/auditoria_reportes_navegador.py</code></td><td class="n">25 de 25</td></tr>
+      <tr><td>Entregas del almacén: herramientas, «sigue en uso», bajas, traslados en dos teléfonos</td><td><code>pruebas/auditoria_entregas2_navegador.py</code></td><td class="n">17 de 17</td></tr>
+      <tr><td>Mis compras con PIN, foto del ticket, sin señal y doble toque</td><td><code>pruebas/auditoria_compras_navegador.py</code></td><td class="n">16 de 16</td></tr>
+      <tr><td>Papeles: PDF con texto y patrón aprendido</td><td><code>pruebas/auditoria_papeles2_navegador.py</code></td><td class="n">14 de 14</td></tr>
+      <tr><td>Checar sin sesión con PIN y con la credencial frente a la cámara (de imitación)</td><td><code>pruebas/auditoria_checador_navegador.py</code></td><td class="n">13 de 13</td></tr>
+      <tr><td>Tabla por cortes: pinceles, repetir, repintar, borrar, costo, otro teléfono</td><td><code>pruebas/auditoria_cortes_navegador.py</code></td><td class="n">17 de 17</td></tr>
+      <tr><td>Tabla por cortes como sucesora de Registro de varios y del reparto, tiempo esperando tarea, sin señal</td><td><code>pruebas/auditoria_cortes2_navegador.py</code></td><td class="n">31 de 31</td></tr>
+      <tr><td>Checar con el teléfono propio y su ubicación (GPS de imitación)</td><td><code>pruebas/auditoria_gps_navegador.py</code></td><td class="n">16 de 16</td></tr>
+      <tr><td>Prestaciones sobre la semana entre 7</td><td><code>pruebas/auditoria_aguinaldo_navegador.py</code></td><td class="n">4 de 4</td></tr>
     </tbody></table></div>
   </section>
 

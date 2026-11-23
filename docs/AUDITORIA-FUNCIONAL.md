@@ -2,7 +2,7 @@
 
 > **Generado desde `docs/ESTADO.json` con `node herramientas/estado.mjs`. No se edita a mano:** se cambia el archivo de estado y se vuelve a generar. Es la única fuente de las cifras, los módulos, los pendientes y lo publicado; el tablero de cierre sale de aquí mismo.
 
-Corte: domingo 22 de noviembre de 2026 (noche). **66 aprobados · 1 recorridos en parte · 0 sin verificar.**
+Corte: lunes 23 de noviembre de 2026, 5:30 de la mañana. **66 aprobados · 1 recorridos en parte · 0 sin verificar.**
 
 **Veredicto: NO LISTO** como sistema completo · listo para prueba de campo en la operación diaria. Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).
 
@@ -18,19 +18,19 @@ Corte: domingo 22 de noviembre de 2026 (noche). **66 aprobados · 1 recorridos e
 
 | Qué | Con qué | Resultado |
 |---|---|---|
-| Reglas y cálculos | `npm test` | 1,309 de 1,309 |
+| Reglas y cálculos | `npm test` | 1,347 de 1,347 |
 | La base, armada desde cero y atacada por perfil | `npm run test:base` | 164 de 164 |
 | Respaldo y restauración, de punta a punta en local | `sh pruebas/respaldo_local/ensayo.sh` | 26 de 26 |
-| Todo junto: lo anterior, compilación y 55 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `52fbafb`) |
+| Todo junto: lo anterior, compilación y 69 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `4edbcb3`) |
 | Producción cerrada sin sesión | `pruebas/real_sin_sesion.py` | 6 de 6 |
 | El sitio publicado, en Android y iPhone imitados | `pruebas/real_sitio.py` | 18 de 18 |
-| Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos a `52fbafb` |
-| Producción igual a la base probada | `node pruebas/base/paridad.mjs --consulta` | 7 huellas iguales (última hoja instalada: 56) |
+| Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos a `4edbcb3` |
+| Producción igual a la base probada | `node pruebas/base/paridad.mjs --consulta` | 7 huellas iguales (última hoja instalada: 57; esta noche no se instaló ninguna) |
 | La base de producción rechaza pisar un identificador ocupado | `prueba directa que se deshace sola` | Otra marca: rechazado · sin marca: rechazado · misma marca: corrige |
 | Asistencia con dos teléfonos, semana cerrada y pago hecho | `pruebas/auditoria_ausencias_navegador.py` | 37 de 37 |
 | Campo: rancho vacío, parcelas, cultivos, calendario y cosechas con dos teléfonos | `pruebas/auditoria_campo_navegador.py` | 63 de 63 |
 | Captura diaria: actividades, registro de varios, pase de lista, tareas, reportes, jornadas, credenciales y externos | `pruebas/auditoria_captura_navegador.py` | 66 de 66 |
-| Los números cuadran entre Finanzas, Cierre de mes, ¿Cómo vamos?, Dirección, Resumen, Temporadas, Mano de obra, Semana y ContPAQi | `pruebas/auditoria_numeros_navegador.py` | 35 de 35 |
+| Los números cuadran entre Finanzas, Cierre de mes, ¿Cómo vamos?, Dirección, Resumen, Temporadas, Mano de obra, Semana y ContPAQi | `pruebas/auditoria_numeros_navegador.py` | 39 de 39 |
 | Socios, Banco y ¿Alcanza?: lo personal fuera de todo, estados que cuadran y que no, conciliar | `pruebas/auditoria_banco_navegador.py` | 37 de 37 |
 | Papeles: factura en XML, almacén, la misma dos veces, foto sin lectura | `pruebas/auditoria_papeles_navegador.py` | 15 de 15 |
 | Control: PINs de dirección, orden de recarga con un gasto sin subir, Subir catálogos, Arranque | `pruebas/auditoria_control_navegador.py` | 32 de 32 |
@@ -44,6 +44,18 @@ Corte: domingo 22 de noviembre de 2026 (noche). **66 aprobados · 1 recorridos e
 | Equipo, Personal, Jornadas y Mano de obra con cuentas y dos teléfonos | `pruebas/auditoria_personal_navegador.py` | 23 de 23 |
 | Equipos de trabajo y Cuadrillas con cuentas y dos teléfonos | `pruebas/auditoria_cuadrillas_navegador.py` | 23 de 23 |
 | Horas adicionales, prestaciones y bajas con cuentas | `pruebas/auditoria_prestaciones_navegador.py` | 25 de 25 |
+| Corrida de ajo de la parcela al cobro: revoltura, cambio de tarima, calidad por origen y ritmo, categorías al ajo terminado, dos teléfonos sobre el mismo lote | `pruebas/auditoria_corrida_navegador.py` | 52 de 52 |
+| Captura: trabajo de bodega, cosecha, quién lo ordenó, tractor y externos en una captura, tareas | `pruebas/auditoria_captura2_navegador.py` | 22 de 22 |
+| Campo: calendario, aplicaciones canceladas, siembras, semilla propia, temporadas | `pruebas/auditoria_ciclo_navegador.py` | 30 de 30 |
+| Reportes y temporadas contra Finanzas, cierre de mes en dos teléfonos | `pruebas/auditoria_reportes_navegador.py` | 25 de 25 |
+| Entregas del almacén: herramientas, «sigue en uso», bajas, traslados en dos teléfonos | `pruebas/auditoria_entregas2_navegador.py` | 17 de 17 |
+| Mis compras con PIN, foto del ticket, sin señal y doble toque | `pruebas/auditoria_compras_navegador.py` | 16 de 16 |
+| Papeles: PDF con texto y patrón aprendido | `pruebas/auditoria_papeles2_navegador.py` | 14 de 14 |
+| Checar sin sesión con PIN y con la credencial frente a la cámara (de imitación) | `pruebas/auditoria_checador_navegador.py` | 13 de 13 |
+| Tabla por cortes: pinceles, repetir, repintar, borrar, costo, otro teléfono | `pruebas/auditoria_cortes_navegador.py` | 17 de 17 |
+| Tabla por cortes como sucesora de Registro de varios y del reparto, tiempo esperando tarea, sin señal | `pruebas/auditoria_cortes2_navegador.py` | 31 de 31 |
+| Checar con el teléfono propio y su ubicación (GPS de imitación) | `pruebas/auditoria_gps_navegador.py` | 16 de 16 |
+| Prestaciones sobre la semana entre 7 | `pruebas/auditoria_aguinaldo_navegador.py` | 4 de 4 |
 
 ## Qué está publicado y qué no
 
@@ -270,8 +282,8 @@ Corte: domingo 22 de noviembre de 2026 (noche). **66 aprobados · 1 recorridos e
 ## Qué falta para decir «listo»
 
 1. **Respaldo real.** Luis crea el repositorio privado y sus tres secretos (docs/RESPALDO-AUTOMATICO.md). Después se corre el primer respaldo y se restaura en un proyecto aislado.
-2. **Prueba de campo.** Una hora, en los teléfonos de verdad, con la guía docs/PRUEBA-DEL-DOMINGO.md.
-3. **Terminar la auditoría.** Recorrer como persona cada módulo que falta, corregir lo que salga y volver a probar.
+2. **Prueba de campo.** Lunes o martes, en los teléfonos de verdad: 20 pasos en el documento «AgroGestión — Prueba de campo» (también en docs/OPERACION-1.0.md, sección 7).
+3. **Papeles con fotos.** De los 67 módulos queda uno en parte: leer fotos de tickets, etiquetas y horómetro necesita la llave de la IA (un gasto que autoriza Luis).
 4. **Criterio de Miguel, Fito y Dirección.** Organización, jornada y especialidades esperan su validación; no es una decisión técnica.
 
 ## Lo que le toca a Luis

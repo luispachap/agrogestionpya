@@ -1,6 +1,6 @@
 {
   "_nota": "ÚNICA FUENTE DE VERDAD del estado de AgroGestión 1.0. De aquí se generan docs/AUDITORIA-FUNCIONAL.md y el tablero de cierre (node herramientas/estado.mjs). No se escriben cifras en ningún otro documento.",
-  "corte": "domingo 22 de noviembre de 2026 (noche)",
+  "corte": "lunes 23 de noviembre de 2026, 5:30 de la mañana",
   "veredicto": {
     "sello": "NO LISTO",
     "detalle": "como sistema completo · listo para prueba de campo en la operación diaria",
@@ -15,8 +15,8 @@
         "d": "Todo es con datos inventados y teléfonos imitados: señal, cámara, GPS, impresora y correo reales no se pueden imitar."
       },
       {
-        "t": "Los 67 módulos ya se revisaron, pero 27 quedan en parte",
-        "d": "Cada uno dice qué le falta probar. Casi todo lo que falta es de Bodega, Personal y Pagos con cuentas, y de lo que pide un teléfono de verdad."
+        "t": "66 de 67 módulos aprobados; uno en parte",
+        "d": "Papeles: las fotos necesitan la lectura con IA. Todo lo demás se usó como una persona, con cuentas, dos teléfonos, sin señal y recargando."
       }
     ]
   },
@@ -24,7 +24,7 @@
     {
       "que": "Reglas y cálculos",
       "con": "npm test",
-      "resultado": "1,309 de 1,309"
+      "resultado": "1,347 de 1,347"
     },
     {
       "que": "La base, armada desde cero y atacada por perfil",
@@ -37,9 +37,9 @@
       "resultado": "26 de 26"
     },
     {
-      "que": "Todo junto: lo anterior, compilación y 55 recorridos en navegador",
+      "que": "Todo junto: lo anterior, compilación y 69 recorridos en navegador",
       "con": "sh pruebas/todo.sh",
-      "resultado": "Todo pasa (sobre la versión publicada, `52fbafb`)"
+      "resultado": "Todo pasa (sobre la versión publicada, `4edbcb3`)"
     },
     {
       "que": "Producción cerrada sin sesión",
@@ -54,12 +54,12 @@
     {
       "que": "Lo publicado es exactamente lo probado, byte por byte",
       "con": "pruebas/real_identico.py",
-      "resultado": "18 de 18 archivos idénticos a `52fbafb`"
+      "resultado": "18 de 18 archivos idénticos a `4edbcb3`"
     },
     {
       "que": "Producción igual a la base probada",
       "con": "node pruebas/base/paridad.mjs --consulta",
-      "resultado": "7 huellas iguales (última hoja instalada: 56)"
+      "resultado": "7 huellas iguales (última hoja instalada: 57; esta noche no se instaló ninguna)"
     },
     {
       "que": "La base de producción rechaza pisar un identificador ocupado",
@@ -84,7 +84,7 @@
     {
       "que": "Los números cuadran entre Finanzas, Cierre de mes, ¿Cómo vamos?, Dirección, Resumen, Temporadas, Mano de obra, Semana y ContPAQi",
       "con": "pruebas/auditoria_numeros_navegador.py",
-      "resultado": "35 de 35"
+      "resultado": "39 de 39"
     },
     {
       "que": "Socios, Banco y ¿Alcanza?: lo personal fuera de todo, estados que cuadran y que no, conciliar",
@@ -150,6 +150,66 @@
       "que": "Horas adicionales, prestaciones y bajas con cuentas",
       "con": "pruebas/auditoria_prestaciones_navegador.py",
       "resultado": "25 de 25"
+    },
+    {
+      "que": "Corrida de ajo de la parcela al cobro: revoltura, cambio de tarima, calidad por origen y ritmo, categorías al ajo terminado, dos teléfonos sobre el mismo lote",
+      "con": "pruebas/auditoria_corrida_navegador.py",
+      "resultado": "52 de 52"
+    },
+    {
+      "que": "Captura: trabajo de bodega, cosecha, quién lo ordenó, tractor y externos en una captura, tareas",
+      "con": "pruebas/auditoria_captura2_navegador.py",
+      "resultado": "22 de 22"
+    },
+    {
+      "que": "Campo: calendario, aplicaciones canceladas, siembras, semilla propia, temporadas",
+      "con": "pruebas/auditoria_ciclo_navegador.py",
+      "resultado": "30 de 30"
+    },
+    {
+      "que": "Reportes y temporadas contra Finanzas, cierre de mes en dos teléfonos",
+      "con": "pruebas/auditoria_reportes_navegador.py",
+      "resultado": "25 de 25"
+    },
+    {
+      "que": "Entregas del almacén: herramientas, «sigue en uso», bajas, traslados en dos teléfonos",
+      "con": "pruebas/auditoria_entregas2_navegador.py",
+      "resultado": "17 de 17"
+    },
+    {
+      "que": "Mis compras con PIN, foto del ticket, sin señal y doble toque",
+      "con": "pruebas/auditoria_compras_navegador.py",
+      "resultado": "16 de 16"
+    },
+    {
+      "que": "Papeles: PDF con texto y patrón aprendido",
+      "con": "pruebas/auditoria_papeles2_navegador.py",
+      "resultado": "14 de 14"
+    },
+    {
+      "que": "Checar sin sesión con PIN y con la credencial frente a la cámara (de imitación)",
+      "con": "pruebas/auditoria_checador_navegador.py",
+      "resultado": "13 de 13"
+    },
+    {
+      "que": "Tabla por cortes: pinceles, repetir, repintar, borrar, costo, otro teléfono",
+      "con": "pruebas/auditoria_cortes_navegador.py",
+      "resultado": "17 de 17"
+    },
+    {
+      "que": "Tabla por cortes como sucesora de Registro de varios y del reparto, tiempo esperando tarea, sin señal",
+      "con": "pruebas/auditoria_cortes2_navegador.py",
+      "resultado": "31 de 31"
+    },
+    {
+      "que": "Checar con el teléfono propio y su ubicación (GPS de imitación)",
+      "con": "pruebas/auditoria_gps_navegador.py",
+      "resultado": "16 de 16"
+    },
+    {
+      "que": "Prestaciones sobre la semana entre 7",
+      "con": "pruebas/auditoria_aguinaldo_navegador.py",
+      "resultado": "4 de 4"
     }
   ],
   "para_listo": [
@@ -159,11 +219,11 @@
     },
     {
       "t": "Prueba de campo",
-      "d": "Una hora, en los teléfonos de verdad, con la guía docs/PRUEBA-DEL-DOMINGO.md."
+      "d": "Lunes o martes, en los teléfonos de verdad: 20 pasos en el documento «AgroGestión — Prueba de campo» (también en docs/OPERACION-1.0.md, sección 7)."
     },
     {
-      "t": "Terminar la auditoría",
-      "d": "Recorrer como persona cada módulo que falta, corregir lo que salga y volver a probar."
+      "t": "Papeles con fotos",
+      "d": "De los 67 módulos queda uno en parte: leer fotos de tickets, etiquetas y horómetro necesita la llave de la IA (un gasto que autoriza Luis)."
     },
     {
       "t": "Criterio de Miguel, Fito y Dirección",
