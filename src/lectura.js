@@ -723,7 +723,7 @@ export function ventanasDeSeguridad({ aplicaciones, inventario, hoy }) {
   const filas = [];
 
   for (const ap of aplicaciones || []) {
-    if (!ap || !ap.fecha || !ap.parcelaId) continue;
+    if (!ap || !ap.fecha || !ap.parcelaId || ap.cancelado) continue; // cancelada = no se aplicó (queda tachada, con su porqué)
     for (const pr of ap.productos || []) {
       const insumo = porInsumo.get(pr.insumoId);
       const nombre = insumo?.nombre || pr.nombre || "un producto";

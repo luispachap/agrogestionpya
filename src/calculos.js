@@ -773,3 +773,20 @@ export function nivelDeExistencia(articulo) {
   return "ok";
 }
 export const estaCritico = (a) => ["critico", "negativo"].includes(nivelDeExistencia(a));
+
+// UNA SIEMBRA CON ALGO REGISTRADO NO SE ELIMINA. Antes bastaba un «¿Eliminar?» y las actividades, los gastos, la
+// cosecha y las estibas de esa temporada se quedaban sin ciclo (y la trazabilidad de las estibas, sin siembra). Igual
+// que una parcela: si tiene registros se dice cuáles; si se sembró por error y no tiene nada, sí se puede.
+const COLECCIONES_CON_SIEMBRA = [["actividades", "actividades"], ["egresos", "gastos"], ["ingresos", "ingresos"], ["aplicaciones", "aplicaciones"], ["estibas", "estibas"], ["avances_fase", "avances reportados"], ["indicaciones", "tareas"]];
+export function usoDeSiembra(data, siembraId) {
+  const partes = [];
+  for (const [col, nombre] of COLECCIONES_CON_SIEMBRA) {
+    const n = (data?.[col] || []).filter(x => x && x.siembraId === siembraId).length;
+    if (n) partes.push({ que: nombre, cuantos: n });
+  }
+  const cos = (data?.cosechas || []).reduce((s, c) => s + (c?.registros || []).filter(r => r && r.siembraId === siembraId && !r.cancelado).length, 0);
+  if (cos) partes.push({ que: "registros de cosecha", cuantos: cos });
+  const semilla = (data?.siembras || []).filter(x => x && x.id !== siembraId && x.semilla?.siembraId === siembraId).length;
+  if (semilla) partes.push({ que: "siembras con su semilla", cuantos: semilla });
+  return { usada: partes.length > 0, partes, dice: partes.length ? `No se puede eliminar: tiene ${partes.map(p => `${p.cuantos} ${p.que}`).join(", ")}. Lo registrado se quedaría sin su temporada. Si ya terminó, márcala como cosechada.` : "" };
+}

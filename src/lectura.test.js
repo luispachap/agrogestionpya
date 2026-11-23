@@ -589,3 +589,10 @@ test("lo_que_no_se_parece_no_alarma", () => {
   // sin datos no se inventa parecido
   assert.deepEqual(papelesParecidos({}, { lecturas: [{ id: "z", campos: {} }] }), []);
 });
+
+test("una_aplicacion_cancelada_no_cuenta_para_reentrada_ni_carencia_porque_no_se_aplico", () => {
+  const inventario = [{ id: "i1", nombre: "FUNGICIDA", reentradaDias: 2, carenciaDias: 10 }];
+  const ap = { id: "a1", fecha: "2026-11-19", parcelaId: "p1", productos: [{ insumoId: "i1", total: 3 }] };
+  assert.equal(ventanasDeSeguridad({ aplicaciones: [ap], inventario, hoy: "2026-11-19" }).noEntrar.length, 1);
+  assert.equal(ventanasDeSeguridad({ aplicaciones: [{ ...ap, cancelado: true, motivoCancelacion: "se capturó por error" }], inventario, hoy: "2026-11-19" }).noEntrar.length, 0);
+});

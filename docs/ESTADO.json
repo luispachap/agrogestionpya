@@ -185,10 +185,9 @@
   {
    "n": 1,
    "nombre": "Operación",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_agronomia 30",
-   "probado": "Lo que va en proceso por etapa (con el avance reportado en campo) y lo atrasado contra el calendario del cultivo; se llama igual en el menú y en la pantalla",
-   "falta": "«Cosecha en curso» (cuando una siembra llega a su etapa de cosecha)"
+   "estado": "APROBADO",
+   "prueba": "auditoria_agronomia 30 · auditoria_ciclo 30",
+   "probado": "Lo que va en proceso por etapa (con el avance reportado en campo) y lo atrasado contra el calendario del cultivo; se llama igual en el menú y en la pantalla; «Cosecha en curso» con un cultivo cuyas etapas se escribieron en la app, y lo recolectado en cuanto se anota"
   },
   {
    "n": 2,
@@ -246,10 +245,9 @@
   {
    "n": 9,
    "nombre": "Aplicaciones",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_agronomo 23 · ejecutores",
-   "probado": "Aplicación con un producto del inventario: descuenta lo aplicado, carga su costo a la parcela una vez, no vuelve a salir del flujo, avisa si no se dice quién aplicó, recarga, otro aparato; una compra posterior más cara no le cambia el costo",
-   "falta": "Con aplicadores y quién la indicó (visto en local), reentrada y carencia, reporte de la aplicación"
+   "estado": "APROBADO",
+   "prueba": "auditoria_agronomo 24 · ejecutores 10 · auditoria_ciclo 30",
+   "probado": "Aplicación con un producto del inventario: descuenta lo aplicado, carga su costo a la parcela una vez, no vuelve a salir del flujo, avisa si no se dice quién aplicó, recarga, otro aparato; una compra posterior más cara no le cambia el costo; con dos aplicadores y quién la indicó; queda en la temporada de ese día; reentrada (rojo, no entrar) y carencia (ámbar, no cortar) en el tablero; el producto sin etiqueta lo dice en el inventario sin decir que ya se puede; el reporte; cancelar (ya no se borra) con su porqué: el producto regresa con su costo y el costo se cancela"
   },
   {
    "n": 10,
@@ -293,18 +291,16 @@
   {
    "n": 15,
    "nombre": "Estado de parcelas",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_campo 63",
-   "probado": "Enseña cada parcela con su temporada, en qué día del ciclo va, superficie y fecha de siembra; la que no tiene siembra lo dice; el agrónomo la ve",
-   "falta": "Ver el avance por fase y los semáforos con un cultivo cuyas etapas se escribieron en la app (ya se pueden escribir)"
+   "estado": "APROBADO",
+   "prueba": "auditoria_campo 63 · auditoria_ciclo 30",
+   "probado": "Enseña cada parcela con su temporada, en qué día del ciclo va, superficie y fecha de siembra; la que no tiene siembra lo dice; el agrónomo la ve; avance por etapa y semáforos con etapas escritas en la app (lo que debió pasar y nadie reportó, con atraso), y reportar el avance desde ahí"
   },
   {
    "n": 16,
    "nombre": "Calendario",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_campo 63",
-   "probado": "Asignar un cultivo a una parcela en un mes: nombra la temporada, estima la cosecha, guarda variedad, superficie y de dónde salió la semilla; se pinta en el calendario; detalle de la siembra; darla por cosechada (fecha mal escrita o anterior a la siembra no entra); el encargado no lo tiene",
-   "falta": "Avance por fase con etapas escritas en la app, editar y eliminar una siembra, semilla propia ligada a una cosecha"
+   "estado": "APROBADO",
+   "prueba": "auditoria_campo 63 · auditoria_ciclo 30",
+   "probado": "Asignar un cultivo a una parcela en un mes: nombra la temporada, estima la cosecha, guarda variedad, superficie y de dónde salió la semilla; se pinta en el calendario; detalle de la siembra; darla por cosechada (fecha mal escrita o anterior a la siembra no entra); el encargado no lo tiene; etapa actual y avance del ciclo con etapas escritas en la app; editar la siembra (también su superficie); una siembra con registros no se elimina y una sembrada por error sí; semilla propia ligada a la temporada que se cosechó"
   },
   {
    "n": 17,
@@ -1449,6 +1445,51 @@
    "estado": "corregido",
    "publicado": false,
    "nota": "Queda quién y cuándo la dio por hecha (también desde el teléfono del trabajador); borrar pregunta y dice quién deja de verla"
+  },
+  {
+   "n": 83,
+   "modulo": "Aplicaciones",
+   "que": "Eliminar una aplicación dejaba su costo cargado a la parcela y el producto descontado, y quitaba en silencio el aviso de «no entrar»",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Ya no se borra: se cancela con su porqué; queda tachada, el producto regresa al almacén con el costo con que salió y su costo se cancela con el mismo porqué"
+  },
+  {
+   "n": 84,
+   "modulo": "Calendario",
+   "que": "Una siembra con actividades, cosecha o estibas se podía eliminar con un «¿Eliminar?»: todo lo de esa temporada se quedaba sin ciclo",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Si tiene registros dice cuáles y no se elimina (márcala como cosechada); la sembrada por error sí"
+  },
+  {
+   "n": 85,
+   "modulo": "Calendario",
+   "que": "La semilla propia ofrecía «undefined · parcela · 0 kg» (la cosecha de una parcela no tiene fecha ni cantidad propias) y no decía de qué temporada salió",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Ofrece cada temporada que cosechó, con parcela, cultivo, año y kilos; la siembra queda ligada a esa temporada"
+  },
+  {
+   "n": 86,
+   "modulo": "Aplicaciones",
+   "que": "La aplicación tomaba el cultivo anotado en la parcela, no el de la temporada de ese día, y no quedaba ligada a la temporada",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Cultivo y temporada salen de la siembra que la parcela tenía ese día"
+  },
+  {
+   "n": 87,
+   "modulo": "Calendario",
+   "que": "La superficie de una siembra no se podía corregir (y reparte el costo cuando dos temporadas comparten la parcela)",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "«Editar datos de la siembra» ya trae la superficie"
   }
  ],
  "no_se_pudo": [

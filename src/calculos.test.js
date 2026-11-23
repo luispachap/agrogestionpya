@@ -674,3 +674,12 @@ test("un_articulo_sin_minimo_en_cero_no_es_alarma_pero_uno_en_negativo_si", () =
   assert.equal(nivelDeExistencia_t({ existencia: 7, minimo: 5 }), "bajo");
   assert.equal(nivelDeExistencia_t({ existencia: 8, minimo: 5 }), "ok");
 });
+
+import { usoDeSiembra as usoDeSiembra_t } from "./calculos.js";
+test("una_siembra_con_actividades_o_cosecha_no_se_elimina_y_una_vacia_si", () => {
+  const data = { actividades: [{ id: "a1", siembraId: "s1" }], cosechas: [{ id: "c", registros: [{ id: "r1", siembraId: "s1" }, { id: "r2", siembraId: "s2", cancelado: true }] }], estibas: [{ id: "e1", siembraId: "s1" }], siembras: [] };
+  const u = usoDeSiembra_t(data, "s1");
+  assert.equal(u.usada, true);
+  assert.match(u.dice, /1 actividades/); assert.match(u.dice, /1 registros de cosecha/); assert.match(u.dice, /1 estibas/);
+  assert.equal(usoDeSiembra_t(data, "s2").usada, false, "un registro de cosecha cancelado no la ata");
+});

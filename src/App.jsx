@@ -152,7 +152,7 @@ import {
   fechaLocal, mesLocal, sumarDias, mesAnterior, diasEntre,
   saldoCredito, diasParaVencer, cubetaVencimiento, CUBETAS_VENCIMIENTO,
   estaCancelado, vivos, delRancho, esPersonal, marcarCancelado, ganaAlSincronizar,
-  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana, fichaDeProveedor, esDelProveedor, nombreDelProveedor, revisarMaquina, nivelDeExistencia, estaCritico, idDeLote, conExistenciaDeLote, juntarLotes, cerrarTarima, idDeArticuloAparte,
+  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana, fichaDeProveedor, esDelProveedor, nombreDelProveedor, revisarMaquina, usoDeSiembra, nivelDeExistencia, estaCritico, idDeLote, conExistenciaDeLote, juntarLotes, cerrarTarima, idDeArticuloAparte,
 } from "./calculos";
 // El lector de papeles: la cascada de gratis a caro (QR y XML sin costo,
 // patrón aprendido para lo ya conocido, IA sólo para un formato nuevo).
@@ -16432,7 +16432,9 @@ function CalendarioCultivos({ data, add, upd, del, session, onClose }) {
       variedadNombre: culVar?.nombre || "",
       semilla: {
         origen: celdaForm.semillaOrigen || "",        // "propia" | "comprada" | ""
-        cosechaId: celdaForm.semillaCosechaId || "",   // si es propia, de qué cosecha
+        // Si es propia: de qué cosecha y DE QUÉ TEMPORADA (la cosecha de una parcela junta todas sus temporadas).
+        cosechaId: (celdaForm.semillaCosechaId || "").split("|")[0] || "",
+        siembraId: (celdaForm.semillaCosechaId || "").split("|")[1] || "",
         proveedor: celdaForm.semillaProveedor || "",   // si es comprada
         lote: celdaForm.semillaLote || "",
         anio: celdaForm.semillaAnio || "",
@@ -16470,7 +16472,8 @@ function CalendarioCultivos({ data, add, upd, del, session, onClose }) {
             {si.semilla && si.semilla.origen === "propia" && (() => {
               const co = (data.cosechas || []).find(x => x.id === si.semilla.cosechaId);
               const p = co && data.parcelas.find(x => x.id === co.parcelaId);
-              return <div className="confirm-row"><span className="cr-label">Semilla</span><span className="cr-val">Propia{co ? ` · ${p?.nombre || ""} ${co.fecha?.slice(0, 4) || ""}` : ""}</span></div>;
+              const de = si.semilla.siembraId && (data.siembras || []).find(x => x.id === si.semilla.siembraId);
+              return <div className="confirm-row"><span className="cr-label">Semilla</span><span className="cr-val">Propia{co ? ` · ${p?.nombre || ""}${de ? ` · ${de.cultivoNombre || ""}${de.variedadNombre ? ` ${de.variedadNombre}` : ""} ${String(de.fechaSiembra || "").slice(0, 4)}` : ""}` : ""}</span></div>;
             })()}
             {si.semilla && si.semilla.origen === "comprada" && (
               <div className="confirm-row"><span className="cr-label">Semilla</span><span className="cr-val">Comprada{si.semilla.proveedor ? ` · ${si.semilla.proveedor}` : ""}{si.semilla.lote ? ` · lote ${si.semilla.lote}` : ""}</span></div>
@@ -16542,7 +16545,7 @@ function CalendarioCultivos({ data, add, upd, del, session, onClose }) {
             <button className="btn btn-outline" onClick={() => upd("siembras", { ...si, estado: "activa" })}>Reactivar siembra</button>
           )}
           <button className="btn btn-outline mt-2" onClick={() => setEditSiembra(si)}><Ic e="✏️" /> Editar datos de la siembra</button>
-          <button className="btn btn-danger mt-2" onClick={() => { if (confirm("¿Eliminar esta siembra? Los costos quedarán sin ciclo asignado.")) { del("siembras", si.id); setDetalleSiembra(null); } }}><Ic e="🗑" /> Eliminar siembra</button>
+          <button className="btn btn-danger mt-2" onClick={() => { const u = usoDeSiembra(data, si.id); if (u.usada) { alert(u.dice); return; } if (confirm("¿Eliminar esta siembra? No tiene nada registrado.")) { del("siembras", si.id); setDetalleSiembra(null); } }}><Ic e="🗑" /> Eliminar siembra</button>
         </div>
         {editSiembra && (
           <EditorRegistro
@@ -16553,6 +16556,8 @@ function CalendarioCultivos({ data, add, upd, del, session, onClose }) {
               ["fechaCosechaEstimada", "Cosecha estimada", "date"],
               ["fechaCosechaReal", "Cosecha real", "date"],
               ["presupuesto", "Presupuesto del ciclo", "number"],
+              // La superficie reparte el costo cuando dos temporadas comparten la parcela: tiene que poderse corregir.
+              ["superficie", "Superficie (ha)", "number"],
               ["estado", "Estado", "select", [{ v: "activa", l: "Activa" }, { v: "finalizada", l: "Finalizada" }, { v: "planeada", l: "Planeada" }]],
               ["notas", "Notas", "textarea"],
             ]}
@@ -16715,9 +16720,13 @@ function CalendarioCultivos({ data, add, upd, del, session, onClose }) {
                     <div className="form-group"><label className="form-label">¿De qué cosecha?</label>
                       <select className="inp" value={celdaForm.semillaCosechaId} onChange={e => setCeldaForm(f => ({ ...f, semillaCosechaId: e.target.value }))}>
                         <option value="">Seleccionar cosecha...</option>
-                        {(data.cosechas || []).slice().sort((a, b) => (b.fecha || "").localeCompare(a.fecha || "")).map(co => {
+                        {(data.cosechas || []).flatMap(co => {
+                          // Una opción por temporada que de verdad cosechó (antes decía «undefined · … · 0»: la cosecha de
+                          // una parcela no tiene fecha ni cantidad propias, las tienen sus registros).
                           const p = data.parcelas.find(x => x.id === co.parcelaId);
-                          return <option key={co.id} value={co.id}>{co.fecha} · {p?.nombre || "—"} · {fmtN(co.cantidad)} {co.unidad}</option>;
+                          const temps = cosechaPorTemporada({ cosecha: co, siembras: data.siembras || [], parcelaId: co.parcelaId, costoEntre: () => 0, hoy: today() }).filter(t => t.cantidad > 0);
+                          if (!temps.length) { const tot = totalCosecha(co); return tot > 0 ? [<option key={co.id} value={`${co.id}|`}>{p?.nombre || "—"} · {fmtN(tot)} {co.unidad}</option>] : []; }
+                          return temps.map(t => <option key={`${co.id}|${t.id}`} value={`${co.id}|${t.id}`}>{p?.nombre || "—"} · {t.cultivo}{t.variedad ? ` ${t.variedad}` : ""} {t.desde.slice(0, 4)} · {fmtN(t.cantidad)} {co.unidad}</option>);
                         })}
                       </select>
                       {(data.cosechas || []).length === 0 && <div className="text-xs text-muted mt-1">No hay cosechas registradas todavía.</div>}
@@ -17683,8 +17692,13 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
     if ((form.aplicaron || []).length === 0 && asi !== true) { setAvisoSinAplicador(true); return; }
     const apId = `ap${unico()}`;
     const { aplicaron, indicoId, ...loDemas } = form;
+    // El cultivo es el de la temporada que tenía la parcela ESE día, no el anotado en la parcela; y la aplicación queda
+    // ligada a esa temporada (así una siembra con aplicaciones no se puede eliminar).
+    const _sb = siembraEnFecha(data, form.parcelaId, form.fecha || today());
+    // Cada producto guarda el costo con que salió: si la aplicación se cancela, regresa al almacén con ESE costo.
+    const productos = (form.productos || []).map(pr => { const inv = pr.insumoId && data.inventario.find(i => i.id === pr.insumoId); return inv ? { ...pr, costoUnit: inv.costo_unit || 0 } : pr; });
     add("aplicaciones", {
-      ...loDemas, id: apId, cultivo: parcelaSel?.cultivo || "",
+      ...loDemas, productos, id: apId, cultivo: _sb?.cultivoNombre || parcelaSel?.cultivo || "", siembraId: _sb?.id || null,
       superficie, registradoPor: session.id,
       // Quien registra no es por eso quien aplicó: si no se dice quién aplicó, queda vacío y así se enseña.
       ejecutores: genteAp.filter(g => aplicaron.includes(g.id)), ordenadoPor: genteAp.find(g => g.id === indicoId) || null,
@@ -17758,7 +17772,26 @@ function GestionAplicaciones({ data, add, upd, del, setInv, session, onClose }) 
           </div>
           {a.notas && <div className="card"><div className="card-title">Notas</div><div className="text-sm text-muted">{a.notas}</div></div>}
           <button className="btn btn-accent mb-2" onClick={() => generarReporteAplicacion(a, p)}><Ic e="📄" /> Generar reporte para compartir</button>
-          <button className="btn btn-danger" onClick={() => { if (confirm("¿Eliminar esta aplicación?")) { del("aplicaciones", a.id); setDetalle(null); } }}><Ic e="🗑" /> Eliminar aplicación</button>
+          {/* Una aplicación no se borra: borrarla dejaba su costo cargado a la parcela y el producto descontado, y quitaba
+              en silencio el aviso de reentrada. Se CANCELA con su porqué: queda tachada, el producto regresa al almacén
+              (un movimiento) y su costo se cancela con el mismo porqué. */}
+          <SelloCancelado registro={a} />
+          {!estaCancelado(a) && <button className="btn btn-danger" onClick={() => {
+            const motivo = window.prompt("¿Por qué se cancela esta aplicación? (por ejemplo: se capturó por error, no se aplicó). El producto regresa al almacén y su costo se cancela.");
+            if (motivo == null) return;
+            if (!motivo.trim()) { alert("Hace falta decir por qué se cancela."); return; }
+            const quien = session.nombre || "—", cuando = new Date().toISOString();
+            upd("aplicaciones", marcarCancelado(a, { motivo, quien, cuando }));
+            (data.egresos || []).filter(e => e.aplicacionId === a.id && !estaCancelado(e)).forEach(e => upd("egresos", marcarCancelado(e, { motivo: `Se canceló la aplicación: ${motivo}`, quien, cuando })));
+            const eg = (data.egresos || []).filter(e => e.aplicacionId === a.id);
+            const conInsumo = (a.productos || []).filter(pr => pr.insumoId && pr.total > 0);
+            conInsumo.forEach(pr => {
+              // El costo con que salió; de una aplicación de antes con un solo producto, el del gasto que cargó. Si no se sabe, entra sin precio (por valuar), no al de hoy.
+              const cu = pr.costoUnit ?? (conInsumo.length === 1 && eg[0] ? (Number(eg[0].monto) || 0) / pr.total : null);
+              setInv(pr.insumoId, pr.total, { concepto: `Regresa: se canceló la aplicación del ${a.fecha}`, ...(cu > 0 ? { costoUnit: cu } : {}), fecha: today() });
+            });
+            setDetalle(null);
+          }}><Ic e="⚠️" /> Cancelar aplicación</button>}
         </div>
       </div>
     );
