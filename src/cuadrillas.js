@@ -85,6 +85,8 @@ export const AJUSTES = {
   // registro la puede cambiar para un caso especial (una parcela con mucha hierba se paga más); nada cuenta sin aprobación.
   tarifa_externo_dia: { defecto: null, minimo: 1, maximo: 10000, nombre: "Externos · pago por día que se le sugiere al registrar (cada registro lo puede cambiar, y nada cuenta hasta que se aprueba)" },
   horas_jornada: { defecto: 8, minimo: 4, maximo: 12, nombre: "Horas del horario habitual (de ahí en adelante son horas adicionales)" },
+  // La tabla por cortes (src/cortes.js). PROVISIONAL: cuántos cortes y de qué horas falta validarlo con Miguel.
+  cortes_dia: { defecto: "tres", opciones: { tres: "Tres cortes: 7–10, 10–13 y 14–17", dos: "Dos cortes: 7–12 y 13–17", cuatro: "Cuatro cortes: 7–9:30, 9:30–12, 13–15 y 15–17" }, nombre: "Tabla por cortes · cuántos cortes tiene el día (provisional: falta validarlo con Miguel)" },
 };
 export function ajusteVigente(eventos, clave) {
   const def = AJUSTES[clave];

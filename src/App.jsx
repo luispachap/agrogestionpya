@@ -41,6 +41,7 @@ import { registrarAusencia, justificarFalta, ausenciasDe, semanaDe, leToca, DIAS
 import { CONCEPTOS_PERSONAL, POLITICAS, baseDePersonas, pagadoSinActividad, fuentePersonal, fuentePrestaciones, fuenteBajas, fuenteBonos } from "./personal.js";
 import { T_DETERMINADA, T_PAGO_PRESTACION, CONCEPTOS_PRESTACION, cuentaDe as cuentaDePrestaciones, renglonesAlCosto, proponer as proponerPrestacion, determinar as determinarPrestacion, pagarPrestacion, nombreDePeriodo, periodosDe as periodosDePrestacion, determinadasRepetidas, T_SALDO_INICIAL, capturarSaldoInicial, CONCEPTOS_DE_SALDO, RELACIONES, remuneracionesDe } from "./prestaciones.js";
 import { estadoDeSemana, cerrarSemana, reabrirSemana, diferenciasDelCierre, confirmarPagos } from "./cierres.js";
+import { cortesVigentes, pintar as pintarCorte, borrarCelda, tablaDelDia, celdasDelDia, valorDe as valorDeCelda } from "./cortes.js";
 import { pdfComoDataUrl } from "./pdfSimple.js";
 import { costoDelMes, cerrarMes, reabrirMes, estadoDeMes, ajustesPosteriores } from "./cierreMes.js";
 import { solicitarPrestamo, autorizarPrestamo, rechazarPrestamo, entregarPrestamo, prestamosDe, ESTADOS_DE_PRESTAMO, saldoInicialDePrestamo, corregirSaldoInicial, prestarDeUnaVez, abonoAcordado } from "./prestamos.js";
@@ -195,7 +196,7 @@ body{background:#0A1005;background-image:radial-gradient(125% 80% at 50% -8%,#1F
 h1,h2,h3{font-family:'Plus Jakarta Sans',-apple-system,system-ui,sans-serif;letter-spacing:-.015em;line-height:1.15;}
 input,select,textarea{font-family:'Nunito',-apple-system,system-ui,sans-serif;}
 ::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:#16200D;}::-webkit-scrollbar-thumb{background:#3A4A22;border-radius:2px;}
-:root{--bg:#0C1207;--surface:#151D0E;--card:#131B0B;--card2:#0E1408;--border:#2B361B;--border-soft:#22301399;--accent:#E4B23F;--accent-deep:#C99427;--gold:#E4B23F;--red:#E36464;--blue:#6FB4E2;--text:#F4F1E2;--muted:#8FA077;--safe:#9FD648;--money:#C6F067;--brand:#84C001;--shadow:0 2px 10px rgba(0,0,0,.28);--shadow-lg:0 18px 44px rgba(0,0,0,.45);--ring:0 0 0 3px rgba(228,178,63,.16);}
+:root{--pincel-1:#2F6B3A;--pincel-2:#2F5B7A;--pincel-3:#7A5A1E;--pincel-4:#6B2F5E;--pincel-5:#2F6B6B;--pincel-6:#6B3A2F;--bg:#0C1207;--surface:#151D0E;--card:#131B0B;--card2:#0E1408;--border:#2B361B;--border-soft:#22301399;--accent:#E4B23F;--accent-deep:#C99427;--gold:#E4B23F;--red:#E36464;--blue:#6FB4E2;--text:#F4F1E2;--muted:#8FA077;--safe:#9FD648;--money:#C6F067;--brand:#84C001;--shadow:0 2px 10px rgba(0,0,0,.28);--shadow-lg:0 18px 44px rgba(0,0,0,.45);--ring:0 0 0 3px rgba(228,178,63,.16);}
 .app{display:flex;flex-direction:column;min-height:100vh;max-width:480px;margin:0 auto;position:relative;background:#0C1207;}
 .screen{flex:1;overflow-y:auto;padding-bottom:80px;}
 .bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:rgba(12,18,7,.97);backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;z-index:50;padding:8px 4px 12px;}
@@ -764,7 +765,7 @@ html[data-tema="claro"]{color-scheme:light;}
 html[data-tema="claro"] :root,html[data-tema="claro"] .agro-root{}
 html[data-tema="claro"] body{background:#F6F3E8;background-image:linear-gradient(180deg,#FBF8EE 0%,#F4F0DF 100%);color:#3D4A2E;}
 html[data-tema="claro"] .agro-root,html[data-tema="claro"] .app{background:#F6F3E8;color:#3D4A2E;}
-html[data-tema="claro"] .app{--bg:#F6F3E8;--surface:#FFFDF6;--card:#FFFDF6;--card2:#FAF7EC;--border:#E2DCC4;--border-soft:#E6DFC8;--accent:#C8901B;--accent-deep:#A87812;--gold:#B8830F;--red:#C94F3D;--blue:#2E6E9E;--text:#24321B;--muted:#7A8468;--safe:#4C8A22;--money:#3A6519;--brand:#4C8A22;--shadow:0 2px 10px rgba(101,90,50,.08);--shadow-lg:0 18px 44px rgba(101,90,50,.16);--ring:0 0 0 3px rgba(200,144,27,.18);}
+html[data-tema="claro"] .app{--pincel-1:#BFE3C4;--pincel-2:#BFD6EA;--pincel-3:#F1DDB0;--pincel-4:#E8C4DF;--pincel-5:#BFE6E3;--pincel-6:#EECBC0;--bg:#F6F3E8;--surface:#FFFDF6;--card:#FFFDF6;--card2:#FAF7EC;--border:#E2DCC4;--border-soft:#E6DFC8;--accent:#C8901B;--accent-deep:#A87812;--gold:#B8830F;--red:#C94F3D;--blue:#2E6E9E;--text:#24321B;--muted:#7A8468;--safe:#4C8A22;--money:#3A6519;--brand:#4C8A22;--shadow:0 2px 10px rgba(101,90,50,.08);--shadow-lg:0 18px 44px rgba(101,90,50,.16);--ring:0 0 0 3px rgba(200,144,27,.18);}
 html[data-tema="claro"] .bottom-nav{background:rgba(255,253,246,.97);}
 html[data-tema="claro"] ::-webkit-scrollbar-track{background:#EFE9D5;}html[data-tema="claro"] ::-webkit-scrollbar-thumb{background:#CBC29F;}
 html[data-tema="claro"] .login-bg{background:linear-gradient(180deg,#FBF8EE 0%,#F4F0DF 100%);}
@@ -2661,6 +2662,121 @@ const quienesChecan = (d) => (d.trabajadores || []).concat(d.encargados || []);
 
    La lógica pura vive en src/clima.js, src/plan.js y src/prediccion.js. */
 
+// LA TABLA POR CORTES (src/cortes.js): gente en renglones, cortes del día en columnas; se escoge un pincel (actividad
+// en una parcela) y se pinta. Cada celda es una asignación de siempre: el costo sale del motor de mano de obra.
+// Cortes PROVISIONALES (regla «cortes_dia») hasta validarlos con Miguel.
+const LETRAS = (t) => String(t || "").split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).join("").toUpperCase();
+function TablaPorCortes({ data, add, session }) {
+  const hoy = today();
+  const [fecha, setFecha] = useState(hoy);
+  const [pinceles, setPinceles] = useState([]);           // [{ parcelaId, actividad }]
+  const [sel, setSel] = useState(null);                    // el pincel («parcela|actividad») o "borrar"
+  const [nuevo, setNuevo] = useState({ parcelaId: "", actividad: "" });
+  const [dice, setDice] = useState("");
+  const cortes = cortesVigentes(data.eventos);
+  const personas = [...(data.trabajadores || []), ...(data.encargados || [])].filter(p => p.activo !== false && !p._porBaja);
+  const t = tablaDelDia({ eventos: data.eventos, personas, asistencia: data.asistencia, fecha, cortes, hoy, ahora: new Date().toISOString() });
+  const nombreParcela = (id) => (data.parcelas || []).find(p => p.id === id)?.nombre || "—";
+  const actividades = [...new Set([...catalogoDeActividades(data.eventos, hoy).nombres(["campo"]), ...(data.eventos || []).filter(e => e.tipo === "asignacion").map(e => e.datos.actividad)])].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  // Los pinceles de ese día: los que se escogieron aquí y los que ya están pintados (cada uno con su color fijo).
+  const todos = [...pinceles];
+  for (const c of t.celdas.values()) if (c.valor?.parcelaId && !todos.some(x => x.parcelaId === c.valor.parcelaId && x.actividad === c.valor.actividad)) todos.push({ parcelaId: c.valor.parcelaId, actividad: c.valor.actividad });
+  const llave = (v) => `${v.parcelaId}|${v.actividad}`;
+  const deLlave = (k) => todos.find(x => llave(x) === k) || null;
+  const colorDe = (v) => { const i = todos.findIndex(x => x.parcelaId === v?.parcelaId && x.actividad === v?.actividad); return i < 0 ? "var(--card2)" : `var(--pincel-${(i % 6) + 1})`; };
+  const lunes = (() => { const d = new Date(fecha + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
+  const domingo = sumarDias(lunes, 6);
+  const semanaCerrada = estadoDeSemana(data.eventos, lunes, domingo).estado === "cerrada";
+  const quien = { id: session.id, nombre: session.nombre, rol: session.role === "superadmin" ? "admin" : session.role };
+  let paso = 0; const capturado = () => new Date(Date.now() + (paso++)).toISOString();   // en orden, aunque sea el mismo instante
+  const aplicar = (ids, corteId, pincel = sel) => {
+    if (pincel == null) { setDice("Primero escoge un pincel (arriba)."); return false; }
+    if (!ids.length) return false;
+    const base = { trabajadorIds: ids, fecha, corteId, cortes, quien, capturado: capturado(), semanaCerrada };
+    const pz = pincel === "borrar" ? null : deLlave(pincel) || (typeof pincel === "object" ? pincel : null);
+    if (pincel !== "borrar" && !pz) { setDice("Ese pincel ya no está: escógelo otra vez."); return false; }
+    const r = pincel === "borrar" ? borrarCelda(base) : pintarCorte({ ...base, eventos: data.eventos, parcelaId: pz.parcelaId, actividad: pz.actividad });
+    if (!r.ok) { setDice(r.dice); return false; }
+    r.eventos.forEach(e => add("eventos", e)); setDice(""); return true;
+  };
+  const presentes = t.filas.filter(f => f.checo || f.deLista).map(f => f.persona.id);
+  const repetirAnterior = (i) => {
+    const c0 = cortes[i - 1], c1 = cortes[i]; const celdas = t.celdas;
+    const grupos = new Map();
+    for (const f of t.filas) { const v = valorDeCelda(celdas, f.persona.id, c0.id); if (!v?.parcelaId || valorDeCelda(celdas, f.persona.id, c1.id)) continue; const k = `${v.parcelaId}|${v.actividad}`; if (!grupos.has(k)) grupos.set(k, { v, ids: [] }); grupos.get(k).ids.push(f.persona.id); }
+    if (!grupos.size) { setDice(`En ${c0.nombre} no hay a quién repetirle (o en ${c1.nombre} ya están pintados).`); return; }
+    for (const { v, ids } of grupos.values()) aplicar(ids, c1.id, v);
+  };
+  const copiarAyer = () => {
+    const ayer = sumarDias(fecha, -1); const celdas = celdasDelDia(data.eventos, { fecha: ayer }); let hubo = 0;
+    for (const c of cortes) {
+      const grupos = new Map();
+      for (const id of presentes) { const v = valorDeCelda(celdas, id, c.id); if (!v?.parcelaId || valorDeCelda(t.celdas, id, c.id)) continue; const k = `${v.parcelaId}|${v.actividad}`; if (!grupos.has(k)) grupos.set(k, { v, ids: [] }); grupos.get(k).ids.push(id); }
+      for (const { v, ids } of grupos.values()) if (aplicar(ids, c.id, v)) hubo++;
+    }
+    if (!hubo) setDice("Ayer no hay nada pintado de la gente que vino hoy (o ya está pintado).");
+  };
+  return (
+    <div className="section-pad">
+      <div className="card">
+        <div className="flex-b" style={{ marginBottom: 6 }}><div className="card-title" style={{ marginBottom: 0 }}>Tabla por cortes</div>
+          <input type="date" className="inp" aria-label="Día de la tabla" style={{ width: 150 }} value={fecha} max={hoy} onChange={e => setFecha(e.target.value)} /></div>
+        <div className="text-xs text-muted">Escoge un pincel y toca las celdas. Tocar un corte pinta a todos los que vinieron; tocar un nombre pinta su día. Pintar no es pagar: cada quien cobra su día y los cortes sólo lo reparten entre parcelas.</div>
+        <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>Cortes provisionales ({cortes.map(c => c.nombre).join(", ")}): falta validarlos con Miguel.</div>
+        {semanaCerrada && <div className="text-xs" style={{ color: "var(--red)", marginTop: 4 }}>Esa semana está cerrada: para pintar hay que reabrirla (con motivo).</div>}
+      </div>
+      <div className="card">
+        <div className="card-title">Pinceles</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {todos.map((p, i) => <button key={llave(p)} className={`btn btn-sm ${sel === llave(p) ? "btn-accent" : "btn-outline"}`} aria-pressed={sel === llave(p)} aria-label={`Pincel ${p.actividad} en ${nombreParcela(p.parcelaId)}`} style={{ background: sel === llave(p) ? undefined : `var(--pincel-${(i % 6) + 1})` }} onClick={() => setSel(llave(p))}>{LETRAS(p.actividad)} · {p.actividad} · {nombreParcela(p.parcelaId)}</button>)}
+          <button className={`btn btn-sm ${sel === "borrar" ? "btn-accent" : "btn-outline"}`} aria-pressed={sel === "borrar"} onClick={() => setSel("borrar")}>Borrar</button>
+        </div>
+        <div className="inp-row" style={{ marginTop: 8 }}>
+          <select className="inp" aria-label="Parcela del pincel nuevo" value={nuevo.parcelaId} onChange={e => setNuevo(n => ({ ...n, parcelaId: e.target.value }))}><option value="">Parcela…</option>{(data.parcelas || []).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select>
+          <select className="inp" aria-label="Actividad del pincel nuevo" value={nuevo.actividad} onChange={e => setNuevo(n => ({ ...n, actividad: e.target.value }))}><option value="">Actividad…</option>{actividades.map(a => <option key={a} value={a}>{a}</option>)}</select>
+        </div>
+        <button className="btn btn-outline btn-sm" style={{ width: "100%", marginTop: 6 }} onClick={() => {
+          if (!nuevo.parcelaId || !nuevo.actividad) { setDice("Para el pincel nuevo escoge la parcela y la actividad."); return; }
+          if (!deLlave(llave(nuevo))) setPinceles(p => [...p, nuevo]);
+          setSel(llave(nuevo));
+          setNuevo({ parcelaId: "", actividad: "" }); setDice("");
+        }}>+ Pincel nuevo</button>
+      </div>
+      {dice && <div className="text-sm" role="alert" style={{ color: "var(--gold)", margin: "0 4px 8px" }}>{dice}</div>}
+      <div className="card" style={{ padding: 8, overflowX: "auto" }}>
+        {t.filas.length === 0 ? <div className="text-sm text-muted">Ese día todavía no checó nadie ni se pasó lista. La tabla enseña a quien vino.</div> : (
+          <table className="tabla-cortes" style={{ width: "100%", borderCollapse: "separate", borderSpacing: 3, fontSize: 12 }}>
+            <thead><tr><th style={{ textAlign: "left" }}>Persona</th>{cortes.map(c => <th key={c.id}><button className="btn-ghost text-xs" aria-label={`Pintar a todos en ${c.nombre}`} onClick={() => aplicar(presentes, c.id)}>{c.nombre}</button></th>)}</tr></thead>
+            <tbody>
+              {t.filas.map(f => (
+                <tr key={f.persona.id}>
+                  <td><button className="btn-ghost text-xs" style={{ textAlign: "left", padding: 0 }} aria-label={`Pintar el día de ${f.persona.nombre}`} onClick={() => { for (const c of cortes) aplicar([f.persona.id], c.id); }}>{f.persona.nombre}</button>
+                    {!f.checo && <div className="text-xs" style={{ color: f.pintadoSinChecar ? "var(--gold)" : "var(--muted)" }}>{f.deLista ? "en lista, no checó" : "no checó"}</div>}</td>
+                  {f.fila.map(({ corte, celda }) => {
+                    const v = celda?.valor;
+                    return <td key={corte.id}><button className="celda-corte" aria-label={`${f.persona.nombre}, ${corte.nombre}: ${v ? `${v.actividad} en ${nombreParcela(v.parcelaId)}` : "sin pintar"}`} title={celda?.historial?.length ? `Antes: ${celda.historial.map(h => h.valor ? `${h.valor.actividad} · ${nombreParcela(h.valor.parcelaId)}` : "sin pintar").join(" → ")} (pintó ${celda.por})` : celda ? `Pintó ${celda.por}` : ""}
+                      style={{ width: "100%", minHeight: 44, borderRadius: 8, border: "1px solid var(--border)", background: v ? colorDe(v) : "transparent", color: "var(--text)", fontSize: 11, lineHeight: 1.2 }}
+                      onClick={() => aplicar([f.persona.id], corte.id)}>{v ? <><b>{LETRAS(v.actividad)}</b><br />{nombreParcela(v.parcelaId)}</> : "—"}{celda?.historial?.length ? " ↺" : ""}</button></td>;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {cortes.length > 1 && t.filas.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+          {cortes.slice(1).map((c, j) => <button key={c.id} className="btn btn-outline btn-sm" onClick={() => repetirAnterior(j + 1)}>Repetir en {c.nombre} lo de {cortes[j].nombre}</button>)}
+          <button className="btn btn-outline btn-sm" onClick={copiarAyer}>Copiar lo de ayer</button>
+        </div>}
+      </div>
+      {t.avisos.length > 0 && <div className="card" style={{ borderColor: "var(--gold)" }}>
+        <div className="card-title">Para revisar</div>
+        {t.avisos.map((a, i) => <div key={i} className="text-xs" style={{ padding: "3px 0" }}>{a.dice}</div>)}
+      </div>}
+      <ReglasDelRancho data={data} add={add} session={session} claves={["cortes_dia"]} />
+    </div>
+  );
+}
+
 function ElDia({ data, add, upd, session, onClose }) {
   const [tab, setTab] = useState("clima");
   const [pron, setPron] = useState(null);
@@ -2831,7 +2947,7 @@ function ElDia({ data, add, upd, session, onClose }) {
       </div>
 
       <div className="tabs-row">
-        {[["clima", "Clima"], ["reparto", "Reparto"], ["jornada", `Jornada${jornada.cuenta.planeadas && !cierreJ.cerrada ? ` (${jornada.cuenta.sinHacer})` : ""}`], ["insumos", `Insumos${faltantes.yaVanTarde.length ? " ⚠" : ""}`]].map(([v, lb]) => (
+        {[["clima", "Clima"], ["reparto", "Reparto"], ["cortes", "Por cortes"], ["jornada", `Jornada${jornada.cuenta.planeadas && !cierreJ.cerrada ? ` (${jornada.cuenta.sinHacer})` : ""}`], ["insumos", `Insumos${faltantes.yaVanTarde.length ? " ⚠" : ""}`]].map(([v, lb]) => (
           <button key={v} className={`tab-pill${tab === v ? " active" : ""}`} onClick={() => setTab(v)}>{lb}</button>
         ))}
       </div>
@@ -2846,6 +2962,8 @@ function ElDia({ data, add, upd, session, onClose }) {
           </div>)}
           <div className="text-xs text-muted" style={{ marginTop: 6 }}>Sale de los avances registrados. Es una sugerencia: quién va y a dónde lo decide quien reparte el día.</div>
         </div></div>); })()}
+
+      {tab === "cortes" && <TablaPorCortes data={data} add={add} session={session} />}
 
       {/* ══ CLIMA ══ */}
       {tab === "clima" && (
