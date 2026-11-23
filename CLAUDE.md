@@ -935,8 +935,15 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   personal (`anotarTareas`) y de externos (`actividadDeExterno`: el mismo renglón que «Registro de varios»); avance
   (`registrarAvance`, alimenta lo pendiente de mañana); «la comida fue descanso» (`aclararTiempo` descanso_autorizado,
   lo toca una persona). Un pincel que no se usó no se guarda al salir. Las pantallas viejas siguen hasta validarlo con
-  Miguel. Recorrido: `auditoria_cortes2` (23). **La cuota por hora de una máquina** (lo que «Registro de varios» cargaba
+  Miguel. **Lo asignado en Equipos de trabajo se ve en la tabla (punteado, `asignadoFuera`) y no se pisa**: no sale «checó
+  y no está pintado», pintar el corte de antes no lo termina, y un cambio a medio corte se avisa en la celda. Recorrido:
+  `auditoria_cortes2` (26). **La cuota por hora de una máquina** (lo que «Registro de varios» cargaba
   con `costoMaq`) no la carga la tabla: el operador en el vehículo lleva su costo REAL a la parcela que se dijo.
+- **`src/espera.js`: EL TIEMPO ESPERANDO TAREA (Luis, 23 nov)** — Mano de obra → «Tiempo esperando tarea». Sale de
+  `manoDeObra` (los ratos sin asignar dentro de la jornada): al llegar (entrada → primera asignación) y entre tareas (fin →
+  siguiente), en horas y en pesos: «lo que un plan hecho de víspera podría ahorrar». Aparte y sin contar: después de la
+  última tarea, la comida entre cortes y lo aclarado con otra causa; «espera» aclarada = confirmada, sin aclarar = posible.
+  Sólo informa; ningún módulo de dinero lo lee (hay prueba). Es grueso hasta que haya registro en tiempo real: se dice.
 - **`src/gps.js`: CHECAR DESDE EL TELÉFONO PROPIO (Luis, 22 nov; construido el 23 nov).** Un administrador activa a la
   persona en su ficha (`checaConGps: "si"`, `ranchoId` = su rancho de siempre); al salir de su cuenta en el teléfono de esa
   persona, el encargado lo liga COMO SUYO (la persona escribe su PIN → `vinculo.soloDe`). Ahí sólo ella checa, con su
@@ -955,7 +962,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **228 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **229 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

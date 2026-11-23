@@ -51,6 +51,23 @@ export function celdasDelDia(eventos, { fecha }) {
   return celdas;
 }
 export const valorDe = (celdas, trabajadorId, corteId) => celdas.get(`${trabajadorId}|${corteId}`)?.valor || null;
+// LO ASIGNADO FUERA DE LA TABLA (Equipos de trabajo): la tabla lo enseña y no lo pisa. Es el último cambio de esa persona
+// ese día hasta un instante, de cualquier pantalla, si fue una asignación hecha fuera de la tabla.
+const cambiosDelDia = (eventos, fecha) => vigentes(eventos).filter(e => (e.tipo === TIPO_ASIGNACION || e.tipo === TIPO_FIN) && e.fecha === fecha)
+  .sort((a, b) => a.cuando.localeCompare(b.cuando) || String(a.capturado || "").localeCompare(String(b.capturado || "")) || a.id.localeCompare(b.id));
+const valorDeAsignacion = (e) => ({ parcelaId: e.datos.parcelaId || null, vehiculoId: e.datos.vehiculoId || null, ...(e.datos.vehiculoId ? { vehiculo: e.datos.vehiculo || "", beneficiaId: e.datos.beneficiaId || null } : {}), actividad: e.datos.actividad, desde: e.cuando, ev: e.id });
+export function asignadoFuera(eventos, { fecha, trabajadorId, instante, cambios = null }) {
+  const l = (cambios || cambiosDelDia(eventos, fecha)).filter(e => e.cuando <= instante && (e.datos.trabajadorIds || []).includes(trabajadorId));
+  const u = l[l.length - 1];
+  return u && u.tipo === TIPO_ASIGNACION && !u.datos.corte ? valorDeAsignacion(u) : null;
+}
+// Un cambio hecho fuera de la tabla A MEDIO corte (por ejemplo, en Equipos de trabajo a las 7:35): desde ahí vale ése.
+function cambioFueraDentro(cambios, { trabajadorId, desde, hasta }) {
+  const l = cambios.filter(e => e.cuando > desde && e.cuando < hasta && !e.datos.corte && (e.datos.trabajadorIds || []).includes(trabajadorId));
+  const u = l[l.length - 1]; if (!u) return null;
+  return u.tipo === TIPO_ASIGNACION ? valorDeAsignacion(u) : { terminado: true, desde: u.cuando, ev: u.id };
+}
+
 // Un pincel: una actividad en una parcela, o manejando un vehículo (y, si se dice, para qué parcela fue).
 export const llaveDePincel = (v) => [v?.parcelaId || "", v?.vehiculoId || "", v?.beneficiaId || "", v?.actividad || ""].join("|");
 export const mismoPincel = (a, b) => !!a && !!b && llaveDePincel(a) === llaveDePincel(b);
@@ -65,8 +82,10 @@ export function pintar({ eventos, trabajadorIds, fecha, corteId, cortes, parcela
   if (!r.ok) return r;
   const evs = [{ ...r.evento, datos: { ...r.evento.datos, corte: c.id } }];
   // El fin del corte: si el siguiente no empieza ahí mismo, siempre; si empieza ahí, sólo para quien lo tiene vacío.
-  const celdas = celdasDelDia(eventos, { fecha });
-  const terminan = sig && sig.desde === c.hasta ? r.evento.datos.trabajadorIds.filter(id => !valorDe(celdas, id, sig.id)) : r.evento.datos.trabajadorIds;
+  const celdas = celdasDelDia(eventos, { fecha }), cambios = cambiosDelDia(eventos, fecha);
+  // No se termina lo que otra pantalla le asignó y sigue: lo de Equipos de trabajo no se pisa al pintar el corte de antes.
+  const siguePorFuera = (id) => !!asignadoFuera(eventos, { fecha, trabajadorId: id, instante: instanteDeCorte(fecha, c.hasta), cambios });
+  const terminan = (sig && sig.desde === c.hasta ? r.evento.datos.trabajadorIds.filter(id => !valorDe(celdas, id, sig.id)) : r.evento.datos.trabajadorIds).filter(id => !siguePorFuera(id));
   if (terminan.length) {
     const f = terminar({ trabajadorIds: terminan, desde: instanteDeCorte(fecha, c.hasta), fecha, quien, capturado, azar });
     if (f.ok) evs.push({ ...f.evento, datos: { ...f.evento.datos, corte: c.id } });
@@ -93,11 +112,18 @@ export function tablaDelDia({ eventos, personas = [], asistencia = [], fecha, co
   const deLista = new Set((asistencia || []).filter(a => a && a.fecha === fecha && a.presente).map(a => a.trabajadorId));
   const pintados = new Set([...celdas.keys()].map(k => k.split("|")[0]));
   const ids = new Set([...checaron, ...deLista, ...pintados, ...(incluir || [])]);
+  const cambios = cambiosDelDia(eventos, fecha), ya = ahora ? new Date(ahora).toISOString() : null;
   const filas = (personas || []).filter(p => ids.has(p.id)).map(p => {
-    const fila = (cortes || []).map(c => ({ corte: c, celda: celdas.get(`${p.id}|${c.id}`) || null }));
-    const algo = fila.some(x => x.celda?.valor);
+    const fila = (cortes || []).map(c => {
+      const ini = instanteDeCorte(fecha, c.desde), fin = instanteDeCorte(fecha, c.hasta), celda = celdas.get(`${p.id}|${c.id}`) || null;
+      // Lo de Equipos de trabajo: si la celda no se pintó, lo que tenía asignado ahí; si sí, un cambio a medio corte.
+      const fuera = celda?.valor ? null : (ya && ini > ya ? null : asignadoFuera(eventos, { fecha, trabajadorId: p.id, instante: ya && fin > ya ? ya : fin, cambios }));
+      const despues = celda?.valor ? cambioFueraDentro(cambios, { trabajadorId: p.id, desde: ini, hasta: fin }) : null;
+      return { corte: c, celda, fuera, despues };
+    });
+    const algo = fila.some(x => x.celda?.valor), porFuera = fila.some(x => x.fuera);
     return { persona: p, checo: checaron.has(p.id), deLista: deLista.has(p.id), fila,
-      pintadoSinChecar: algo && !checaron.has(p.id), sinPintar: checaron.has(p.id) && !algo };
+      pintadoSinChecar: algo && !checaron.has(p.id), sinPintar: checaron.has(p.id) && !algo && !porFuera, porFuera };
   }).sort((a, b) => String(a.persona.nombre).localeCompare(String(b.persona.nombre)));
   return { filas, celdas,
     avisos: [

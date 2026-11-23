@@ -18,7 +18,7 @@ nube = N.Nube([ADM, ENC]); E = {"_espacio": "localhost"}; V = "2026-11-01T00:00:
 t["ranchos"] = {"r1": {"id": "r1", "nombre": "RANCHO INVENTADO", "datos": E, "actualizado": V}}
 t["parcelas"] = {p: {"id": p, "nombre": n, "rancho_id": "r1", "datos": {"hectareas": 2, "cultivo": "Ajo", **E}, "actualizado": V} for p, n in (("p1", "PARCELA UNO"), ("p2", "PARCELA DOS"))}
 H = [{"desde": "2026-01-01", "sueldo_dia": 400, "anterior": 400}]
-t["trabajadores"] = {i: {"id": i, "nombre": n, "pin": pin, "datos": {"categoria": "jornalero", "sueldo_dia": 400, "historialSueldo": H, **E}, "actualizado": V} for i, n, pin in (("t-ana", "ANA INVENTADA", "4101"), ("t-beto", "BETO INVENTADO", "4102"))}
+t["trabajadores"] = {i: {"id": i, "nombre": n, "pin": pin, "datos": {"categoria": "jornalero", "sueldo_dia": 400, "historialSueldo": H, **E}, "actualizado": V} for i, n, pin in (("t-ana", "ANA INVENTADA", "4101"), ("t-beto", "BETO INVENTADO", "4102"), ("t-caro", "CARO INVENTADA", "4103"))}
 t["maquinaria"] = {"m1": {"id": "m1", "nombre": "TRACTOR INVENTADO", "costo_hora": 0, "datos": {"tipo": "tractor", **E}, "actualizado": V}}
 t["externos"] = {"x1": {"id": "x1", "nombre": "DON EXTERNO INVENTADO", "estado": "activo", "datos": E, "actualizado": V}}
 tarea = lambda i, quien, parcela, que: {"id": i, "fecha": HOY, "tipo": "tarea", "estado": "mandada", "parcela_id": parcela, "asignado_a": quien, "datos": {"resumen": f"{que} en la parcela", "que": que, "deQuien": "ENCARGADO DE PRUEBA", **E}, "actualizado": V}
@@ -68,7 +68,7 @@ with sync_playwright() as p:
         pg.get_by_role("button", name="+ Pincel nuevo").click(); pg.wait_for_timeout(300)
 
     B = aparato(ENC, "07:05")
-    ir(B, "checador"); teclea(B, "4101"); teclea(B, "4102")
+    ir(B, "checador"); teclea(B, "4101"); teclea(B, "4102"); teclea(B, "4103")
     # ══ AYER, sin checador: lo que hacía «Registro de varios» ══
     tabla(B); dia(B, AYER)
     caso("un día de antes sin nadie checado la tabla dice que se puede agregar a la gente a mano", "agrégalo arriba" in cuerpo(B) and B.get_by_label("Agregar a alguien a este día").count() == 1, cuerpo(B)[:600])
@@ -109,11 +109,16 @@ with sync_playwright() as p:
     dj = evs(B, "destajo"); ext = [a for a in datos(B)["actividades"] if (a.get("registradoPor") or {}).get("tipo") == "externo"]
     caso("DESTAJO: a Ana lo suyo (10 surcos a $15) y al externo su renglón de siempre ($100 en la uno, destajo)", len(dj) == 1 and dj[0]["datos"]["produccion"] == [{"trabajadorId": "t-ana", "cantidad": 10}] and dj[0]["datos"]["tarifa"] == 15
          and len(ext) == 1 and ext[0]["costoTotal"] == 100 and ext[0]["parcelaId"] == "p1" and ext[0]["modalidadPago"] == "destajo" and ext[0]["tipo"] == "Deshierbe", [[e["datos"] for e in dj], ext])
+    # Caro se queda esperando media hora y la asignan en Equipos de trabajo (la otra pantalla), a las 7:35
+    avanza(B, 0.5); ir(B, "reparto"); B.locator(".rep-ficha", has_text="CARO").click()
+    B.get_by_label("Parcela o vehículo").select_option("p2"); B.get_by_label("Qué van a hacer").select_option("Riego")
+    B.get_by_role("button", name="Asignar desde ahorita").click(); B.wait_for_timeout(400); tabla(B)
+    caso("lo asignado en Equipos de trabajo se ve en la tabla (punteado) y no sale «checó y no está pintado»", "Riego en PARCELA DOS (asignado en Equipos de trabajo" in celda(B, "CARO INVENTADA", "7–10") and "CARO INVENTADA: checó y no está pintado" not in cuerpo(B), [celda(B, "CARO INVENTADA", "7–10"), cuerpo(B)[-400:]])
     # El operador: un pincel de vehículo para una parcela
     pincel(B, "TRACTOR INVENTADO", "Preparación de suelo", para="PARCELA DOS")
     caso("el pincel de vehículo dice para qué parcela es", B.locator("button[aria-label='Pincel Preparación de suelo en TRACTOR INVENTADO → PARCELA DOS']").count() == 1)
     # La tarde: salen a las 17:00 y se termina de pintar
-    avanza(B, 10); ir(B, "checador"); teclea(B, "4101"); teclea(B, "4102"); tabla(B)
+    avanza(B, 9.5); ir(B, "checador"); teclea(B, "4101"); teclea(B, "4102"); teclea(B, "4103"); tabla(B)
     pincel(B, "TRACTOR INVENTADO", "Preparación de suelo", para="PARCELA DOS")   # un pincel que no se usó no se guarda al salir
     B.get_by_label(re.compile("BETO INVENTADO, 10–13")).click(); B.wait_for_timeout(400)
     asig = [e for e in evs(B, "asignacion") if e["datos"].get("vehiculoId")]
@@ -124,7 +129,8 @@ with sync_playwright() as p:
          [celda(B, "ANA INVENTADA", "14–17"), celda(B, "BETO INVENTADO", "10–13"), celda(B, "BETO INVENTADO", "14–17")])
     B.get_by_role("button", name=re.compile("La comida")).click(); B.wait_for_timeout(500)
     acl = [e for e in evs(B, "aclaracion") if e["fecha"] == HOY]
-    caso("la comida de hoy se aclara para los dos (checaron y están pintados antes y después)", sorted(e["datos"]["trabajadorId"] for e in acl) == ["t-ana", "t-beto"], [e["datos"] for e in acl])
+    caso("la comida de hoy se aclara para los dos pintados antes y después (Caro, de Equipos de trabajo, no: no se le supone)", sorted(e["datos"]["trabajadorId"] for e in acl) == ["t-ana", "t-beto"], [e["datos"] for e in acl])
+    caso("lo de Caro sigue hasta su salida: la tarde también dice Equipos de trabajo", "Equipos de trabajo" in celda(B, "CARO INVENTADA", "14–17"), celda(B, "CARO INVENTADA", "14–17"))
     caso("y una segunda vez no la duplica", (B.get_by_role("button", name=re.compile("La comida")).click(), B.wait_for_timeout(400), len([e for e in evs(B, "aclaracion") if e["fecha"] == HOY]) == 2)[2], cuerpo(B)[-300:])
     hoy_p1 = costo_de(B, "p1", HOY)
     # Ana entró a las 7:05 (no a las 7): de sus 10 h en el rancho, 8 h 55 min fueron en la uno ≈ $357; más su destajo ($150, lo
@@ -137,6 +143,10 @@ with sync_playwright() as p:
     caso("el administrador ve la misma tabla: el plan, el tractor y el deshierbe", "TRACTOR INVENTADO" in celda(A, "BETO INVENTADO", "10–13") and "Deshierbe en PARCELA UNO" in celda(A, "ANA INVENTADA", "14–17") and A.get_by_label("Plan de ANA INVENTADA").count() == 1)
     caso("y los mismos eventos: avance, destajo, aclaraciones y marcas a mano", len(evs(A, "avance_trabajo")) == 1 and len(evs(A, "destajo")) == 1 and len(evs(A, "aclaracion")) == 3 and len([e for e in evs(A, "marca") if e["datos"].get("via") == "correccion"]) == 2,
          [len(evs(A, x)) for x in ("avance_trabajo", "destajo", "aclaracion")])
+    ir(A, "mano-obra"); A.wait_for_timeout(600)
+    ind = A.get_by_label("Tiempo esperando tarea"); ti = plano(ind.inner_text()) if ind.count() else ""
+    # Caro entró 7:05 y la asignaron 7:35: 30 min esperando su primera tarea, de 10 h en el rancho ($400): ≈ $20.
+    caso("TIEMPO ESPERANDO TAREA: Caro, 30 min al llegar (≈$20); la comida aclarada y lo de después de la última tarea no cuentan", re.search(r"Al llegar, antes de su primera tarea \| 1 vez\(ces\) \| 0 h 30 min", ti) is not None and re.search(r"podría ahorrar \| 0 h 30 min \| \$(19\.9\d|20)", ti) is not None and "2 h 00 min con otra causa" in ti and "CARO INVENTADA" in ti and "No cambia pagos ni costos" in ti, ti)
     ir(A, "nomina"); A.wait_for_timeout(500); tn = cuerpo(A)
     caso("en Pagos le corresponde a Ana su día de ayer (con sus marcas a mano), el de hoy y su destajo: $950", re.search(r"ANA INVENTADA \| [^|]+ \| \$950 \|", tn) is not None, tn[300:1300])
     caso("nada quedó sin subir ni rechazado por la base", subio(A) and subio(B) and not nube.ocupados, nube.ocupados[:3])

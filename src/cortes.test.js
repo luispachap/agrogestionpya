@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { marcar } from "./checador.js";
-import { manoDeObra, cambiarAjuste } from "./cuadrillas.js";
+import { manoDeObra, cambiarAjuste, asignar } from "./cuadrillas.js";
 import { sumarDinero } from "./calculos.js";
 import { cortesVigentes, pintar, borrarCelda, tablaDelDia, celdasDelDia, valorDe, instanteDeCorte, propuestaDelPlan, marcasPorLoPintado, actividadDeExterno, pintadosCon, llaveDePincel } from "./cortes.js";
 import { experienciaObservada, catalogoEn } from "./actividades.js";
@@ -144,4 +144,23 @@ test("la_experiencia_observada_cuenta_dias_de_lo_registrado_solo_informa_y_no_cu
   const r = experienciaObservada(acts, { actividad: "Deshierbe", hasta: "2026-11-23" });
   assert.deepEqual(r, [{ personaId: "t1", dias: 2, horas: 15, ultima: "2026-11-02" }], "t2 cancelado, t3 hace más de 12 meses, el externo no es personal");
   assert.deepEqual(experienciaObservada(acts, { actividad: "Deshierbe", hasta: "2026-11-23", personas: ["t2"] }), []);
+});
+
+test("lo_asignado_en_equipos_de_trabajo_se_ve_en_la_tabla_no_sale_como_sin_pintar_y_pintar_el_corte_de_antes_no_lo_termina", () => {
+  const cortes = cortesVigentes([]);
+  let evs = checa([], ANA, "07:05");
+  const a = asignar({ trabajadorIds: ["t-ana"], parcelaId: "p2", actividad: "Deshierbe", desde: `${D}T07:35:00-06:00`, fecha: D, quien: ENC, capturado: `${D}T07:35:00-06:00`, azar: az() });
+  evs = [...evs, a.evento];
+  const t = tablaDelDia({ eventos: evs, personas: [ANA], fecha: D, cortes, hoy: D, ahora: `${D}T11:00:00-06:00` });
+  const f = t.filas[0];
+  assert.equal(f.fila[0].fuera.parcelaId, "p2"); assert.equal(f.fila[1].fuera.actividad, "Deshierbe"); assert.equal(f.fila[2].fuera, null, "el corte de la tarde todavía no empieza");
+  assert.equal(f.sinPintar, false); assert.ok(!t.avisos.some(x => x.clase === "sin_pintar"), "no se le dice «no está pintado» a quien tiene asignación");
+  // Pintar su 7–10 en la uno: vale de 7 a 7:35 (después, lo de Equipos de trabajo) y NO se termina lo de Equipos de trabajo a las 10.
+  const r = pintar({ eventos: evs, trabajadorIds: ["t-ana"], fecha: D, corteId: "c1", cortes, parcelaId: "p1", actividad: "Riego", quien: ENC, capturado: `${D}T11:00:00-06:00`, azar: az() });
+  assert.equal(r.eventos.filter(e => e.tipo === "fin_asignacion").length, 0);
+  evs = checa([...evs, ...r.eventos], ANA, "17:00");
+  const t2 = tablaDelDia({ eventos: evs, personas: [ANA], fecha: D, cortes, hoy: D, ahora: `${D}T18:00:00-06:00` });
+  assert.equal(t2.filas[0].fila[0].despues.parcelaId, "p2", "la celda pintada avisa que a medio corte cambió por Equipos de trabajo");
+  const m = mo(evs); const en = (p) => sumarDinero(m.partes.filter(x => x.trabajadorId === "t-ana" && x.parcelaId === p).map(x => x.monto));
+  assert.ok(en("p2") > en("p1"), "de 7:35 a 17:00 es de la dos");
 });

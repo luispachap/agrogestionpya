@@ -144,6 +144,7 @@ import {
 import { entenderLoDicho } from "./voz.js";
 import { preparar as prepararOperaciones, ejecutar as ejecutarOperacion, confirmarDelChat, aclarar as aclararPropuesta, preguntaDe, decirPropuesta, NATURALEZAS, OPERACIONES as OPERACIONES_DICHAS } from "./operaciones.js";
 import { sugerenciasDeContinuidad, registrarAvance, UNIDADES_DE_AVANCE } from "./avances.js";
+import { tiempoEsperando } from "./espera.js";
 import { comoPuedeOir, dictar, grabar } from "./dictado.js";
 import { Ic, ThemeBtn, aplicarTemaGuardado, saludoHora, fechaLarga } from "./icons.jsx";
 // Cálculos puros (dinero, fechas, cancelación). Viven aparte para poder
@@ -2802,7 +2803,7 @@ function TablaPorCortes({ data, add, session }) {
       <div className="card">
         <div className="flex-b" style={{ marginBottom: 6 }}><div className="card-title" style={{ marginBottom: 0 }}>Tabla por cortes</div>
           <input type="date" className="inp" aria-label="Día de la tabla" style={{ width: 150 }} value={fecha} max={hoy} onChange={e => setFecha(e.target.value)} /></div>
-        <div className="text-xs text-muted">Escoge un pincel y toca las celdas. Tocar un corte pinta a todos los que vinieron; tocar un nombre pinta su día. Pintar no es pagar: cada quien cobra su día y los cortes sólo lo reparten entre parcelas. Las cuadrillas que llegan con su responsable se registran en «Cuadrillas».</div>
+        <div className="text-xs text-muted">Escoge un pincel y toca las celdas. Tocar un corte pinta a todos los que vinieron; tocar un nombre pinta su día. Pintar no es pagar: cada quien cobra su día y los cortes sólo lo reparten entre parcelas. Lo asignado en Equipos de trabajo se ve punteado y la tabla no lo pisa. Las cuadrillas que llegan con su responsable se registran en «Cuadrillas».</div>
         <div className="text-xs" style={{ color: "var(--gold)", marginTop: 4 }}>Cortes provisionales ({cortes.map(c => c.nombre).join(", ")}): falta validarlos con Miguel.</div>
         {semanaCerrada && <div className="text-xs" style={{ color: "var(--red)", marginTop: 4 }}>Esa semana está cerrada: para pintar hay que reabrirla (con motivo).</div>}
       </div>
@@ -2865,11 +2866,14 @@ function TablaPorCortes({ data, add, session }) {
                     <td><button className="btn-ghost text-xs" style={{ textAlign: "left", padding: 0 }} aria-label={`Pintar el día de ${f.persona.nombre}`} onClick={() => { for (const c of cortes) aplicar([f.persona.id], c.id); }}>{f.persona.nombre}</button>
                       {!f.checo && <div className="text-xs" style={{ color: f.pintadoSinChecar ? "var(--gold)" : "var(--muted)" }}>{f.deLista ? "en lista, no checó" : "no checó"}</div>}
                       {plan.length > 0 && <div className="text-xs text-muted" aria-label={`Plan de ${f.persona.nombre}`}>Plan: {plan.map(i => `${capital(i.que) || "tarea"}${i.parcelaId ? ` en ${nombreParcela(i.parcelaId)}` : ""}${i.hora ? ` (${i.hora})` : ""}`).join("; ")}</div>}</td>
-                    {f.fila.map(({ corte, celda }) => {
+                    {f.fila.map(({ corte, celda, fuera, despues }) => {
                       const v = celda?.valor;
-                      return <td key={corte.id}><button className="celda-corte" aria-label={`${f.persona.nombre}, ${corte.nombre}: ${v ? `${v.actividad} en ${donde(v)}` : "sin pintar"}`} title={celda?.historial?.length ? `Antes: ${celda.historial.map(h => h.valor ? `${h.valor.actividad} · ${donde(h.valor)}` : "sin pintar").join(" → ")} (pintó ${celda.por})` : celda ? `Pintó ${celda.por}` : ""}
-                        style={{ width: "100%", minHeight: 44, borderRadius: 8, border: "1px solid var(--border)", background: v ? colorDe(v) : "transparent", color: "var(--text)", fontSize: 11, lineHeight: 1.2 }}
-                        onClick={() => aplicar([f.persona.id], corte.id)}>{v ? <><b>{LETRAS(v.actividad)}</b><br />{donde(v)}</> : "—"}{celda?.historial?.length ? " ↺" : ""}</button></td>;
+                      // Lo de Equipos de trabajo se ve (punteado): la tabla no lo pisa. Un cambio a medio corte se avisa en la celda.
+                      const otro = despues ? (despues.terminado ? ` · a las ${horaCorta(despues.desde)} terminó (Equipos de trabajo)` : ` · desde las ${horaCorta(despues.desde)}: ${despues.actividad} en ${donde(despues)} (Equipos de trabajo)`) : "";
+                      const dice = v ? `${v.actividad} en ${donde(v)}${otro}` : fuera ? `${fuera.actividad} en ${donde(fuera)} (asignado en Equipos de trabajo desde las ${horaCorta(fuera.desde)})` : "sin pintar";
+                      return <td key={corte.id}><button className="celda-corte" aria-label={`${f.persona.nombre}, ${corte.nombre}: ${dice}`} title={celda?.historial?.length ? `Antes: ${celda.historial.map(h => h.valor ? `${h.valor.actividad} · ${donde(h.valor)}` : "sin pintar").join(" → ")} (pintó ${celda.por})${otro}` : celda ? `Pintó ${celda.por}${otro}` : fuera ? dice : ""}
+                        style={{ width: "100%", minHeight: 44, borderRadius: 8, border: fuera ? "1px dashed var(--muted)" : "1px solid var(--border)", background: v ? colorDe(v) : "transparent", color: fuera ? "var(--muted)" : "var(--text)", fontSize: 11, lineHeight: 1.2 }}
+                        onClick={() => aplicar([f.persona.id], corte.id)}>{v ? <><b>{LETRAS(v.actividad)}</b><br />{donde(v)}{despues ? " *" : ""}</> : fuera ? <><b>{LETRAS(fuera.actividad)}</b><br />{donde(fuera)}</> : "—"}{celda?.historial?.length ? " ↺" : ""}</button></td>;
                     })}
                   </tr>
                 );
@@ -11038,6 +11042,24 @@ function ManoDeObra({ data, add, session, onClose }) {
           <div className="mo-act"><span>Inactividad confirmada</span><span /><b>{horasDe(r.tiempo.improductivo)}</b></div>
           <div className="text-xs text-muted" style={{ marginTop: 8 }}>Son cuatro cuentas distintas. Lo que está por aclarar no es tiempo perdido: sólo cuenta como improductivo lo que alguien confirmó.</div>
         </div>
+        {(() => {
+          // EL TIEMPO ESPERANDO TAREA (Luis, 23 nov): cuánto se podría ahorrar con un plan hecho de víspera. Sólo informa.
+          const cortesDia = cortesVigentes(data.eventos);
+          const huecos = (f) => cortesDia.slice(1).map((c, j) => ({ desde: instanteDeCortePara(f, cortesDia[j].hasta), hasta: instanteDeCortePara(f, c.desde) })).filter(h => h.desde < h.hasta);
+          const e = tiempoEsperando(r, { huecos });
+          if (!e.renglones.length) return null;
+          return (
+            <div className="card" aria-label="Tiempo esperando tarea">
+              <div className="card-title">Tiempo esperando tarea</div>
+              <div className="mo-act"><span>Al llegar, antes de su primera tarea</span><span className="text-muted">{e.porMomento.al_llegar.veces} vez(ces)</span><b>{horasDe(e.porMomento.al_llegar.minutos)}</b></div>
+              <div className="mo-act"><span>Entre una tarea y la siguiente</span><span className="text-muted">{e.porMomento.entre_tareas.veces} vez(ces)</span><b>{horasDe(e.porMomento.entre_tareas.minutos)}</b></div>
+              <div className="mo-act" style={{ fontWeight: 700 }}><span>Lo que un plan hecho de víspera podría ahorrar</span><span>{horasDe(e.esperando.minutos)}</span><b>{fmt(e.esperando.monto)}</b></div>
+              <div className="text-xs text-muted" style={{ marginTop: 4 }}>{e.esperando.confirmado.minutos ? `${horasDe(e.esperando.confirmado.minutos)} aclarado como espera; ` : ""}{horasDe(e.esperando.sinAclarar.minutos)} sin aclarar (puede ser trabajo que no se anotó).</div>
+              {e.porPersona.slice(0, 8).map(x => <div key={x.trabajadorId} className="mo-act"><span>{nombre(x.trabajadorId)}</span><span className="text-muted">{x.veces} vez(ces)</span><b>{horasDe(x.minutos)}</b></div>)}
+              <div className="text-xs text-muted" style={{ marginTop: 8 }}>Aparte, y sin contar como espera: {horasDe(e.porMomento.al_final.minutos)} después de su última tarea y antes de salir, {horasDe(e.porMomento.comida.minutos)} en la comida entre cortes, y {horasDe(e.conOtraCausa.minutos)} con otra causa (descanso, traslado, mantenimiento). {e.dice} No cambia pagos ni costos.</div>
+            </div>
+          );
+        })()}
         {adicionales.length > 0 && (
           <div className="card">
             <div className="card-title">Horas adicionales registradas</div>

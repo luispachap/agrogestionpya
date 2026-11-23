@@ -55,3 +55,10 @@ test("a_quien_no_se_le_asigno_nada_en_todo_el_dia_no_se_le_cuenta_como_espera_si
   assert.equal(r.esperando.minutos, 0); assert.equal(r.renglones.length, 0);
   assert.equal(m.porAclarar.minutos, 480, "sigue saliendo donde siempre, por aclarar");
 });
+
+test("ningun_modulo_de_dinero_lee_el_tiempo_esperando_tarea", async () => {
+  const fs = await import("node:fs");
+  for (const f of ["pagos.js", "cierreMes.js", "resultado.js", "prestaciones.js", "calculos.js", "cuadrillas.js", "personal.js", "indirectos.js", "conciliacion.js", "bajas.js"]) {
+    assert.ok(!fs.readFileSync(new URL(`./${f}`, import.meta.url), "utf8").includes("espera.js"), `${f} no debe leer el indicador`);
+  }
+});
