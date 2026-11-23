@@ -154,3 +154,29 @@ captura de pantalla.
 12. Con el teléfono ligado, ¿se pueden abrir las pantallas del encargado sin su contraseña? (No debe.)
 
 Si los doce pasan en sus teléfonos, la operación diaria está validada en campo.
+
+### Lo nuevo del 23 de noviembre (para la prueba del lunes o martes)
+
+Lo de abajo está probado con teléfonos imitados, cámara imitada y GPS imitado. **Nada de esto se ha probado con un
+teléfono, una cámara, un GPS o una impresora de verdad**: por eso va aquí.
+
+13. **Cámara:** el encargado escanea la credencial impresa de un trabajador en el checador. ¿La lee a la primera, con la
+    luz del rancho? ¿Y con la credencial arrugada o mojada?
+14. **Impresora:** imprimir una credencial, una etiqueta de estiba y la hoja de pagos para firmar. ¿Salen completas, del
+    tamaño correcto, y el código de la credencial se lee después de impreso?
+15. **Checar con el teléfono propio (GPS):** a una persona se le activa en su ficha (con su rancho), y el encargado liga
+    el teléfono de esa persona. Ella checa: a) en su rancho, b) en otro rancho (le pide a qué fue), c) en el camino lejos
+    de todo rancho (no debe registrar), d) bajo techo (puede quedar «por revisar»). Anotar la distancia y la precisión que
+    dice cada marca. Cada rancho necesita su ubicación antes (en Ranchos).
+16. **La tabla por cortes** (El día → Por cortes), con Migue: ¿los cortes de 7–10, 10–13 y 14–17 son los del rancho? Pintar
+    un día completo con «Pintar como el plan», un tractor para una parcela, un destajo, un avance y «la comida fue
+    descanso». ¿Cuánto tarda contra «Registro de varios»? ¿Se entiende en el teléfono, con el sol?
+17. **Un día sin checador:** en la tabla, un día de antes, agregar a alguien, pintarlo y «ponerle entrada y salida por lo
+    pintado». ¿Sale en Pagos su día?
+18. **Tiempo esperando tarea** (Mano de obra): después de un día con checador, ¿el número tiene sentido? ¿Cuánto fue al
+    llegar y cuánto entre tareas?
+19. **Corrida:** dos muestras de calidad con tarimas de parcelas distintas en la mesa. ¿«Calidad por origen y ritmo» dice
+    de dónde venía cada una? Registrar corona y pata de perro: ¿salen en Ajo terminado y se pueden cargar en un embarque?
+20. **Aguinaldo:** a un trabajador con sueldo por semana, ¿Prestaciones dice que su base es la semana entre 7?
+
+Si una de estas falla, no detiene la operación del día: se anota y se corrige. La 1 a la 12 sí son la operación.
