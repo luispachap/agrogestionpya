@@ -2,7 +2,7 @@
 
 > **Generado desde `docs/ESTADO.json` con `node herramientas/estado.mjs`. No se edita a mano:** se cambia el archivo de estado y se vuelve a generar. Es la única fuente de las cifras, los módulos, los pendientes y lo publicado; el tablero de cierre sale de aquí mismo.
 
-Corte: domingo 22 de noviembre de 2026 (noche). **44 aprobados · 23 recorridos en parte · 0 sin verificar.**
+Corte: domingo 22 de noviembre de 2026 (noche). **46 aprobados · 21 recorridos en parte · 0 sin verificar.**
 
 **Veredicto: NO LISTO** como sistema completo · listo para prueba de campo en la operación diaria. Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).
 
@@ -42,6 +42,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **44 aprobados · 23 recorridos 
 | Mapa y Dron con dos teléfonos | `pruebas/auditoria_mapa_navegador.py` | 13 de 13 |
 | La hoja de pagos que se firma: lo que ya debían, prestar en un paso, pago en dos partes, sueldo por semana, sin señal y otro aparato | `pruebas/auditoria_hoja_pagos_navegador.py` | 44 de 44 |
 | Equipo, Personal, Jornadas y Mano de obra con cuentas y dos teléfonos | `pruebas/auditoria_personal_navegador.py` | 23 de 23 |
+| Equipos de trabajo y Cuadrillas con cuentas y dos teléfonos | `pruebas/auditoria_cuadrillas_navegador.py` | 23 de 23 |
 
 ## Qué está publicado y qué no
 
@@ -209,8 +210,8 @@ Corte: domingo 22 de noviembre de 2026 (noche). **44 aprobados · 23 recorridos 
 | 49 | Proveedores | **APROBADO** | auditoria_proveedores 27 · base 4 | Directorio, crédito con vencimiento, abonos en dinero y en especie, cancelar abono (no borrar) con bitácora, recarga, dos teléfonos con uno sin señal, perfiles | — |
 | 50 | Equipo | **APROBADO** | entrega 68 · auditoria_pagos · auditoria_semana · auditoria_hoja_pagos 44 · auditoria_personal 23 | Alta de planta, encargado (PIN repetido no entra) y máquina (sin nombre o repetida no entra), cambio de sueldo con historial desde hoy, encargado sin edición de sueldos, otro aparato, recarga | La baja se hace en Pagos al personal → Prestaciones (su propia auditoría) |
 | 51 | Personal | **APROBADO** | auditoria_pagos 40 · auditoria_hoja_pagos 44 · auditoria_personal 23 | Pestaña Cuadrillas: alta con responsable, miembros y PIN; Equipo la enseña; Actividades; recarga y otro aparato | — |
-| 52 | Equipos de trabajo | **PARCIAL** | entrega 68 · auditoria_pagos · auditoria_semana | Asignar a una parcela desde ahorita, cambio de parcela, el costo sigue a la asignación | Pago por tarea, vehículo, aclarar el tiempo sin asignar (recorridos en local) |
-| 53 | Cuadrillas | **PARCIAL** | auditoria_semana 26 · eventuales (local) | El día de una cuadrilla por día: vacío no se guarda, costo a la parcela, una cuenta por responsable | Destajo, precio por el trabajo, flete y vehículo propio con cuentas |
+| 52 | Equipos de trabajo | **APROBADO** | entrega 68 · auditoria_pagos · auditoria_semana · auditoria_cuadrillas 23 | Asignar a una parcela, al vehículo como operador (su rato se carga al vehículo, en un traslado no pide parcela), pago por tarea con lo que hizo cada quien (sin eso no se guarda), aviso de día y destajo juntos, otro aparato y recarga | — |
+| 53 | Cuadrillas | **APROBADO** | auditoria_semana 26 · eventuales (local) · auditoria_cuadrillas 23 | El encargado captura: por día con lo de cada persona y flete externo; precio por el trabajo como un pago al grupo; destajo sólo con el total y «parejo» autorizado con nombre; vehículo propio sin importe; el transporte del día no se pide dos veces; cancelar con motivo; todo llega al costo de la parcela sin teclear actividades y el flete se reparte entre las personas transportadas | — |
 | 54 | Checador | **PARCIAL** | entrega 68 · auditoria_pagos · auditoria_semana | Entrada y salida con PIN, jornada de 8 horas, lo que le toca al checar | Credencial con código (pide cámara), aparato ligado sin sesión |
 | 55 | Jornadas | **APROBADO** | auditoria_captura 66 · auditoria_personal 23 | Marca de un PIN prestado cancelada con motivo (sin motivo no), «Era salida» con motivo, la marca que faltó puesta a mano y marcada como tal; otro aparato ve las cancelaciones con su porqué; recarga | — |
 | 56 | Credenciales | **PARCIAL** | auditoria_captura 66 | Emitir una credencial (código propio, sin PIN ni sueldo, con fecha y quién); emitir otra cambia el código y la anterior queda anotada | Imprimirlas y checar con la credencial (pide cámara: prueba de campo) |

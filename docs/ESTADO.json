@@ -140,6 +140,11 @@
    "que": "Equipo, Personal, Jornadas y Mano de obra con cuentas y dos teléfonos",
    "con": "pruebas/auditoria_personal_navegador.py",
    "resultado": "23 de 23"
+  },
+  {
+   "que": "Equipos de trabajo y Cuadrillas con cuentas y dos teléfonos",
+   "con": "pruebas/auditoria_cuadrillas_navegador.py",
+   "resultado": "23 de 23"
   }
  ],
  "para_listo": [
@@ -583,18 +588,18 @@
   {
    "n": 52,
    "nombre": "Equipos de trabajo",
-   "estado": "PARCIAL",
-   "prueba": "entrega 68 · auditoria_pagos · auditoria_semana",
-   "probado": "Asignar a una parcela desde ahorita, cambio de parcela, el costo sigue a la asignación",
-   "falta": "Pago por tarea, vehículo, aclarar el tiempo sin asignar (recorridos en local)"
+   "estado": "APROBADO",
+   "prueba": "entrega 68 · auditoria_pagos · auditoria_semana · auditoria_cuadrillas 23",
+   "probado": "Asignar a una parcela, al vehículo como operador (su rato se carga al vehículo, en un traslado no pide parcela), pago por tarea con lo que hizo cada quien (sin eso no se guarda), aviso de día y destajo juntos, otro aparato y recarga",
+   "falta": "—"
   },
   {
    "n": 53,
    "nombre": "Cuadrillas",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_semana 26 · eventuales (local)",
-   "probado": "El día de una cuadrilla por día: vacío no se guarda, costo a la parcela, una cuenta por responsable",
-   "falta": "Destajo, precio por el trabajo, flete y vehículo propio con cuentas"
+   "estado": "APROBADO",
+   "prueba": "auditoria_semana 26 · eventuales (local) · auditoria_cuadrillas 23",
+   "probado": "El encargado captura: por día con lo de cada persona y flete externo; precio por el trabajo como un pago al grupo; destajo sólo con el total y «parejo» autorizado con nombre; vehículo propio sin importe; el transporte del día no se pide dos veces; cancelar con motivo; todo llega al costo de la parcela sin teclear actividades y el flete se reparte entre las personas transportadas",
+   "falta": "—"
   },
   {
    "n": 54,
