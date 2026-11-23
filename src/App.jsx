@@ -2808,12 +2808,11 @@ function TablaPorCortes({ data, add, session }) {
         {semanaCerrada && <div className="text-xs" style={{ color: "var(--red)", marginTop: 4 }}>Esa semana está cerrada: para pintar hay que reabrirla (con motivo).</div>}
       </div>
       {pendientes.length > 0 && <div className="card">
-        <div className="card-title">Quedó pendiente de otros días</div>
-        {pendientes.map((s, i) => <div key={i} style={{ padding: "4px 0", borderTop: i ? "1px solid var(--border)" : "none" }}>
-          <div className="text-xs">{s.dice}</div>
-          {s.estimacion && <div className="text-xs text-muted">{s.estimacion.dice}</div>}
-          <button className="btn btn-outline btn-sm" style={{ marginTop: 4 }} aria-label={`Hacer pincel: ${capital(s.actividad)} en ${nombreParcela(s.parcelaId)}`} onClick={() => agregarPincel({ parcelaId: s.parcelaId, actividad: catalogo.normalizar(s.actividad).nombre || capital(s.actividad) })}>Hacer pincel de esto</button>
-        </div>)}
+        <div className="card-title">Lo que quedó pendiente, como pincel</div>
+        <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Lo de arriba («Quedó pendiente»), listo para pintar. Decide quien reparte el día.</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {pendientes.map((s, i) => <button key={i} className="btn btn-outline btn-sm" aria-label={`Hacer pincel: ${capital(s.actividad)} en ${nombreParcela(s.parcelaId)}`} onClick={() => agregarPincel({ parcelaId: s.parcelaId, actividad: catalogo.normalizar(s.actividad).nombre || capital(s.actividad) })}>+ {capital(s.actividad)} · {nombreParcela(s.parcelaId)}</button>)}
+        </div>
       </div>}
       <div className="card">
         <div className="card-title">Pinceles</div>
@@ -11046,16 +11045,16 @@ function ManoDeObra({ data, add, session, onClose }) {
           // EL TIEMPO ESPERANDO TAREA (Luis, 23 nov): cuánto se podría ahorrar con un plan hecho de víspera. Sólo informa.
           const cortesDia = cortesVigentes(data.eventos);
           const huecos = (f) => cortesDia.slice(1).map((c, j) => ({ desde: instanteDeCortePara(f, cortesDia[j].hasta), hasta: instanteDeCortePara(f, c.desde) })).filter(h => h.desde < h.hasta);
-          const e = tiempoEsperando(r, { huecos });
+          const e = tiempoEsperando(r, { huecos }); const veces = (n) => `${n} ${n === 1 ? "vez" : "veces"}`;
           if (!e.renglones.length) return null;
           return (
             <div className="card" aria-label="Tiempo esperando tarea">
               <div className="card-title">Tiempo esperando tarea</div>
-              <div className="mo-act"><span>Al llegar, antes de su primera tarea</span><span className="text-muted">{e.porMomento.al_llegar.veces} vez(ces)</span><b>{horasDe(e.porMomento.al_llegar.minutos)}</b></div>
-              <div className="mo-act"><span>Entre una tarea y la siguiente</span><span className="text-muted">{e.porMomento.entre_tareas.veces} vez(ces)</span><b>{horasDe(e.porMomento.entre_tareas.minutos)}</b></div>
+              <div className="mo-act"><span>Al llegar, antes de su primera tarea</span><span className="text-muted">{veces(e.porMomento.al_llegar.veces)}</span><b>{horasDe(e.porMomento.al_llegar.minutos)}</b></div>
+              <div className="mo-act"><span>Entre una tarea y la siguiente</span><span className="text-muted">{veces(e.porMomento.entre_tareas.veces)}</span><b>{horasDe(e.porMomento.entre_tareas.minutos)}</b></div>
               <div className="mo-act" style={{ fontWeight: 700 }}><span>Lo que un plan hecho de víspera podría ahorrar</span><span>{horasDe(e.esperando.minutos)}</span><b>{fmt(e.esperando.monto)}</b></div>
               <div className="text-xs text-muted" style={{ marginTop: 4 }}>{e.esperando.confirmado.minutos ? `${horasDe(e.esperando.confirmado.minutos)} aclarado como espera; ` : ""}{horasDe(e.esperando.sinAclarar.minutos)} sin aclarar (puede ser trabajo que no se anotó).</div>
-              {e.porPersona.slice(0, 8).map(x => <div key={x.trabajadorId} className="mo-act"><span>{nombre(x.trabajadorId)}</span><span className="text-muted">{x.veces} vez(ces)</span><b>{horasDe(x.minutos)}</b></div>)}
+              {e.porPersona.slice(0, 8).map(x => <div key={x.trabajadorId} className="mo-act"><span>{nombre(x.trabajadorId)}</span><span className="text-muted">{veces(x.veces)}</span><b>{horasDe(x.minutos)}</b></div>)}
               <div className="text-xs text-muted" style={{ marginTop: 8 }}>Aparte, y sin contar como espera: {horasDe(e.porMomento.al_final.minutos)} después de su última tarea y antes de salir, {horasDe(e.porMomento.comida.minutos)} en la comida entre cortes, y {horasDe(e.conOtraCausa.minutos)} con otra causa (descanso, traslado, mantenimiento). {e.dice} No cambia pagos ni costos.</div>
             </div>
           );

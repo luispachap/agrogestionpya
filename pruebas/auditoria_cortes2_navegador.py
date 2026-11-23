@@ -92,7 +92,7 @@ with sync_playwright() as p:
     caso("el avance (lo que hacían las hectáreas de «Registro de varios») queda con su parcela, actividad, personas y lo pendiente; no es pago", len(av) == 1 and av[0]["datos"]["parcelaId"] == "p1" and av[0]["datos"]["cantidad"] == 12 and av[0]["datos"]["pendiente"]["cantidad"] == 8 and av[0]["datos"]["personas"] == 1 and av[0]["fecha"] == AYER, [e["datos"] for e in av])
     # ══ HOY ══
     dia(B, HOY); t0 = cuerpo(B)
-    caso("hoy aparece lo que quedó pendiente ayer, en qué se basa, y se vuelve pincel con un toque", "Quedó pendiente de otros días" in t0 and "quedó pendiente 8 surcos" in t0, t0[:900])
+    caso("hoy aparece lo que quedó pendiente ayer, en qué se basa, y se vuelve pincel con un toque", "Lo que quedó pendiente, como pincel" in t0 and "quedó pendiente 8 surcos" in t0, t0[:900])
     B.get_by_label("Hacer pincel: Deshierbe en PARCELA UNO").click(); B.wait_for_timeout(300)
     exp = B.get_by_label("Quién lo ha hecho antes").inner_text()
     caso("con el pincel escogido dice quién lo ha hecho antes (Ana: 3 días, lo tecleado y lo de ayer) y que sólo informa", "ANA INVENTADA 3 días" in exp and "Sólo informa" in exp and "BETO" not in exp, exp)
@@ -145,10 +145,18 @@ with sync_playwright() as p:
          [len(evs(A, x)) for x in ("avance_trabajo", "destajo", "aclaracion")])
     ir(A, "mano-obra"); A.wait_for_timeout(600)
     ind = A.get_by_label("Tiempo esperando tarea"); ti = plano(ind.inner_text()) if ind.count() else ""
+    if FOTOS and ind.count(): ind.scroll_into_view_if_needed(); ind.screenshot(path=f"{FOTOS}/02-espera.png")
     # Caro entró 7:05 y la asignaron 7:35: 30 min esperando su primera tarea, de 10 h en el rancho ($400): ≈ $20.
-    caso("TIEMPO ESPERANDO TAREA: Caro, 30 min al llegar (≈$20); la comida aclarada y lo de después de la última tarea no cuentan", re.search(r"Al llegar, antes de su primera tarea \| 1 vez\(ces\) \| 0 h 30 min", ti) is not None and re.search(r"podría ahorrar \| 0 h 30 min \| \$(19\.9\d|20)", ti) is not None and "2 h 00 min con otra causa" in ti and "CARO INVENTADA" in ti and "No cambia pagos ni costos" in ti, ti)
+    caso("TIEMPO ESPERANDO TAREA: Caro, 30 min al llegar (≈$20); la comida aclarada y lo de después de la última tarea no cuentan", re.search(r"Al llegar, antes de su primera tarea \| 1 vez \| 0 h 30 min", ti) is not None and re.search(r"podría ahorrar \| 0 h 30 min \| \$(19\.9\d|20)", ti) is not None and "2 h 00 min con otra causa" in ti and "CARO INVENTADA" in ti and "No cambia pagos ni costos" in ti, ti)
     ir(A, "nomina"); A.wait_for_timeout(500); tn = cuerpo(A)
     caso("en Pagos le corresponde a Ana su día de ayer (con sus marcas a mano), el de hoy y su destajo: $950", re.search(r"ANA INVENTADA \| [^|]+ \| \$950 \|", tn) is not None, tn[300:1300])
+    # ══ Sin señal: se pinta igual, sube al volver y el otro teléfono lo ve ══
+    B.context.set_offline(True); B.get_by_role("button", name="Borrar", exact=True).click(); B.wait_for_timeout(200)
+    B.get_by_label(re.compile("ANA INVENTADA, 14–17")).click(); B.wait_for_timeout(500)
+    caso("SIN SEÑAL se pinta igual (se borra la tarde de Ana) y queda guardado en el teléfono", "sin pintar" in celda(B, "ANA INVENTADA", "14–17") and B.evaluate(COLA) > 0, [celda(B, "ANA INVENTADA", "14–17"), B.evaluate(COLA)])
+    B.context.set_offline(False)
+    ok = subio(B); A.reload(); A.wait_for_timeout(3500); tabla(A)
+    caso("al volver la señal sube sola y el administrador lo ve", ok and "sin pintar" in celda(A, "ANA INVENTADA", "14–17"), celda(A, "ANA INVENTADA", "14–17"))
     caso("nada quedó sin subir ni rechazado por la base", subio(A) and subio(B) and not nube.ocupados, nube.ocupados[:3])
     caso("ninguna pantalla tronó", not errs, errs[:2])
     b.close()
