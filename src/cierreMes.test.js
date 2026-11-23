@@ -98,3 +98,17 @@ test("un_gasto_de_insumos_no_se_supone_del_almacen_si_nadie_lo_dijo_queda_por_cl
   assert.equal(k.sinParcela.insumosDirectos, 1000, "lo usado directo en producción es costo, aunque no diga parcela");
   assert.equal(k.rancho, 3000, "lo por clasificar y lo del almacén no están en el total");
 });
+
+test("un_periodo_que_no_es_un_mes_se_cuenta_con_las_mismas_reglas_y_dos_meses_juntos_suman_lo_de_cada_uno", () => {
+  const base = { parcelas: PARCELAS, actividades: ACTS, egresos: [{ parcelaId: "p2", fecha: "2026-11-12", monto: 100 }, { fecha: "2026-11-05", monto: 900, categoria: "servicios" }, { fecha: "2026-12-01", monto: 888, categoria: "servicios" },
+    { fecha: "2026-11-08", monto: 5000, categoria: "insumos", destinoInsumo: "inventario" }], indirectos: IND };
+  const nov = costoDelMes({ mes: "2026-11", ...base }), dic = costoDelMes({ mes: "2026-12", ...base }), oct = costoDelMes({ mes: "2026-10", ...base });
+  const tres = costoDelMes({ desde: "2026-10-01", hasta: "2026-12-31", ...base });
+  assert.equal(tres.rancho, oct.rancho + nov.rancho + dic.rancho, "un trimestre es la suma de sus tres meses: ni un peso más, ni uno menos");
+  assert.equal(tres.paraAlmacen, 5000, "lo comprado para el almacén se enseña aparte");
+  assert.ok(tres.rancho < 5000 + oct.rancho + nov.rancho + dic.rancho, "y no se suma como gasto: cuenta cuando se usa");
+  const semana = costoDelMes({ desde: "2026-11-24", hasta: "2026-11-30", ...base });
+  assert.equal(semana.completo, 500 + 200, "la semana sólo cuenta sus siete días: la actividad del 30 y su indirecto");
+  assert.equal(semana.desde, "2026-11-24"); assert.equal(semana.hasta, "2026-11-30");
+  assert.equal(nov.desde, undefined, "el cierre de un mes entero guarda la misma foto de siempre");
+});

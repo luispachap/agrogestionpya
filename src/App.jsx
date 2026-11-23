@@ -70,6 +70,14 @@ const almacenEnDinero = (data) => {
 };
 const resultadoDe = (data) => resultadoDelRancho({ ingresos: data.ingresos, egresos: data.egresos, entradas_inv: data.entradas_inv || [], actividades: data.actividadesContables || data.actividades || [], indirectos: data.indirectos,
   compras: repartoDeCompras(data.compras || [], data.almacen?.recibidas || []), almacen: almacenEnDinero(data) });
+// Lo que costó un periodo (un mes, una semana, un año, una temporada) con las MISMAS reglas del cierre de mes. «¿Cómo vamos?»,
+// el panel del dueño, el resumen semanal y las temporadas leen de aquí: antes sumaban por su lado (las compras para el almacén
+// como gasto y otra vez al usarse, la mano de obra cruda) y no cuadraban con Finanzas ni con el cierre.
+const costoDe = (data, { mes = "", desde = "", hasta = "" } = {}) => costoDelMes({ mes, desde, hasta, parcelas: data.parcelas || [], actividades: data.actividadesContables || data.actividades || [], egresos: vivos(data.egresos), compras: data.compras || [], indirectos: data.indirectos,
+  recibidas: data.almacen?.recibidas || [], consumosGenerales: (data.almacen?.consumos || []).filter(c => !c.enActividad && c.destino?.tipo === "general" && c.costo != null), ajustesValuacion: data.ajustesValuacion?.lista || [],
+  mermas: data.almacen ? [...resumenDeAjustesAlm(data.almacen, data.inventario || []).lista.filter(a => a.diferencia < 0), ...(data.almacen.bajas || []).filter(b => b.valor)] : [],
+  maquinaria: mes && !desde ? conciliarMaquinaria(data.repartosVehiculos || [], mes) : null });
+const ingresosDe = (data, desde, hasta) => sumarDinero(vivos(data.ingresos).filter(i => i.fecha && i.fecha >= desde && i.fecha <= hasta).map(i => Number(i.monto) || 0));
 const flujoDe = (data) => flujoDeEfectivo({ ingresos: data.ingresos, egresos: data.egresos, compras: data.compras || [], entradas_inv: data.entradas_inv || [], creditos: data.creditos || [], eventos: data.eventos || [], prestamos: data.prestamos || [], cajachica: data.cajachica || [], hoy: today() });
 import { T_SALARIO_MINIMO, ZONAS as ZONAS_SM, catalogoDe as catalogoSM, salarioMinimoEn, capturarSalarioMinimo, alertaDeSalarioMinimo } from "./salariosMinimos.js";
 import { T_BAJA, T_PAGO_BAJA, CAUSAS_DE_BAJA, CONCEPTOS_DE_BAJA, NOMBRE_DE as NOMBRE_DE_BAJA, proponerBaja, registrarBaja, pagarBaja, bajasDe, pagosDeBaja, renglonesDeBajas } from "./bajas.js";
@@ -783,6 +791,7 @@ html[data-tema="claro"] .num-btn:active{color:#241A04;}
 
 /* ════════════ DATOS INICIALES ════════════ */
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
 /* Catálogo de ubicaciones físicas (base de datos Agroselectos P&A — Excel 22F-23F) */
 const UBICACIONES_CATALOG = [
@@ -1797,25 +1806,21 @@ function resumenCiclo(data, ciclo) {
   const ini = ciclo.fechaInicio || "2000-01-01";
   const fin = ciclo.fechaFin || "2999-12-31";
   const enRango = f => f && f >= ini && f <= fin;
-  const acts = (data.actividadesContables || data.actividades || []).filter(a => enRango(a.fecha));
+  const acts = (data.actividadesContables || data.actividades || []).filter(a => enRango(a.fecha) && !a._deEventos);
   const ing = vivos(data.ingresos).filter(g => enRango(g.fecha));
-  const egr = vivos(data.egresos).filter(e => enRango(e.fecha));
-  const comp = (data.compras || []).filter(c => c.estado === "aprobada" && enRango(c.fecha));
-  const ent = (data.entradas_inv || []).filter(e => enRango(e.fecha));
-  const costoActs = acts.reduce((s, a) => s + (a.costoTotal || 0), 0);
-  const costoEgr = egr.reduce((s, e) => s + e.monto, 0);
-  const costoComp = comp.reduce((s, c) => s + c.monto, 0);
-  const costoEnt = sumarDinero(ent.map(costoAFinanzas));
-  const costoTotal = costoActs + costoEgr + costoComp + costoEnt;
-  const ingresoTotal = ing.reduce((s, g) => s + g.monto, 0);
+  // La temporada se cuenta con las reglas del cierre de mes (`costoDe`). Antes sumaba las entradas al almacén y las compras
+  // de insumos como costo, y otra vez cuando esos insumos se usaban en una actividad: la misma urea dos veces.
+  const k = costoDe(data, { desde: ini, hasta: fin });
+  const costoTotal = k.rancho;
+  const ingresoTotal = ingresosDe(data, ini, fin);
   // Cosecha del ciclo: registros dentro del rango
   let cosechaTotal = 0;
   (data.cosechas || []).forEach(c => {
     registrosVivos(c).forEach(r => { if (enRango(r.fecha)) cosechaTotal += parseFloat(r.cantidad) || 0; });
   });
   return {
-    ciclo, costoActs, costoEgr, costoComp, costoEnt, costoTotal, ingresoTotal,
-    utilidad: ingresoTotal - costoTotal, cosechaTotal,
+    ciclo, k, costoTotal, ingresoTotal,
+    utilidad: sumarDinero(ingresoTotal, -costoTotal), cosechaTotal,
     nActs: acts.length, nIngresos: ing.length,
   };
 }
@@ -7483,7 +7488,7 @@ function AppInner() {
     return () => { navigator.serviceWorker?.removeEventListener?.("message", oir); document.removeEventListener("visibilitychange", alVolver); window.removeEventListener("focus", alVolver); };
   }, [setPage]);
   // Sólo en desarrollo: las pruebas leen aquí lo calculado para cruzar una pantalla contra otra.
-  useEffect(() => { if (import.meta.env.DEV) { window.__agroDatos = data; window.__agroCuentas = () => ({ resultado: resultadoDe(data), flujo: flujoDe(data) }); } }, [data]);
+  useEffect(() => { if (import.meta.env.DEV) { window.__agroDatos = data; window.__agroCuentas = () => ({ resultado: resultadoDe(data), flujo: flujoDe(data), costo: (periodo) => costoDe(data, periodo) }); } }, [data]);
 
   // Botón "atrás" del navegador/teléfono: retrocede dentro de la app en vez de salir.
   // Cuando se entra a una página que no es "home", se agrega una entrada al historial;
@@ -8156,7 +8161,10 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "home" && <TrabReg data={data} add={add} upd={upd} setInv={setInv} session={session} online={online} onLogout={cerrarSesion} onNav={setPage} />}
               {page === "mis" && <TrabHistorial data={data} add={add} upd={upd} session={session} onLogout={cerrarSesion} />}
               {page === "compras" && <TrabCompras data={data} add={add} setInv={setInv} session={session} online={online} onLogout={cerrarSesion} />}
-              {page === "pase-lista" && esCaboSesion && <PaseLista data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
+              {page === "pase-lista" && (esCaboSesion ? <PaseLista data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />
+                : <div><div className="top-bar"><button className="btn-ghost" onClick={() => setPage("home")}>‹</button><h2>Pase de lista</h2></div>
+                  <div className="section-pad"><div className="card"><div className="text-sm">La asistencia de los demás la marca un encargado o el cabo que nombre un administrador.</div>
+                    <div className="text-xs text-muted mt-2">Tu entrada y tu salida las registras en el checador.</div></div></div></div>)}
               {page === "reporte" && <TrabReporte data={data} add={add} session={session} onLogout={cerrarSesion} />}
               {page === "solicitudes" && <SolicitudesCompra data={data} add={add} upd={upd} del={del} setInv={setInv} aplicarLote={aplicarLote} session={session} onClose={() => setPage("home")} />}
             </>}
@@ -10584,6 +10592,11 @@ function ManoDeObra({ data, add, session, onClose }) {
   };
   const r = useMemo(() => manoDeObra(data.eventos, quienesChecan(data), { desde: rango.desde, hasta: rango.hasta, hoy, ahora: new Date().toISOString() }), [data.eventos, data.trabajadores, data.encargados, rango.desde, rango.hasta, hoy]);
   const dobles = capturasDobles(data.actividades, r.partes);
+  // La mano de obra que se TECLEÓ como actividad (de quien no checa, o de antes del checador). Ya cuenta en los reportes
+  // (`actividadesContables`); aquí no se veía y la pantalla decía $0 aunque hubiera trabajo registrado. Lo que el checador ya
+  // cubre ese día no viene aquí: `unaSolaManoDeObra` le quitó su mano de obra (una sola fuente por día).
+  const tecleadas = useMemo(() => (data.actividadesContables || []).filter(a => !a._deEventos && a.fecha >= rango.desde && a.fecha <= rango.hasta && Number(a.costoMO) > 0), [data.actividadesContables, rango.desde, rango.hasta]);
+  const totalTecleado = sumarDinero(tecleadas.map(a => Number(a.costoMO) || 0)), tecleadoAParcelas = sumarDinero(tecleadas.filter(a => a.parcelaId).map(a => Number(a.costoMO) || 0));
   // Las cuadrillas eventuales entran al mismo reporte: lo que cobró cada persona y el flete externo repartido.
   const cq = useMemo(() => costoDeCuadrillas(data.eventos, { desde: rango.desde, hasta: rango.hasta, criterioFlete: ajusteVigente(data.eventos, "criterio_flete").valor }), [data.eventos, rango.desde, rango.hasta]);
   const partesCq = cq.partes.map(p => ({ ...p, trabajadorId: `cq|${p.cuadrillaId}|${p.persona || "~flete"}`, minutos: null, deCuadrilla: true }));
@@ -10646,11 +10659,11 @@ function ManoDeObra({ data, add, session, onClose }) {
         )}
         <div className="card">
           <div className="stat-label">Lo que se ganó el personal en el periodo</div>
-          <div className="stat-val" style={{ fontSize: 30 }}>{fmt(sumarDinero(r.total, cq.totalPagos))}</div>
-          {cq.total > 0 && <div className="text-xs text-muted">Trabajadores de planta {fmt(r.total)} · cuadrillas {fmt(cq.totalPagos)}{cq.totalFlete > 0 ? ` · más ${fmt(cq.totalFlete)} de flete externo` : ""}</div>}
+          <div className="stat-val" style={{ fontSize: 30 }}>{fmt(sumarDinero(r.total, cq.totalPagos, totalTecleado))}</div>
+          {(cq.total > 0 || totalTecleado > 0) && <div className="text-xs text-muted">Con el checador {fmt(r.total)}{cq.total > 0 ? ` · cuadrillas ${fmt(cq.totalPagos)}` : ""}{totalTecleado > 0 ? ` · capturado como actividad ${fmt(totalTecleado)}` : ""}{cq.totalFlete > 0 ? ` · más ${fmt(cq.totalFlete)} de flete externo` : ""}</div>}
           <div className="mo-dos">
-            <div><div className="stat-label">Cargado a parcelas</div><b>{fmt(sumarDinero(r.totalAParcelas, cq.total))}</b><div className="text-xs text-muted">{horasDe(r.minutosAsignados - r.porVehiculo.reduce((n, v) => n + v.minutos, 0))} de planta</div></div>
-            <div><div className="stat-label">Fuera de parcelas</div><b>{fmt(r.totalSinAsignar)}</b><div className="text-xs text-muted">{horasDe(r.minutosSinAsignar)}</div></div>
+            <div><div className="stat-label">Cargado a parcelas</div><b>{fmt(sumarDinero(r.totalAParcelas, cq.total, tecleadoAParcelas))}</b><div className="text-xs text-muted">{horasDe(r.minutosAsignados - r.porVehiculo.reduce((n, v) => n + v.minutos, 0))} de planta</div></div>
+            <div><div className="stat-label">Fuera de parcelas</div><b>{fmt(sumarDinero(r.totalSinAsignar, sumarDinero(totalTecleado, -tecleadoAParcelas)))}</b><div className="text-xs text-muted">{horasDe(r.minutosSinAsignar)}</div></div>
           </div>
           {r.totalSinAsignar > 0 && (
             <div style={{ marginTop: 12 }}>
@@ -10662,6 +10675,16 @@ function ManoDeObra({ data, add, session, onClose }) {
           <div className="text-xs text-muted" style={{ marginTop: 8 }}>Las partes suman exacto lo pagado. Tiempo sin asignar no quiere decir tiempo perdido: quiere decir que falta aclararlo. No se reparte entre las parcelas para que cuadre.</div>
         </div>
 
+        {tecleadas.length > 0 && (
+          <div className="card">
+            <div className="card-title">Capturado como actividad</div>
+            {tecleadas.slice().sort((x, y) => (y.fecha || "").localeCompare(x.fecha || "")).slice(0, 40).map(a => (
+              <div key={a.id} className="mo-act"><span>{a.tipo || "Actividad"} · {parcela(a.parcelaId)}<div className="text-xs text-muted">{a.fecha} · {a.trabajadorNombre || a.registradoPor?.nombre || nombreEjecutorAct(data, a.registradoPor)}{a.cuadrilla_personas ? ` · ${a.cuadrilla_personas} personas` : ""}</div></span><span /><b>{fmt(a.costoMO)}</b></div>
+            ))}
+            {tecleadas.length > 40 && <div className="text-xs text-muted">Y {tecleadas.length - 40} más en el periodo (suman en el total de arriba).</div>}
+            <div className="text-xs text-muted" style={{ marginTop: 8 }}>Es lo que se tecleó en una actividad. Si ese mismo día la persona checó, cuenta lo del checador y esto no se suma (una sola fuente por día).</div>
+          </div>
+        )}
         <div className="card">
           <div className="card-title">El tiempo de los trabajadores de planta</div>
           <div className="mo-act"><span>Trabajado en actividades</span><span /><b>{horasDe(r.tiempo.trabajado)}</b></div>
@@ -12770,10 +12793,7 @@ const NOMBRE_DE_GASTO = { caja_chica: "gastos generales pagados de caja chica", 
 function CierreDeMes({ data, add, session }) {
   const hoy = today(), mesPasado = sumarDias(`${hoy.slice(0, 7)}-01`, -1).slice(0, 7);
   const [mes, setMes] = useState(mesPasado); const [motivo, setMotivo] = useState(""); const [dice, setDice] = useState(""); const [avisos, setAvisos] = useState([]); const [ver, setVer] = useState(null);
-  const costo = useMemo(() => costoDelMes({ mes, parcelas: data.parcelas || [], actividades: data.actividadesContables || data.actividades || [], egresos: vivos(data.egresos), compras: data.compras || [], indirectos: data.indirectos,
-    recibidas: data.almacen?.recibidas || [], consumosGenerales: (data.almacen?.consumos || []).filter(c => !c.enActividad && c.destino?.tipo === "general" && c.costo != null), ajustesValuacion: data.ajustesValuacion?.lista || [],
-    mermas: data.almacen ? [...resumenDeAjustesAlm(data.almacen, data.inventario || []).lista.filter(a => a.diferencia < 0), ...(data.almacen.bajas || []).filter(b => b.valor)] : [],
-    maquinaria: conciliarMaquinaria(data.repartosVehiculos || [], mes) }), [data, mes]);
+  const costo = useMemo(() => costoDe(data, { mes }), [data, mes]);
   const conc = useMemo(() => conciliarMes({ mes, cuentas: data.prestaciones?.cuentas || [], indirectos: data.indirectos }), [data, mes]);
   const s = estadoDeMes(data.eventos, mes), puede = add && seOfrece(session, "cerrar_mes");
   const aj = ajustesPosteriores(s.estado === "cerrado" ? s.cierre : null, costo);
@@ -16070,15 +16090,16 @@ function GestionCiclos({ data, add, upd, del, onClose }) {
           </div>
           <div className="stat-row">
             <div className="stat-card"><div className="stat-label">Ingresos</div><div className="stat-val" style={{ fontSize: 16, color: "var(--safe)" }}>{fmt(r.ingresoTotal)}</div></div>
-            <div className="stat-card"><div className="stat-label">Costo directo</div><div className="stat-val" style={{ fontSize: 16, color: "var(--red)" }}>{fmt(r.costoTotal)}</div></div>
+            <div className="stat-card"><div className="stat-label">Costos y gastos</div><div className="stat-val" style={{ fontSize: 16, color: "var(--red)" }}>{fmt(r.costoTotal)}</div></div>
           </div>
           <div className="card">
             <div className="card-title">Desglose de costos de la temporada</div>
-            <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">Actividades de campo</span><span className="text-sm">{fmt(r.costoActs)}</span></div>
-            <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">Egresos</span><span className="text-sm">{fmt(r.costoEgr)}</span></div>
-            <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">Compras de trabajadores</span><span className="text-sm">{fmt(r.costoComp)}</span></div>
-            <div className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">Entradas de inventario</span><span className="text-sm">{fmt(r.costoEnt)}</span></div>
-            <div className="flex-b" style={{ padding: "8px 0 2px", borderTop: "2px solid var(--accent)", marginTop: 6 }}><span className="font-bold">Total de costos</span><span className="font-bold" style={{ color: "var(--red)" }}>{fmt(r.costoTotal)}</span></div>
+            {[["Producción en parcelas (directo y lo indirecto que les toca)", r.k.completo], ["Trabajo de bodega de un cultivo", r.k.bodega.total], ["Sin parcela (a la vista, sin repartir)", r.k.sinParcela.total],
+              ["Indirectos pendientes de repartir", r.k.pendiente], ["Lo que no fue de producción", r.k.noProduccion], ["Gastos generales de operación y administración", r.k.generales.total]].filter(([, v]) => v).map(([l, v]) => (
+              <div key={l} className="flex-b" style={{ padding: "4px 0" }}><span className="text-sm text-muted">{l}</span><span className="text-sm">{fmt(v)}</span></div>))}
+            <div className="flex-b" style={{ padding: "8px 0 2px", borderTop: "2px solid var(--accent)", marginTop: 6 }}><span className="font-bold">Total de costos y gastos</span><span className="font-bold" style={{ color: "var(--red)" }}>{fmt(r.costoTotal)}</span></div>
+            {r.k.paraAlmacen > 0 && <div className="text-xs text-muted mt-2">Comprado para el almacén en la temporada: {fmt(r.k.paraAlmacen)}. No está en el total: cuenta cuando se usa.</div>}
+            {(r.k.porClasificar.monto > 0 || r.k.porValuar > 0) && <div className="text-xs mt-2" style={{ color: "var(--gold)" }}>Fuera del total hasta que se aclare: {r.k.porClasificar.monto > 0 ? `${fmt(r.k.porClasificar.monto)} en insumos por clasificar` : ""}{r.k.porClasificar.monto > 0 && r.k.porValuar > 0 ? " · " : ""}{r.k.porValuar > 0 ? `${fmt(r.k.porValuar)} de compras por recibir o valuar` : ""}.</div>}
           </div>
           <div className="card">
             <div className="card-title">Producción y actividad</div>
@@ -16154,19 +16175,17 @@ function ResumenSemanal({ data, onClose }) {
   const hoyStr = today();
   // La semana son SIEMPRE 7 días. Con toISOString() encogía a 6 a partir de
   // las 6 de la tarde, porque esa función devuelve UTC y el rancho va 6 h atrás.
-  const hace7 = sumarDias(hoyStr, -7);
+  // Siete días contando hoy (antes eran ocho: del día de hace una semana al de hoy, los dos incluidos).
+  const hace7 = sumarDias(hoyStr, -6);
   const enSemana = f => f && f >= hace7 && f <= hoyStr;
 
-  const actsSem = (data.actividades || []).filter(a => enSemana(a.fecha));
+  // Las actividades que de verdad cuentan (con la mano de obra del checador, las cuadrillas y el almacén) y la cuenta del
+  // cierre de mes (`costoDe`): antes se sumaban las compras para el almacén como gasto y otra vez al usarse.
+  const actsSem = (data.actividadesContables || data.actividades || []).filter(a => enSemana(a.fecha) && !a._deEventos);
+  const semana = useMemo(() => costoDe(data, { desde: hace7, hasta: hoyStr }), [data, hace7, hoyStr]);
   const ingSem = vivos(data.ingresos).filter(g => enSemana(g.fecha));
-  const egrSem = vivos(data.egresos).filter(e => enSemana(e.fecha));
-  const comprasSem = (data.compras || []).filter(c => enSemana(c.fecha));
-
-  const ingresosSemana = ingSem.reduce((s, g) => s + g.monto, 0);
-  const costoActsSemana = actsSem.reduce((s, a) => s + (a.costoTotal || 0), 0);
-  const egresosSemana = egrSem.reduce((s, e) => s + e.monto, 0)
-    + comprasSem.filter(c => c.estado === "aprobada").reduce((s, c) => s + c.monto, 0);
-  const balanceSemana = ingresosSemana - costoActsSemana - egresosSemana;
+  const ingresosSemana = ingresosDe(data, hace7, hoyStr);
+  const balanceSemana = sumarDinero(ingresosSemana, -semana.rancho);
 
   // Cosecha de la semana
   let cosechaSemana = 0;
@@ -16196,7 +16215,8 @@ function ResumenSemanal({ data, onClose }) {
           <div className="stat-card wide">
             <div className="stat-label">Balance de la semana</div>
             <div className="stat-val" style={{ fontSize: 26, color: balanceSemana >= 0 ? "var(--safe)" : "var(--red)" }}>{fmt(balanceSemana)}</div>
-            <div className="stat-sub">Ingresos {fmt(ingresosSemana)} · Egresos {fmt(costoActsSemana + egresosSemana)}</div>
+            <div className="stat-sub">Ingresos {fmt(ingresosSemana)} · Costos y gastos {fmt(semana.rancho)}</div>
+            {semana.paraAlmacen > 0 && <div className="stat-sub">Comprado para el almacén: {fmt(semana.paraAlmacen)} (cuenta cuando se usa)</div>}
           </div>
         </div>
         <div className="stat-row">
@@ -18041,51 +18061,49 @@ function AgronomoCompras({ data, add, upd, del, setInv, session, onClose }) {
 
 /* ════════════ PANEL FINANCIERO — ADMIN ════════════ */
 /* Vista clara para el dueño: cómo va el dinero, sin tecnicismos. */
+// El resultado del año con la cuenta de Finanzas y del cierre de mes (`costoDe`), no con una suma propia. Lo usan
+// «¿Cómo vamos?» y el panel del dueño. Lo comprado para el almacén se enseña aparte: es costo cuando se usa.
+function ResultadoDelAnio({ data }) {
+  const hoy = today(), anio = hoy.slice(0, 4);
+  const k = useMemo(() => costoDe(data, { desde: `${anio}-01-01`, hasta: hoy }), [data, anio, hoy]);
+  const ingresos = ingresosDe(data, `${anio}-01-01`, hoy), resultado = sumarDinero(ingresos, -k.rancho);
+  return (
+    <div className="card" style={{ background: resultado >= 0 ? "rgba(132,192,1,.08)" : "rgba(224,90,90,.08)", border: `1px solid ${resultado >= 0 ? "rgba(132,192,1,.3)" : "rgba(224,90,90,.3)"}` }}>
+      <div className="stat-label">Resultado del año {anio}</div>
+      <div style={{ fontSize: 30, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", color: resultado >= 0 ? "var(--safe)" : "var(--red)" }}>
+        {resultado >= 0 ? "+" : ""}{fmt(resultado)}
+      </div>
+      <div className="flex-b text-sm mt-2">
+        <span className="text-muted">Ingresos: {fmt(ingresos)}</span>
+        <span className="text-muted">Costos y gastos: {fmt(k.rancho)}</span>
+      </div>
+      {k.paraAlmacen > 0 && <div className="text-xs text-muted mt-2">Comprado para el almacén: {fmt(k.paraAlmacen)}. No está en los costos: cuenta cuando se usa.</div>}
+      {(k.porClasificar.monto > 0 || k.porValuar > 0) && <div className="text-xs mt-2" style={{ color: "var(--gold)" }}>
+        {k.porClasificar.monto > 0 && <>Hay {fmt(k.porClasificar.monto)} en insumos que nadie ha dicho qué fueron. </>}
+        {k.porValuar > 0 && <>Hay {fmt(k.porValuar)} de compras por recibir o valuar. </>}No están en esta cuenta hasta que se aclaren (Finanzas → Resultados).</div>}
+    </div>
+  );
+}
+
 function PanelFinanciero({ data, onClose }) {
-  // El mes se decide con la hora del rancho. Con toISOString() el panel
-  // cambiaba de mes a las 6 de la tarde (devuelve UTC, y Zacatecas va 6 h
-  // atrás): el 30 de septiembre en la noche ya sumaba los gastos de octubre
-  // —un mes que apenas empezaba— y el dueño veía que casi no se había gastado.
-  const mesAct = mesLocal();
-  const mesAnt = mesAnterior(mesAct);
+  // El mes y el año se deciden con la hora del rancho (`today`/`mesLocal`), nunca con toISOString().
+  const hoy = today(), mesAct = mesLocal(), anioAtras = String(+mesAct.slice(0, 4) - 1);
+  const mesAtras = `${anioAtras}${mesAct.slice(4)}`;
+  // Este mes contra el MISMO mes del año pasado, del día 1 al mismo día. Un rancho es estacional: contra el mes anterior
+  // salían alarmas falsas («650 % más que el mes pasado»), y las alarmas falsas enseñan a ignorar las alarmas.
+  const diaAtras = (() => { const d = `${anioAtras}-${hoy.slice(5)}`; return d.endsWith("-02-29") ? `${anioAtras}-02-28` : d; })();
+  const ahora = useMemo(() => costoDe(data, { desde: `${mesAct}-01`, hasta: hoy }), [data, mesAct, hoy]);
+  const antes = useMemo(() => costoDe(data, { desde: `${mesAtras}-01`, hasta: diaAtras }), [data, mesAtras, diaAtras]);
+  const hayAntes = [...(data.actividadesContables || data.actividades || []), ...vivos(data.egresos), ...vivos(data.ingresos)].some(x => (x.fecha || "").slice(0, 7) === mesAtras);
+  const iAct = ingresosDe(data, `${mesAct}-01`, hoy), iAntes = ingresosDe(data, `${mesAtras}-01`, diaAtras);
+  const dif = sumarDinero(ahora.rancho, -antes.rancho), pct = antes.rancho > 0 ? Math.round((dif / antes.rancho) * 100) : null;
+  const nombreMes = (m) => `${MESES_LARGOS[+m.slice(5, 7) - 1]} de ${m.slice(0, 4)}`;
 
-  // Gasto de un mes: egresos + costo de actividades de ese mes
-  const gastoMes = mes => {
-    const eg = vivos(data.egresos).filter(e => (e.fecha || "").slice(0, 7) === mes).reduce((s, e) => s + (e.monto || 0), 0);
-    const ac = (data.actividades || []).filter(a => (a.fecha || "").slice(0, 7) === mes).reduce((s, a) => s + (a.costoTotal || 0), 0);
-    return eg + ac;
-  };
-  const ingresoMes = mes => vivos(data.ingresos).filter(i => (i.fecha || "").slice(0, 7) === mes).reduce((s, i) => s + (i.monto || 0), 0);
-
-  const gAct = gastoMes(mesAct), gAnt = gastoMes(mesAnt);
-  const iAct = ingresoMes(mesAct), iAnt = ingresoMes(mesAnt);
-  const difGasto = gAnt > 0 ? ((gAct - gAnt) / gAnt) * 100 : 0;
-
-  // Parcelas que se pasaron del presupuesto (vía siembra activa con presupuesto)
-  const parcelasAlerta = [];
-  data.parcelas.forEach(p => {
-    const rep = reporteParcela(data, p.id);
-    const si = (data.siembras || []).find(s => s.parcelaId === p.id && s.estado === "activa" && s.presupuesto > 0);
-    if (si && rep.total > si.presupuesto) {
-      parcelasAlerta.push({ parcela: p, gastado: rep.total, presupuesto: si.presupuesto, exceso: rep.total - si.presupuesto });
-    }
-  });
-
-  // Inversión en cultivos aún sin cosechar (siembras activas)
-  const inversionEnCurso = [];
-  (data.siembras || []).filter(s => s.estado === "activa").forEach(s => {
-    const rep = reporteParcela(data, s.parcelaId);
-    const p = data.parcelas.find(x => x.id === s.parcelaId);
-    inversionEnCurso.push({ siembra: s, parcela: p, invertido: rep.total, ingreso: rep.ingresoTotal });
-  });
-  const totalInvertido = inversionEnCurso.reduce((s, x) => s + x.invertido, 0);
-
-  // Resultado global del año
-  const anioAct = mesAct.slice(0, 4); // el año del mes en curso, en hora del rancho
-  const gastoAnio = [...vivos(data.egresos).filter(e => (e.fecha || "").slice(0, 4) === anioAct).map(e => e.monto || 0),
-    ...(data.actividades || []).filter(a => (a.fecha || "").slice(0, 4) === anioAct).map(a => a.costoTotal || 0)].reduce((s, n) => s + n, 0);
-  const ingresoAnio = vivos(data.ingresos).filter(i => (i.fecha || "").slice(0, 4) === anioAct).reduce((s, i) => s + (i.monto || 0), 0);
-  const resultadoAnio = ingresoAnio - gastoAnio;
+  // Cada cultivo activo con lo de SU ciclo (`reporteSiembra`): antes se sumaba todo lo de la parcela desde siempre.
+  const activas = (data.siembras || []).filter(s => s.estado === "activa");
+  const inversionEnCurso = activas.map(s => { const rep = reporteSiembra(data, s.id) || { total: 0, ingresoTotal: 0 }; return { siembra: s, parcela: data.parcelas.find(x => x.id === s.parcelaId), invertido: rep.total, ingreso: rep.ingresoTotal }; });
+  const parcelasAlerta = inversionEnCurso.filter(x => x.siembra.presupuesto > 0 && x.invertido > x.siembra.presupuesto).map(x => ({ ...x, gastado: x.invertido, presupuesto: x.siembra.presupuesto, exceso: x.invertido - x.siembra.presupuesto }));
+  const totalInvertido = sumarDinero(inversionEnCurso.map(x => x.invertido));
 
   return (
     <div>
@@ -18094,41 +18112,30 @@ function PanelFinanciero({ data, onClose }) {
         <h2>¿Cómo vamos?</h2>
       </div>
       <div className="section-pad">
-        {/* Resultado del año */}
-        <div className="card" style={{ background: resultadoAnio >= 0 ? "rgba(132,192,1,.08)" : "rgba(224,90,90,.08)", border: `1px solid ${resultadoAnio >= 0 ? "rgba(132,192,1,.3)" : "rgba(224,90,90,.3)"}` }}>
-          <div className="stat-label">Resultado del año {anioAct}</div>
-          <div style={{ fontSize: 30, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", color: resultadoAnio >= 0 ? "var(--safe)" : "var(--red)" }}>
-            {resultadoAnio >= 0 ? "+" : ""}{fmt(resultadoAnio)}
-          </div>
-          <div className="flex-b text-sm mt-2">
-            <span className="text-muted">Ingresos: {fmt(ingresoAnio)}</span>
-            <span className="text-muted">Gastos: {fmt(gastoAnio)}</span>
-          </div>
-        </div>
+        <ResultadoDelAnio data={data} />
 
-        {/* Comparación mensual */}
         <div className="card">
-          <div className="card-title">Este mes contra el anterior</div>
+          <div className="card-title">Este mes contra el mismo mes del año pasado</div>
+          <div className="text-xs text-muted mb-2">Del 1 al {+hoy.slice(8)} de cada mes. Contra el mes anterior no se compara: en un rancho el trabajo va por temporada.</div>
           <div className="flex-b" style={{ padding: "6px 0" }}>
-            <span className="text-sm">Gasto este mes</span>
-            <span className="font-bold">{fmt(gAct)}</span>
+            <span className="text-sm">Costos y gastos de {nombreMes(mesAct)}</span>
+            <span className="font-bold">{fmt(ahora.rancho)}</span>
           </div>
-          <div className="flex-b" style={{ padding: "6px 0" }}>
-            <span className="text-sm">Gasto mes anterior</span>
-            <span className="text-muted">{fmt(gAnt)}</span>
-          </div>
-          {gAnt > 0 && (
-            <div className={`alert alert-${difGasto > 15 ? "red" : difGasto > 0 ? "gold" : "green"}`} style={{ marginTop: 8 }}>
-              <span className="alert-icon"><Ic e={difGasto > 0 ? "📈" : "📉"} /></span>
-              <div className="alert-body"><div className="alert-desc">
-                {difGasto > 0 ? `Estás gastando ${Math.abs(Math.round(difGasto))}% más que el mes pasado` : difGasto < 0 ? `Estás gastando ${Math.abs(Math.round(difGasto))}% menos que el mes pasado` : "Gasto igual al mes pasado"}
-              </div></div>
+          {hayAntes ? <>
+            <div className="flex-b" style={{ padding: "6px 0" }}>
+              <span className="text-sm">Costos y gastos de {nombreMes(mesAtras)}</span>
+              <span className="text-muted">{fmt(antes.rancho)}</span>
             </div>
-          )}
+            {dif !== 0 && <div className={`alert alert-${dif > 0 ? "gold" : "green"}`} style={{ marginTop: 8 }}>
+              <span className="alert-icon"><Ic e={dif > 0 ? "📈" : "📉"} /></span>
+              <div className="alert-body"><div className="alert-desc">{fmt(Math.abs(dif))} {dif > 0 ? "más" : "menos"} que en {nombreMes(mesAtras)}{pct !== null ? ` (${Math.abs(pct)} %)` : ""}.</div></div>
+            </div>}
+          </> : <div className="text-sm text-muted" style={{ padding: "6px 0" }}>Todavía no hay con qué comparar: no hay registros de {nombreMes(mesAtras)}.</div>}
           <div className="flex-b" style={{ padding: "6px 0", borderTop: "1px solid var(--border)", marginTop: 6 }}>
-            <span className="text-sm">Ingresos este mes</span>
+            <span className="text-sm">Ingresos de {nombreMes(mesAct)}</span>
             <span className="font-bold" style={{ color: "var(--safe)" }}>{fmt(iAct)}</span>
           </div>
+          {hayAntes && <div className="flex-b" style={{ padding: "6px 0" }}><span className="text-sm">Ingresos de {nombreMes(mesAtras)}</span><span className="text-muted">{fmt(iAntes)}</span></div>}
         </div>
 
         {/* Parcelas pasadas de presupuesto */}
@@ -18136,10 +18143,10 @@ function PanelFinanciero({ data, onClose }) {
           <div className="card">
             <div className="card-title">Parcelas pasadas de presupuesto</div>
             {parcelasAlerta.map(x => (
-              <div key={x.parcela.id} className="list-item">
-                <div className="li-icon" style={{ background: "rgba(224,90,90,.12)" }}><Ic e={x.parcela.emoji} /></div>
+              <div key={x.siembra.id} className="list-item">
+                <div className="li-icon" style={{ background: "rgba(224,90,90,.12)" }}><Ic e={x.parcela?.emoji || "🌱"} /></div>
                 <div className="li-body">
-                  <div className="li-title">{x.parcela.nombre}</div>
+                  <div className="li-title">{nombreSiembra(x.siembra)} · {x.parcela?.nombre || "parcela que ya no está"}</div>
                   <div className="li-sub">Presupuesto {fmt(x.presupuesto)} · gastado {fmt(x.gastado)}</div>
                 </div>
                 <div className="li-right"><div className="li-val" style={{ color: "var(--red)" }}>+{fmt(x.exceso)}</div></div>
@@ -18151,7 +18158,7 @@ function PanelFinanciero({ data, onClose }) {
         {/* Inversión en cultivos en curso */}
         <div className="card">
           <div className="card-title">Invertido en cultivos sin cosechar</div>
-          <div className="text-xs text-muted mb-2">Dinero ya puesto en cultivos que todavía no dan ingreso.</div>
+          <div className="text-xs text-muted mb-2">Costo directo de cada ciclo activo, desde su siembra (lo de ciclos anteriores de la misma parcela no cuenta aquí).</div>
           {inversionEnCurso.length === 0 && <div className="text-muted text-sm">No hay cultivos activos</div>}
           {inversionEnCurso.map(x => (
             <div key={x.siembra.id} className="list-item">
@@ -18196,13 +18203,6 @@ function PanelFinanciero({ data, onClose }) {
 
 /* ════════════ PERFIL DIRECCIÓN / DUEÑO (solo lectura) ════════════ */
 function DuenoHome({ data, session, onNav, onLogout }) {
-  const anio = new Date().getFullYear().toString();
-  const ingresoAnio = vivos(data.ingresos).filter(i => (i.fecha || "").slice(0, 4) === anio).reduce((s, i) => s + (i.monto || 0), 0);
-  const gastoAnio = [
-    ...vivos(data.egresos).filter(e => (e.fecha || "").slice(0, 4) === anio).map(e => e.monto || 0),
-    ...(data.actividades || []).filter(a => (a.fecha || "").slice(0, 4) === anio).map(a => a.costoTotal || 0),
-  ].reduce((s, n) => s + n, 0);
-  const resultado = ingresoAnio - gastoAnio;
   const siembrasActivas = (data.siembras || []).filter(s => s.estado === "activa").length;
   const cultivosActivos = (data.siembras || []).filter(s => s.estado === "activa");
   const enviosBodega = (data.envios_bodega || []).reduce((s, e) => s + (e.costoTotal || 0), 0);
@@ -18226,16 +18226,7 @@ function DuenoHome({ data, session, onNav, onLogout }) {
           <div className="text-sm text-muted mt-2">Vista de dirección — solo lectura. Aquí ves los resultados de todo Agroselectos para tomar decisiones.</div>
         </div>
 
-        <div className="card" style={{ background: resultado >= 0 ? "rgba(132,192,1,.08)" : "rgba(224,90,90,.08)", border: `1px solid ${resultado >= 0 ? "rgba(132,192,1,.3)" : "rgba(224,90,90,.3)"}` }}>
-          <div className="stat-label">Resultado del año {anio}</div>
-          <div style={{ fontSize: 30, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", color: resultado >= 0 ? "var(--safe)" : "var(--red)" }}>
-            {resultado >= 0 ? "+" : ""}{fmt(resultado)}
-          </div>
-          <div className="flex-b text-sm mt-2">
-            <span className="text-muted">Ingresos: {fmt(ingresoAnio)}</span>
-            <span className="text-muted">Gastos: {fmt(gastoAnio)}</span>
-          </div>
-        </div>
+        <ResultadoDelAnio data={data} />
 
         <div className="stat-row">
           <div className="stat-card"><div className="stat-label">Cultivos activos</div><div className="stat-val" style={{ fontSize: 22 }}>{siembrasActivas}</div></div>
@@ -18269,11 +18260,11 @@ function DuenoHome({ data, session, onNav, onLogout }) {
           {cultivosActivos.length === 0 && <div className="text-muted text-sm">Sin cultivos activos</div>}
           {cultivosActivos.map(s => {
             const p = data.parcelas.find(x => x.id === s.parcelaId);
-            const rep = reporteParcela(data, s.parcelaId);
+            const rep = reporteSiembra(data, s.id) || { total: 0 };
             return (
               <div key={s.id} className="list-item">
                 <div className="li-icon"><Ic e={p?.emoji || "🌱"} /></div>
-                <div className="li-body"><div className="li-title">{nombreSiembra(s)}</div><div className="li-sub">{p?.nombre} · costo directo {fmt(rep.total)}</div></div>
+                <div className="li-body"><div className="li-title">{nombreSiembra(s)}</div><div className="li-sub">{p?.nombre} · costo directo del ciclo {fmt(rep.total)}</div></div>
               </div>
             );
           })}

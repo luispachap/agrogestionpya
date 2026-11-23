@@ -30,8 +30,12 @@ const finDe = (mes) => `${mes}-${String(new Date(Date.UTC(+mes.slice(0, 4), +mes
 //   ajustesValuacion   la lista de `ajustesDeValuacion`: consumos cuyo costo se supo o cambió después
 //   mermas             mermas y faltantes del almacén ya valuados: { fecha, valor }
 //   maquinaria         lo de `conciliarMaquinaria(repartos, mes)`: se guarda para enseñar aplicado, real y diferencia
-export function costoDelMes({ mes, parcelas = [], actividades = [], egresos = [], compras = [], indirectos = null, recibidas = [], consumosGenerales = [], ajustesValuacion = [], mermas = [], maquinaria = null }) {
-  const desde = `${mes}-01`, hasta = finDe(mes), enMes = (f) => !!f && f >= desde && f <= hasta;
+//   desde/hasta   (opcional) otro periodo que no es un mes entero: una semana, un año, una temporada. Se cuenta con las
+//                 MISMAS reglas del cierre, para que «¿Cómo vamos?», el panel del dueño, el resumen semanal y las temporadas
+//                 digan lo mismo que Finanzas y el cierre de mes (antes cada pantalla sumaba por su lado y no cuadraban).
+export function costoDelMes({ mes, desde: d0 = "", hasta: h0 = "", parcelas = [], actividades = [], egresos = [], compras = [], indirectos = null, recibidas = [], consumosGenerales = [], ajustesValuacion = [], mermas = [], maquinaria = null }) {
+  if (!mes && d0) mes = d0.slice(0, 7);
+  const desde = d0 || `${mes}-01`, hasta = h0 || finDe(mes), enMes = (f) => !!f && f >= desde && f <= hasta;
   const dir = new Map();
   const pon = (id, monto) => { if (id && monto) dir.set(id, sumarDinero(dir.get(id) || 0, monto)); };
   for (const a of actividades) if (enMes(a.fecha)) pon(a.parcelaId, Number(a.costoTotal) || 0);
@@ -96,7 +100,7 @@ export function costoDelMes({ mes, parcelas = [], actividades = [], egresos = []
   const paraAlmacen = sumarDinero(comprasAlmacen, sueltos.filter(e => claseDe(e) === "inventario").map(e => Number(e.monto) || 0).reduce((a, b) => sumarDinero(a, b), 0));
   const pend = (indirectos?.pendientes || []).filter(p => enMes(p.fecha));
   const fuera = todoFuera.filter(p => !p.general);
-  const k = { mes, renglones, directo: sumarDinero(renglones.map(r => r.directo)), indirecto: sumarDinero(renglones.map(r => r.indirecto)), completo: sumarDinero(renglones.map(r => r.completo)),
+  const k = { mes, ...(d0 || h0 ? { desde, hasta } : {}), renglones, directo: sumarDinero(renglones.map(r => r.directo)), indirecto: sumarDinero(renglones.map(r => r.indirecto)), completo: sumarDinero(renglones.map(r => r.completo)),
     pendiente: sumarDinero(pend.map(p => p.monto)), pendientes: pend.length, noProduccion: sumarDinero(fuera.map(p => p.monto)), generales, paraAlmacen, porValuar: comprasPorValuar, ajustesValuacion: sumarDinero([...ajPorParcela.values()]), maquinaria, bodega, sinParcela, porClasificar };
   // Lo que costó mantener funcionando TODO el rancho ese mes. Cada peso está en un solo renglón.
   return { ...k, rancho: sumarDinero(k.completo, bodega.total, sinParcela.total, k.pendiente, k.noProduccion, generales.total) };
