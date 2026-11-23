@@ -438,9 +438,9 @@
    "n": 34,
    "nombre": "Papeles",
    "estado": "PARCIAL",
-   "prueba": "auditoria_papeles 15",
-   "probado": "Factura en XML leída exacta y sin IA; aplicar pregunta y deja UN gasto con folio fiscal; lo comprado entra al almacén con su costo y la compra queda como inventario (una vez en el flujo); la misma factura otra vez se avisa; una foto sin lectura se guarda igual como evidencia; otro teléfono",
-   "falta": "Un PDF con texto, una etiqueta de agroquímico, una lectura de horómetro y el patrón aprendido de un proveedor (la lectura de fotos espera la llave de IA)"
+   "prueba": "auditoria_papeles 15 · auditoria_papeles2 14",
+   "probado": "Factura en XML leída exacta y sin IA; aplicar pregunta y deja UN gasto con folio fiscal; lo comprado entra al almacén con su costo y la compra queda como inventario (una vez en el flujo); la misma factura otra vez se avisa; una foto sin lectura se guarda igual como evidencia; otro teléfono; un ticket en PDF (con su texto) de un proveedor nuevo se captura una vez y se aprende; el siguiente del mismo proveedor se lee solo, sin señal y sin IA, con el total y no el subtotal, también en otro teléfono; la ficha de un agroquímico en PDF deja el producto con su reentrada, y la carencia no capturada queda vacía (no en cero)",
+   "falta": "La lectura de horómetro y cualquier FOTO (ticket, etiqueta): se leen con la lectura con IA, que espera la llave (es un gasto que autoriza Luis). Mientras, la foto se guarda y se captura a mano"
   },
   {
    "n": 35,
@@ -593,10 +593,9 @@
   {
    "n": 54,
    "nombre": "Checador",
-   "estado": "PARCIAL",
-   "prueba": "entrega 68 · auditoria_pagos · auditoria_semana",
-   "probado": "Entrada y salida con PIN, jornada de 8 horas, lo que le toca al checar",
-   "falta": "Credencial con código (pide cámara), aparato ligado sin sesión"
+   "estado": "APROBADO",
+   "prueba": "entrega 68 · auditoria_pagos · auditoria_semana · auditoria_checador 13",
+   "probado": "Entrada y salida con PIN, jornada de 8 horas, lo que le toca al checar; checar sin abrir sesión en el aparato que dejó el encargado (con PIN y con la credencial frente a la cámara: no abre la app ni enseña nada); un aparato que nadie ligó no ofrece la puerta; la misma credencial no marca diez veces. La cámara fue de IMITACIÓN (un video con el código): la cámara de verdad y la luz del campo son la prueba de campo"
   },
   {
    "n": 55,
@@ -609,10 +608,9 @@
   {
    "n": 56,
    "nombre": "Credenciales",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_captura 66",
-   "probado": "Emitir una credencial (código propio, sin PIN ni sueldo, con fecha y quién); emitir otra cambia el código y la anterior queda anotada",
-   "falta": "Imprimirlas y checar con la credencial (pide cámara: prueba de campo)"
+   "estado": "APROBADO",
+   "prueba": "auditoria_captura 66 · auditoria_checador 13",
+   "probado": "Emitir una credencial (código propio, sin PIN ni sueldo, con fecha y quién); emitir otra cambia el código y la anterior queda anotada; la hoja para imprimir trae el código y el nombre (sin PIN), y esa misma credencial impresa, frente a la cámara de imitación, checa a la persona. La impresora y una cámara de verdad son la prueba de campo"
   },
   {
    "n": 57,
