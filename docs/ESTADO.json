@@ -54,7 +54,7 @@
     {
       "que": "Lo publicado es exactamente lo probado, byte por byte",
       "con": "pruebas/real_identico.py",
-      "resultado": "18 de 18 archivos idénticos a `4edbcb3`"
+      "resultado": "18 de 18 archivos idénticos a `6c483a2`"
     },
     {
       "que": "Producción igual a la base probada",
@@ -1613,7 +1613,12 @@
     {
       "que": "La app en app.agroselectos.com",
       "estado": "publicado",
-      "detalle": "Versión `4edbcb3` (23 nov, 5:30 de la mañana): la batería completa pasó sobre su mismo código (1,347 pruebas de reglas, 164 ataques a la base, 69 recorridos en navegador); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6."
+      "detalle": "Versión `6c483a2` (23 nov, 11:50): la de las 5:30 (batería completa: 1,347 pruebas de reglas, 164 ataques a la base, 69 recorridos) más el punto de la nave en el mapa (probado aparte: reglas, compilación, auditoria_mapa 14, mapa 22, recorrido 25, humo 9); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6."
+    },
+    {
+      "que": "La nave (Agroselectos P&A, Palmira, Zac.) dada de alta en producción como rancho con su ubicación, y su punto en el mapa",
+      "estado": "publicado",
+      "detalle": "23 de noviembre, 11:50, a petición de Luis. Ubicación de Google Maps; faltan sus hectáreas."
     },
     {
       "que": "Lo de las respuestas de Luis del 23 nov: la tabla por cortes con lo de «Registro de varios» y del reparto, el tiempo esperando tarea, la calidad de la corrida por origen y ritmo, corona/grano/deshecho/pata de perro al ajo terminado, prestaciones sobre la semana entre 7, y checar con el teléfono propio",

@@ -24,7 +24,7 @@ Corte: lunes 23 de noviembre de 2026, 5:30 de la mañana. **66 aprobados · 1 re
 | Todo junto: lo anterior, compilación y 69 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `4edbcb3`) |
 | Producción cerrada sin sesión | `pruebas/real_sin_sesion.py` | 6 de 6 |
 | El sitio publicado, en Android y iPhone imitados | `pruebas/real_sitio.py` | 18 de 18 |
-| Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos a `4edbcb3` |
+| Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos a `6c483a2` |
 | Producción igual a la base probada | `node pruebas/base/paridad.mjs --consulta` | 7 huellas iguales (última hoja instalada: 57; esta noche no se instaló ninguna) |
 | La base de producción rechaza pisar un identificador ocupado | `prueba directa que se deshace sola` | Otra marca: rechazado · sin marca: rechazado · misma marca: corrige |
 | Asistencia con dos teléfonos, semana cerrada y pago hecho | `pruebas/auditoria_ausencias_navegador.py` | 37 de 37 |
@@ -61,7 +61,8 @@ Corte: lunes 23 de noviembre de 2026, 5:30 de la mañana. **66 aprobados · 1 re
 
 | Qué | Estado | Detalle |
 |---|---|---|
-| La app en app.agroselectos.com | **Publicado** | Versión `4edbcb3` (23 nov, 5:30 de la mañana): la batería completa pasó sobre su mismo código (1,347 pruebas de reglas, 164 ataques a la base, 69 recorridos en navegador); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6. |
+| La app en app.agroselectos.com | **Publicado** | Versión `6c483a2` (23 nov, 11:50): la de las 5:30 (batería completa: 1,347 pruebas de reglas, 164 ataques a la base, 69 recorridos) más el punto de la nave en el mapa (probado aparte: reglas, compilación, auditoria_mapa 14, mapa 22, recorrido 25, humo 9); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6. |
+| La nave (Agroselectos P&A, Palmira, Zac.) dada de alta en producción como rancho con su ubicación, y su punto en el mapa | **Publicado** | 23 de noviembre, 11:50, a petición de Luis. Ubicación de Google Maps; faltan sus hectáreas. |
 | Lo de las respuestas de Luis del 23 nov: la tabla por cortes con lo de «Registro de varios» y del reparto, el tiempo esperando tarea, la calidad de la corrida por origen y ritmo, corona/grano/deshecho/pata de perro al ajo terminado, prestaciones sobre la semana entre 7, y checar con el teléfono propio | **Publicado** | 23 de noviembre, 5:30 de la mañana. Sin hojas nuevas en la base. |
 | La hoja de pagos que se firma: lo que ya debían al arrancar, prestar en un paso, pago en dos partes, sueldo por semana entre 6 y la importación que no confunde el sueldo de la semana | **Publicado** | 23 de noviembre, de madrugada; hoja 57 instalada en la base y las siete huellas de producción iguales a las de la base probada. |
 | Captura diaria: «Mis días» con la cuenta real, registro de varios que dice lo que se paga, el día que se costeaba dos veces, y rastro al aprobar externos y atender incidencias | **Publicado** | 22 de noviembre; corrección ordinaria, publicada tras la batería completa. |
