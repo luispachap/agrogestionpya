@@ -790,3 +790,23 @@ export function usoDeSiembra(data, siembraId) {
   if (semilla) partes.push({ que: "siembras con su semilla", cuantos: semilla });
   return { usada: partes.length > 0, partes, dice: partes.length ? `No se puede eliminar: tiene ${partes.map(p => `${p.cuantos} ${p.que}`).join(", ")}. Lo registrado se quedaría sin su temporada. Si ya terminó, márcala como cosechada.` : "" };
 }
+
+// UNA TEMPORADA (el periodo con que se mide un resultado). Cerrarla y reabrirla cambia qué dinero entra en su resultado,
+// así que queda quién y cuándo; reabrir pide el porqué y, si la fecha de fin la puso el cierre, la quita (antes la
+// temporada reabierta seguía terminando el día que se cerró y lo de después ya no le entraba).
+export function revisarTemporada(form) {
+  if (!String(form?.nombre || "").trim() || !form?.fechaInicio) return { ok: false, dice: "Falta el nombre o la fecha de inicio." };
+  if (form.fechaFin && form.fechaFin < form.fechaInicio) return { ok: false, dice: "La fecha de fin no puede ser antes del inicio." };
+  return { ok: true };
+}
+export function cerrarTemporada(ciclo, { hoy, quien, cuando }) {
+  if (!ciclo?.id || ciclo.estado === "cerrado") return { ok: false, dice: "Esa temporada ya está cerrada." };
+  const puesta = !ciclo.fechaFin;
+  return { ok: true, ciclo: { ...ciclo, estado: "cerrado", fechaFin: ciclo.fechaFin || hoy, cierre: { quien, cuando, finPuestaAlCerrar: puesta }, historial: [...(ciclo.historial || []), { que: "cerrada", quien, cuando }] } };
+}
+export function reabrirTemporada(ciclo, { motivo, quien, cuando }) {
+  if (!ciclo?.id || ciclo.estado !== "cerrado") return { ok: false, dice: "Esa temporada no está cerrada." };
+  if (!String(motivo || "").trim()) return { ok: false, dice: "Para reabrir una temporada hay que decir por qué." };
+  const { cierre, ...resto } = ciclo;
+  return { ok: true, ciclo: { ...resto, estado: "activo", fechaFin: cierre?.finPuestaAlCerrar ? "" : ciclo.fechaFin, historial: [...(ciclo.historial || []), { que: "reabierta", quien, cuando, motivo: String(motivo).trim() }] } };
+}

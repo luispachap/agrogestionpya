@@ -152,7 +152,7 @@ import {
   fechaLocal, mesLocal, sumarDias, mesAnterior, diasEntre,
   saldoCredito, diasParaVencer, cubetaVencimiento, CUBETAS_VENCIMIENTO,
   estaCancelado, vivos, delRancho, esPersonal, marcarCancelado, ganaAlSincronizar,
-  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana, fichaDeProveedor, esDelProveedor, nombreDelProveedor, revisarMaquina, usoDeSiembra, nivelDeExistencia, estaCritico, idDeLote, conExistenciaDeLote, juntarLotes, cerrarTarima, idDeArticuloAparte,
+  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana, fichaDeProveedor, esDelProveedor, nombreDelProveedor, revisarMaquina, revisarTemporada, cerrarTemporada, reabrirTemporada, usoDeSiembra, nivelDeExistencia, estaCritico, idDeLote, conExistenciaDeLote, juntarLotes, cerrarTarima, idDeArticuloAparte,
 } from "./calculos";
 // El lector de papeles: la cascada de gratis a caro (QR y XML sin costo,
 // patrón aprendido para lo ya conocido, IA sólo para un formato nuevo).
@@ -8088,7 +8088,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "registrar-actividad" && <RegistroActividadAdmin data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "registro-masivo" && <RegistroMasivo data={data} add={add} upd={upd} setInv={setInv} session={session} onClose={() => setPage("home")} />}
               {page === "cosechas" && <GestionCosechas data={data} add={add} upd={upd} del={del} session={session} onClose={() => setPage("home")} />}
-              {page === "ciclos" && <GestionCiclos data={data} add={add} upd={upd} del={del} onClose={() => setPage("home")} />}
+              {page === "ciclos" && <GestionCiclos data={data} add={add} upd={upd} del={del} session={session} onClose={() => setPage("home")} />}
               {page === "calendario" && <CalendarioCultivos data={data} add={add} upd={upd} del={del} session={session} onClose={() => setPage("home")} />}
               {page === "panel-parcelas" && <PanelParcelas data={data} add={add} del={del} session={session} onClose={() => setPage("home")} onNav={setPage} />}
               {page === "mapa" && <MapaAgricola data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} onNav={setPage} />}
@@ -16129,7 +16129,7 @@ function CosechaDetalle({ data, parcelaId, add, upd, session, onClose }) {
 }
 
 /* ════════════ CICLOS AGRÍCOLAS — ADMIN ════════════ */
-function GestionCiclos({ data, add, upd, del, onClose }) {
+function GestionCiclos({ data, add, upd, del, session, onClose }) {
   const [showForm, setShowForm] = useState(false);
   const [detalle, setDetalle] = useState(null);
   const [editCiclo, setEditCiclo] = useState(null);
@@ -16137,7 +16137,7 @@ function GestionCiclos({ data, add, upd, del, onClose }) {
   const [form, setForm] = useState(F0);
 
   const guardar = () => {
-    if (!form.nombre || !form.fechaInicio) { alert("Falta nombre o fecha de inicio"); return; }
+    const r = revisarTemporada(form); if (!r.ok) { alert(r.dice); return; }
     add("ciclos", { ...form, id: `ci${unico()}`, estado: "activo" });
     setForm(F0); setShowForm(false);
   };
@@ -16182,10 +16182,11 @@ function GestionCiclos({ data, add, upd, del, onClose }) {
           {ciclo.notas && <div className="card"><div className="card-title">Notas</div><div className="text-sm text-muted">{ciclo.notas}</div></div>}
           <button className="btn btn-outline mb-2" onClick={() => setEditCiclo(ciclo)}><Ic e="✏️" /> Editar datos de la temporada</button>
           {ciclo.estado === "activo" ? (
-            <button className="btn btn-accent" onClick={() => { if (confirm("¿Cerrar esta temporada? Se marcará como finalizada con la fecha de hoy.")) { upd("ciclos", { ...ciclo, estado: "cerrado", fechaFin: ciclo.fechaFin || today() }); setDetalle(null); } }}><Ic e="🔒" /> Cerrar temporada</button>
+            <button className="btn btn-accent" onClick={() => { if (confirm(ciclo.fechaFin ? "¿Cerrar esta temporada?" : "¿Cerrar esta temporada? Termina hoy.")) { const r = cerrarTemporada(ciclo, { hoy: today(), quien: session?.nombre || "—", cuando: new Date().toISOString() }); if (!r.ok) { alert(r.dice); return; } upd("ciclos", r.ciclo); setDetalle(null); } }}><Ic e="🔒" /> Cerrar temporada</button>
           ) : (
-            <button className="btn btn-outline" onClick={() => upd("ciclos", { ...ciclo, estado: "activo" })}>Reabrir temporada</button>
+            <button className="btn btn-outline" onClick={() => { const motivo = window.prompt("¿Por qué se reabre esta temporada?"); if (motivo == null) return; const r = reabrirTemporada(ciclo, { motivo, quien: session?.nombre || "—", cuando: new Date().toISOString() }); if (!r.ok) { alert(r.dice); return; } upd("ciclos", r.ciclo); }}>Reabrir temporada</button>
           )}
+          {(ciclo.historial || []).length > 0 && <div className="text-xs text-muted mt-2" aria-label="Historial de la temporada">{ciclo.historial.map((h, i) => <div key={i}>{h.que === "cerrada" ? "Cerrada" : "Reabierta"} por {h.quien} el {String(h.cuando || "").slice(0, 10)}{h.motivo ? ` — ${h.motivo}` : ""}</div>)}</div>}
           <button className="btn btn-danger mt-2" onClick={() => { if (confirm("¿Eliminar esta temporada? No borra los movimientos, solo la temporada.")) { del("ciclos", ciclo.id); setDetalle(null); } }}><Ic e="🗑" /> Eliminar temporada</button>
         </div>
         {editCiclo && (

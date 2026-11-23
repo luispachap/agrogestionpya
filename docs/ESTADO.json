@@ -485,18 +485,16 @@
   {
    "n": 40,
    "nombre": "Reportes",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_numeros 28 · antes: mes, cruces",
-   "probado": "El cierre de mes: cada mes suma lo que dice Finanzas, los once meses suman el año y el periodo sin cerrar se puede consultar",
-   "falta": "Reporte por parcela, por ciclo y de rendimiento contra las mismas cifras; cerrar y reabrir un mes con dos teléfonos"
+   "estado": "APROBADO",
+   "prueba": "auditoria_numeros 28 · auditoria_reportes 25",
+   "probado": "El cierre de mes: cada mes suma lo que dice Finanzas, los once meses suman el año y el periodo sin cerrar se puede consultar; el reporte de cada ciclo (por parcela) contra el costo del mismo periodo en Finanzas; por cultivo; rendimiento por hectárea y costo por kilo del ciclo; cerrar el mes en dos teléfonos (uno sin señal: quedan los dos cierres como versiones), reabrir con su porqué, lo que llega tarde y el cierre nuevo con qué cambió"
   },
   {
    "n": 41,
    "nombre": "Temporadas",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_numeros 28",
-   "probado": "El resultado de una temporada con la cuenta del cierre: ya no suma la urea dos veces (la compra y su uso); lo comprado para el almacén y lo por clasificar, aparte",
-   "falta": "Crear, editar, cerrar y reabrir una temporada desde la pantalla"
+   "estado": "APROBADO",
+   "prueba": "auditoria_numeros 28 · auditoria_reportes 25",
+   "probado": "El resultado de una temporada con la cuenta del cierre: ya no suma la urea dos veces (la compra y su uso); lo comprado para el almacén y lo por clasificar, aparte; crear (no termina antes de empezar), editar, cerrar (con quién) y reabrir (con su porqué y sin la fecha de fin que le puso el cierre), con su historial, en otro teléfono"
   },
   {
    "n": 42,
@@ -1490,6 +1488,15 @@
    "estado": "corregido",
    "publicado": false,
    "nota": "«Editar datos de la siembra» ya trae la superficie"
+  },
+  {
+   "n": 88,
+   "modulo": "Temporadas",
+   "que": "Reabrir una temporada la dejaba terminando el día que se cerró (lo de después ya no le entraba), sin pedir porqué; cerrar no dejaba quién; y se podía crear una que termina antes de empezar",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Cerrar deja quién y cuándo; reabrir pide el porqué y quita la fecha de fin que puso el cierre; historial a la vista; las fechas se revisan"
   }
  ],
  "no_se_pudo": [

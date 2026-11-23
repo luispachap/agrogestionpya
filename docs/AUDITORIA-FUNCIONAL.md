@@ -2,7 +2,7 @@
 
 > **Generado desde `docs/ESTADO.json` con `node herramientas/estado.mjs`. No se edita a mano:** se cambia el archivo de estado y se vuelve a generar. Es la única fuente de las cifras, los módulos, los pendientes y lo publicado; el tablero de cierre sale de aquí mismo.
 
-Corte: domingo 22 de noviembre de 2026 (noche). **60 aprobados · 7 recorridos en parte · 0 sin verificar.**
+Corte: domingo 22 de noviembre de 2026 (noche). **62 aprobados · 5 recorridos en parte · 0 sin verificar.**
 
 **Veredicto: NO LISTO** como sistema completo · listo para prueba de campo en la operación diaria. Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).
 
@@ -66,7 +66,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **60 aprobados · 7 recorridos e
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
 
-## Defectos encontrados al usar los módulos (87: 87 corregidos, 17 de ellos sin publicar; 0 abiertos)
+## Defectos encontrados al usar los módulos (88: 88 corregidos, 18 de ellos sin publicar; 0 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -157,6 +157,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **60 aprobados · 7 recorridos e
 | 85 | Calendario | La semilla propia ofrecía «undefined · parcela · 0 kg» (la cosecha de una parcela no tiene fecha ni cantidad propias) y no decía de qué temporada salió | P2 | Corregido **sin publicar**: Ofrece cada temporada que cosechó, con parcela, cultivo, año y kilos; la siembra queda ligada a esa temporada |
 | 86 | Aplicaciones | La aplicación tomaba el cultivo anotado en la parcela, no el de la temporada de ese día, y no quedaba ligada a la temporada | P2 | Corregido **sin publicar**: Cultivo y temporada salen de la siembra que la parcela tenía ese día |
 | 87 | Calendario | La superficie de una siembra no se podía corregir (y reparte el costo cuando dos temporadas comparten la parcela) | P2 | Corregido **sin publicar**: «Editar datos de la siembra» ya trae la superficie |
+| 88 | Temporadas | Reabrir una temporada la dejaba terminando el día que se cerró (lo de después ya no le entraba), sin pedir porqué; cerrar no dejaba quién; y se podía crear una que termina antes de empezar | P2 | Corregido **sin publicar**: Cerrar deja quién y cuándo; reabrir pide el porqué y quita la fecha de fin que puso el cierre; historial a la vista; las fechas se revisan |
 
 ## Lo que no se pudo ejecutar y por qué
 
@@ -212,8 +213,8 @@ Corte: domingo 22 de noviembre de 2026 (noche). **60 aprobados · 7 recorridos e
 | 37 | Socios | **APROBADO** | auditoria_banco 37 | Titulares con RFC y bolsas con un solo dueño; marcar cada movimiento (del rancho o personal, con quién lo marcó); la cuenta entre socios; comprobantes por RFC; lo personal sale de Finanzas, el flujo, el cierre, los paneles y ContPAQi sin borrarse; otro teléfono | — |
 | 38 | Deudas | **APROBADO** | auditoria_proveedores 27 · base 4 | Mismo crédito y saldo que Proveedores; abonar; el abono sale en el flujo; cancelar abono; el encargado no entra | El proveedor se guarda distinto que en Proveedores (P2 abierto) |
 | 39 | Semana | **APROBADO** | auditoria_numeros 35 | La semana de pago en curso con el sueldo vigente de cada quien por los días que le toca venir; sólo activos (una baja no cuenta); destajo y sin sueldo se dicen aparte, no como cero; dice que es estimación y que lo que corresponde sale de Pagos al personal | — |
-| 40 | Reportes | **PARCIAL** | auditoria_numeros 28 · antes: mes, cruces | El cierre de mes: cada mes suma lo que dice Finanzas, los once meses suman el año y el periodo sin cerrar se puede consultar | Reporte por parcela, por ciclo y de rendimiento contra las mismas cifras; cerrar y reabrir un mes con dos teléfonos |
-| 41 | Temporadas | **PARCIAL** | auditoria_numeros 28 | El resultado de una temporada con la cuenta del cierre: ya no suma la urea dos veces (la compra y su uso); lo comprado para el almacén y lo por clasificar, aparte | Crear, editar, cerrar y reabrir una temporada desde la pantalla |
+| 40 | Reportes | **APROBADO** | auditoria_numeros 28 · auditoria_reportes 25 | El cierre de mes: cada mes suma lo que dice Finanzas, los once meses suman el año y el periodo sin cerrar se puede consultar; el reporte de cada ciclo (por parcela) contra el costo del mismo periodo en Finanzas; por cultivo; rendimiento por hectárea y costo por kilo del ciclo; cerrar el mes en dos teléfonos (uno sin señal: quedan los dos cierres como versiones), reabrir con su porqué, lo que llega tarde y el cierre nuevo con qué cambió | undefined |
+| 41 | Temporadas | **APROBADO** | auditoria_numeros 28 · auditoria_reportes 25 | El resultado de una temporada con la cuenta del cierre: ya no suma la urea dos veces (la compra y su uso); lo comprado para el almacén y lo por clasificar, aparte; crear (no termina antes de empezar), editar, cerrar (con quién) y reabrir (con su porqué y sin la fecha de fin que le puso el cierre), con su historial, en otro teléfono | undefined |
 | 42 | ContPAQi | **APROBADO** | auditoria_numeros 33 | Cuentas guardadas; el Excel de pólizas cuadra (cargos = abonos); gastos, ventas y mano de obra (también la tecleada); sin lo personal; el centro de costos es el cultivo del ciclo de ese día | Importarlo en un ContPAQi de verdad (prueba de campo) |
 | 43 | Inventario | **APROBADO** | auditoria_almacen 45 · movimientos.test · resultado.test · auditoria_identidad 27 | Alta (sin nombre o repetido no entra), entrada con costo como movimiento, valor a costo promedio, «es la misma compra» contra un gasto de caja, recarga, otro aparato, Dirección, dos aparatos sin señal | Ficha técnica de agroquímicos y pestaña Cosechas |
 | 44 | Entregas del almacén | **PARCIAL** | auditoria_entregas 13 · auditoria_almacen 45 · almacen 55 (local) | Entregar a una persona (exige quién recibe), entregar no es gastar, se ve quién lo trae, cerrar con lo usado y lo regresado, ahí nace el costo; los dos teléfonos cerrando la misma entrega sin señal: cuenta una vez y queda «por revisar»; uso directo | Con cuentas: herramientas prestadas, «sigue en uso», bajas con causa y traslados entre bodegas (recorridos en local) |

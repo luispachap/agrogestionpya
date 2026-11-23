@@ -683,3 +683,16 @@ test("una_siembra_con_actividades_o_cosecha_no_se_elimina_y_una_vacia_si", () =>
   assert.match(u.dice, /1 actividades/); assert.match(u.dice, /1 registros de cosecha/); assert.match(u.dice, /1 estibas/);
   assert.equal(usoDeSiembra_t(data, "s2").usada, false, "un registro de cosecha cancelado no la ata");
 });
+
+import { revisarTemporada as revisarTemporada_t, cerrarTemporada as cerrarTemporada_t, reabrirTemporada as reabrirTemporada_t } from "./calculos.js";
+test("reabrir_una_temporada_pide_el_porque_y_le_quita_la_fecha_de_fin_que_le_puso_el_cierre", () => {
+  assert.equal(revisarTemporada_t({ nombre: "AJO 2027", fechaInicio: "2026-09-01", fechaFin: "2026-08-01" }).ok, false);
+  const c = { id: "ci1", nombre: "AJO 2027", fechaInicio: "2026-09-01", fechaFin: "", estado: "activo" };
+  const cerrada = cerrarTemporada_t(c, { hoy: "2026-11-19", quien: "ALGUIEN", cuando: "t1" }).ciclo;
+  assert.deepEqual([cerrada.estado, cerrada.fechaFin], ["cerrado", "2026-11-19"]);
+  assert.equal(reabrirTemporada_t(cerrada, { motivo: " " }).ok, false);
+  const re = reabrirTemporada_t(cerrada, { motivo: "FALTABA UNA VENTA", quien: "OTRA", cuando: "t2" }).ciclo;
+  assert.deepEqual([re.estado, re.fechaFin, re.historial.map(h => h.que)], ["activo", "", ["cerrada", "reabierta"]]);
+  const conFin = cerrarTemporada_t({ ...c, fechaFin: "2026-10-31" }, { hoy: "2026-11-19", quien: "A", cuando: "t" }).ciclo;
+  assert.equal(reabrirTemporada_t(conFin, { motivo: "X", quien: "B", cuando: "t" }).ciclo.fechaFin, "2026-10-31", "la fecha que ya tenía se respeta");
+});
