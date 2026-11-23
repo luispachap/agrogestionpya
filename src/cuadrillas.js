@@ -86,6 +86,9 @@ export const AJUSTES = {
   tarifa_externo_dia: { defecto: null, minimo: 1, maximo: 10000, nombre: "Externos · pago por día que se le sugiere al registrar (cada registro lo puede cambiar, y nada cuenta hasta que se aprueba)" },
   horas_jornada: { defecto: 8, minimo: 4, maximo: 12, nombre: "Horas del horario habitual (de ahí en adelante son horas adicionales)" },
   // La tabla por cortes (src/cortes.js). PROVISIONAL: cuántos cortes y de qué horas falta validarlo con Miguel.
+  // Checar desde el teléfono propio (src/gps.js). PROVISIONALES: falta probarlo en campo y validarlo con Miguel.
+  gps_radio_m: { defecto: 300, minimo: 50, maximo: 5000, nombre: "Checar desde el teléfono · qué tan cerca del rancho (metros) cuenta como «en el rancho» (provisional)" },
+  gps_precision_m: { defecto: 100, minimo: 10, maximo: 1000, nombre: "Checar desde el teléfono · con qué precisión del GPS (metros) la marca se acepta sin revisar (provisional)" },
   cortes_dia: { defecto: "tres", opciones: { tres: "Tres cortes: 7–10, 10–13 y 14–17", dos: "Dos cortes: 7–12 y 13–17", cuatro: "Cuatro cortes: 7–9:30, 9:30–12, 13–15 y 15–17" }, nombre: "Tabla por cortes · cuántos cortes tiene el día (provisional: falta validarlo con Miguel)" },
 };
 export function ajusteVigente(eventos, clave) {

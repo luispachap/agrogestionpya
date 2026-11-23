@@ -41,6 +41,7 @@ import { registrarAusencia, justificarFalta, ausenciasDe, semanaDe, leToca, DIAS
 import { CONCEPTOS_PERSONAL, POLITICAS, baseDePersonas, pagadoSinActividad, fuentePersonal, fuentePrestaciones, fuenteBajas, fuenteBonos } from "./personal.js";
 import { T_DETERMINADA, T_PAGO_PRESTACION, CONCEPTOS_PRESTACION, cuentaDe as cuentaDePrestaciones, renglonesAlCosto, proponer as proponerPrestacion, determinar as determinarPrestacion, pagarPrestacion, nombreDePeriodo, periodosDe as periodosDePrestacion, determinadasRepetidas, T_SALDO_INICIAL, capturarSaldoInicial, CONCEPTOS_DE_SALDO, RELACIONES, remuneracionesDe } from "./prestaciones.js";
 import { estadoDeSemana, cerrarSemana, reabrirSemana, diferenciasDelCierre, confirmarPagos } from "./cierres.js";
+import { dondeEstoy, marcaDesdeSuTelefono, textoDeMarcaGps, reglasDeGps, puedeChecarConGps } from "./gps.js";
 import { cortesVigentes, pintar as pintarCorte, borrarCelda, tablaDelDia, celdasDelDia, valorDe as valorDeCelda } from "./cortes.js";
 import { pdfComoDataUrl } from "./pdfSimple.js";
 import { costoDelMes, cerrarMes, reabrirMes, estadoDeMes, ajustesPosteriores } from "./cierreMes.js";
@@ -7424,7 +7425,17 @@ function AppInner() {
           "Tus pantallas se cierran: para volver a entrar se pide tu contraseña.\n\n" +
           "CANCELAR — se cierra todo. Lo que alguien capture aquí se guarda en el teléfono y sube cuando una cuenta vuelva a entrar.");
       }
-      if (ligar) setVinculo(vinculoDe(session));
+      if (ligar) {
+        // ¿Es el teléfono de UNA persona (checa lo suyo, con su ubicación)? Sólo si hay alguien activado para eso.
+        let soloDe = null;
+        const conGps = (trabajadoresRef.current || []).filter(puedeChecarConGps);
+        if (conGps.length && window.confirm("¿Este teléfono es de UNA persona, para que cheque lo suyo desde aquí con su ubicación?\n\nACEPTAR — la persona escribe su PIN y el teléfono queda como suyo: sólo ella checa aquí, y se anota dónde está.\n\nCANCELAR — se queda para tu gente, como siempre.")) {
+          const r = quienEsPorPin(window.prompt("Que la persona escriba su PIN:") || "", conGps);
+          if (r.ok) soloDe = { id: r.trabajador.id, nombre: r.trabajador.nombre };
+          else alert(`${r.dice} El teléfono se queda para tu gente, como siempre.`);
+        }
+        setVinculo({ ...vinculoDe(session), ...(soloDe ? { soloDe } : {}) });
+      }
       else {
         setVinculo(null);
         // Con mala señal el aviso al servidor puede tardar: se espera poco y, pase lo que pase, la sesión se quita de ESTE aparato.
@@ -8475,10 +8486,30 @@ function LoginScreen({ data, add, upd, onLogin, vinculo = null, eventosListos = 
     if (!quienEs.ok) { decir({ tono: "mal", titulo: "No se registró", linea: quienEs.dice }); return; }
     if (!eventosListos) { decir({ tono: "aviso", titulo: "Un momento", linea: "Todavía se están cargando las marcas de este aparato." }); return; }
     const ahora = new Date();
+    if (puerta.soloDe) { checarConGps(quienEs.trabajador, ahora, decir); return; }
     const r = marcar({ eventos: eventosRef.current, trabajador: quienEs.trabajador, via: quienEs.via, ahora: ahora.toISOString(), fecha: fechaLocal(ahora), quien: puerta.quien, lugar: NAVE, ventanaMin: ajusteVigente(eventosRef.current, "ventana_repetida_min").valor });
     if (!r.ok) { decir({ tono: r.repetida ? "aviso" : "mal", titulo: quienEs.trabajador.nombre, linea: r.dice }); return; }
     const guardado = add("eventos", r.evento); eventosRef.current = [...eventosRef.current, guardado];
     decir({ tono: r.sentido, titulo: quienEs.trabajador.nombre, linea: `${r.sentido === "entrada" ? "ENTRADA" : "SALIDA"} · ${horaCorta(r.evento.cuando)}`, toca: r.sentido === "entrada" ? tocaAlChecar(data, quienEs.trabajador.id, fechaLocal(ahora)) : null });
+  };
+  // En el teléfono propio: la ubicación del teléfono dice en qué rancho está (src/gps.js). Sin ubicación o lejos de todo
+  // rancho no se registra; con poca precisión queda por revisar; en otro rancho se dice a qué fue.
+  const checarConGps = (trabajador, ahora, decir) => {
+    if (trabajador.id !== puerta.soloDe.id) { decir({ tono: "mal", titulo: "No se registró", linea: `Este teléfono es de ${puerta.soloDe.nombre}: aquí sólo checa esa persona.` }); return; }
+    if (!navigator.geolocation) { decir({ tono: "mal", titulo: trabajador.nombre, linea: "Este teléfono no da la ubicación. Checa en el aparato de tu encargado." }); return; }
+    decir({ tono: "aviso", titulo: trabajador.nombre, linea: "Buscando dónde estás…" });
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const posicion = { lat: pos.coords.latitude, lng: pos.coords.longitude, precision: pos.coords.accuracy };
+      const t = (data.trabajadores || []).find(x => x.id === trabajador.id) || trabajador;
+      const donde = dondeEstoy({ posicion, ranchos: data.ranchos, ranchoHabitualId: t.ranchoId || null, ...reglasDeGps(eventosRef.current) });
+      let motivo = "";
+      if (donde.pideMotivo) { motivo = window.prompt(`${donde.dice}`) || ""; if (!motivo.trim()) { decir({ tono: "mal", titulo: t.nombre, linea: "No se registró: en otro rancho hay que decir a qué viniste." }); return; } }
+      const r = marcaDesdeSuTelefono({ eventos: eventosRef.current, trabajador: t, soloDe: puerta.soloDe, ahora: ahora.toISOString(), fecha: fechaLocal(ahora), quien: puerta.quien, posicion, donde, motivo, ventanaMin: ajusteVigente(eventosRef.current, "ventana_repetida_min").valor });
+      if (!r.ok) { decir({ tono: r.repetida ? "aviso" : "mal", titulo: t.nombre, linea: r.dice }); return; }
+      const guardado = add("eventos", r.evento); eventosRef.current = [...eventosRef.current, guardado];
+      decir({ tono: r.sentido, titulo: t.nombre, linea: `${r.sentido === "entrada" ? "ENTRADA" : "SALIDA"} · ${horaCorta(r.evento.cuando)} · ${donde.porRevisar ? "por revisar (poca precisión)" : donde.dice}` });
+    }, () => decir({ tono: "mal", titulo: trabajador.nombre, linea: "No se pudo saber dónde estás (¿la ubicación está apagada o sin permiso?). No se registró: checa en el aparato de tu encargado." }),
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
   };
   const alLeerCredencial = (texto) => {
     const r = entrarConCredencial(texto, "", data);
@@ -8586,8 +8617,10 @@ function LoginScreen({ data, add, upd, onLogin, vinculo = null, eventosListos = 
         {cerradaSola && <div className="card login-cerrada-sola" role="status" style={{ padding: 10, marginBottom: 10, border: "1px solid var(--gold)" }}><div className="text-sm">La sesión se cerró sola por no usarse un rato. Lo que se había capturado está guardado. Entra otra vez con tu PIN.</div></div>}
         {checando && puerta.ok ? <>
           <h3>Registrar mi entrada o salida</h3>
-          <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Sólo queda anotada tu hora. No abre la app ni enseña nada de nadie. Este aparato lo dejó {puerta.quien.nombre}.</div>
-          <LectorQR onLeer={(texto) => checar(quienEsPorQR(texto, quienesChecan(data)))} pausado={false} />
+          {puerta.soloDe
+            ? <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Este es el teléfono de <b>{puerta.soloDe.nombre}</b>: aquí sólo checa esa persona. Se anota tu hora y dónde estás (con la ubicación del teléfono). No abre la app.</div>
+            : <><div className="text-xs text-muted" style={{ marginBottom: 8 }}>Sólo queda anotada tu hora. No abre la app ni enseña nada de nadie. Este aparato lo dejó {puerta.quien.nombre}.</div>
+              <LectorQR onLeer={(texto) => checar(quienEsPorQR(texto, quienesChecan(data)))} pausado={false} /></>}
           <div className={`chk-aviso ${marca ? marca.tono : "espera"}`} role="status" aria-live="polite">
             {marca ? <><div className="chk-aviso-t">{marca.titulo}</div><div className="chk-aviso-l">{marca.linea}</div><TocaHoy toca={marca.toca} /></> : <><div className="chk-aviso-t">Acerca tu credencial</div><div className="chk-aviso-l">o escribe tu PIN</div></>}
           </div>
@@ -9679,7 +9712,8 @@ function Jornadas({ data, add, upd, session, onNav, onClose }) {
               return (
                 <div key={m.id} className="jor-marca" style={{ opacity: vive ? 1 : 0.55 }}>
                   <div style={{ textDecoration: vive ? "none" : "line-through" }}>
-                    <b>{horaCorta(m.cuando)}</b> · {m.datos.sentido} · {m.datos.via === "qr" ? "credencial" : m.datos.via === "pin" ? "PIN" : m.datos.via === "remoto" ? `directo a ${m.datos.lugar?.nombre || "campo"}` : "puesta a mano"}
+                    <b>{horaCorta(m.cuando)}</b> · {m.datos.sentido} · {m.datos.via === "qr" ? "credencial" : m.datos.via === "pin" ? "PIN" : m.datos.via === "telefono_propio" ? "su teléfono" : m.datos.via === "remoto" ? `directo a ${m.datos.lugar?.nombre || "campo"}` : "puesta a mano"}
+                    {m.datos.desdeSuTelefono && <div className="text-xs" style={{ color: m.datos.porRevisar || m.datos.gps?.estado === "en_otro_rancho" ? "var(--gold)" : "var(--muted)" }}>{textoDeMarcaGps(m)}</div>}
                   </div>
                   <div className="text-xs text-muted">
                     La registró {m.quien?.nombre || "—"}
@@ -11827,7 +11861,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
               <div className="li-right" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
                 <div className="li-val">{fmt(mo + bons)}</div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button className="btn-ghost" style={{ padding: 2, fontSize: 13 }} onClick={() => setEditItem({ seccion: "trabajadores", registro: t, titulo: t.nombre, campos: [["nombre", "Nombre", "text"], ["fechaIngreso", "Fecha de ingreso", "date"], ["codigoNomina", "Código nómina", "text"], ["categoria", "Categoría", "select", [{ v: "jornalero", l: "general" }, { v: "tractorista", l: "tractorista" }, { v: "dronero", l: "dronero" }, { v: "maquinista", l: "maquinista" }, { v: "supervisor", l: "supervisor" }, { v: "especialista", l: "especialista" }]], ["sueldo_semana", "Sueldo por semana (si cobra por semana: el de por día sale solo)", "number"], ["sueldo_dia", "Sueldo por día", "number"], ["retencion_pct", "Retención (%, 0 = íntegro)", "number"], ["pin", "PIN de acceso", "text"]] })}><Ic e="✏️" /></button>
+                  <button className="btn-ghost" style={{ padding: 2, fontSize: 13 }} aria-label={`Editar la ficha de ${t.nombre}`} onClick={() => setEditItem({ seccion: "trabajadores", registro: t, titulo: t.nombre, campos: [["nombre", "Nombre", "text"], ["fechaIngreso", "Fecha de ingreso", "date"], ["codigoNomina", "Código nómina", "text"], ["categoria", "Categoría", "select", [{ v: "jornalero", l: "general" }, { v: "tractorista", l: "tractorista" }, { v: "dronero", l: "dronero" }, { v: "maquinista", l: "maquinista" }, { v: "supervisor", l: "supervisor" }, { v: "especialista", l: "especialista" }]], ["sueldo_semana", "Sueldo por semana (si cobra por semana: el de por día sale solo)", "number"], ["sueldo_dia", "Sueldo por día", "number"], ["retencion_pct", "Retención (%, 0 = íntegro)", "number"], ["pin", "PIN de acceso", "text"], ["ranchoId", "Rancho de siempre", "select", [{ v: "", l: "— sin rancho de siempre —" }, ...(data.ranchos || []).map(r => ({ v: r.id, l: r.nombre }))]], ["checaConGps", "¿Checa desde su teléfono, con su ubicación?", "select", [{ v: "", l: "No: checa en el aparato del encargado" }, { v: "si", l: "Sí (un encargado liga su teléfono)" }]]] })}><Ic e="✏️" /></button>
                   <button className="btn-ghost" style={{ padding: 2, fontSize: 13, opacity: t.cabo ? 1 : 0.35 }} title="Nombrar cabo (puede pasar lista de sus compañeros)" onClick={() => {
                     if (!t.cabo && !window.confirm(`¿Nombrar cabo a ${t.nombre}? Desde su propio acceso podrá pasar lista y registrar los días de sus compañeros.`)) return;
                     upd("trabajadores", { ...t, cabo: !t.cabo });

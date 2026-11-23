@@ -914,6 +914,23 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   semana cerrada no se decide ni se cancela una decisión** (`SEMANA_CERRADA`): se reabre con motivo; lo que llegue tarde
   de otro teléfono sale en la diferencia contra el cierre con su autor y motivo. Recorrido: `auditoria_ausencias` (36).
 
+- **`src/cortes.js`: LA TABLA POR CORTES (Luis, 22 nov; construida el 23 nov)** — El día → «Por cortes». Gente en
+  renglones, cortes del día en columnas; se escoge un pincel (actividad en una parcela) y se pinta. **Cada celda es una
+  asignación de siempre** (`asignar` con `datos.corte`): el costo sale de `manoDeObra`, sin otra cuenta. Una celda termina
+  al acabar su corte si el siguiente no empieza ahí o está vacío (así lo no pintado queda «por aclarar» y no se le carga a
+  la parcela de antes); la celda vale lo último que se pintó (`capturado`), repintar deja historial, borrar es un fin con
+  `borra` (no se borra nada), lo que todavía no pasa no se pinta, con la semana cerrada no se pinta. Los cortes son la
+  regla `cortes_dia` (tres · dos · cuatro), **PROVISIONAL hasta validarla con Miguel**. El modo «plan» (a qué va cada
+  quien) NO está construido: el plan sigue siendo las `indicaciones`.
+- **`src/gps.js`: CHECAR DESDE EL TELÉFONO PROPIO (Luis, 22 nov; construido el 23 nov).** Un administrador activa a la
+  persona en su ficha (`checaConGps: "si"`, `ranchoId` = su rancho de siempre); al salir de su cuenta en el teléfono de esa
+  persona, el encargado lo liga COMO SUYO (la persona escribe su PIN → `vinculo.soloDe`). Ahí sólo ella checa, con su
+  PIN, y la ubicación del teléfono dice dónde está (`dondeEstoy`): en su rancho, marca normal con posición, precisión y
+  distancia; en otro, pide a qué fue (`motivo`); lejos de todo rancho, NO se registra; poca precisión, la marca queda
+  `porRevisar`. Radio y precisión: reglas `gps_radio_m` (300) y `gps_precision_m` (100), **provisionales**. Jornadas lo
+  distingue (`textoDeMarcaGps`). Sin activar a nadie, nada cambia. **Sin probar con un GPS de verdad** (prueba de campo);
+  se puede falsear con aplicaciones: desanima el mal uso, no lo impide.
+
 ## Cómo verificar tu trabajo
 
 Después de **cada** cambio en `App.jsx`, en este orden:
@@ -923,7 +940,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **226 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **228 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

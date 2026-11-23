@@ -219,5 +219,6 @@ export function debeCerrarse(sesion, ahora, ultimoToque, minutos = MINUTOS_SIN_U
 // Sólo si un encargado lo dejó ligado para su gente: una marca hecha desde el teléfono de cada quien no vale.
 export function puertaDeAsistencia(vinculo) {
   if (!vinculo || !vinculo.cuentaId) return { ok: false, dice: "La entrada y la salida se registran en el checador de la nave, o en el aparato que tu encargado dejó para eso." };
-  return { ok: true, quien: { id: vinculo.cuentaId, nombre: vinculo.nombre || "Encargado", rol: "encargado" } };
+  // `soloDe`: el teléfono propio de UNA persona (src/gps.js): ahí sólo ella checa, con su ubicación.
+  return { ok: true, quien: { id: vinculo.cuentaId, nombre: vinculo.nombre || "Encargado", rol: "encargado" }, soloDe: vinculo.soloDe || null };
 }

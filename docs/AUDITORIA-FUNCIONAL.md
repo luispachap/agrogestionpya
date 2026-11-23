@@ -244,6 +244,13 @@ Corte: domingo 22 de noviembre de 2026 (noche). **66 aprobados · 1 recorridos e
 | 66 | Respaldo | **APROBADO** | entrega 68 | Descargar sólo lo capturado; restaurar pide motivo, deja todo igual (mismos costos y almacén), conserva quién autorizó cada pago, no pisa lo más reciente de la nube y no duplica si se restaura dos veces | El respaldo AUTOMÁTICO real (requisito de salida aparte: falta el repositorio privado) |
 | 67 | Subir catálogos | **APROBADO** | auditoria_control 32 | Con una plantilla vieja (con hoja de cuentas y PIN): no se lee ninguna contraseña ni PIN, sólo se dan de alta los que faltan (lo que ya existe no se toca), con identificador nuevo, sueldo desde hoy y la marca del espacio; subirla dos veces no duplica | — |
 
+## Lo nuevo, fuera de los 67 (pedido por Luis el 23 nov)
+
+| Qué | Estado | Prueba | Qué se probó | Qué falta |
+|---|---|---|---|---|
+| Tabla por cortes (El día → Por cortes) | **APROBADO** | auditoria_cortes 17 · cortes.test (5) | Pinceles (actividad en una parcela); pintar una celda, un corte entero y repetir el corte anterior sin pisar lo pintado; el costo sale del motor de mano de obra (pintar no es pagar: cada quien su día); repintar con historial; borrar sin borrar (ese rato queda por aclarar); lo que todavía no pasa no se pinta; avisos de pintado sin checar y checó sin pintar; otro teléfono ve lo mismo | Cortes PROVISIONALES (7–10, 10–13, 14–17) hasta validarlos con Miguel; el modo «plan» no está construido (sigue siendo Indicaciones) |
+| Checar desde el teléfono propio, con su ubicación | **APROBADO** | auditoria_gps 16 · gps.test (4) | Activar a la persona en su ficha (rancho de siempre); el encargado liga el teléfono como de ella; ahí sólo ella checa; en su rancho (posición, precisión y distancia), en otro con su porqué, lejos de todo no registra, poca precisión queda por revisar; sin señal también; Jornadas lo distingue; el aparato compartido sigue como siempre | Ubicación de IMITACIÓN: el GPS de un teléfono de verdad es la prueba de campo. Radio (300 m) y precisión (100 m) provisionales |
+
 ## Orden en que sigue
 
 1. Bodega: calidad, categorías aparte, revoltura, re-limpia, estibas (alta individual, cierre manual), salida a nuestra bodega, varias tarimas, pago a cuenta de deuda; y el pendiente abierto 16.

@@ -152,7 +152,9 @@ test("la_credencial_sola_no_abre_sesion_dice_quien_es_y_pide_el_pin", () => {
 
 test("registrar_asistencia_desde_la_entrada_solo_en_un_aparato_que_dejo_un_encargado", () => {
   assert.equal(puertaDeAsistencia(null).ok, false); assert.match(puertaDeAsistencia(null).dice, /checador de la nave/);
-  assert.deepEqual(puertaDeAsistencia({ cuentaId: "u-enc", nombre: "Migue", desde: "2026-11-20" }), { ok: true, quien: { id: "u-enc", nombre: "Migue", rol: "encargado" } });
+  assert.deepEqual(puertaDeAsistencia({ cuentaId: "u-enc", nombre: "Migue", desde: "2026-11-20" }), { ok: true, quien: { id: "u-enc", nombre: "Migue", rol: "encargado" }, soloDe: null });
+  // El teléfono propio de una persona (src/gps.js): la puerta dice de quién es.
+  assert.deepEqual(puertaDeAsistencia({ cuentaId: "u-enc", nombre: "Migue", soloDe: { id: "t-ana", nombre: "ANA" } }).soloDe, { id: "t-ana", nombre: "ANA" });
 });
 
 // ── El alta de personal: lo que se revisa antes de guardar (cierre de la versión 1.0) ──

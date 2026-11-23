@@ -1643,5 +1643,21 @@
   "El PIN no es identidad: lo que mueve dinero se hace con cuenta, y la base lo exige.",
   "La base gratuita se pausa si pasan varios días sin uso. Se reactiva sin perder nada.",
   "Producción está vacía: una cuenta, sin personal, sin parcelas y sin fecha de inicio declarada."
+ ],
+ "nuevas": [
+  {
+   "nombre": "Tabla por cortes (El día → Por cortes)",
+   "estado": "APROBADO",
+   "prueba": "auditoria_cortes 17 · cortes.test (5)",
+   "probado": "Pinceles (actividad en una parcela); pintar una celda, un corte entero y repetir el corte anterior sin pisar lo pintado; el costo sale del motor de mano de obra (pintar no es pagar: cada quien su día); repintar con historial; borrar sin borrar (ese rato queda por aclarar); lo que todavía no pasa no se pinta; avisos de pintado sin checar y checó sin pintar; otro teléfono ve lo mismo",
+   "falta": "Cortes PROVISIONALES (7–10, 10–13, 14–17) hasta validarlos con Miguel; el modo «plan» no está construido (sigue siendo Indicaciones)"
+  },
+  {
+   "nombre": "Checar desde el teléfono propio, con su ubicación",
+   "estado": "APROBADO",
+   "prueba": "auditoria_gps 16 · gps.test (4)",
+   "probado": "Activar a la persona en su ficha (rancho de siempre); el encargado liga el teléfono como de ella; ahí sólo ella checa; en su rancho (posición, precisión y distancia), en otro con su porqué, lejos de todo no registra, poca precisión queda por revisar; sin señal también; Jornadas lo distingue; el aparato compartido sigue como siempre",
+   "falta": "Ubicación de IMITACIÓN: el GPS de un teléfono de verdad es la prueba de campo. Radio (300 m) y precisión (100 m) provisionales"
+  }
  ]
 }

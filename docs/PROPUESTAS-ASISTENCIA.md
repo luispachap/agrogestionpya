@@ -1,7 +1,8 @@
-# Propuestas de asistencia (Luis, 22 nov) — SÓLO DISEÑO, sin construir
+# Propuestas de asistencia (Luis, 22 nov) — CONSTRUIDAS el 23 nov, con lo provisional marcado
 
-Dos ideas de Luis para la asistencia y el reparto del trabajo. Ninguna está construida: falta que Luis decida si entran
-en la 1.0 o después, y validar con Miguel cómo trabaja su gente.
+Dos ideas de Luis para la asistencia y el reparto del trabajo. Luis pidió construirlas (23 nov). Están hechas y probadas
+en el navegador con datos inventados (`auditoria_cortes`, `auditoria_gps`); lo que dice «provisional» espera a Miguel, y
+el GPS y la cámara de verdad esperan la prueba de campo. Lo que NO se construyó está dicho en cada parte.
 
 ## 1. Checar desde el teléfono propio, con GPS
 
@@ -74,3 +75,18 @@ mapa de calor de en qué se fue el trabajo de cada parcela.
 **Lo que falta decidir con Miguel:** cuántos cortes y de qué horas (una regla del rancho, para cambiarlos sin tocar la
 app); si el encargado pinta durante el día o al final; y si con esto se reemplaza «Registro de varios». Es la pieza
 que `docs/JORNADA.md` dejó «evaluada» como «reasignar equipo», esperando saber cómo reasigna Miguel.
+
+
+## Lo que quedó construido (23 nov)
+
+**Tabla por cortes** (El día → «Por cortes», `src/cortes.js`): pinceles, pintar una celda, un corte entero (los que
+vinieron), el día de una persona, «repetir en este corte lo del anterior» y «copiar lo de ayer» (sin pisar lo ya
+pintado); repintar con historial; borrar sin borrar; avisos de «pintado y no checó» y «checó y no está pintado». Cortes
+provisionales (regla `cortes_dia`: tres, dos o cuatro). **No construido:** el modo «plan» (sigue siendo Indicaciones) y
+comparar el plan contra lo hecho al cerrar el día; cuadrillas como un renglón (siguen en su pantalla).
+
+**Checar desde el teléfono propio** (`src/gps.js`): activar a la persona en su ficha (rancho de siempre y «checa desde
+su teléfono»); el encargado liga el teléfono como de esa persona al salir de su cuenta; en su rancho / en otro con su
+porqué / lejos (no registra) / poca precisión (por revisar); sin señal también; Jornadas lo distingue. Radio 300 m y
+precisión 100 m, provisionales. **Pendiente:** probarlo con un GPS de verdad (prueba de campo); decidir si una marca
+«por revisar» cuenta para el pago mientras nadie la revisa (hoy cuenta y se ve marcada).

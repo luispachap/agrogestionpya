@@ -24,6 +24,7 @@ export function revisar(e) {
   const ns = e.modulos.map(m => m.n);
   if (e.modulos.length !== 67 || new Set(ns).size !== 67 || ns.some((n, i) => n !== i + 1)) fallas.push("Los módulos deben ser 67, numerados del 1 al 67 sin repetir.");
   for (const m of e.modulos) { if (!ESTADOS.includes(m.estado)) fallas.push(`Módulo ${m.n}: estado desconocido «${m.estado}».`); if (m.estado !== "NO VERIFICADO" && !/auditoria_|entrega/.test(m.prueba)) fallas.push(`Módulo ${m.n} (${m.nombre}) dice ${m.estado} sin un recorrido de auditoría que lo respalde.`); if (m.estado === "PARCIAL" && (!m.falta || m.falta === "—")) fallas.push(`Módulo ${m.n}: PARCIAL sin decir qué falta.`); }
+  for (const m of e.nuevas || []) if (m.estado !== "NO VERIFICADO" && !/auditoria_|entrega/.test(m.prueba)) fallas.push(`Lo nuevo «${m.nombre}» dice ${m.estado} sin un recorrido.`);
   const dn = e.defectos.map(d => d.n);
   if (new Set(dn).size !== dn.length) fallas.push("Hay defectos con el mismo número.");
   for (const d of e.defectos) { if (!["corregido", "abierto"].includes(d.estado)) fallas.push(`Defecto ${d.n}: estado desconocido.`); if (d.estado === "corregido" && typeof d.publicado !== "boolean") fallas.push(`Defecto ${d.n}: corregido sin decir si está publicado.`); }
@@ -52,6 +53,8 @@ export function documento(e) {
     "## Lo que no se pudo ejecutar y por qué", "", ...e.no_se_pudo.map(x => `- ${x}`), "",
     "## Inventario", "", "| # | Módulo | Estado | Prueba | Qué se probó | Qué falta |", "|---|---|---|---|---|---|",
     ...e.modulos.map(m => `| ${m.n} | ${m.nombre} | ${m.estado === "NO VERIFICADO" ? m.estado : `**${m.estado}**`} | ${m.prueba} | ${m.probado} | ${m.falta} |`), "",
+    ...((e.nuevas || []).length ? ["## Lo nuevo, fuera de los 67 (pedido por Luis el 23 nov)", "", "| Qué | Estado | Prueba | Qué se probó | Qué falta |", "|---|---|---|---|---|",
+      ...e.nuevas.map(m => `| ${m.nombre} | **${m.estado}** | ${m.prueba} | ${m.probado} | ${m.falta || ""} |`), ""] : []),
     "## Orden en que sigue", "", ...e.orden.map((x, i) => `${i + 1}. ${x}`), "",
     "## Qué falta para decir «listo»", "", ...e.para_listo.map((p, i) => `${i + 1}. **${p.t}.** ${p.d}`), "",
     "## Lo que le toca a Luis", "", ...e.de_luis.map(x => `- ${x}`), "",
@@ -133,7 +136,11 @@ ${e.defectos.map(d => `      <tr><td class="n">${d.n}</td><td>${h(d.modulo)}</td
     <div class="tabla"><table><thead><tr><th>#</th><th>Módulo</th><th>Estado</th><th>Prueba</th><th>Qué se probó</th><th>Qué falta</th></tr></thead><tbody>
 ${e.modulos.map(m => `      <tr><td class="n">${m.n}</td><td>${h(m.nombre)}</td><td>${sello(CLASE[m.estado], m.estado === "APROBADO" ? "Aprobado" : m.estado === "PARCIAL" ? "En parte" : "Sin verificar")}</td><td>${rico(m.prueba)}</td><td>${rico(m.probado)}</td><td>${rico(m.falta)}</td></tr>`).join("\n")}
     </tbody></table></div>
-    <h3>Lo que no se pudo ejecutar y por qué</h3>
+${(e.nuevas || []).length ? `    <h3>Lo nuevo, fuera de los 67</h3>
+    <div class="tabla"><table><thead><tr><th>Qué</th><th>Estado</th><th>Prueba</th><th>Qué se probó</th><th>Qué falta</th></tr></thead><tbody>
+${e.nuevas.map(m => `      <tr><td>${h(m.nombre)}</td><td>${sello(CLASE[m.estado], m.estado === "APROBADO" ? "Aprobado" : m.estado === "PARCIAL" ? "En parte" : "Sin verificar")}</td><td>${rico(m.prueba)}</td><td>${rico(m.probado)}</td><td>${rico(m.falta || "")}</td></tr>`).join("\n")}
+    </tbody></table></div>
+` : ""}    <h3>Lo que no se pudo ejecutar y por qué</h3>
     <ul class="lista">${e.no_se_pudo.map(x => `<li>${rico(x)}</li>`).join("")}</ul>
     <h3>Orden en que sigue</h3>
     <ol class="lista">${e.orden.map(x => `<li>${rico(x)}</li>`).join("")}</ol>
