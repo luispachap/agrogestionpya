@@ -566,3 +566,16 @@ test("del_rancho_quita_lo_cancelado_lo_personal_y_los_traspasos_y_vivos_solo_lo_
   assert.deepEqual(vivos(l).map(x => x.id), [1, 2, 4, 5]);
   assert.equal(esPersonal(l[1]), true); assert.equal(esPersonal(null), false);
 });
+
+test("las_etapas_de_un_cultivo_se_capturan_en_la_app_en_orden_sin_encimarse_y_sin_pasar_de_lo_que_dura", async () => {
+  const { revisarEtapas } = await import("./calculos.js");
+  const bien = revisarEtapas([{ etapa: " Siembra ", diaInicio: "0", diaFin: "20" }, { etapa: "Desarrollo", diaInicio: "20", diaFin: "200" }, { etapa: "Cosecha", diaInicio: "200", diaFin: "240" }], 240);
+  assert.equal(bien.ok, true); assert.deepEqual(bien.etapas.map(e => [e.etapa, e.diaInicio, e.diaFin]), [["Siembra", 0, 20], ["Desarrollo", 20, 200], ["Cosecha", 200, 240]]);
+  assert.match(revisarEtapas([], 240).dice, /al menos una/);
+  assert.match(revisarEtapas([{ etapa: "", diaInicio: 0, diaFin: 10 }]).dice, /no tiene nombre/);
+  assert.match(revisarEtapas([{ etapa: "Siembra", diaInicio: 20, diaFin: 10 }]).dice, /termina antes de empezar/);
+  assert.match(revisarEtapas([{ etapa: "Siembra", diaInicio: 0, diaFin: 30 }, { etapa: "Desarrollo", diaInicio: 20, diaFin: 90 }]).dice, /se encim|antes de que termine/);
+  assert.match(revisarEtapas([{ etapa: "Cosecha", diaInicio: 200, diaFin: 260 }], 240).dice, /dura 240 días/);
+  assert.match(revisarEtapas([{ etapa: "Riego", diaInicio: 0, diaFin: 10 }, { etapa: "riego", diaInicio: 10, diaFin: 20 }]).dice, /se repite/);
+  assert.match(revisarEtapas([{ etapa: "Siembra", diaInicio: "", diaFin: 10 }]).dice, /faltan sus días/);
+});

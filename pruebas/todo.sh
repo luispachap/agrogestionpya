@@ -20,5 +20,12 @@ for t in humo recorrido archivos campo arranque cuentas menu checador cuadrillas
   # El resultado es el de la prueba, no el de "tail": si truena a medias también cuenta como falla.
   if python3 pruebas/${t}_navegador.py > /tmp/agro_prueba.log 2>&1; then tail -1 /tmp/agro_prueba.log; else tail -3 /tmp/agro_prueba.log; echo "   ^^^ FALLÓ $t"; falla=1; fi
 done
+# El mapa y el satélite necesitan una copia local de la librería del mapa (no se baja de internet en una prueba).
+if [ -n "$LEAFLET" ] && [ -f "$LEAFLET/leaflet.js" ]; then
+  for t in mapa satelite auditoria_mapa; do
+    printf "   %s: " "$t"
+    if LEAFLET="$LEAFLET" python3 pruebas/${t}_navegador.py > /tmp/agro_prueba.log 2>&1; then tail -1 /tmp/agro_prueba.log; else tail -3 /tmp/agro_prueba.log; echo "   ^^^ FALLÓ $t"; falla=1; fi
+  done
+else echo "   mapa, satelite y auditoria_mapa: no se corrieron (falta LEAFLET=/ruta/a/leaflet/dist)"; fi
 pkill -f "vite" 2>/dev/null || true
 exit $falla

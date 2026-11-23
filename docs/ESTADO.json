@@ -118,7 +118,7 @@
    "estado": "PARCIAL",
    "prueba": "auditoria_agronomia 30",
    "probado": "Lo que va en proceso por etapa (con el avance reportado en campo) y lo atrasado contra el calendario del cultivo; se llama igual en el menú y en la pantalla",
-   "falta": "«Cosecha en curso»; y con un cultivo dado de alta en la app (todavía sin etapas: defecto 38) no tiene qué enseñar"
+   "falta": "«Cosecha en curso» (cuando una siembra llega a su etapa de cosecha)"
   },
   {
    "n": 2,
@@ -211,10 +211,10 @@
   {
    "n": 13,
    "nombre": "Mapa del rancho",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: mapa, satelite",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_mapa 13 · mapa 22 · satelite 22",
+   "probado": "Con cuentas y dos teléfonos: trazar el límite (la superficie se mide; la capturada no cambia sola), contarlo en el mapa, verlo en otro teléfono; quien no es administrador ve y no traza; en local: moño, KML, ficha del ciclo y satélite (vigor y humedad, sin diagnosticar)",
+   "falta": "Con el GPS y la imagen de fondo de verdad (prueba de campo)"
   },
   {
    "n": 14,
@@ -230,7 +230,7 @@
    "estado": "PARCIAL",
    "prueba": "auditoria_campo 63",
    "probado": "Enseña cada parcela con su temporada, en qué día del ciclo va, superficie y fecha de siembra; la que no tiene siembra lo dice; el agrónomo la ve",
-   "falta": "Avance por fase y semáforos (dependen de las etapas del cultivo: defecto 38)"
+   "falta": "Ver el avance por fase y los semáforos con un cultivo cuyas etapas se escribieron en la app (ya se pueden escribir)"
   },
   {
    "n": 16,
@@ -238,7 +238,7 @@
    "estado": "PARCIAL",
    "prueba": "auditoria_campo 63",
    "probado": "Asignar un cultivo a una parcela en un mes: nombra la temporada, estima la cosecha, guarda variedad, superficie y de dónde salió la semilla; se pinta en el calendario; detalle de la siembra; darla por cosechada (fecha mal escrita o anterior a la siembra no entra); el encargado no lo tiene",
-   "falta": "Avance por fase (los cultivos dados de alta en la app no tienen etapas: defecto 38), editar y eliminar una siembra, semilla propia ligada a una cosecha"
+   "falta": "Avance por fase con etapas escritas en la app, editar y eliminar una siembra, semilla propia ligada a una cosecha"
   },
   {
    "n": 17,
@@ -260,8 +260,8 @@
    "n": 19,
    "nombre": "Variedades",
    "estado": "APROBADO",
-   "prueba": "auditoria_campo 63",
-   "probado": "Alta de cultivo desde la app (sin duración no entra, no se repite), variedades (repetida no entra), una variedad sembrada no se quita y una sin usar sí; el agrónomo da de alta otro cultivo y sube; aparato nuevo",
+   "prueba": "auditoria_campo 63 · auditoria_agronomia 33",
+   "probado": "Alta de cultivo desde la app (sin duración no entra, no se repite), variedades (repetida no entra), una variedad sembrada no se quita y una sin usar sí; el agrónomo da de alta otro cultivo y sube; aparato nuevo; escribir las etapas de un cultivo (revisadas)",
    "falta": "—"
   },
   {
@@ -283,10 +283,10 @@
   {
    "n": 22,
    "nombre": "Dron",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_mapa 13",
+   "probado": "Las fotos con GPS dentro del límite se ubican solas en su parcela; la que no trae GPS no se adivina y se dice; un vuelo por parcela y día; las fotos quedan como archivos aparte; otro teléfono",
+   "falta": "La opinión con IA sobre unas fotos (espera la llave) y fotos de un dron de verdad (prueba de campo)"
   },
   {
    "n": 23,
@@ -988,9 +988,9 @@
    "modulo": "Calendario, Estado de parcelas",
    "que": "Las etapas de un cultivo (emergencia, bulbificación…) sólo entran por la hoja de Excel: un cultivo dado de alta en la app no tiene etapas y su «avance por fase» sale vacío",
    "nivel": "P2",
-   "estado": "abierto",
+   "estado": "corregido",
    "publicado": false,
-   "nota": ""
+   "nota": "Las etapas se escriben en la app (Variedades → el cultivo → Etapas), revisadas: con nombre, en orden, sin encimarse y sin pasar de lo que dura el cultivo"
   },
   {
    "n": 39,
@@ -1232,7 +1232,7 @@
    "que": "Después de registrar el primer potrero ya no aparecía el botón para registrar otro",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "El botón está siempre"
   },
   {
@@ -1241,7 +1241,7 @@
    "que": "La pantalla se llamaba «Operación en vivo» y en el menú «Operación»",
    "nivel": "P3",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Se llama igual en los dos"
   },
   {
@@ -1250,7 +1250,7 @@
    "que": "Un fertilizante del catálogo con la fórmula en el nombre («Urea 46-00-00») no se reconocía y la hoja decía «no se sabe si hay»",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Se reconoce por el inicio del nombre; si dos artículos podrían ser el mismo, no se escoge ninguno y se dice"
   },
   {
@@ -1259,7 +1259,7 @@
    "que": "Una reapertura hecha desde un teléfono con la hora atrasada podía quedar «antes» del cierre y no contar: se seguía viendo cerrada",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "El orden entre cierre y reapertura sale de la hora corregida de cada teléfono"
   },
   {
@@ -1268,7 +1268,7 @@
    "que": "La casilla «Pasa a mañana» de una tarea sin terminar no tenía nombre para quien usa lector de pantalla",
    "nivel": "P3",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Ya lo tiene"
   }
  ],
@@ -1293,7 +1293,7 @@
   {
    "que": "La app en app.agroselectos.com",
    "estado": "publicado",
-   "detalle": "Versión `5991b63`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio (18 de 18)."
+   "detalle": "Versión `cd7a512`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio (18 de 18)."
   },
   {
    "que": "Captura diaria: «Mis días» con la cuenta real, registro de varios que dice lo que se paga, el día que se costeaba dos veces, y rastro al aprobar externos y atender incidencias",
@@ -1366,9 +1366,9 @@
    "detalle": "Lo otorga el administrador a su propia cuenta."
   },
   {
-   "que": "Ganado, Operación, Hoja de Fito y el orden de cierres y reaperturas",
+   "que": "Las etapas de un cultivo se escriben en la app (defecto 38)",
    "estado": "sin_publicar",
-   "detalle": "Recorridos auditoria_agronomia 30, auditoria_eldia 15, auditoria_organizacion 11, auditoria_mensajes 12 y auditoria_importar 11; se publica al pasar la batería completa."
+   "detalle": "Recorrido auditoria_agronomia 33 de 33 y prueba con nombre; se publica al pasar la batería completa."
   }
  ],
  "pendientes_menores": [

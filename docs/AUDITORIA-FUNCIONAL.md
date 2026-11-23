@@ -2,7 +2,7 @@
 
 > **Generado desde `docs/ESTADO.json` con `node herramientas/estado.mjs`. No se edita a mano:** se cambia el archivo de estado y se vuelve a generar. Es la única fuente de las cifras, los módulos, los pendientes y lo publicado; el tablero de cierre sale de aquí mismo.
 
-Corte: domingo 22 de noviembre de 2026. **38 aprobados · 27 recorridos en parte · 2 sin verificar.**
+Corte: domingo 22 de noviembre de 2026. **40 aprobados · 27 recorridos en parte · 0 sin verificar.**
 
 **Veredicto: NO LISTO** como sistema completo · listo para prueba de campo en la operación diaria. Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).
 
@@ -35,7 +35,7 @@ Corte: domingo 22 de noviembre de 2026. **38 aprobados · 27 recorridos en parte
 
 | Qué | Estado | Detalle |
 |---|---|---|
-| La app en app.agroselectos.com | **Publicado** | Versión `5991b63`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio (18 de 18). |
+| La app en app.agroselectos.com | **Publicado** | Versión `cd7a512`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio (18 de 18). |
 | Captura diaria: «Mis días» con la cuenta real, registro de varios que dice lo que se paga, el día que se costeaba dos veces, y rastro al aprobar externos y atender incidencias | **Publicado** | 22 de noviembre; corrección ordinaria, publicada tras la batería completa. |
 | Campo (alta de cultivos, parcelas que no se eliminan con registros, cosechas que no se pisan ni se borran) y dos correcciones de identidad: hechos de nombre propio sin marca y estibas recién cerradas que no subían | **Publicado** | 22 de noviembre; corrección ordinaria, publicada tras la batería completa. |
 | Cobros parciales de un embarque desde dos teléfonos (no se pisan; cada cobro con autor, hora y su venta ligada) | **Publicado** | 22 de noviembre, autorizado por Luis. |
@@ -50,9 +50,9 @@ Corte: domingo 22 de noviembre de 2026. **38 aprobados · 27 recorridos en parte
 | Restaurar conserva quién autorizó y cuándo; nadie puede inventar una autorización | **Instalado en la base** | Hoja 53 en la base y publicado. |
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
-| Ganado, Operación, Hoja de Fito y el orden de cierres y reaperturas | **Sin publicar** | Recorridos auditoria_agronomia 30, auditoria_eldia 15, auditoria_organizacion 11, auditoria_mensajes 12 y auditoria_importar 11; se publica al pasar la batería completa. |
+| Las etapas de un cultivo se escriben en la app (defecto 38) | **Sin publicar** | Recorrido auditoria_agronomia 33 de 33 y prueba con nombre; se publica al pasar la batería completa. |
 
-## Defectos encontrados al usar los módulos (69: 65 corregidos, 5 de ellos sin publicar; 4 abiertos)
+## Defectos encontrados al usar los módulos (69: 66 corregidos, 1 de ellos sin publicar; 3 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -93,7 +93,7 @@ Corte: domingo 22 de noviembre de 2026. **38 aprobados · 27 recorridos en parte
 | 35 | Cosechas | Un registro de cosecha se borraba con un toque, sin motivo ni rastro | P1 | Corregido y publicado: se cancela con motivo, queda a la vista tachado con quién y por qué, deja de contar y no revive al sincronizar |
 | 36 | Calendario | La fecha de cosecha real aceptaba cualquier texto (o una fecha anterior a la siembra), y de esa fecha salen los costos de la temporada | P2 | Corregido y publicado |
 | 37 | Comparar variedades | El rendimiento de una variedad se enseñaba sin los ajustes de cosecha (1,450 kg) mientras el rendimiento por hectárea sí los contaba (1,400) | P3 | Corregido y publicado |
-| 38 | Calendario, Estado de parcelas | Las etapas de un cultivo (emergencia, bulbificación…) sólo entran por la hoja de Excel: un cultivo dado de alta en la app no tiene etapas y su «avance por fase» sale vacío | P2 | Abierto |
+| 38 | Calendario, Estado de parcelas | Las etapas de un cultivo (emergencia, bulbificación…) sólo entran por la hoja de Excel: un cultivo dado de alta en la app no tiene etapas y su «avance por fase» sale vacío | P2 | Corregido **sin publicar**: Las etapas se escriben en la app (Variedades → el cultivo → Etapas), revisadas: con nombre, en orden, sin encimarse y sin pasar de lo que dura el cultivo |
 | 39 | Cosechas | La cosecha se lleva una por parcela para siempre: el «costo por kilo» de la pantalla de Cosechas junta todas las temporadas de esa parcela (el resultado por temporada, en Finanzas y en Comparar variedades, sí separa por fechas) | P2 | Abierto |
 | 40 | Mis días | Al trabajador se le enseñaba «Mi raya acumulada» = días palomeados en el pase de lista × su sueldo, de toda la vida y sin restar lo ya pagado: con dos actividades registradas veía $0, o un acumulado que nadie le debía | P1 | Corregido y publicado: ahora ve la misma cuenta que quien paga, de la semana: lo que le corresponde, lo entregado y lo que falta |
 | 41 | Registro de varios | La confirmación prometía sueldo × horas ÷ 8 (4 horas = $240) y en Pagos y en el costo salía el día completo ($480): la pantalla decía una cosa y los libros otra | P2 | Corregido y publicado: la pantalla enseña lo que de verdad se paga (su día) y explica que las horas sólo reparten el día entre parcelas |
@@ -120,11 +120,11 @@ Corte: domingo 22 de noviembre de 2026. **38 aprobados · 27 recorridos en parte
 | 62 | Seguridad | Se podía poner a Dirección el PIN de un trabajador, o el mismo PIN a dos perfiles: con un PIN repetido ninguno de los dos podía entrar | P2 | Corregido y publicado: Se rechaza y se dice por qué |
 | 63 | Semana | La estimación contaba a todos (también a los dados de baja) por seis días fijos, y a quien cobra a destajo como cero | P2 | Corregido y publicado: Sueldo vigente por los días de cada quien, sólo activos; destajo y sin sueldo aparte |
 | 64 | Papeles | Una compra aplicada desde el buzón y cargada completa al almacén se quedaba «por clasificar» en Finanzas | P2 | Corregido y publicado: Si todo lo del papel entró al almacén, queda como compra para el almacén; si entró una parte, se dice |
-| 65 | Ganado | Después de registrar el primer potrero ya no aparecía el botón para registrar otro | P2 | Corregido **sin publicar**: El botón está siempre |
-| 66 | Operación | La pantalla se llamaba «Operación en vivo» y en el menú «Operación» | P3 | Corregido **sin publicar**: Se llama igual en los dos |
-| 67 | Hoja de Fito | Un fertilizante del catálogo con la fórmula en el nombre («Urea 46-00-00») no se reconocía y la hoja decía «no se sabe si hay» | P2 | Corregido **sin publicar**: Se reconoce por el inicio del nombre; si dos artículos podrían ser el mismo, no se escoge ninguno y se dice |
-| 68 | El día, Pagos y Cierre de mes | Una reapertura hecha desde un teléfono con la hora atrasada podía quedar «antes» del cierre y no contar: se seguía viendo cerrada | P2 | Corregido **sin publicar**: El orden entre cierre y reapertura sale de la hora corregida de cada teléfono |
-| 69 | El día | La casilla «Pasa a mañana» de una tarea sin terminar no tenía nombre para quien usa lector de pantalla | P3 | Corregido **sin publicar**: Ya lo tiene |
+| 65 | Ganado | Después de registrar el primer potrero ya no aparecía el botón para registrar otro | P2 | Corregido y publicado: El botón está siempre |
+| 66 | Operación | La pantalla se llamaba «Operación en vivo» y en el menú «Operación» | P3 | Corregido y publicado: Se llama igual en los dos |
+| 67 | Hoja de Fito | Un fertilizante del catálogo con la fórmula en el nombre («Urea 46-00-00») no se reconocía y la hoja decía «no se sabe si hay» | P2 | Corregido y publicado: Se reconoce por el inicio del nombre; si dos artículos podrían ser el mismo, no se escoge ninguno y se dice |
+| 68 | El día, Pagos y Cierre de mes | Una reapertura hecha desde un teléfono con la hora atrasada podía quedar «antes» del cierre y no contar: se seguía viendo cerrada | P2 | Corregido y publicado: El orden entre cierre y reapertura sale de la hora corregida de cada teléfono |
+| 69 | El día | La casilla «Pasa a mañana» de una tarea sin terminar no tenía nombre para quien usa lector de pantalla | P3 | Corregido y publicado: Ya lo tiene |
 
 ## Lo que no se pudo ejecutar y por qué
 
@@ -139,7 +139,7 @@ Corte: domingo 22 de noviembre de 2026. **38 aprobados · 27 recorridos en parte
 
 | # | Módulo | Estado | Prueba | Qué se probó | Qué falta |
 |---|---|---|---|---|---|
-| 1 | Operación | **PARCIAL** | auditoria_agronomia 30 | Lo que va en proceso por etapa (con el avance reportado en campo) y lo atrasado contra el calendario del cultivo; se llama igual en el menú y en la pantalla | «Cosecha en curso»; y con un cultivo dado de alta en la app (todavía sin etapas: defecto 38) no tiene qué enseñar |
+| 1 | Operación | **PARCIAL** | auditoria_agronomia 30 | Lo que va en proceso por etapa (con el avance reportado en campo) y lo atrasado contra el calendario del cultivo; se llama igual en el menú y en la pantalla | «Cosecha en curso» (cuando una siembra llega a su etapa de cosecha) |
 | 2 | El día | **APROBADO** | auditoria_eldia 15 · antes: plan, jornada, reasignacion | Con cuentas y dos teléfonos: lo planeado contra lo que se sabe, el cierre que pide el porqué, la foto del cierre, lo que pasa a mañana una sola vez, reabrir con motivo desde otro teléfono (aunque traiga otra hora), y que nada de esto crea pagos ni costos | El pronóstico del clima (pide internet: prueba de campo) |
 | 3 | ¿Alcanza? | **APROBADO** | auditoria_banco 37 | Con una bolsa sin saldo contesta NO SÉ TU SALDO y dice cuál; con las dos al día, ALCANZA o FALTA con la cuenta; agregar pagos; lo que dejó de aparecer (con checador y reparto); noviembre contra noviembre, sin comparar contra el mes anterior | — |
 | 4 | Resumen | **PARCIAL** | auditoria_numeros 28 | Siete días (eran ocho); el balance de la semana con la cuenta del cierre: lo no clasificado y lo comprado para el almacén no son costo | Los contadores de pendientes (compras, incidencias, existencias bajas, tareas) contra sus pantallas |
@@ -151,16 +151,16 @@ Corte: domingo 22 de noviembre de 2026. **38 aprobados · 27 recorridos en parte
 | 10 | Indicaciones | **APROBADO** | auditoria_agronomia 30 | El agrónomo manda a una persona, en una parcela, con insumo; al marcarla hecha queda la actividad a nombre de quien la hizo, el insumo sale del almacén y su costo se carga una vez (no sale otra vez del flujo); otro teléfono | El botón de WhatsApp abre la app del teléfono (prueba de campo) |
 | 11 | Tareas | **PARCIAL** | auditoria_captura 66 | El encargado manda una tarea a una persona (sin persona o sin texto no sale), ella la ve en «Mis días», la marca hecha y el encargado la ve completada | Reportar una necesidad desde Tareas, prioridades, borrar una tarea |
 | 12 | Reportar | **APROBADO** | auditoria_captura 66 | El trabajador reporta (sin descripción no sale), queda con clase, prioridad y quién lo mandó, le llega al administrador con nombre y fecha, y él la marca atendida (queda quién y sigue a la vista) | — |
-| 13 | Mapa del rancho | NO VERIFICADO | antes: mapa, satelite | — | Falta la auditoría completa |
+| 13 | Mapa del rancho | **APROBADO** | auditoria_mapa 13 · mapa 22 · satelite 22 | Con cuentas y dos teléfonos: trazar el límite (la superficie se mide; la capturada no cambia sola), contarlo en el mapa, verlo en otro teléfono; quien no es administrador ve y no traza; en local: moño, KML, ficha del ciclo y satélite (vigor y humedad, sin diagnosticar) | Con el GPS y la imagen de fondo de verdad (prueba de campo) |
 | 14 | Parcelas | **APROBADO** | auditoria_campo 63 | Rancho que arranca vacío: alta de rancho y de parcelas (dice qué falta, no se repiten, la parcela nace en su rancho), corregir hectáreas, ubicación, renglón de su ciclo y foto (la foto no viaja dentro del registro), lo que tiene siembra o cosecha no se elimina y lo vacío sí, un rancho con parcelas no se elimina; recarga, otro teléfono, aparato nuevo; el agrónomo no la tiene | Escoger la ubicación en el mapa satelital (pide mapa real) |
-| 15 | Estado de parcelas | **PARCIAL** | auditoria_campo 63 | Enseña cada parcela con su temporada, en qué día del ciclo va, superficie y fecha de siembra; la que no tiene siembra lo dice; el agrónomo la ve | Avance por fase y semáforos (dependen de las etapas del cultivo: defecto 38) |
-| 16 | Calendario | **PARCIAL** | auditoria_campo 63 | Asignar un cultivo a una parcela en un mes: nombra la temporada, estima la cosecha, guarda variedad, superficie y de dónde salió la semilla; se pinta en el calendario; detalle de la siembra; darla por cosechada (fecha mal escrita o anterior a la siembra no entra); el encargado no lo tiene | Avance por fase (los cultivos dados de alta en la app no tienen etapas: defecto 38), editar y eliminar una siembra, semilla propia ligada a una cosecha |
+| 15 | Estado de parcelas | **PARCIAL** | auditoria_campo 63 | Enseña cada parcela con su temporada, en qué día del ciclo va, superficie y fecha de siembra; la que no tiene siembra lo dice; el agrónomo la ve | Ver el avance por fase y los semáforos con un cultivo cuyas etapas se escribieron en la app (ya se pueden escribir) |
+| 16 | Calendario | **PARCIAL** | auditoria_campo 63 | Asignar un cultivo a una parcela en un mes: nombra la temporada, estima la cosecha, guarda variedad, superficie y de dónde salió la semilla; se pinta en el calendario; detalle de la siembra; darla por cosechada (fecha mal escrita o anterior a la siembra no entra); el encargado no lo tiene | Avance por fase con etapas escritas en la app, editar y eliminar una siembra, semilla propia ligada a una cosecha |
 | 17 | Cosechas | **APROBADO** | auditoria_campo 63 | Anotar lo cosechado (pide cantidad y quién), total y rendimiento por hectárea, ajuste con motivo y autor, cancelar un registro con motivo (no revive), dos teléfonos sin señal en la misma parcela y en la primera cosecha de otra (nada se pisa ni se duplica), un gasto de Finanzas llega como costo por kilo, apartar semilla (entra al almacén a su costo, no más de lo disponible), mandar a bodega con transporte; encargado, recarga, aparato nuevo | El costo por kilo junta todas las temporadas de la parcela (defecto 39, abierto) |
 | 18 | Rendimiento por parcela | **APROBADO** | auditoria_bodega 48 | Se llena solo con la corrida: parcela de origen, cajas, kilos, kilos por hectárea y cajas por calibre | Varias parcelas y una corrida que mezcla parcelas (el reparto está probado en cálculo) |
-| 19 | Variedades | **APROBADO** | auditoria_campo 63 | Alta de cultivo desde la app (sin duración no entra, no se repite), variedades (repetida no entra), una variedad sembrada no se quita y una sin usar sí; el agrónomo da de alta otro cultivo y sube; aparato nuevo | — |
+| 19 | Variedades | **APROBADO** | auditoria_campo 63 · auditoria_agronomia 33 | Alta de cultivo desde la app (sin duración no entra, no se repite), variedades (repetida no entra), una variedad sembrada no se quita y una sin usar sí; el agrónomo da de alta otro cultivo y sube; aparato nuevo; escribir las etapas de un cultivo (revisadas) | — |
 | 20 | Comparar variedades | **APROBADO** | auditoria_campo 63 | Dos variedades en dos parcelas, cada una con su rendimiento (con ajustes y sin lo cancelado), su costo directo y su costo por hectárea | — |
 | 21 | Hoja de Fito | **APROBADO** | auditoria_agronomia 30 | Una hoja que no cuadra (total ≠ dosis × hectáreas) no deja mandar nada; la buena encuentra la parcela, dice qué falta en la bodega y lo que no está en el catálogo como «no se sabe»; sin destinatario no se manda | Una hoja en PDF y una en foto de las de Fito (la foto pasa por la lectura con IA) |
-| 22 | Dron | NO VERIFICADO | antes: sólo que abre | — | Falta la auditoría completa |
+| 22 | Dron | **APROBADO** | auditoria_mapa 13 | Las fotos con GPS dentro del límite se ubican solas en su parcela; la que no trae GPS no se adivina y se dice; un vuelo por parcela y día; las fotos quedan como archivos aparte; otro teléfono | La opinión con IA sobre unas fotos (espera la llave) y fotos de un dron de verdad (prueba de campo) |
 | 23 | Ganado | **APROBADO** | auditoria_agronomia 30 | Potreros (varios), alta con arete único, báscula (ganancia diaria), jeringa con retiro (NO se puede vender) y sin retiro (no se sabe, nunca «se puede»), lista para venta en tres grupos, cuadre del hato que no se ajusta solo, baja con motivo, otro teléfono | — |
 | 24 | Corrida de ajo | **PARCIAL** | auditoria_bodega 48 · corridaViva.test | Corrida en vivo completa: tarima de limpio a la mesa, conteo por calibre, cierre de estiba con peso y folio, conteo físico, salir y volver, recargar, terminar el día con ajuste de la tarima, un solo reporte | Pestañas Calidad y Categorías aparte, modo revoltura, cambio de tarima a media corrida, tarima limpiada hoy, cortes de 15 minutos |
 | 25 | Estibas | **PARCIAL** | auditoria_bodega 48 | Alta masiva de barbecho desde la parcela, limpio que consume barbecho, saldos, rastreo hasta la parcela, etiquetas, otro teléfono; la estiba recién cerrada sube con su peso (la base no la rechaza) | Re-limpia, alta individual, estiba sin origen, cierre manual de una estiba, imprimir |
@@ -246,7 +246,6 @@ Corte: domingo 22 de noviembre de 2026. **38 aprobados · 27 recorridos en parte
 - En un teléfono ligado para la gente, cada recarga le vuelve a pedir la contraseña al encargado (así está pensado; puede cansar).
 - Defecto 14 (Deudas / Proveedores): El proveedor se guarda distinto en cada pantalla (texto / ficha).
 - Defecto 16 (Corrida de ajo): Los cortes, conteos y cajas de plástico de la corrida se pueden borrar sin motivo; y la configuración se guarda con un nombre fijo, no por espacio.
-- Defecto 38 (Calendario, Estado de parcelas): Las etapas de un cultivo (emergencia, bulbificación…) sólo entran por la hoja de Excel: un cultivo dado de alta en la app no tiene etapas y su «avance por fase» sale vacío.
 - Defecto 39 (Cosechas): La cosecha se lleva una por parcela para siempre: el «costo por kilo» de la pantalla de Cosechas junta todas las temporadas de esa parcela (el resultado por temporada, en Finanzas y en Comparar variedades, sí separa por fechas).
 
 ## Riesgos que quedan aunque todo pase

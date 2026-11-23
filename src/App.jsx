@@ -1,4 +1,4 @@
-import { unico, conAutor, conNacimiento, conservarNacimiento, esIdentificadorOcupado, revisarCultivo, revisarRancho, revisarParcela, usoDeParcela, idDeCosecha, registrosVivos, cancelarRegistroDeCosecha } from "./calculos.js";
+import { unico, conAutor, conNacimiento, conservarNacimiento, esIdentificadorOcupado, revisarCultivo, revisarEtapas, revisarRancho, revisarParcela, usoDeParcela, idDeCosecha, registrosVivos, cancelarRegistroDeCosecha } from "./calculos.js";
 import { quizaRepetidos, marcarDistintos } from "./repetidos.js";
 import React, { useState, useEffect, useCallback, useRef, useMemo, Component, createContext, useContext } from "react";
 import { createPortal } from "react-dom";
@@ -19769,6 +19769,9 @@ function GestionVariedades({ data, add, upd, session, onClose }) {
   };
   const [nuevaVar, setNuevaVar] = useState({ nombre: "", notas: "" });
   const puedeEditar = ["admin", "agronomo", "dueno"].includes(session.role);
+  // Las etapas del cultivo: se editan como borrador y se guardan sólo si están en orden (`revisarEtapas`).
+  const [etapasBorr, setEtapasBorr] = useState(null);
+  const [diceEtapas, setDiceEtapas] = useState("");
 
   const cultivos = data.cultivos || [];
   const cultivo = cultivos.find(c => c.id === cultivoSel);
@@ -19811,6 +19814,29 @@ function GestionVariedades({ data, add, upd, session, onClose }) {
         <div className="section-pad">
           <div className="text-xs text-muted mb-3" style={{ paddingLeft: 4 }}>
             Define los tipos o variedades de {cultivo.nombre}. Más adelante podrás registrar costos y rendimientos por cada una.
+          </div>
+
+          <div className="card">
+            <div className="card-title">Etapas del cultivo</div>
+            <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Su calendario, en días desde la siembra{cultivo.duracionDias ? ` (dura ${cultivo.duracionDias} días)` : ""}. De aquí salen el avance por etapa, el calendario y lo atrasado en Operación. La app no las inventa: las escribe quien sabe.</div>
+            {!etapasBorr && ((cultivo.fenologia || []).length === 0
+              ? <div className="text-sm" style={{ color: "var(--gold)" }}>Todavía no tiene etapas: su avance por etapa sale vacío.</div>
+              : (cultivo.fenologia || []).map((e, i) => <div key={i} className="flex-b text-sm" style={{ padding: "3px 0" }}><span>{e.etapa}</span><span className="text-muted">día {e.diaInicio} al {e.diaFin}</span></div>))}
+            {etapasBorr && <>
+              {etapasBorr.map((e, i) => (
+                <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                  <input className="inp" style={{ flex: 2 }} aria-label={`Etapa ${i + 1}`} placeholder="Nombre (ej. Siembra)" value={e.etapa} onChange={ev => setEtapasBorr(l => l.map((x, j) => j === i ? { ...x, etapa: ev.target.value } : x))} />
+                  <input className="inp" style={{ flex: 1 }} inputMode="numeric" aria-label={`Desde el día, etapa ${i + 1}`} placeholder="desde" value={e.diaInicio} onChange={ev => setEtapasBorr(l => l.map((x, j) => j === i ? { ...x, diaInicio: ev.target.value.replace(/\D/g, "") } : x))} />
+                  <input className="inp" style={{ flex: 1 }} inputMode="numeric" aria-label={`Hasta el día, etapa ${i + 1}`} placeholder="hasta" value={e.diaFin} onChange={ev => setEtapasBorr(l => l.map((x, j) => j === i ? { ...x, diaFin: ev.target.value.replace(/\D/g, "") } : x))} />
+                </div>))}
+              <button className="btn-ghost text-xs" onClick={() => setEtapasBorr(l => [...l, { etapa: "", diaInicio: l.length ? l[l.length - 1].diaFin : "0", diaFin: "" }])}>+ Otra etapa</button>
+              {diceEtapas && <div className="text-sm" style={{ color: "var(--red)", margin: "6px 0" }}>{diceEtapas}</div>}
+              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => { setEtapasBorr(null); setDiceEtapas(""); }}>No</button>
+                <button className="btn btn-accent" style={{ flex: 1 }} onClick={() => { const r = revisarEtapas(etapasBorr, cultivo.duracionDias); if (!r.ok) { setDiceEtapas(r.dice); return; } upd("cultivos", { ...cultivo, fenologia: r.etapas }); setEtapasBorr(null); setDiceEtapas(""); }}>Guardar etapas</button>
+              </div>
+            </>}
+            {puedeEditar && !etapasBorr && <button className="btn btn-outline btn-sm" style={{ marginTop: 8 }} onClick={() => setEtapasBorr((cultivo.fenologia || []).length ? cultivo.fenologia.map(e => ({ etapa: e.etapa, diaInicio: String(e.diaInicio), diaFin: String(e.diaFin) })) : [{ etapa: "", diaInicio: "0", diaFin: "" }])}>{(cultivo.fenologia || []).length ? "Cambiar las etapas" : "Escribir las etapas"}</button>}
           </div>
 
           {variedades.length === 0 && (

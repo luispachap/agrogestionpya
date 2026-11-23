@@ -590,6 +590,27 @@ export const esIdentificadorOcupado = (e) => /identificador_ocupado/.test(String
 // limpio nadie podía dar de alta «Ajo», y sin cultivo no hay calendario, ciclos ni resultado por cultivo.
 // El identificador sale del NOMBRE: dos teléfonos que dan de alta el mismo cultivo sin señal dejan uno solo.
 const sinAcentos = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/\s+/g, " ");
+// LAS ETAPAS DE UN CULTIVO (su calendario: preparación, siembra, desarrollo, cosecha…). Antes sólo entraban por la hoja
+// de Excel: un cultivo dado de alta en la app no tenía etapas y el avance por fase, el calendario y Operación salían
+// vacíos. La app no las inventa: las escribe quien sabe (Fito). Se revisa que cada una tenga nombre, que empiece antes
+// de terminar, que vayan en orden sin encimarse y que no pasen de lo que dura el cultivo.
+const num_ = (v) => (v === "" || v == null ? NaN : Number(v));
+export function revisarEtapas(etapas = [], duracionDias = null) {
+  const limpias = (etapas || []).map(e => ({ etapa: String(e?.etapa || "").trim().replace(/\s+/g, " "), diaInicio: num_(e?.diaInicio), diaFin: num_(e?.diaFin) }))
+    .filter(e => e.etapa || Number.isFinite(e.diaInicio) || Number.isFinite(e.diaFin));
+  if (limpias.length === 0) return { ok: false, dice: "Escribe al menos una etapa." };
+  for (const [i, e] of limpias.entries()) {
+    const n = `La etapa ${i + 1}${e.etapa ? ` («${e.etapa}»)` : ""}`;
+    if (!e.etapa) return { ok: false, dice: `${n} no tiene nombre.` };
+    if (!Number.isInteger(e.diaInicio) || !Number.isInteger(e.diaFin) || e.diaInicio < 0) return { ok: false, dice: `${n}: faltan sus días (desde qué día y hasta qué día, contados desde la siembra).` };
+    if (e.diaFin <= e.diaInicio) return { ok: false, dice: `${n} termina antes de empezar.` };
+    if (duracionDias && e.diaFin > Number(duracionDias)) return { ok: false, dice: `${n} termina el día ${e.diaFin}, pero el cultivo dura ${duracionDias} días.` };
+    if (i > 0 && e.diaInicio < limpias[i - 1].diaFin) return { ok: false, dice: `${n} empieza antes de que termine la anterior: van en orden y sin encimarse.` };
+    if (limpias.slice(0, i).some(x => sinAcentos(x.etapa) === sinAcentos(e.etapa))) return { ok: false, dice: `${n} se repite.` };
+  }
+  return { ok: true, etapas: limpias };
+}
+
 export function revisarCultivo(form, cultivos = []) {
   const nombre = String(form?.nombre || "").trim().replace(/\s+/g, " ");
   if (!nombre) return { ok: false, dice: "Falta el nombre del cultivo." };

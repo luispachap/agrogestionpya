@@ -38,6 +38,11 @@ t["egresos"] = {"e1": {"id": "e1", "fecha": "2026-11-05", "parcela_id": "p1", "d
                 "e4": {"id": "e4", "fecha": "2026-11-08", "parcela_id": None, "datos": {"concepto": "COMPRA DE UREA PARA EL ALMACEN", "monto": 5000, "categoria": "insumos", "destinoInsumo": "inventario", **E}, "actualizado": V},
                 "e5": {"id": "e5", "fecha": "2026-11-18", "parcela_id": None, "datos": {"concepto": "INSUMOS QUE NADIE CLASIFICO", "monto": 200, "categoria": "insumos", **E}, "actualizado": V}}
 t["ingresos"] = {"i1": {"id": "i1", "fecha": "2026-11-12", "datos": {"concepto": "VENTA INVENTADA", "monto": 5000, "categoria": "venta_cosecha", "parcelaId": "p1", **E}, "actualizado": V}}
+# Pendientes para el Resumen: una compra por aprobar, una incidencia, un insumo bajo su mínimo y una tarea.
+t["compras"] = {"co1": {"id": "co1", "estado": "pendiente", "datos": {"descripcion": "GUANTES INVENTADOS", "monto": 150, "fecha": "2026-11-18", **E}, "actualizado": V}}
+t["incidencias"] = {"in1": {"id": "in1", "estado": "pendiente", "datos": {"fecha": "2026-11-18", "desc": "FUGA INVENTADA", "tipo": "riego", "prioridad": "alta", **E}, "actualizado": V}}
+t["inventario"] = {"i-azufre": {"id": "i-azufre", "nombre": "AZUFRE INVENTADO", "cat": "insumo", "datos": {"unidad": "kg", "existencia": 2, "minimo": 5, "costo_unit": 30, **E}, "actualizado": V}}
+t["tareas"] = {"ta1": {"id": "ta1", "asignado_a": "t-ana", "estado": "pendiente", "datos": {"titulo": "LIMPIAR CANAL INVENTADO", "fecha": "2026-11-18", "prioridad": "media", **E}, "actualizado": V}}
 t["ciclos"] = {"ci1": {"id": "ci1", "estado": "activo", "datos": {"nombre": "TEMPORADA INVENTADA", "fechaInicio": "2026-09-01", "fechaFin": "", **E}, "actualizado": V}}
 # Lo esperado, hecho a mano:
 #   2026 (1 ene–19 nov): actividades 400+400+650+400+400 = 2,250; gastos con parcela 1,500; generales 300 → 4,050. Ingresos 5,000 → +950.
@@ -99,12 +104,24 @@ with sync_playwright() as p:
     caso("Resumen semanal: del 13 al 19 (siete días, también a las seis y media de la tarde)", "Del 2026-11-13 al 2026-11-19" in tx, tx[:300])
     caso("y la semana costó $400: el insumo sin clasificar no entra", "Costos y gastos $400" in tx and "-$400" in tx, tx[:500])
 
+    caso("Resumen: lo que requiere atención, contado como en sus pantallas (1 compra, 1 incidencia, 1 insumo bajo, 1 tarea)", all(x in tx for x in ("Compras por aprobar | 1", "Incidencias pendientes | 1", "Insumos con stock bajo | 1", "Tareas sin completar | 1")), tx[:1200])
+
     # ── 5 · Temporadas ──
     ir(A, "ciclos"); A.wait_for_timeout(400); tx = cuerpo(A)
     caso("Temporadas, en la lista: ingresos $5,000 · costos $4,050 · resultado $950", "Ingresos $5,000 · Costos $4,050" in tx and "$950" in tx, tx[:600])
     A.locator(".card", has_text="TEMPORADA INVENTADA").first.click(); A.wait_for_timeout(500); tx = cuerpo(A); foto(A, "05-temporada")
     caso("la temporada ya no suma la urea dos veces (la compra y su uso): total $4,050", "Total de costos y gastos | $4,050" in tx, tx[:1200])
     caso("y dice aparte lo comprado para el almacén y lo que falta clasificar", "Comprado para el almacén en la temporada: $5,000" in tx and "$200 en insumos por clasificar" in tx, tx[:1500])
+    A.get_by_role("button", name="Cerrar temporada").click(); A.wait_for_timeout(500)
+    ci = next(x for x in A.evaluate("() => window.__agroDatos.ciclos") if x["id"] == "ci1")
+    caso("cerrar la temporada pide confirmar y le pone la fecha de hoy como fin", ci["estado"] == "cerrado" and ci["fechaFin"] == HOY, ci)
+    A.locator(".card", has_text="TEMPORADA INVENTADA").first.click(); A.wait_for_timeout(400); A.get_by_role("button", name="Reabrir temporada").click(); A.wait_for_timeout(400)
+    caso("y se puede reabrir", next(x for x in A.evaluate("() => window.__agroDatos.ciclos") if x["id"] == "ci1")["estado"] == "activo")
+    A.get_by_role("button", name="‹").first.click(); A.wait_for_timeout(300)
+    A.locator(".top-bar button.btn-accent").click(); A.wait_for_timeout(300)
+    A.get_by_placeholder("Ej: Primavera-Verano 2025").fill("OTOÑO INVENTADO"); A.locator(".form-group", has=A.locator("label", has_text="Fecha de inicio")).locator("input").fill("2026-11-01")
+    A.get_by_role("button", name="Crear temporada").click(); A.wait_for_timeout(500); tx = cuerpo(A)
+    caso("una temporada nueva (del 1 de nov.) cuenta lo de noviembre con la misma cuenta: $3,650", "OTOÑO INVENTADO" in tx and "Costos $3,650" in tx, tx[:900])
 
     # ── 6 · Mano de obra: lo tecleado también es mano de obra ──
     ir(A, "mano-obra"); A.locator(".tab-pill", has_text="Esta semana").click(); A.wait_for_timeout(400); tx = cuerpo(A)

@@ -93,6 +93,22 @@ with sync_playwright() as p:
     caso("en proceso: la siembra de la parcela uno al 50 %, reportado en campo", "Siembra" in tx and "PARCELA UNO" in tx and "50%" in tx and "campo" in tx, tx[:900])
     caso("y atrasada: debió terminar a fines de septiembre", "Atrasado o pendiente" in tx and "50% hecho" in tx and "atrasado" in tx, tx[:1200])
 
+    # ── 2b · Las etapas de un cultivo dado de alta en la app (defecto 38) ──
+    ir(G, "variedades"); G.get_by_role("button", name="Nuevo cultivo").click(); G.wait_for_timeout(200)
+    G.locator("#cul-nombre").fill("CEBOLLA INVENTADA"); G.locator("#cul-dias").fill("150"); G.get_by_role("button", name="Guardar").last.click(); G.wait_for_timeout(500)
+    tx = cuerpo(G)
+    caso("un cultivo recién dado de alta dice que no tiene etapas (su avance por etapa saldría vacío)", "Todavía no tiene etapas" in tx, tx[:600])
+    G.get_by_role("button", name="Escribir las etapas").click(); G.wait_for_timeout(200)
+    G.get_by_label("Etapa 1", exact=True).fill("SIEMBRA"); G.get_by_label("Hasta el día, etapa 1").fill("20"); G.get_by_role("button", name="+ Otra etapa").click(); G.wait_for_timeout(100)
+    G.get_by_label("Etapa 2", exact=True).fill("DESARROLLO"); G.get_by_label("Desde el día, etapa 2").fill("10"); G.get_by_label("Hasta el día, etapa 2").fill("160")
+    G.get_by_role("button", name="Guardar etapas").click(); G.wait_for_timeout(300); tx = cuerpo(G)
+    caso("etapas que se enciman o pasan de lo que dura el cultivo no se guardan, y se dice por qué", "empieza antes de que termine la anterior" in tx or "pero el cultivo dura 150 días" in tx, tx[600:1400])
+    G.get_by_label("Desde el día, etapa 2").fill("20"); G.get_by_label("Hasta el día, etapa 2").fill("130"); G.get_by_role("button", name="+ Otra etapa").click(); G.wait_for_timeout(100)
+    G.get_by_label("Etapa 3", exact=True).fill("COSECHA"); G.get_by_label("Hasta el día, etapa 3").fill("150")
+    G.get_by_role("button", name="Guardar etapas").click(); G.wait_for_timeout(500); tx = cuerpo(G); foto(G, "02b-etapas")
+    cul = next(c for c in datos(G)["cultivos"] if c["nombre"] == "CEBOLLA INVENTADA")
+    caso("en orden, se guardan y se ven: siembra 0–20, desarrollo 20–130, cosecha 130–150", [(e["etapa"], e["diaInicio"], e["diaFin"]) for e in cul.get("fenologia") or []] == [("SIEMBRA", 0, 20), ("DESARROLLO", 20, 130), ("COSECHA", 130, 150)] and "día 130 al 150" in tx, cul.get("fenologia"))
+
     # ── 3 · Ganado ──
     A = aparato(ADM); ir(A, "ganado"); tab(A, "Potreros")
     A.respuestas = ["POTRERO NORTE", "10", "1"]; A.get_by_role("button", name="+ Registrar potrero").click(); A.wait_for_timeout(500)
