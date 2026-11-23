@@ -180,6 +180,49 @@ export function registrarPago({ permitido, a, desde, hasta, monto, medio, recibe
   if (!comprobante) avisos.push("Quedó sin comprobante. Se puede pagar así, pero no hay con qué probar la entrega.");
   return { ok: true, avisos, evento: nuevoEvento({ tipo: T_PAGO, cuando, fecha, quien, azar, datos: { a: { tipo: a.tipo, id: a.id, nombre: limpio(a.nombre) }, desde, hasta, monto: Math.round(m * 100) / 100, medio, recibe: limpio(recibe), ...(comprobante ? { comprobante } : {}), nota: limpio(nota) } }) };
 }
+// Un mismo pago en partes: lo dispersado (por transferencia) y lo que se entrega en efectivo, en una sola captura. Cada
+// parte es su propio pago con su medio —el flujo y la conciliación del banco ven cada una donde sí pasó— y el aviso de
+// «más de lo pendiente» se hace sobre la suma.
+export function registrarPagoEnPartes({ partes = [], corresponde = null, azar, ...resto }) {
+  const vivas = (partes || []).filter(p => Number(p.monto) > 0);
+  if (!vivas.length) return { ok: false, dice: "Falta cuánto se entregó." };
+  const eventos = []; let k = 0;
+  for (const p of vivas) {
+    const r = registrarPago({ ...resto, monto: p.monto, medio: p.medio, corresponde: null, azar: azar != null ? azar + (k++) / 1e9 : undefined });
+    if (!r.ok) return r;
+    eventos.push(r.evento);
+  }
+  const total = sumarDinero(eventos.map(e => e.datos.monto)), avisos = [];
+  if (corresponde != null && total > corresponde + 0.004) avisos.push(`Se están entregando ${fmt(total)} y de esa semana quedaban ${fmt(corresponde)} pendientes. Se registra igual; revisa que no sea un pago doble.`);
+  if (!resto.comprobante) avisos.push("Quedó sin comprobante. Se puede pagar así, pero no hay con qué probar la entrega.");
+  return { ok: true, eventos, total, avisos };
+}
+// Lo entregado en la semana, por medio: la hoja que se firma enseña aparte lo dispersado y lo que se dio en efectivo.
+export function entregadoPorMedio(pagos = []) {
+  const r = { transferencia: 0, efectivo: 0, otro: 0 };
+  for (const p of pagos) { const k = p.datos?.medio === "transferencia" ? "transferencia" : p.datos?.medio === "efectivo" ? "efectivo" : "otro"; r[k] = sumarDinero(r[k], p.datos?.monto || 0); }
+  return r;
+}
+
+// ── Los préstamos en la hoja de la semana ──────────────────────────────────
+// Lo que una persona debía al terminar una semana: lo entregado hasta ese día menos lo abonado hasta ese día. El abono
+// descontado de una semana cuenta en ESA semana aunque se capture después; lo de antes de la app, desde su fecha de corte.
+export function deudaAlCierre(prestamos = [], trabajadorId, hasta) {
+  let total = 0;
+  for (const p of prestamos || []) {
+    if (p.trabajadorId !== trabajadorId || p.cancelado || p.estado === "rechazado") continue;
+    if (!p._deEventos) { if ((p.fecha || "") <= hasta) total = sumarDinero(total, Math.max(0, sumarDinero(p.monto || 0, -(p.abonado || 0)))); continue; }
+    const entregado = p.saldoInicial ? ((p.saldoInicial.fechaCorte || "") <= hasta ? p.monto || 0 : 0) : sumarDinero((p.entregas || []).filter(e => (e.fecha || "") <= hasta).map(e => e.monto));
+    const abonado = sumarDinero((p._abonos || []).filter(a => ((a.semana ? a.semana.hasta : a.fecha) || "") <= hasta).map(a => a.monto));
+    total = sumarDinero(total, Math.max(0, sumarDinero(entregado, -abonado)));
+  }
+  return total;
+}
+// Lo que se le prestó en la semana (no lo que ya debía): cuánto, cómo se entregó y en cuántas semanas lo paga.
+export function prestadoEnLaSemana(prestamos = [], trabajadorId, desde, hasta) {
+  return (prestamos || []).filter(p => p._deEventos && !p.saldoInicial && p.trabajadorId === trabajadorId && !p.cancelado)
+    .flatMap(p => (p.entregas || []).filter(e => e.fecha >= desde && e.fecha <= hasta).map(e => ({ monto: e.monto, medio: e.medio, abonoSemanal: p.autorizacion?.abonoSemanal ?? null, condiciones: p.autorizacion?.condiciones || "" })));
+}
 export const pagosA = (eventos, a, { desde, hasta } = {}) => vigentes(eventos).filter(e => e.tipo === T_PAGO && e.datos.a.id === a.id && e.datos.a.tipo === a.tipo && (!desde || e.datos.desde === desde) && (!hasta || e.datos.hasta === hasta));
 // Lo que corresponde, lo entregado y lo que falta. `descuentos`: lo que no se le entrega aunque lo ganó (retención, abono a su préstamo).
 export function saldoDe({ corresponde, descuentos = 0, pagos = [] }) {

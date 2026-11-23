@@ -887,6 +887,21 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   cambiar y Aprobar externos señala lo que se aparta de ella. Recorrido: `auditoria_captura` (66).
 - **Cada cobro de un embarque es un hecho propio**: identificador, importe, fecha, `registradoPor`, `capturado`,
   `ingresoId` (y `abonoId`); la venta lleva `liquidacionId`. Recorrido: `auditoria_cobros` (15).
+- **LA HOJA DE PAGOS QUE SE FIRMA (Luis, 22 nov; salió de su lista de nómina en papel).** Pagos al personal → «Hoja para
+  firmar»: le corresponde · abono a préstamo · transferencia · efectivo · préstamo nuevo (con su abono por semana) · le
+  queda debiendo (`deudaAlCierre`: el abono de una semana cuenta en ESA semana) · falta por entregar · firma, con la
+  leyenda de que no sustituye el CFDI. **Nadie escribe lo que se puede calcular.** El pago va en partes, cada una su
+  propio `pago_personal` con su medio (`registrarPagoEnPartes`: lo dispersado y el efectivo). **Prestar en un paso**
+  (`prestarDeUnaVez`, botón «Prestarle», sólo con `autorizar_prestamos` Y `autorizar_pagos`) deja los TRES hechos de
+  siempre a nombre de quien prestó; la entrega se arma sobre la autorización recién hecha (`entregaDe`), porque con
+  servidor todavía no trae sello. «En cuántas semanas» = `abonoSemanal`: `abonoAcordado` lo SUGIERE al pagar («Usarlo»
+  llena el descuento) y **nunca se descuenta solo**. **Lo que ya se debía al arrancar** es `prestamo_saldo_inicial`
+  (Personal → Préstamos → «Lo que ya debían»; sensible, `autorizar_prestamos`, hoja 57): fecha de corte, quién responde,
+  evidencia; uno por persona; se corrige con `corregirSaldoInicial` (motivo) y el préstamo conserva el identificador del
+  primero para que sus abonos sigan contando; NO entra al flujo (el dinero salió antes). Recorrido:
+  `auditoria_hoja_pagos` (39).
+- **«Sueldo» a secas no es sueldo por día** (`sueldoEsPorDia`, importación): una hoja «Empleado | Sueldo» propone la
+  ficha SIN sueldo y lo dice; y en una lista de pagos un apodo de dos letras ya es nombre.
 - **Dos decisiones distintas del mismo día no se aplican calladas** (`decisionesEncontradas`, `cuadrillas.js`):
   Asistencia enseña las dos con quién, cuándo y por qué y deja cancelar la que no vale; vale UNA (la última; a igual
   hora, por identificador: igual en todos los teléfonos). `historialDeDecisiones` enseña también las canceladas. **Con la

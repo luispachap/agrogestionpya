@@ -84,7 +84,7 @@ export const OPERACION_DE = {
   cierre_mes: "cerrar_mes", reapertura_mes: "cerrar_mes",
   prestacion_determinada: "determinar_prestaciones", prestacion_saldo_inicial: "determinar_prestaciones", baja_personal: "determinar_prestaciones",
   pago_personal: "autorizar_pagos", pago_prestacion: "autorizar_pagos", pago_baja: "autorizar_pagos", abono_prestamo: "autorizar_pagos", prestamo_entrega: "autorizar_pagos", recibo_personal: "autorizar_pagos",
-  prestamo_autorizacion: "autorizar_prestamos", prestamo_rechazo: "autorizar_prestamos",
+  prestamo_autorizacion: "autorizar_prestamos", prestamo_rechazo: "autorizar_prestamos", prestamo_saldo_inicial: "autorizar_prestamos",
   decision_jornada: "decidir_asistencia", horas_reconocidas: "decidir_asistencia",
   ajuste: "cambiar_reglas", salario_minimo: "cambiar_reglas", bono_personal: "autorizar_pagos", pago_bono: "autorizar_pagos", bono_revision: "autorizar_pagos",  // La organización y el catálogo de actividades (hoja 52): los captura sólo quien tiene el permiso OTORGADO.
   org_unidad: "configurar_organizacion", org_unidad_cambio: "configurar_organizacion", org_unidad_cierre: "configurar_organizacion", org_cargo: "configurar_organizacion", org_cargo_fin: "configurar_organizacion",
@@ -96,7 +96,7 @@ export const OPERACIONES = {
   cerrar_mes: "Cerrar y reabrir el mes de costos",
   determinar_prestaciones: "Determinar prestaciones, saldos iniciales y bajas (finiquitos y liquidaciones)",
   autorizar_pagos: "Registrar pagos, entregas de préstamos, abonos y recibos",
-  autorizar_prestamos: "Autorizar o rechazar préstamos al personal",
+  autorizar_prestamos: "Autorizar o rechazar préstamos al personal, y anotar lo que ya debían al arrancar",
   decidir_asistencia: "Decidir cómo se paga un día y reconocer horas adicionales",
   cambiar_reglas: "Cambiar las reglas del rancho",
   // Mensajería (hoja 46). Estos dos NO vienen con ser superadministrador: hay que otorgarlos a la cuenta.

@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cancelarEvento } from "./eventos.js";
-import { registrarAusencia, justificarFalta, ausenciasDe, semanaDe, leToca, cuentasDeCuadrillas, registrarPago, pagosA, saldoDe, emitirRecibo, recibosDe, reciboAlDia, reconocerHoras, cuentaDeHoras, rastroDe, LEYENDA_CUADRILLA } from "./pagos.js";
+import { registrarAusencia, justificarFalta, ausenciasDe, semanaDe, leToca, cuentasDeCuadrillas, registrarPago, pagosA, saldoDe, emitirRecibo, recibosDe, reciboAlDia, reconocerHoras, cuentaDeHoras, rastroDe, LEYENDA_CUADRILLA, registrarPagoEnPartes, entregadoPorMedio, deudaAlCierre, prestadoEnLaSemana } from "./pagos.js";
+import { saldoInicialDePrestamo, prestarDeUnaVez, prestamosDe } from "./prestamos.js";
+import { flujoDeEfectivo } from "./resultado.js";
 import { manoDeObra, asignar, TIPO_DECISION } from "./cuadrillas.js";
 import { marcar } from "./checador.js";
 import { nuevoEvento } from "./eventos.js";
@@ -256,4 +258,33 @@ test("la_semana_estima_cada_quien_con_su_sueldo_por_los_dias_que_le_toca_venir_y
   assert.equal(de("c"), undefined, "una baja no se paga la semana que sigue");
   assert.deepEqual(n.sinEstimar.map(x => x.id).sort(), ["d", "e"], "destajo y sin sueldo no son cero: se dicen aparte");
   assert.equal(n.trabajadores, 5300); assert.equal(n.encargados, 3600); assert.equal(n.total, 8900);
+});
+
+// La nómina en papel del rancho: «Dispersado $2,500.60 · Efectivo $1,731.00» de un sueldo de $4,231.60.
+test("un_pago_en_dos_partes_deja_lo_dispersado_y_el_efectivo_cada_uno_con_su_medio", () => {
+  const Q = { id: "u1", nombre: "Miguel", rol: "admin" }, a = { tipo: "trabajador", id: "t1", nombre: "Ana" };
+  const comun = { a, desde: "2026-11-16", hasta: "2026-11-22", quien: Q, cuando: "2026-11-21T18:00:00-06:00", fecha: "2026-11-21", azar: 0.5 };
+  assert.equal(registrarPagoEnPartes({ ...comun, partes: [{ medio: "transferencia", monto: "" }, { medio: "efectivo", monto: 0 }] }).ok, false);
+  assert.equal(registrarPagoEnPartes({ ...comun, partes: [{ medio: "transferencia", monto: 100 }], permitido: false }).ok, false);
+  const r = registrarPagoEnPartes({ ...comun, partes: [{ medio: "transferencia", monto: "2500.60" }, { medio: "efectivo", monto: 1731 }], corresponde: 4231.6, comprobante: "archivo:hoja.jpg" });
+  assert.ok(r.ok, r.dice); assert.equal(r.eventos.length, 2); assert.equal(new Set(r.eventos.map(e => e.id)).size, 2); assert.equal(r.total, 4231.6); assert.deepEqual(r.avisos, []);
+  assert.deepEqual(entregadoPorMedio(r.eventos), { transferencia: 2500.6, efectivo: 1731, otro: 0 });
+  assert.equal(saldoDe({ corresponde: 4231.6, pagos: r.eventos }).pendiente, 0);
+  assert.match(registrarPagoEnPartes({ ...comun, partes: [{ medio: "efectivo", monto: 5000 }], corresponde: 4231.6 }).avisos[0], /pago doble/, "de más se avisa sobre la suma");
+  assert.equal(flujoDeEfectivo({ eventos: r.eventos, hoy: "2026-11-21" }).egresos, 4231.6);
+});
+
+test("la_hoja_de_la_semana_dice_lo_que_debia_al_cierre_y_lo_que_se_le_presto_esa_semana", () => {
+  const Q = { id: "u1", nombre: "Miguel", rol: "admin" }, T = { id: "t1", nombre: "Meño" };
+  const ini = saldoInicialDePrestamo({ trabajador: T, monto: 1900, fechaCorte: "2026-11-14", responsable: "Miguel", quien: Q, cuando: "2026-11-15T10:00:00-06:00", fecha: "2026-11-15", azar: 0.1 }).evento;
+  const nuevo = prestarDeUnaVez({ trabajador: T, monto: 1500, motivo: "pendiente", semanas: 2, medio: "efectivo", quien: Q, cuando: "2026-11-27T10:00:00-06:00", fecha: "2026-11-27", azar: 0.2 }).eventos;
+  const base = prestamosDe([ini, ...nuevo]);
+  // Abono descontado de la semana del 16 al 22, capturado el lunes 23.
+  const ab = abonar({ prestamos: saldosDePrestamos(base, []), monto: 1400, semana: { desde: "2026-11-16", hasta: "2026-11-22" }, quien: Q, cuando: "2026-11-23T09:00:00-06:00", fecha: "2026-11-23", azar: 0.3 }).eventos;
+  const pr = saldosDePrestamos(base, ab);
+  assert.equal(deudaAlCierre(pr, "t1", "2026-11-13"), 0, "antes del corte no debía nada en la app");
+  assert.equal(deudaAlCierre(pr, "t1", "2026-11-22"), 500, "al cerrar su semana: 1,900 − 1,400 (el «500 pend» de la hoja)");
+  assert.equal(deudaAlCierre(pr, "t1", "2026-11-29"), 2000, "a la semana siguiente, más el préstamo nuevo");
+  assert.deepEqual(prestadoEnLaSemana(pr, "t1", "2026-11-16", "2026-11-22"), [], "lo que ya debía no es préstamo nuevo");
+  assert.deepEqual(prestadoEnLaSemana(pr, "t1", "2026-11-23", "2026-11-29"), [{ monto: 1500, medio: "efectivo", abonoSemanal: 750, condiciones: "Se paga en 2 semanas" }]);
 });

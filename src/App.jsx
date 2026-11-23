@@ -36,14 +36,14 @@ import { abrirRestauracion, leerRestauraciones, estadoDeIA, consultasDeConversac
 import { desfaseDe, selloDeReloj, estadoDelReloj } from "./reloj.js";
 // Pagos al personal: ausencias, lo que corresponde, lo entregado, lo pendiente y los recibos.
 import { registrarAusencia, justificarFalta, ausenciasDe, semanaDe, leToca, DIAS_DE_SIEMPRE, cuentasDeCuadrillas, registrarPago, pagosA, saldoDe, emitirRecibo, recibosDe, reciboAlDia,
-  reconocerHoras, cuentaDeHoras, CLASES_AUSENCIA, SITUACIONES_SALIDA, MEDIOS_DE_PAGO, CLASES_DE_PERSONAL, LEYENDA_RECIBO, LEYENDA_CUADRILLA, abonar, abonosDeSemana, saldosDePrestamos, paraGuardarPrestamo, T_ABONO, calendarioActivo, activarCalendario, cerrarCalendario , necesidadDeLaSemana } from "./pagos.js";
+  reconocerHoras, cuentaDeHoras, CLASES_AUSENCIA, SITUACIONES_SALIDA, MEDIOS_DE_PAGO, CLASES_DE_PERSONAL, LEYENDA_RECIBO, LEYENDA_CUADRILLA, abonar, abonosDeSemana, saldosDePrestamos, paraGuardarPrestamo, T_ABONO, calendarioActivo, activarCalendario, cerrarCalendario , necesidadDeLaSemana, registrarPagoEnPartes, entregadoPorMedio, deudaAlCierre, prestadoEnLaSemana } from "./pagos.js";
 // Lo que se paga y no es una actividad en una parcela, las prestaciones y el cierre de la semana.
 import { CONCEPTOS_PERSONAL, POLITICAS, baseDePersonas, pagadoSinActividad, fuentePersonal, fuentePrestaciones, fuenteBajas, fuenteBonos } from "./personal.js";
 import { T_DETERMINADA, T_PAGO_PRESTACION, CONCEPTOS_PRESTACION, cuentaDe as cuentaDePrestaciones, renglonesAlCosto, proponer as proponerPrestacion, determinar as determinarPrestacion, pagarPrestacion, nombreDePeriodo, periodosDe as periodosDePrestacion, determinadasRepetidas, T_SALDO_INICIAL, capturarSaldoInicial, CONCEPTOS_DE_SALDO, RELACIONES, remuneracionesDe } from "./prestaciones.js";
 import { estadoDeSemana, cerrarSemana, reabrirSemana, diferenciasDelCierre, confirmarPagos } from "./cierres.js";
 import { pdfComoDataUrl } from "./pdfSimple.js";
 import { costoDelMes, cerrarMes, reabrirMes, estadoDeMes, ajustesPosteriores } from "./cierreMes.js";
-import { solicitarPrestamo, autorizarPrestamo, rechazarPrestamo, entregarPrestamo, prestamosDe, ESTADOS_DE_PRESTAMO } from "./prestamos.js";
+import { solicitarPrestamo, autorizarPrestamo, rechazarPrestamo, entregarPrestamo, prestamosDe, ESTADOS_DE_PRESTAMO, saldoInicialDePrestamo, corregirSaldoInicial, prestarDeUnaVez, abonoAcordado } from "./prestamos.js";
 import { PERIODOS as PERIODOS_PERCEPCION, CLASES_PERCEPCION, validarPercepcion, percepcionesDe } from "./salarioIntegrado.js";
 import { conciliarMes } from "./conciliacion.js";
 import { estadoDeCompra, repartoDeCompras, posibleDuplicado, esParaAlmacen, seguimientoDeCompras } from "./compras.js";
@@ -14641,6 +14641,21 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
   const [editItem, setEditItem] = useState(null);
   const FP0 = { trabajadorId: "", tipoTrab: "planta", monto: 0, motivo: "" };
   const [prestForm, setPrestForm] = useState(FP0);
+  // Lo que un trabajador ya debía cuando arrancó la app: a una fecha de corte, quién responde y con qué evidencia.
+  const FA0 = { trabajadorId: "", monto: "", fechaCorte: today(), abonoSemanal: "", responsable: session?.nombre || "", evidencia: null, nota: "" };
+  const [antes, setAntes] = useState(null);
+  const [antesDice, setAntesDice] = useState("");
+  const guardarAntes = () => {
+    const r = saldoInicialDePrestamo({ permitido: puedeOp("autorizar_prestamos"), eventos: data.eventos || [], trabajador: (data.trabajadores || []).find(t => t.id === antes.trabajadorId), monto: antes.monto, fechaCorte: antes.fechaCorte, responsable: antes.responsable, evidencia: antes.evidencia, abonoSemanal: antes.abonoSemanal, nota: antes.nota, quien: quienDe(session), cuando: new Date().toISOString(), fecha: today() });
+    if (!r.ok) { setAntesDice(r.dice); return; }
+    add("eventos", r.evento); setAntes(null); setAntesDice(r.avisos.join(" "));
+  };
+  const [corrige, setCorrige] = useState(null);   // { pr, monto, motivo }
+  const guardarCorreccion = () => {
+    const r = corregirSaldoInicial({ permitido: puedeOp("autorizar_prestamos"), evento: (data.eventos || []).find(e => e.id === corrige.pr.ev), monto: corrige.monto, motivo: corrige.motivo, quien: quienDe(session), cuando: new Date().toISOString() });
+    if (!r.ok) { setCorrige(c => ({ ...c, dice: r.dice })); return; }
+    upd("eventos", r.anterior); add("eventos", r.nuevo); setCorrige(null);
+  };
   const FC0 = { nombre: "", responsable: "", miembros: 1, flete_dia: 0, pin: "" };
   const [cuadForm, setCuadForm] = useState(FC0);
 
@@ -14681,7 +14696,8 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
     <div>
       <div className="top-bar">
         <h2>Personal</h2>
-        {tab === "prestamos" && <button className="btn btn-accent btn-sm" onClick={() => setShowPrest(v => !v)}>{showPrest ? "✕" : "+ Solicitar"}</button>}
+        {tab === "prestamos" && seOfrece(session, "autorizar_prestamos") && <button className="btn btn-outline btn-sm" onClick={() => { setAntes(a => a ? null : FA0); setAntesDice(""); setShowPrest(false); }}>{antes ? "✕" : "Lo que ya debían"}</button>}
+        {tab === "prestamos" && <button className="btn btn-accent btn-sm" onClick={() => { setShowPrest(v => !v); setAntes(null); }}>{showPrest ? "✕" : "+ Solicitar"}</button>}
         {tab === "cuadrillas" && <button className="btn btn-accent btn-sm" onClick={() => setShowCuad(v => !v)}>{showCuad ? "✕" : "+ Cuadrilla"}</button>}
       </div>
       <div className="tabs-pill">
@@ -14707,6 +14723,30 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
           </div>
         </div>
       )}
+
+      {tab === "prestamos" && antes && (
+        <div className="section-pad">
+          <div className="card ab">
+            <div className="card-title">Lo que ya debía al arrancar la app</div>
+            <div className="text-xs text-muted" style={{ marginBottom: 8 }}>Un préstamo que se dio antes de la app y que se le sigue descontando. Se anota lo que debía a una fecha de corte, quién responde por esa cifra y la foto de la hoja firmada. No cuenta como dinero que sale: salió antes.</div>
+            <div className="form-group"><label className="form-label" htmlFor="ant-t">Trabajador</label>
+              <select id="ant-t" className="inp" value={antes.trabajadorId} onChange={e => setAntes(f => ({ ...f, trabajadorId: e.target.value }))}>
+                <option value="">Seleccionar...</option>
+                {(data.trabajadores || []).filter(t => t.activo !== false).map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+              </select>
+            </div>
+            <div className="form-group"><label className="form-label" htmlFor="ant-m">Cuánto debía al corte ($)</label><input id="ant-m" type="number" inputMode="decimal" className="inp" value={antes.monto} onChange={e => setAntes(f => ({ ...f, monto: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label" htmlFor="ant-f">Fecha de corte</label><input id="ant-f" type="date" className="inp" value={antes.fechaCorte} onChange={e => setAntes(f => ({ ...f, fechaCorte: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label" htmlFor="ant-a">Abono acordado por semana ($, si lo hay)</label><input id="ant-a" type="number" inputMode="decimal" className="inp" value={antes.abonoSemanal} onChange={e => setAntes(f => ({ ...f, abonoSemanal: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label" htmlFor="ant-r">Quién responde por esa cifra</label><input id="ant-r" className="inp" value={antes.responsable} onChange={e => setAntes(f => ({ ...f, responsable: e.target.value }))} /></div>
+            <div className="form-group"><label className="form-label" htmlFor="ant-e">Evidencia (foto de la hoja firmada)</label><input id="ant-e" type="file" accept="image/*" capture="environment" onChange={e => { const x = e.target.files?.[0]; if (!x) return; const fr = new FileReader(); fr.onload = () => setAntes(v => ({ ...v, evidencia: fr.result })); fr.readAsDataURL(x); }} />{antes.evidencia && <div className="text-xs" style={{ color: "var(--safe)" }}>Foto lista</div>}</div>
+            <div className="form-group"><label className="form-label" htmlFor="ant-n">Nota (opcional)</label><input id="ant-n" className="inp" value={antes.nota} onChange={e => setAntes(f => ({ ...f, nota: e.target.value }))} /></div>
+            {antesDice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 8 }}>{antesDice}</div>}
+            <button className="btn btn-accent" onClick={guardarAntes}>Guardar lo que debía</button>
+          </div>
+        </div>
+      )}
+      {tab === "prestamos" && !antes && antesDice && <div className="section-pad"><div className="card" style={{ borderColor: "var(--gold)" }}><div className="text-sm">{antesDice}</div></div></div>}
 
       {tab === "cuadrillas" && showCuad && (
         <div className="section-pad">
@@ -14758,7 +14798,20 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
                     </div>
                     <span className={`badge badge-${estaCancelado(pr) || pr.estado === "rechazado" ? "red" : pr.estado === "pagado" ? "green" : "gold"}`}>{estaCancelado(pr) ? "Cancelado" : pr.estado === "pagado" ? "✓ Pagado" : pr.estado === "solicitado" ? "Solicitado" : pr.estado === "autorizado" ? "Autorizado" : pr.estado === "rechazado" ? "No autorizado" : "Debe"}</span>
                   </div>
-                  {pr._deEventos && <div className="text-xs text-muted" style={{ marginBottom: 6 }}>
+                  {pr.saldoInicial && <div className="text-xs text-muted" style={{ marginBottom: 6 }}>
+                    <div>Debía {fmt(pr.solicitado)} al {pr.saldoInicial.fechaCorte}, antes de la app · responde {pr.saldoInicial.responsable} · lo anotó {pr.saldoInicial.anoto}</div>
+                    {pr.autorizacion?.abonoSemanal ? <div>Abono acordado: {fmt(pr.autorizacion.abonoSemanal)} por semana</div> : null}
+                    {pr.autorizacion?.condiciones ? <div>{pr.autorizacion.condiciones}</div> : null}
+                    {pr.saldoInicial.evidencia ? <div style={{ marginTop: 4 }}><Foto src={pr.saldoInicial.evidencia} alt="Evidencia de lo que debía" style={{ height: 64, borderRadius: 6 }} /></div> : <div style={{ color: "var(--gold)" }}>Sin evidencia</div>}
+                    {seOfrece(session, "autorizar_prestamos") && corrige?.pr.id !== pr.id && <button className="btn-ghost text-xs" style={{ padding: 0, marginTop: 4 }} onClick={() => setCorrige({ pr, monto: String(pr.solicitado), motivo: "" })}>Corregir la cifra</button>}
+                    {corrige?.pr.id === pr.id && <div style={{ marginTop: 6 }}>
+                      <input className="inp" type="number" inputMode="decimal" aria-label="Cifra correcta de lo que debía" value={corrige.monto} onChange={e => setCorrige(c => ({ ...c, monto: e.target.value }))} style={{ marginBottom: 6 }} />
+                      <input className="inp" aria-label="Por qué se corrige" placeholder="Por qué se corrige" value={corrige.motivo} onChange={e => setCorrige(c => ({ ...c, motivo: e.target.value }))} style={{ marginBottom: 6 }} />
+                      {corrige.dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 6 }}>{corrige.dice}</div>}
+                      <div className="gap-row"><button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => setCorrige(null)}>No</button><button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={guardarCorreccion}>Guardar la corrección</button></div>
+                    </div>}
+                  </div>}
+                  {pr._deEventos && !pr.saldoInicial && <div className="text-xs text-muted" style={{ marginBottom: 6 }}>
                     <div>Solicitó {pr.solicito}: {fmt(pr.solicitado)}</div>
                     {pr.autorizacion && <div>Autorizó {pr.autorizacion.por} el {pr.autorizacion.fecha}: {fmt(pr.autorizado)}{pr.autorizacion.condiciones ? ` · ${pr.autorizacion.condiciones}` : ""}</div>}
                     {pr.rechazo && <div>No se autorizó ({pr.rechazo.por}, {pr.rechazo.fecha}): {pr.rechazo.motivo}</div>}
@@ -14782,7 +14835,7 @@ function EncargadoPersonal({ data, add, upd, del, cancelar, reactivar, session }
                     <div className="gap-row"><button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => setPaso(null)}>No</button><button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={hacerPaso}>{paso.tipo === "autorizar" ? "Autorizar el préstamo" : paso.tipo === "rechazar" ? "Dejarlo sin autorizar" : "Guardar la entrega"}</button></div>
                   </div>}
                   <SelloCancelado registro={pr} seccion="prestamos" reactivar={reactivar} />
-                  <div className="flex-b text-sm" style={{ marginBottom: 4, ...estiloCancelado(pr) }}><span className="text-muted">Entregado</span><span>{fmt(pr.monto)}</span></div>
+                  <div className="flex-b text-sm" style={{ marginBottom: 4, ...estiloCancelado(pr) }}><span className="text-muted">{pr.saldoInicial ? "Debía al corte" : "Entregado"}</span><span>{fmt(pr.monto)}</span></div>
                   <div className="flex-b text-sm" style={{ marginBottom: 4 }}><span className="text-muted">Abonado</span><span style={{ color: "var(--safe)" }}>{fmt(pr.abonado || 0)}</span></div>
                   <div className="flex-b text-sm" style={{ marginBottom: 8 }}><span className="font-bold">Saldo pendiente</span><span className="font-bold" style={{ color: saldo > 0 ? "var(--red)" : "var(--safe)" }}>{fmt(saldo)}</span></div>
                   <div className="progress mb-2"><div className="progress-fill green" style={{ width: `${pr.monto ? ((pr.abonado || 0) / pr.monto) * 100 : 0}%` }} /></div>
@@ -22491,22 +22544,30 @@ function rangoSemanaNomina(offset) {
 /* ════════════ PAGOS AL PERSONAL: piezas ════════════ */
 // Registrar una entrega de dinero. No genera costo: el costo nació al trabajar.
 function ModalPago({ a, desde, hasta, pendiente, descuento = 0, esCuadrilla, responsable, data, add, session, onClose }) {
-  const [f, setF] = useState({ monto: pendiente > 0 ? String(pendiente) : "", medio: "efectivo", recibe: responsable || "", nota: "", foto: null });
+  const [f, setF] = useState({ monto: pendiente > 0 ? String(pendiente) : "", medio: "efectivo", otraMonto: "", otraMedio: "transferencia", tocado: false, recibe: responsable || "", nota: "", foto: null });
   const [dice, setDice] = useState("");
   const foto = (e) => { const x = e.target.files?.[0]; if (!x) return; const fr = new FileReader(); fr.onload = () => setF(v => ({ ...v, foto: fr.result })); fr.readAsDataURL(x); };
+  // Una parte por transferencia (lo dispersado) y otra en efectivo: al escribir la otra parte, la primera se ajusta a lo
+  // que falta —mientras nadie la haya tocado a mano—. Cada parte se guarda como su propio pago, con su medio.
+  const otraParte = (v) => setF(x => ({ ...x, otraMonto: v, ...(x.tocado || !(pendiente > 0) ? {} : { monto: String(Math.max(0, Math.round((pendiente - (Number(v) || 0)) * 100) / 100)) }) }));
   const guardar = () => {
     const ahora = new Date().toISOString();
-    const r = registrarPago({ permitido: puedeOp("autorizar_pagos"), a, desde, hasta, monto: f.monto, medio: f.medio, recibe: f.recibe, comprobante: f.foto, nota: f.nota, corresponde: pendiente, quien: quienDe(session), cuando: ahora, fecha: today() });
+    const r = registrarPagoEnPartes({ permitido: puedeOp("autorizar_pagos"), a, desde, hasta, partes: [{ medio: f.medio, monto: f.monto }, { medio: f.otraMedio, monto: f.otraMonto }], recibe: f.recibe, comprobante: f.foto, nota: f.nota, corresponde: pendiente, quien: quienDe(session), cuando: ahora, fecha: today() });
     if (!r.ok) { setDice(r.dice); return; }
-    add("eventos", descuento > 0 ? { ...r.evento, datos: { ...r.evento.datos, descuento } } : r.evento); onClose(r.avisos);
+    r.eventos.forEach((ev, i) => add("eventos", descuento > 0 && i === 0 ? { ...ev, datos: { ...ev.datos, descuento } } : ev)); onClose(r.avisos);
   };
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-sheet">
         <div className="card-title">Pago a {a.nombre}</div>
         <div className="text-sm text-muted" style={{ marginBottom: 10 }}>Semana del {desde} al {hasta}. Pendiente: {fmt(pendiente)}.{esCuadrilla ? " Se le entrega al responsable; eso no marca pagado a cada integrante." : ""}</div>
-        <div className="form-group"><label className="form-label" htmlFor="pg-monto">Cuánto se entregó ($)</label><input id="pg-monto" className="inp" type="number" inputMode="decimal" value={f.monto} onChange={e => setF(v => ({ ...v, monto: e.target.value }))} /></div>
+        <div className="form-group"><label className="form-label" htmlFor="pg-monto">Cuánto se entregó ($)</label><input id="pg-monto" className="inp" type="number" inputMode="decimal" value={f.monto} onChange={e => setF(v => ({ ...v, monto: e.target.value, tocado: true }))} /></div>
         <div className="form-group"><label className="form-label" htmlFor="pg-medio">Medio de pago</label><select id="pg-medio" className="inp" value={f.medio} onChange={e => setF(v => ({ ...v, medio: e.target.value }))}>{Object.entries(MEDIOS_DE_PAGO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+        <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Si una parte se dispersó por transferencia y otra se entrega en efectivo, escribe aquí la otra parte: cada una queda con su medio.</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="pg-otra">Otra parte ($)</label><input id="pg-otra" className="inp" type="number" inputMode="decimal" value={f.otraMonto} onChange={e => otraParte(e.target.value)} /></div>
+          <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor="pg-otra-medio">Medio de la otra parte</label><select id="pg-otra-medio" className="inp" value={f.otraMedio} onChange={e => setF(v => ({ ...v, otraMedio: e.target.value }))}>{Object.entries(MEDIOS_DE_PAGO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+        </div>
         <div className="form-group"><label className="form-label" htmlFor="pg-recibe">{esCuadrilla ? "Responsable que recibió" : "Quién recibió (si no fue la misma persona)"}</label><input id="pg-recibe" className="inp" value={f.recibe} onChange={e => setF(v => ({ ...v, recibe: e.target.value }))} /></div>
         <label className="text-xs text-muted" style={{ display: "block", marginBottom: 8 }}>Comprobante (foto de la firma o de la transferencia) <input type="file" accept="image/*" capture="environment" aria-label="Comprobante del pago" onChange={foto} /></label>
         <input className="inp" aria-label="Nota del pago" placeholder="Nota (opcional)" value={f.nota} onChange={e => setF(v => ({ ...v, nota: e.target.value }))} style={{ marginBottom: 10 }} />
@@ -23275,7 +23336,14 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
   const [desc, setDesc] = useState({}); // descuento a préstamo por persona {id: monto}
   const [aplicados, setAplicados] = useState({}); // {id: monto ya aplicado esta sesión}
   const [verImprimir, setVerImprimir] = useState(false);
+  const [prestar, setPrestar] = useState(null);   // { id, nombre, monto, motivo, semanas, medio, dice }
   const { ini, fin } = rangoSemanaNomina(offset);
+  const prestaEnUnPaso = seOfrece(session, "autorizar_prestamos") && seOfrece(session, "autorizar_pagos");
+  const guardarPrestamo = () => {
+    const r = prestarDeUnaVez({ permitidoAutorizar: puedeOp("autorizar_prestamos"), permitidoEntregar: puedeOp("autorizar_pagos"), trabajador: { id: prestar.id, nombre: prestar.nombre }, monto: prestar.monto, motivo: prestar.motivo, semanas: prestar.semanas, medio: prestar.medio, recibe: prestar.nombre, quien: quienDe(session), cuando: new Date().toISOString(), fecha: today() });
+    if (!r.ok) { setPrestar(x => ({ ...x, dice: r.dice })); return; }
+    r.eventos.forEach(e => add("eventos", e)); setPrestar(null);
+  };
 
   // Personal con sueldo: trabajadores de planta + encargados
   const personas = [
@@ -23300,6 +23368,8 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
     const dias = sem.trabajados;
     const prestamos = vivos(data.prestamos).filter(x => x.trabajadorId === p.id && x.estado === "activo");
     const saldoPrestamo = prestamos.reduce((s, x) => s + Math.max(0, (x.monto || 0) - (x.abonado || 0)), 0);
+    // Para la hoja que se firma: lo que se le prestó esta semana, lo que debía al cerrarla y el abono que se acordó.
+    const prestado = prestadoEnLaSemana(vivos(data.prestamos), p.id, ini, fin), debeAlCierre = deudaAlCierre(vivos(data.prestamos), p.id, fin), acordado = abonoAcordado(prestamos);
     // Retención del trabajador (porcentaje sobre lo ganado). Es COSTO de la
     // empresa de todos modos, pero no se le entrega al trabajador.
     const retPct = parseFloat(p.retencion_pct) || 0;
@@ -23312,7 +23382,7 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
     const yaDescontado = abonosSem.length ? sumarDinero(abonosSem.map(x => x.monto)) : sumarDinero(pagos.map(x => x.datos.descuento || 0));
     const descuento = Math.min(parseFloat(desc[p.id]) || 0, saldoPrestamo, Math.max(0, mo - retencion - yaDescontado));
     const saldo = saldoDe({ corresponde: mo, descuentos: sumarDinero(retencion, yaDescontado, descuento), pagos });
-    return { p, a, acts, mo, dias, sem, pagos, saldo, saldoPrestamo, retPct, retencion, descuento, yaDescontado, neto: mo - retencion - yaDescontado - descuento };
+    return { p, a, acts, mo, dias, sem, pagos, saldo, saldoPrestamo, prestado, debeAlCierre, acordado, porMedio: entregadoPorMedio(pagos), retPct, retencion, descuento, yaDescontado, neto: mo - retencion - yaDescontado - descuento };
   };
 
   const todos = personas.map(renglon);
@@ -23320,7 +23390,7 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
   const cqSemana = useMemo(() => cuentasDeCuadrillas(costoDeCuadrillas(data.eventos, { desde: ini, hasta: fin, criterioFlete: ajusteVigente(data.eventos, "criterio_flete").valor }).partes, { desde: ini, hasta: fin }), [data.eventos, ini, fin]);
   const paraCierre = todos.filter(r => r.mo > 0 || r.pagos.length > 0).map(r => ({ a: r.a, corresponde: r.mo, descuentos: r.saldo.descuentos, neto: r.saldo.neto, entregado: r.saldo.entregado, pendiente: r.saldo.pendiente }))
     .concat(cqSemana.map(c => { const sd = saldoDe({ corresponde: c.corresponde, pagos: pagosA(data.eventos, c.a, { desde: ini, hasta: fin }) }); return { a: c.a, corresponde: c.corresponde, descuentos: 0, neto: sd.neto, entregado: sd.entregado, pendiente: sd.pendiente }; }));
-  const renglones = todos.filter(r => r.mo > 0 || r.saldoPrestamo > 0 || r.yaDescontado > 0 || r.sem.sinRegistro.length > 0 || r.sem.sinPago > 0);
+  const renglones = todos.filter(r => r.mo > 0 || r.saldoPrestamo > 0 || r.yaDescontado > 0 || r.prestado.length > 0 || r.debeAlCierre > 0 || r.sem.sinRegistro.length > 0 || r.sem.sinPago > 0);
   const conceptosDe = (r) => r.sem.dias.filter(d => d.monto > 0 || d.estado === "ausencia_sin_pago").map(d => ({ fecha: d.fecha, monto: d.monto,
     que: d.estado === "trabajo" ? "Día trabajado" : d.estado === "calendario" ? "Día de su calendario" : `${CLASES_AUSENCIA[d.clase]?.nombre || "Ausencia"}${d.causa ? `: ${d.causa}` : ""}`,
     como: d.estado === "calendario" ? "asistencia por calendario, sin registro de horario" : d.estado === "trabajo" ? (d.origen === "checador" ? `del checador${d.minutos ? `, ${horasDe(d.minutos)}` : ""}` : "de la actividad registrada") : d.estado === "ausencia_pagada" ? `se paga el día · autorizó ${d.autorizo}` : "no se paga" }));
@@ -23344,56 +23414,62 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
     setDesc(d => ({ ...d, [r.p.id]: "" }));
   };
 
-  // Vista imprimible (solo la tabla blanca, con firmas)
+  // LA HOJA QUE SE FIRMA. Lo mismo que la lista en papel del rancho, pero sin que nadie tenga que escribir lo que se
+  // puede calcular: lo que le corresponde, el abono a su préstamo, lo dispersado y el efectivo (de los pagos ya
+  // registrados), el préstamo nuevo con en cuántas semanas lo paga, lo que le queda debiendo al cierre y, si se le
+  // entregó de menos o de más, cuánto. Es control interno: no sustituye el recibo de nómina timbrado.
   if (verImprimir) {
+    const th = (t, izq) => <th style={{ textAlign: izq ? "left" : "right", padding: "5px 5px", border: "1px solid #ccc", fontSize: 10.5, lineHeight: 1.2 }}>{t}</th>;
+    const td = (v, extra = {}) => <td style={{ textAlign: "right", padding: "7px 5px", border: "1px solid #ccc", whiteSpace: "nowrap", ...extra }}>{v}</td>;
+    const dinero = (n) => (n ? fmt(n) : "—");
+    const conRet = renglones.some(r => r.retencion > 0), conFalta = renglones.some(r => Math.abs(r.saldo.pendiente) > 0.004);
+    const T = (f) => sumarDinero(renglones.map(f));
+    const nuevoDe = (r) => r.prestado.length ? r.prestado.map(x => `${fmt(x.monto)}${x.medio !== "efectivo" ? ` (${(MEDIOS_DE_PAGO[x.medio] || x.medio).toLowerCase()})` : ""}${x.abonoSemanal ? ` · ${fmt(x.abonoSemanal)}/sem` : ""}`).join(" + ") : "—";
+    const sinPagar = renglones.filter(r => r.saldo.entregado === 0 && r.saldo.neto > 0).length;
     return (
       <div>
-        <div className="top-bar"><button className="btn-ghost" onClick={() => setVerImprimir(false)}>‹</button><h2>Nómina para imprimir</h2></div>
+        <div className="top-bar"><button className="btn-ghost" onClick={() => setVerImprimir(false)}>‹</button><h2>Hoja para firmar</h2></div>
         <div className="section-pad">
-          <div className="card printable" style={{ background: "#fff", color: "#1a1a1a" }}>
-            <div style={{ textAlign: "center", borderBottom: "2px solid #1f3a1e", paddingBottom: 10, marginBottom: 12 }}>
-              <img src={LOGO_AGRO} alt="Agroselectos" style={{ width: 50, height: 50, objectFit: "contain", margin: "0 auto 4px" }} />
-              <div style={{ fontWeight: 800, fontSize: 17, color: "#1f3a1e" }}>AGROSELECTOS P&A</div>
-              <div style={{ fontSize: 13, color: "#666" }}>Nómina semanal · {ini} al {fin}</div>
+          {sinPagar > 0 && <div className="card no-print" style={{ borderColor: "var(--gold)" }}><div className="text-sm">A {sinPagar} persona{sinPagar === 1 ? "" : "s"} todavía no se le registra el pago: su transferencia y su efectivo salen en blanco y su renglón dice cuánto falta. Registra los pagos antes de imprimir si quieres que la hoja los traiga.</div></div>}
+          <div className="card printable" style={{ background: "#fff", color: "#1a1a1a", overflowX: "auto" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "2px solid #1f3a1e", paddingBottom: 8, marginBottom: 10 }}>
+              <div><div style={{ fontWeight: 800, fontSize: 17, color: "#1f3a1e" }}>Lista de pagos</div><div style={{ fontSize: 12, color: "#555" }}>Semana del {ini} al {fin}</div></div>
+              <img src={LOGO_AGRO} alt="Agroselectos" style={{ width: 46, height: 46, objectFit: "contain" }} />
             </div>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
               <thead>
                 <tr style={{ background: "#f0f0e8" }}>
-                  <th style={{ textAlign: "left", padding: "5px 6px", border: "1px solid #ddd" }}>Trabajador</th>
-                  <th style={{ textAlign: "right", padding: "5px 6px", border: "1px solid #ddd" }}>Días</th>
-                  <th style={{ textAlign: "right", padding: "5px 6px", border: "1px solid #ddd" }}>Ganado</th>
-                  <th style={{ textAlign: "right", padding: "5px 6px", border: "1px solid #ddd" }}>Retención</th>
-                  <th style={{ textAlign: "right", padding: "5px 6px", border: "1px solid #ddd" }}>Desc. préstamo</th>
-                  <th style={{ textAlign: "right", padding: "5px 6px", border: "1px solid #ddd" }}>Neto</th>
-                  <th style={{ textAlign: "left", padding: "5px 6px", border: "1px solid #ddd", width: "22%" }}>Firma</th>
+                  {th("Trabajador", true)}{th("Días")}{th("Le corresponde")}{conRet && th("Retención")}{th("Abono a préstamo")}{th("Transferencia")}{th("Efectivo")}{th("Préstamo nuevo")}{th("Le queda debiendo")}{conFalta && th("Falta por entregar")}
+                  <th style={{ textAlign: "left", padding: "5px 5px", border: "1px solid #ccc", width: "20%", fontSize: 10.5 }}>Firma</th>
                 </tr>
               </thead>
               <tbody>
                 {renglones.map(r => (
                   <tr key={r.p.id}>
-                    <td style={{ padding: "8px 6px", border: "1px solid #ddd" }}>{r.p.nombre}{r.p._tipo === "encargado" ? " (enc.)" : ""}</td>
-                    <td style={{ textAlign: "right", padding: "8px 6px", border: "1px solid #ddd" }}>{r.dias}</td>
-                    <td style={{ textAlign: "right", padding: "8px 6px", border: "1px solid #ddd" }}>{fmt(r.mo)}</td>
-                    <td style={{ textAlign: "right", padding: "8px 6px", border: "1px solid #ddd" }}>{r.retencion > 0 ? `− ${fmt(r.retencion)}` : "—"}</td>
-                    <td style={{ textAlign: "right", padding: "8px 6px", border: "1px solid #ddd" }}>{r.descuento + r.yaDescontado > 0 ? `− ${fmt(r.descuento + r.yaDescontado)}` : "—"}</td>
-                    <td style={{ textAlign: "right", padding: "8px 6px", border: "1px solid #ddd", fontWeight: 700 }}>{fmt(r.neto)}</td>
-                    <td style={{ border: "1px solid #ddd" }}></td>
+                    <td style={{ padding: "7px 5px", border: "1px solid #ccc" }}>{r.p.nombre}{r.p._tipo === "encargado" ? " (enc.)" : ""}</td>
+                    {td(r.dias)}{td(dinero(r.mo))}{conRet && td(r.retencion > 0 ? `− ${fmt(r.retencion)}` : "—")}
+                    {td(r.yaDescontado + r.descuento > 0 ? `− ${fmt(r.yaDescontado + r.descuento)}` : "—")}
+                    {td(dinero(r.porMedio.transferencia))}{td(`${dinero(r.porMedio.efectivo)}${r.porMedio.otro ? ` + ${fmt(r.porMedio.otro)} otro` : ""}`)}
+                    {td(nuevoDe(r), { whiteSpace: "normal" })}{td(dinero(r.debeAlCierre))}
+                    {conFalta && td(Math.abs(r.saldo.pendiente) > 0.004 ? (r.saldo.pendiente > 0 ? fmt(r.saldo.pendiente) : `de más ${fmt(-r.saldo.pendiente)}`) : "—", { fontWeight: 700 })}
+                    <td style={{ border: "1px solid #ccc" }}></td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr style={{ background: "#f0f0e8", fontWeight: 700 }}>
-                  <td colSpan="2" style={{ padding: "6px", border: "1px solid #ddd" }}>TOTAL</td>
-                  <td style={{ textAlign: "right", padding: "6px", border: "1px solid #ddd" }}>{fmt(totalMO)}</td>
-                  <td style={{ textAlign: "right", padding: "6px", border: "1px solid #ddd" }}>− {fmt(totalRet)}</td>
-                  <td style={{ textAlign: "right", padding: "6px", border: "1px solid #ddd" }}>− {fmt(totalDesc)}</td>
-                  <td style={{ textAlign: "right", padding: "6px", border: "1px solid #ddd" }}>{fmt(totalNeto)}</td>
-                  <td style={{ border: "1px solid #ddd" }}></td>
+                  <td colSpan="2" style={{ padding: "6px 5px", border: "1px solid #ccc" }}>TOTAL</td>
+                  {td(fmt(totalMO))}{conRet && td(`− ${fmt(totalRet)}`)}{td(`− ${fmt(totalDesc)}`)}
+                  {td(fmt(T(r => r.porMedio.transferencia)))}{td(fmt(sumarDinero(T(r => r.porMedio.efectivo), T(r => r.porMedio.otro))))}
+                  {td(fmt(T(r => sumarDinero(r.prestado.map(x => x.monto)))))}{td(fmt(T(r => r.debeAlCierre)))}
+                  {conFalta && td(fmt(T(r => r.saldo.pendiente)))}
+                  <td style={{ border: "1px solid #ccc" }}></td>
                 </tr>
               </tfoot>
             </table>
+            <div style={{ fontSize: 10, color: "#666", marginTop: 8 }}>Le corresponde − retención − abono = lo que se le entrega (transferencia + efectivo). El préstamo nuevo se entrega aparte y ya está sumado en «Le queda debiendo». Con su firma, cada persona dice que recibió lo de su renglón. Control interno de Agroselectos P&A: no sustituye el recibo de nómina timbrado (CFDI).</div>
           </div>
-          <div className="gap-row mt-2">
+          <div className="gap-row mt-2 no-print">
             <button className="btn btn-outline" onClick={() => window.print()}><Ic e="🖨️" /> Imprimir</button>
             <button className="btn btn-accent" onClick={() => setVerImprimir(false)}>Volver</button>
           </div>
@@ -23460,9 +23536,11 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
                 <span className="text-sm" style={{ color: "var(--gold)" }}>− {fmt(r.retencion)}</span>
               </div>
             )}
+            {r.prestado.map((x, k) => <div key={k} className="text-xs" style={{ marginTop: 6, color: "var(--gold)" }}>Préstamo nuevo esta semana: {fmt(x.monto)} en {(MEDIOS_DE_PAGO[x.medio] || x.medio).toLowerCase()}{x.condiciones ? ` · ${x.condiciones.toLowerCase()}` : ""}</div>)}
             {r.saldoPrestamo > 0 && (
               <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
                 <div className="text-xs mb-1" style={{ color: "var(--gold)" }}>💸 Debe {fmt(r.saldoPrestamo)} de préstamo{r.yaDescontado ? ` · abonado esta semana ${fmt(r.yaDescontado)}` : ""}</div>
+                {r.acordado > 0 && !r.yaDescontado && <div className="text-xs text-muted mb-1">Abono acordado: {fmt(r.acordado)} por semana. <button className="btn-ghost text-xs" style={{ padding: 0, textDecoration: "underline" }} onClick={() => setDesc(d => ({ ...d, [r.p.id]: String(r.acordado) }))}>Usarlo</button> (no se descuenta solo)</div>}
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <input type="number" className="inp" placeholder="Descuento" value={desc[r.p.id] || ""} onChange={e => setDesc(d => ({ ...d, [r.p.id]: e.target.value }))} style={{ flex: 1, padding: "8px 10px" }} />
                   <button className="btn btn-outline btn-sm" onClick={() => aplicarDescuento(renglon(r.p))} disabled={(parseFloat(desc[r.p.id]) || 0) <= 0}>Abonar a préstamo</button>
@@ -23477,10 +23555,24 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
             <div className="mo-act"><span>Entregado</span><span /><b>{fmt(r.saldo.entregado)}</b></div>
             <div className="mo-act"><span>Pendiente</span><span /><b style={{ color: r.saldo.pendiente > 0 ? "var(--gold)" : r.saldo.pendiente < 0 ? "var(--red)" : undefined }}>{fmt(r.saldo.pendiente)}</b></div>
             {r.pagos.map(x => <div key={x.id} className="text-xs text-muted">{x.fecha}: {fmt(x.datos.monto)} en {MEDIOS_DE_PAGO[x.datos.medio].toLowerCase()}{x.datos.comprobante ? "" : " · sin comprobante"}</div>)}
+            {prestar?.id === r.p.id && <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+              <div className="text-sm font-bold" style={{ marginBottom: 4 }}>Prestarle a {r.p.nombre}</div>
+              <div className="text-xs text-muted" style={{ marginBottom: 6 }}>En un paso: queda pedido, autorizado y entregado a tu nombre. La deuda nace aquí; el abono acordado sólo se sugiere al pagar, nunca se descuenta solo.</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor={`pr-m-${r.p.id}`}>Cuánto ($)</label><input id={`pr-m-${r.p.id}`} className="inp" type="number" inputMode="decimal" value={prestar.monto} onChange={e => setPrestar(x => ({ ...x, monto: e.target.value }))} /></div>
+                <div className="form-group" style={{ flex: 1 }}><label className="form-label" htmlFor={`pr-s-${r.p.id}`}>En cuántas semanas</label><input id={`pr-s-${r.p.id}`} className="inp" type="number" inputMode="numeric" placeholder="opcional" value={prestar.semanas} onChange={e => setPrestar(x => ({ ...x, semanas: e.target.value.replace(/\D/g, "") }))} /></div>
+              </div>
+              <div className="form-group"><label className="form-label" htmlFor={`pr-mo-${r.p.id}`}>Para qué</label><input id={`pr-mo-${r.p.id}`} className="inp" value={prestar.motivo} onChange={e => setPrestar(x => ({ ...x, motivo: e.target.value }))} /></div>
+              <div className="form-group"><label className="form-label" htmlFor={`pr-me-${r.p.id}`}>Cómo se le entrega</label><select id={`pr-me-${r.p.id}`} className="inp" value={prestar.medio} onChange={e => setPrestar(x => ({ ...x, medio: e.target.value }))}>{Object.entries(MEDIOS_DE_PAGO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+              {Number(prestar.monto) > 0 && Number(prestar.semanas) > 0 && <div className="text-xs text-muted" style={{ marginBottom: 6 }}>Abono acordado: {fmt(Math.ceil(Number(prestar.monto) / Number(prestar.semanas) * 100) / 100)} por semana.</div>}
+              {prestar.dice && <div className="text-sm" style={{ color: "var(--red)", marginBottom: 6 }}>{prestar.dice}</div>}
+              <div className="gap-row"><button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => setPrestar(null)}>No</button><button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={guardarPrestamo}>Guardar el préstamo</button></div>
+            </div>}
             {verDias === r.p.id && r.sem.dias.filter(d => d.estado !== "futuro").map(d => <div key={d.fecha} className="text-xs text-muted">{d.fecha}: {ETQ_DIA[d.estado]}{d.clase ? ` (${CLASES_AUSENCIA[d.clase].nombre.toLowerCase()})` : ""}{d.monto ? ` · ${fmt(d.monto)}` : ""}</div>)}
             <div className="jor-acc">
               <button onClick={() => setVerDias(verDias === r.p.id ? null : r.p.id)}>{verDias === r.p.id ? "Ocultar días" : "Ver día por día"}</button>
               {seOfrece(session, "autorizar_pagos") && r.saldo.neto > 0 && <button onClick={() => { setPagoA(r); setAvisosPago([]); }}>Registrar pago</button>}
+              {prestaEnUnPaso && r.p._tipo !== "encargado" && prestar?.id !== r.p.id && <button onClick={() => setPrestar({ id: r.p.id, nombre: r.p.nombre, monto: "", motivo: "", semanas: "", medio: "efectivo", dice: "" })}>Prestarle</button>}
               {r.mo > 0 && <button onClick={() => abrirReciboDe(r)}>Recibo</button>}
             </div>
           </div>
@@ -23492,7 +23584,7 @@ function NominaSemanal({ data, add, upd, session, onClose }) {
             {totalRet > 0 && <div className="flex-b"><span className="text-muted text-sm">Total retenciones (se queda en la empresa)</span><span>− {fmt(totalRet)}</span></div>}
             <div className="flex-b"><span className="text-muted text-sm">Total descuentos a préstamos</span><span>− {fmt(totalDesc)}</span></div>
             <div className="flex-b" style={{ marginTop: 6 }}><span className="font-bold">TOTAL A PAGAR</span><span className="font-bold text-accent" style={{ fontSize: 20 }}>{fmt(totalNeto)}</span></div>
-            <button className="btn btn-accent mt-2" style={{ width: "100%" }} onClick={() => setVerImprimir(true)}><Ic e="🖨️" /> Nómina para imprimir (con firmas)</button>
+            <button className="btn btn-accent mt-2" style={{ width: "100%" }} onClick={() => setVerImprimir(true)}><Ic e="🖨️" /> Hoja para firmar</button>
           </div>
         )}
         </>}

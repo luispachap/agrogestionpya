@@ -38,7 +38,7 @@ test("ni_escribiendo_el_sello_a_mano_se_autoriza_solo", async () => {
 
 test("todos_los_tipos_sensibles_se_rechazan_sin_permiso_y_se_autorizan_al_superadministrador", async () => {
   const tipos = (await verdad(db, "select tipo from operaciones_sensibles where not solo_otorgado order by tipo")).map(x => x.tipo);   // las «sólo otorgadas» de la hoja 52 tienen su propia prueba
-  assert.equal(tipos.length, 25);   // 23 de dinero y reglas + 2 de la mensajería (hoja 46), que además piden estar otorgados
+  assert.equal(tipos.length, 26);   // 24 de dinero y reglas (la 24ª: lo que ya se debía al arrancar, hoja 57) + 2 de la mensajería (hoja 46), que además piden estar otorgados
   for (const t of tipos) {
     const datos = { ...PAGO };
     assert.ok((await mete("encargado", `s-no-${t}`, t, datos)).ok); assert.equal((await fila(`s-no-${t}`)).validacion, "rechazado", t);
@@ -154,6 +154,18 @@ test("un_encargado_solicita_un_prestamo_pero_no_lo_autoriza_ni_registra_la_entre
     const r = await como(db, q, "insert into prestamos (id, datos) values ($1, $2::jsonb)", [`pr-${q}`, JSON.stringify({ monto: 99999, _espacio: "prueba" })]);
     assert.equal(r.ok, false, `${q} ya no escribe préstamos directo en la tabla`);
   }
+});
+
+test("lo_que_un_trabajador_ya_debia_al_arrancar_lo_anota_solo_quien_autoriza_prestamos_y_con_importe", async () => {
+  await mete("encargado", "s-si-enc", "prestamo_saldo_inicial", { trabajadorId: "t1", monto: 500, fechaCorte: "2026-11-21", responsable: "Miguel" });
+  await mete("luis", "s-si-0", "prestamo_saldo_inicial", { trabajadorId: "t1", monto: 0, fechaCorte: "2026-11-21", responsable: "Miguel" });
+  await mete("luis", "s-si-luis", "prestamo_saldo_inicial", { trabajadorId: "t1", monto: 500, fechaCorte: "2026-11-21", responsable: "Miguel" });
+  assert.equal((await fila("s-si-enc")).validacion, "rechazado", "un encargado no crea una deuda");
+  assert.equal((await fila("s-si-0")).validacion_dice, "importe", "sin importe no se anota");
+  assert.equal((await fila("s-si-luis")).validacion, "autorizado");
+  assert.ok((await como(db, "luis", "select otorgar_permiso($1, 'autorizar_prestamos')", [CUENTAS.agronomo])).ok);
+  await mete("agronomo", "s-si-ag", "prestamo_saldo_inicial", { trabajadorId: "t2", monto: 300, fechaCorte: "2026-11-21", responsable: "Miguel" });
+  assert.equal((await fila("s-si-ag")).validacion, "autorizado", "con el permiso otorgado, sí");
 });
 
 test("dar_de_baja_y_pagar_un_finiquito_piden_cada_uno_su_permiso", async () => {

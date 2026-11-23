@@ -20,6 +20,9 @@ test("la_lista_de_operaciones_sensibles_de_la_app_es_la_misma_que_la_de_la_base"
   const sql52 = readFileSync(new URL("../supabase/52-organizacion-con-permiso.sql", import.meta.url), "utf8");
   const lista52 = sql52.slice(sql52.indexOf("insert into operaciones_sensibles"), sql52.indexOf("on conflict (tipo)"));
   for (const m of lista52.matchAll(/\('([a-z_]+)',\s+'([a-z_]+)',\s+(true|false),\s+(true|false)\)/g)) { enBase[m[1]] = m[2]; assert.equal(m[4], "true"); assert.ok(SOLO_OTORGADOS.includes(m[2]), `${m[2]} debe ser «sólo otorgado» también en la app`); }
+  // La hoja 57 agrega lo que ya se debía al arrancar.
+  const sql57 = readFileSync(new URL("../supabase/57-lo-que-ya-debian-al-arrancar.sql", import.meta.url), "utf8");
+  for (const m of sql57.slice(sql57.indexOf("insert into operaciones_sensibles"), sql57.indexOf("on conflict (tipo)")).matchAll(/\('([a-z_]+)',\s+'([a-z_]+)',\s+(true|false)\)/g)) enBase[m[1]] = m[2];
   assert.deepEqual(enBase, OPERACION_DE);
   for (const op of new Set(Object.values(OPERACION_DE))) assert.ok(OPERACIONES[op], `falta el nombre en pantalla de ${op}`);
 });
