@@ -45,3 +45,9 @@ test("en_el_telefono_de_una_persona_solo_checa_esa_persona_y_solo_si_la_activaro
   assert.equal(puedeChecarConGps({ checaConGps: "si", activo: false }), false);
   assert.deepEqual(reglasDeGps([]), { radioM: 300, precisionMaxM: 100 });
 });
+
+test("un_gps_impreciso_lejisimos_de_todo_rancho_no_se_acepta_por_revisar_se_dice_que_esta_lejos", () => {
+  const d = dondeEstoy({ posicion: { lat: 23.2, lng: -102.58, precision: 400 }, ranchos: [R1, R2], radioM: 300, precisionMaxM: 100 });
+  assert.equal(d.estado, "lejos"); assert.equal(d.marca, false);
+  assert.equal(dondeEstoy({ posicion: { lat: R1.lat + 0.004, lng: R1.lng, precision: 400 }, ranchos: [R1], radioM: 300, precisionMaxM: 100 }).estado, "sin_precision", "a 450 m con ±400 m puede estar en el rancho: por revisar");
+});

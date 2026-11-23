@@ -31,6 +31,8 @@ export function dondeEstoy({ posicion, ranchos, ranchoHabitualId = null, radioM 
   const lista = con.map(r => ({ rancho: r, distanciaM: Math.round(distKm(lat, lng, num(r.lat), num(r.lng)) * 1000) })).sort((a, b) => a.distanciaM - b.distanciaM);
   const cerca = lista[0];
   const base = { distanciaM: cerca.distanciaM, rancho: cerca.rancho, precision: Number.isFinite(precision) ? Math.round(precision) : null };
+  // Aunque el GPS venga impreciso, si ni con su margen de error alcanza a estar en un rancho, está lejos.
+  if (Number.isFinite(precision) && precision > precisionMaxM && cerca.distanciaM - precision > radioM) return { ...base, estado: "lejos", marca: false, dice: `No estás en ningún rancho: el más cercano, ${cerca.rancho.nombre}, está a ${aTexto(cerca.distanciaM)} (el GPS dio ±${Math.round(precision)} m). No se registró. Avisa a tu encargado.` };
   if (Number.isFinite(precision) && precision > precisionMaxM) return { ...base, estado: "sin_precision", marca: true, porRevisar: true, dice: `El GPS dio tu ubicación con poca precisión (±${Math.round(precision)} m). La marca se guarda, pero queda por revisar.` };
   if (cerca.distanciaM > radioM) return { ...base, estado: "lejos", marca: false, dice: `No estás en ningún rancho: el más cercano, ${cerca.rancho.nombre}, está a ${aTexto(cerca.distanciaM)}. No se registró. Avisa a tu encargado.` };
   const suyo = !ranchoHabitualId || cerca.rancho.id === ranchoHabitualId;
