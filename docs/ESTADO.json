@@ -379,10 +379,10 @@
   {
    "n": 34,
    "nombre": "Papeles",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "PARCIAL",
+   "prueba": "auditoria_papeles 15",
+   "probado": "Factura en XML leída exacta y sin IA; aplicar pregunta y deja UN gasto con folio fiscal; lo comprado entra al almacén con su costo y la compra queda como inventario (una vez en el flujo); la misma factura otra vez se avisa; una foto sin lectura se guarda igual como evidencia; otro teléfono",
+   "falta": "Un PDF con texto, una etiqueta de agroquímico, una lectura de horómetro y el patrón aprendido de un proveedor (la lectura de fotos espera la llave de IA)"
   },
   {
    "n": 35,
@@ -419,10 +419,10 @@
   {
    "n": 39,
    "nombre": "Semana",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_numeros 35",
+   "probado": "La semana de pago en curso con el sueldo vigente de cada quien por los días que le toca venir; sólo activos (una baja no cuenta); destajo y sin sueldo se dicen aparte, no como cero; dice que es estimación y que lo que corresponde sale de Pagos al personal",
+   "falta": "—"
   },
   {
    "n": 40,
@@ -603,10 +603,10 @@
   {
    "n": 62,
    "nombre": "Arranque",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: arranque, cuentas",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "cuentas 24 · auditoria_control 32",
+   "probado": "Invitar cuentas y dar permisos; conteo inicial (con lugar y quién) que deja la existencia en el almacén; saldo inicial con corte, responsable y evidencia (o el aviso de que no la trae) que usa ¿Alcanza?; la fecha de inicio una sola vez; otro teléfono",
+   "falta": "—"
   },
   {
    "n": 63,
@@ -627,26 +627,26 @@
   {
    "n": 65,
    "nombre": "Seguridad",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_control 32",
+   "probado": "PIN de dirección cifrado, de 6 a 10 dígitos, que no se repita con otro perfil ni con nadie del personal; entra en el teléfono donde ya hubo cuenta y no en uno nuevo; la orden de recarga no borra lo que un teléfono no ha subido",
+   "falta": "—"
   },
   {
    "n": 66,
    "nombre": "Respaldo",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: entrega, ensayo local del respaldo",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "entrega 68",
+   "probado": "Descargar sólo lo capturado; restaurar pide motivo, deja todo igual (mismos costos y almacén), conserva quién autorizó cada pago, no pisa lo más reciente de la nube y no duplica si se restaura dos veces",
+   "falta": "El respaldo AUTOMÁTICO real (requisito de salida aparte: falta el repositorio privado)"
   },
   {
    "n": 67,
    "nombre": "Subir catálogos",
-   "estado": "NO VERIFICADO",
-   "prueba": "antes: sólo que abre",
-   "probado": "—",
-   "falta": "Falta la auditoría completa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_control 32",
+   "probado": "Con una plantilla vieja (con hoja de cuentas y PIN): no se lee ninguna contraseña ni PIN, sólo se dan de alta los que faltan (lo que ya existe no se toca), con identificador nuevo, sueldo desde hoy y la marca del espacio; subirla dos veces no duplica",
+   "falta": "—"
   }
  ],
  "defectos": [
@@ -1061,7 +1061,7 @@
    "que": "POR DECISIÓN DE LUIS: un trabajador que entra con su PIN tiene la pantalla de Pase de lista con TODA la gente, y desde ahí se le ofrece palomear y «Capturar» los días de otros (una actividad capturada es un día que se paga)",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Luis, 22 nov: sólo un encargado o superior marca la asistencia de otros. El trabajador ya no tiene el pase de lista; sólo el cabo que nombró un administrador"
   },
   {
@@ -1070,7 +1070,7 @@
    "que": "POR DECISIÓN DE LUIS: un externo nace con $683 por día sugerido, escrito en el código; él puede cambiarlo al registrar y nada cuenta hasta que alguien lo aprueba, pero es un número que nadie del rancho dio",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Luis, 22 nov: el externo nace sin pago; la base es una regla del rancho (Equipo → Externos) que pone un administrador, cada registro la puede cambiar y, al aprobar, se señala si se aparta de la base"
   },
   {
@@ -1079,7 +1079,7 @@
    "que": "El resultado del año sumaba por su lado: las compras para el almacén como gasto (y otra vez al usarse), un insumo que nadie clasificó como gasto y la mano de obra sin la del checador. Comparaba contra el mes anterior («650 % más que el mes pasado») y el presupuesto e inversión de un cultivo cargaban lo de ciclos anteriores de la parcela",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Ahora usan la cuenta del cierre de mes; se compara contra el mismo mes del año pasado y cada cultivo con lo de su ciclo"
   },
   {
@@ -1088,7 +1088,7 @@
    "que": "La semana tenía ocho días y el balance contaba compras para el almacén e insumos sin clasificar como gasto",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Siete días y la cuenta del cierre"
   },
   {
@@ -1097,7 +1097,7 @@
    "que": "El resultado de una temporada contaba la compra de urea, su entrada al almacén y su uso en la actividad: el mismo insumo dos o tres veces",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "La temporada se cuenta con las reglas del cierre de mes"
   },
   {
@@ -1106,7 +1106,7 @@
    "que": "Con actividades tecleadas y nadie checando, la pantalla decía $0 de mano de obra aunque los reportes sí la contaban",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Lo capturado como actividad se suma y se enseña, una sola fuente por día"
   },
   {
@@ -1115,7 +1115,7 @@
    "que": "Un trabajador (no cabo) con un acceso viejo anclado al pase de lista veía una pantalla en blanco",
    "nivel": "P3",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Ahora se le dice que la asistencia de otros la marca un encargado o el cabo"
   },
   {
@@ -1124,7 +1124,7 @@
    "que": "Lo que se marcaba como personal en Socios seguía contando como gasto o ingreso del rancho en Finanzas, el flujo de efectivo, el cierre de mes, los paneles y ContPAQi",
    "nivel": "P1",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Lo personal (y un traspaso entre bolsas propias) se queda en Socios y en el banco, y ya no es ingreso ni gasto del rancho en ninguna suma"
   },
   {
@@ -1133,7 +1133,7 @@
    "que": "Después de «Descartar», el siguiente archivo se quedaba con el periodo y los saldos del anterior: salía «ya está cargado» o «no cuadra» sin serlo",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Cada archivo propone su propio periodo y sus saldos"
   },
   {
@@ -1142,7 +1142,7 @@
    "que": "El saldo de cada bolsa se buscaba por parecido entre su nombre y el del banco: una bolsa llamada «Cuenta de Rodolfo» nunca tenía saldo y la respuesta era siempre «no sé»",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Al subir el estado de cuenta se dice de qué bolsa es"
   },
   {
@@ -1151,7 +1151,7 @@
    "que": "«Dejó de aparecer» sólo veía el pase de lista y lo tecleado: un rancho que checa y reparte salía todos los días como que dejó de registrar (alarma falsa)",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Cuentan el checador y el trabajo del reparto y las cuadrillas"
   },
   {
@@ -1160,7 +1160,7 @@
    "que": "La pantalla se llamaba «Cómo vamos», igual que otra pantalla distinta",
    "nivel": "P3",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Se llama «¿Alcanza?»"
   },
   {
@@ -1169,7 +1169,7 @@
    "que": "El centro de costos salía de la etiqueta de la parcela y no del ciclo de ese día (el error del Excel: el ajo de una temporada y el maíz de la siguiente en el mismo centro)",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Sale del ciclo de ese día; con dos ciclos a la vez, el importe se parte"
   },
   {
@@ -1178,7 +1178,7 @@
    "que": "«Ingresos/Egresos del periodo» sumaba la compra para el almacén, su entrada y su uso en una actividad como si fueran tres gastos",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "Dice «Entradas/Salidas en la lista» y aclara que no es el resultado"
   },
   {
@@ -1187,8 +1187,44 @@
    "que": "La gráfica de meses sumaba compras del almacén y su uso, y el costo por cultivo sólo veía lo ligado a mano («sin cultivo ligado»)",
    "nivel": "P2",
    "estado": "corregido",
-   "publicado": false,
+   "publicado": true,
    "nota": "La gráfica usa la cuenta del cierre; el cultivo sale del ciclo de ese día"
+  },
+  {
+   "n": 61,
+   "modulo": "Subir catálogos",
+   "que": "La plantilla pedía la «Contraseña inicial» de cada cuenta y armaba un SQL que creaba cuentas directo en la base; también leía PIN de la hoja, reemplazaba el catálogo del teléfono y sobrescribía en la nube lo que tuviera el mismo identificador",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Ya no hay hoja de cuentas ni PIN; sólo se dan de alta los que faltan, por el camino de siempre"
+  },
+  {
+   "n": 62,
+   "modulo": "Seguridad",
+   "que": "Se podía poner a Dirección el PIN de un trabajador, o el mismo PIN a dos perfiles: con un PIN repetido ninguno de los dos podía entrar",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Se rechaza y se dice por qué"
+  },
+  {
+   "n": 63,
+   "modulo": "Semana",
+   "que": "La estimación contaba a todos (también a los dados de baja) por seis días fijos, y a quien cobra a destajo como cero",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Sueldo vigente por los días de cada quien, sólo activos; destajo y sin sueldo aparte"
+  },
+  {
+   "n": 64,
+   "modulo": "Papeles",
+   "que": "Una compra aplicada desde el buzón y cargada completa al almacén se quedaba «por clasificar» en Finanzas",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Si todo lo del papel entró al almacén, queda como compra para el almacén; si entró una parte, se dice"
   }
  ],
  "no_se_pudo": [
@@ -1212,12 +1248,7 @@
   {
    "que": "La app en app.agroselectos.com",
    "estado": "publicado",
-   "detalle": "Versión `1355741`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio."
-  },
-  {
-   "que": "Decisiones de Luis: el pase de lista sólo para encargado o superior (y el cabo nombrado); el pago de un externo nace vacío y la base es una regla del rancho",
-   "estado": "sin_publicar",
-   "detalle": "Probado; se publica junto con los números de los paneles al pasar la batería completa."
+   "detalle": "Versión `ac35461`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio (18 de 18)."
   },
   {
    "que": "Captura diaria: «Mis días» con la cuenta real, registro de varios que dice lo que se paga, el día que se costeaba dos veces, y rastro al aprobar externos y atender incidencias",
@@ -1290,14 +1321,9 @@
    "detalle": "Lo otorga el administrador a su propia cuenta."
   },
   {
-   "que": "Los números cuadran entre pantallas: ¿Cómo vamos?, Dirección, Resumen semanal, Temporadas y Mano de obra con la cuenta del cierre de mes",
+   "que": "Semana, Papeles, Subir catálogos y Seguridad",
    "estado": "sin_publicar",
-   "detalle": "Recorrido auditoria_numeros 28 de 28; se publica al pasar la batería completa."
-  },
-  {
-   "que": "Socios, Banco, ¿Alcanza? y ContPAQi: lo personal fuera de todas las sumas, el estado de cuenta ligado a su bolsa, el centro de costos por ciclo",
-   "estado": "sin_publicar",
-   "detalle": "Recorridos auditoria_banco 37 de 37 y auditoria_numeros 33 de 33; se publica al pasar la batería completa."
+   "detalle": "Recorridos auditoria_control 32, auditoria_papeles 15 y auditoria_numeros 35; se publica al pasar la batería completa."
   }
  ],
  "pendientes_menores": [
@@ -1316,7 +1342,8 @@
   "Hacer la prueba de campo con la familia.",
   "Otorgarse el permiso para configurar la organización (Arranque → Cuentas), si la va a usar.",
   "Decidir a qué cuenta de Finanzas, si a alguna, se le otorga la consulta de Banco y Socios.",
-  "ContPAQi: las compras para el almacén salen en la cuenta de gastos (como cualquier egreso). ¿Quieres una cuenta de inventario aparte para ellas?"
+  "ContPAQi: las compras para el almacén salen en la cuenta de gastos (como cualquier egreso). ¿Quieres una cuenta de inventario aparte para ellas?",
+  "El IVA de las compras: hoy lo que entra al almacén vale sin IVA y el IVA no cuenta como costo (sólo sale en el flujo). ¿Se recupera (acreditable) o debe ser parte del costo?"
  ],
  "riesgos": [
   "Riesgo técnico por evaluar (Luis, 22 nov): que una semana cerrada pida reabrirse para cambiar sus decisiones lo cuida la app, no la base. Una decisión que llegue por fuera de la app (o de un teléfono que no sabía del cierre) sí entra; no pasa callada —sale como diferencia contra el cierre, con quién y por qué— pero la base no la rechaza.",

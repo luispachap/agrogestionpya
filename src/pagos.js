@@ -66,6 +66,23 @@ export function cerrarCalendario(persona, { hasta, hoy, quien }) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(hasta || "") || hasta < act.desde) return { ok: false, dice: "El último día no puede ser antes de que empezó." };
   return { ok: true, persona: { ...persona, calendario: persona.calendario.map(p => (p === act ? { ...p, hasta, cerro: { por: quien.nombre || quien.id, el: hoy } } : p)) } };
 }
+// LO QUE SE VA A NECESITAR para pagarle al personal una semana. Es una ESTIMACIÓN para planear el dinero (la pantalla Semana
+// y el inicio de Finanzas), no lo que corresponde: eso sale de lo registrado, en Pagos al personal. Cada quien con su sueldo
+// VIGENTE por los días que le toca venir según su calendario (no seis fijos), y sólo quien sigue activo (una baja no cuenta).
+// A quien no tiene sueldo por día (destajo, o falta el dato) no se le estima un cero: se dice que no se puede estimar.
+export function necesidadDeLaSemana({ trabajadores = [], encargados = [], desde, hasta }) {
+  const dias = diasEntre(desde, hasta), renglones = [], sinEstimar = [];
+  for (const [clase, lista] of [["trabajador", trabajadores], ["encargado", encargados]]) for (const p of lista || []) {
+    if (!p || p.activo === false || (p.fechaIngreso && p.fechaIngreso > hasta)) continue;
+    if (p.modalidadPago === "destajo") { sinEstimar.push({ id: p.id, nombre: p.nombre, clase, porque: "cobra a destajo: depende de lo que haga" }); continue; }
+    const vienen = dias.filter(f => (!p.fechaIngreso || f >= p.fechaIngreso) && (clase === "encargado" && porCalendario(p, f) ? true : leToca(p, f)));
+    const montos = vienen.map(f => sueldoVigente(p, f)), sueldo = montos.length ? montos[montos.length - 1].sueldo : sueldoVigente(p, hasta).sueldo;
+    if (!(sueldo > 0)) { sinEstimar.push({ id: p.id, nombre: p.nombre, clase, porque: "no tiene sueldo por día en su ficha" }); continue; }
+    renglones.push({ id: p.id, nombre: p.nombre, clase, dias: vienen.length, sueldo, monto: sumarDinero(montos.map(m => m.sueldo)), estimado: montos.some(m => m.estimado) });
+  }
+  const suma = (c) => sumarDinero(renglones.filter(r => r.clase === c).map(r => r.monto));
+  return { desde, hasta, renglones, sinEstimar, trabajadores: suma("trabajador"), encargados: suma("encargado"), total: sumarDinero(renglones.map(r => r.monto)) };
+}
 export const diasEntre = (desde, hasta) => { const l = []; for (let f = desde; f <= hasta && l.length < 400; f = sumarDias(f, 1)) l.push(f); return l; };
 
 // ── Ausencias ──────────────────────────────────────────────────────────────

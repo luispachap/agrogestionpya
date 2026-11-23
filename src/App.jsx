@@ -36,7 +36,7 @@ import { abrirRestauracion, leerRestauraciones, estadoDeIA, consultasDeConversac
 import { desfaseDe, selloDeReloj, estadoDelReloj } from "./reloj.js";
 // Pagos al personal: ausencias, lo que corresponde, lo entregado, lo pendiente y los recibos.
 import { registrarAusencia, justificarFalta, ausenciasDe, semanaDe, leToca, DIAS_DE_SIEMPRE, cuentasDeCuadrillas, registrarPago, pagosA, saldoDe, emitirRecibo, recibosDe, reciboAlDia,
-  reconocerHoras, cuentaDeHoras, CLASES_AUSENCIA, SITUACIONES_SALIDA, MEDIOS_DE_PAGO, CLASES_DE_PERSONAL, LEYENDA_RECIBO, LEYENDA_CUADRILLA, abonar, abonosDeSemana, saldosDePrestamos, paraGuardarPrestamo, T_ABONO, calendarioActivo, activarCalendario, cerrarCalendario } from "./pagos.js";
+  reconocerHoras, cuentaDeHoras, CLASES_AUSENCIA, SITUACIONES_SALIDA, MEDIOS_DE_PAGO, CLASES_DE_PERSONAL, LEYENDA_RECIBO, LEYENDA_CUADRILLA, abonar, abonosDeSemana, saldosDePrestamos, paraGuardarPrestamo, T_ABONO, calendarioActivo, activarCalendario, cerrarCalendario , necesidadDeLaSemana } from "./pagos.js";
 // Lo que se paga y no es una actividad en una parcela, las prestaciones y el cierre de la semana.
 import { CONCEPTOS_PERSONAL, POLITICAS, baseDePersonas, pagadoSinActividad, fuentePersonal, fuentePrestaciones, fuenteBajas, fuenteBonos } from "./personal.js";
 import { T_DETERMINADA, T_PAGO_PRESTACION, CONCEPTOS_PRESTACION, cuentaDe as cuentaDePrestaciones, renglonesAlCosto, proponer as proponerPrestacion, determinar as determinarPrestacion, pagarPrestacion, nombreDePeriodo, periodosDe as periodosDePrestacion, determinadasRepetidas, T_SALDO_INICIAL, capturarSaldoInicial, CONCEPTOS_DE_SALDO, RELACIONES, remuneracionesDe } from "./prestaciones.js";
@@ -81,7 +81,7 @@ const ingresosDe = (data, desde, hasta) => sumarDinero(delRancho(data.ingresos).
 const flujoDe = (data) => flujoDeEfectivo({ ingresos: data.ingresos, egresos: data.egresos, compras: data.compras || [], entradas_inv: data.entradas_inv || [], creditos: data.creditos || [], eventos: data.eventos || [], prestamos: data.prestamos || [], cajachica: data.cajachica || [], hoy: today() });
 import { T_SALARIO_MINIMO, ZONAS as ZONAS_SM, catalogoDe as catalogoSM, salarioMinimoEn, capturarSalarioMinimo, alertaDeSalarioMinimo } from "./salariosMinimos.js";
 import { T_BAJA, T_PAGO_BAJA, CAUSAS_DE_BAJA, CONCEPTOS_DE_BAJA, NOMBRE_DE as NOMBRE_DE_BAJA, proponerBaja, registrarBaja, pagarBaja, bajasDe, pagosDeBaja, renglonesDeBajas } from "./bajas.js";
-import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, generarSQLCuentas, exportarPolizas, HOJAS } from "./excelLoader";
+import { generarPlantilla, leerExcel, leerHojaCruda, excelAColecciones, validar, exportarPolizas, HOJAS } from "./excelLoader";
 // El estado de cuenta del banco: se valida solo antes de entrar.
 import {
   enmascararCuenta, claveEstado, detectarColumnas, leerMovimientos,
@@ -6964,8 +6964,15 @@ function BuzonPapeles({ data, add, upd, setInv, session, onClose }) {
       });
       cargados++;
     }
+    // Si TODO lo del papel entró al almacén, el gasto que se acaba de registrar es una compra para el almacén (inventario,
+    // no gasto: cuenta cuando se usa). Lo dijo la persona al cargar cada renglón; antes quedaba «por clasificar» y había que
+    // volver a decirlo en Finanzas. Si sólo entró una parte, queda por clasificar y se dice.
+    const todo = cargados > 0 && marcadas.length === alAlmacen.filas.length && cargados === marcadas.length;
+    const eg = (data.egresos || []).find(e => e.id === alAlmacen.egresoId);
+    if (todo && eg && !eg.destinoInsumo) upd("egresos", { ...eg, destinoInsumo: "inventario", clasificadoPor: session.nombre, clasificadoEn: new Date().toISOString(), clasificadoAl: "cargar al almacén desde el buzón de papeles" });
     const cola = avisos.length ? `\n\nOjo:\n${avisos.join("\n")}` : "";
-    alert(`Listo: ${cargados} renglón(es) entraron al almacén.${cola}`);
+    const parte = !todo && cargados > 0 ? "\n\nNo todo lo del papel entró al almacén: el gasto queda «por clasificar» en Finanzas → Resultados, para decir qué fue lo demás." : "";
+    alert(`Listo: ${cargados} renglón(es) entraron al almacén.${cola}${parte}`);
     setAlAlmacen(null);
   };
 
@@ -8107,7 +8114,7 @@ El registro NO se borra: se queda tachado con tu nombre y el motivo, para que de
               {page === "organizacion" && <Organizacion data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "seguridad" && <PanelSeguridad data={data} add={add} upd={upd} session={session} onClose={() => setPage("home")} />}
               {page === "panel-financiero" && <PanelFinanciero data={data} onClose={() => setPage("home")} />}
-              {page === "subir-nube" && <SubirCatalogos data={data} setData={setData} session={session} onClose={() => setPage("home")} />}
+              {page === "subir-nube" && <SubirCatalogos data={data} add={add} session={session} onClose={() => setPage("home")} />}
               {page === "solicitudes" && <SolicitudesCompra data={data} add={add} upd={upd} del={del} setInv={setInv} aplicarLote={aplicarLote} session={session} onClose={() => setPage("home")} />}
               {page === "operacion" && <PanelOperacion data={data} onClose={() => setPage("home")} onVerParcela={() => setPage("calendario")} />}
               {/* Funciones de gestión heredadas de otros perfiles (el admin puede todo) */}
@@ -18334,45 +18341,46 @@ function FinanzasHome({ data, session, onNav, onLogout }) {
 
 /* Calcula el dinero estimado que se necesitará en los próximos 7 días */
 function calcProyeccionSemanal(data) {
-  // Rayas: suma de sueldos diarios de trabajadores activos × 6 días
-  const rayasSemana = (data.trabajadores || []).reduce((s, t) => s + (t.sueldo_dia || 0), 0) * 6;
-  // Sueldo de encargados × 6 días
-  const sueldoEncargados = (data.encargados || []).reduce((s, e) => s + (e.sueldo_dia || 0), 0) * 6;
+  // La semana de pago en curso (lunes a domingo). Cada quien con su sueldo vigente por los días que le toca venir, sólo los
+  // activos (antes: todos —también los dados de baja— por seis días fijos, y quien cobra a destajo contaba como cero).
+  const hoy = today(), lunes = sumarDias(hoy, -((new Date(hoy + "T12:00:00Z").getUTCDay() + 6) % 7));
+  const n = necesidadDeLaSemana({ trabajadores: data.trabajadores || [], encargados: data.encargados || [], desde: lunes, hasta: sumarDias(lunes, 6) });
+  const rayasSemana = n.trabajadores, sueldoEncargados = n.encargados;
   // Abonos a proveedores: saldo de créditos activos (lo que se debe)
   const deudaProveedores = vivos(data.creditos).reduce((s, cr) => s + saldoCredito(cr).saldo, 0);
   // Compras pendientes aprobadas
   const comprasPendientes = (data.compras || []).filter(c => c.estado === "pendiente").length;
-  const total = rayasSemana + sueldoEncargados;
-  return { rayasSemana, sueldoEncargados, deudaProveedores, comprasPendientes, total };
+  const total = n.total;
+  return { rayasSemana, sueldoEncargados, deudaProveedores, comprasPendientes, total, renglones: n.renglones, sinEstimar: n.sinEstimar, desde: n.desde, hasta: n.hasta };
 }
 
 /* ──── Proyección semanal: desglose de lo que se necesita ──── */
 function ProyeccionSemanal({ data, onClose }) {
   const p = calcProyeccionSemanal(data);
-  const trabActivos = data.trabajadores || [];
-  const encActivos = data.encargados || [];
+  const trabActivos = p.renglones.filter(r => r.clase === "trabajador");
+  const encActivos = p.renglones.filter(r => r.clase === "encargado");
 
   return (
     <div>
       <div className="top-bar">
         <button className="btn-ghost" onClick={onClose}>‹</button>
-        <h2>Lo que se necesita</h2>
+        <h2>Semana</h2>
       </div>
       <div className="section-pad">
         <div className="card" style={{ background: "rgba(245,166,35,.08)", border: "1px solid rgba(245,166,35,.3)" }}>
           <div className="stat-label">Total estimado para la semana</div>
           <div style={{ fontSize: 32, fontWeight: 800, fontFamily: "'Plus Jakarta Sans',sans-serif", color: "var(--gold)" }}>{fmt(p.total)}</div>
-          <div className="text-xs text-muted mt-1">Estimado de gasto en pagos de personal para 6 días de trabajo</div>
+          <div className="text-xs text-muted mt-1">Pago al personal de la semana del {p.desde} al {p.hasta}, con el sueldo de cada quien por los días que le toca venir. Es una estimación para planear el dinero; lo que corresponde de verdad sale de lo registrado, en Pagos al personal.</div>
         </div>
 
         <div className="card">
           <div className="card-title">Rayas de trabajadores</div>
-          <div className="text-xs text-muted mb-2">{trabActivos.length} trabajador(es), 6 días de trabajo</div>
+          <div className="text-xs text-muted mb-2">{trabActivos.length} trabajador(es) activos</div>
           {trabActivos.map(t => (
             <div key={t.id} className="list-item">
               <div className="li-icon"><Ic e="👷" /></div>
-              <div className="li-body"><div className="li-title">{t.nombre}</div><div className="li-sub">{fmt(t.sueldo_dia)}/día × 6</div></div>
-              <div className="li-right"><div className="li-val">{fmt((t.sueldo_dia || 0) * 6)}</div></div>
+              <div className="li-body"><div className="li-title">{t.nombre}</div><div className="li-sub">{fmt(t.sueldo)}/día × {t.dias} día(s){t.estimado ? " · sueldo estimado" : ""}</div></div>
+              <div className="li-right"><div className="li-val">{fmt(t.monto)}</div></div>
             </div>
           ))}
           <div className="flex-b" style={{ paddingTop: 10, borderTop: "1px solid var(--border)", marginTop: 6 }}>
@@ -18387,14 +18395,22 @@ function ProyeccionSemanal({ data, onClose }) {
             {encActivos.map(e => (
               <div key={e.id} className="list-item">
                 <div className="li-icon"><Ic e="🧰" /></div>
-                <div className="li-body"><div className="li-title">{e.nombre}</div><div className="li-sub">{fmt(e.sueldo_dia || 0)}/día × 6</div></div>
-                <div className="li-right"><div className="li-val">{fmt((e.sueldo_dia || 0) * 6)}</div></div>
+                <div className="li-body"><div className="li-title">{e.nombre}</div><div className="li-sub">{fmt(e.sueldo)}/día × {e.dias} día(s)</div></div>
+                <div className="li-right"><div className="li-val">{fmt(e.monto)}</div></div>
               </div>
             ))}
             <div className="flex-b" style={{ paddingTop: 10, borderTop: "1px solid var(--border)", marginTop: 6 }}>
               <span className="font-bold">Subtotal encargados</span>
               <span className="font-bold">{fmt(p.sueldoEncargados)}</span>
             </div>
+          </div>
+        )}
+
+        {p.sinEstimar.length > 0 && (
+          <div className="card" style={{ borderColor: "var(--gold)" }}>
+            <div className="card-title">No se puede estimar</div>
+            {p.sinEstimar.map(x => <div key={x.id} className="text-sm" style={{ padding: "3px 0" }}>{x.nombre} <span className="text-xs text-muted">· {x.porque}</span></div>)}
+            <div className="text-xs text-muted mt-2">No se suma como cero: lo suyo hay que considerarlo aparte.</div>
           </div>
         )}
 
@@ -18417,7 +18433,7 @@ function ProyeccionSemanal({ data, onClose }) {
         )}
 
         <div className="text-xs text-muted" style={{ textAlign: "center", padding: "8px 0" }}>
-          La proyección de rayas estima 6 días de trabajo por persona. Es una guía, no un cálculo exacto.
+          Las cuadrillas eventuales no están aquí: se pagan por lo que se registre de cada día.
         </div>
       </div>
     </div>
@@ -18572,12 +18588,11 @@ function GestionDeudas({ data, add, upd, del, cancelar, reactivar, session, onCl
 
 /* ════════════ MIGRACIÓN INICIAL DESDE EXCEL ════════════ */
 /* Permite descargar una plantilla, llenarla, y subirla a Supabase + dejarla en el navegador. */
-function SubirCatalogos({ data, setData, session, onClose }) {
+function SubirCatalogos({ data, add, session, onClose }) {
   const [paso, setPaso] = useState("inicio"); // inicio | revision | subiendo | hecho | error
   const [archivoLeido, setArchivoLeido] = useState(null);
   const [colecciones, setColecciones] = useState(null);
   const [validacion, setValidacion] = useState(null);
-  const [sqlGenerado, setSqlGenerado] = useState("");
   const [resumen, setResumen] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const fileRef = useRef(null);
@@ -18597,7 +18612,6 @@ function SubirCatalogos({ data, setData, session, onClose }) {
       setArchivoLeido(file.name);
       setColecciones(cols);
       setValidacion(val);
-      setSqlGenerado(generarSQLCuentas(cols.cuentas));
       setPaso("revision");
     } catch (err) {
       setErrorMsg(err.message || "Error al leer el archivo");
@@ -18605,59 +18619,36 @@ function SubirCatalogos({ data, setData, session, onClose }) {
     }
   };
 
-  // Mezcla los catálogos del Excel con los datos locales del navegador.
-  // Por cada catálogo que vino lleno en el Excel: reemplaza el catálogo local.
-  // Los catálogos que no vinieron en el Excel se quedan como estaban.
-  const aplicarLocalmente = (cols) => {
-    setData(prev => {
-      const next = { ...prev };
-      CATALOGOS.forEach(tabla => {
-        const registros = cols[tabla] || [];
-        if (registros.length > 0) next[tabla] = registros;
-      });
-      return next;
-    });
-  };
-
+  // SÓLO ALTAS, por el camino de siempre (`add`): identificador nuevo, quién lo capturó, la marca de este espacio, el sueldo
+  // desde hoy. Lo que ya existe con el mismo nombre NO se toca (antes se sobrescribía en la nube y se REEMPLAZABA el catálogo
+  // del teléfono). Subir el mismo archivo dos veces no duplica. Sin PIN, sin cuentas, sin contraseñas.
   const subir = async () => {
     if (!colecciones) return;
     setPaso("subiendo");
-    try {
-      const r = {};
-      // 1. Subir a Supabase
-      for (const tabla of CATALOGOS) {
-        const registros = colecciones[tabla] || [];
-        if (registros.length === 0) { r[tabla] = { ok: true, cantidad: 0, omitido: true }; continue; }
-        try {
-          const n = await subirColeccion(tabla, registros.map(r => marcarEspacio(r, ESPACIO)));
-          r[tabla] = { ok: true, cantidad: n };
-        } catch (e) {
-          r[tabla] = { ok: false, error: e.message };
-        }
+    const llave = (x) => normalizarNombre(String(x?.nombre || "")).trim().replace(/\s+/g, " ");
+    const ranchos = data.ranchos || [], unRancho = ranchos.length === 1 ? ranchos[0].id : "";
+    const r = {};
+    for (const tabla of CATALOGOS) {
+      const registros = colecciones[tabla] || [];
+      if (registros.length === 0) { r[tabla] = { ok: true, cantidad: 0, omitido: true }; continue; }
+      const ya = new Set((data[tabla] || []).map(llave));
+      let n = 0, repetidos = 0;
+      for (const reg of registros) {
+        if (!llave(reg) || ya.has(llave(reg))) { repetidos++; continue; }
+        const { id, pin, ...resto } = reg;
+        const nuevo = tabla === "parcelas" ? { ...resto, ranchoId: unRancho } : tabla === "cultivos" ? { ...resto, id: `cul_${llave(reg).toLowerCase().replace(/[^a-z0-9]+/g, "_")}` } : resto;
+        add(tabla, nuevo); ya.add(llave(reg)); n++;
       }
-      // 2. Mezclar también localmente para que la app los vea de inmediato
-      try { aplicarLocalmente(colecciones); }
-      catch (e) { console.warn("No se pudo aplicar localmente:", e); }
-
-      setResumen(r);
-      const huboError = Object.values(r).some(x => x.ok === false);
-      setPaso(huboError ? "error" : "hecho");
-    } catch (e) {
-      setErrorMsg(e.message || "Error desconocido");
-      setPaso("error");
+      r[tabla] = { ok: true, cantidad: n, repetidos };
     }
+    setResumen(r); setPaso("hecho");
   };
 
-  const copiarSQL = () => {
-    navigator.clipboard.writeText(sqlGenerado)
-      .then(() => alert("SQL copiado. Pégalo en Supabase → SQL Editor → Run."))
-      .catch(() => alert("No se pudo copiar. Selecciona el texto y cópialo manualmente."));
-  };
 
   // Resumen de cuántos registros encontró en el Excel
   const cuentaSi = arr => arr && arr.length || 0;
   const totalRegistros = colecciones
-    ? CATALOGOS.reduce((s, c) => s + cuentaSi(colecciones[c]), 0) + cuentaSi(colecciones.cuentas)
+    ? CATALOGOS.reduce((s, c) => s + cuentaSi(colecciones[c]), 0)
     : 0;
 
   return (
@@ -18674,8 +18665,9 @@ function SubirCatalogos({ data, setData, session, onClose }) {
               <div className="card-title">¿Cómo funciona?</div>
               <div className="text-sm" style={{ lineHeight: 1.6 }}>
                 1. Descarga la plantilla de Excel.<br/>
-                2. Llénala con los datos reales del rancho (cuentas, parcelas, trabajadores, etc.).<br/>
-                3. Súbela aquí. Los datos quedan guardados en la nube <strong>y disponibles en la app de inmediato</strong>.
+                2. Llénala con los catálogos del rancho (parcelas, trabajadores, proveedores, cultivos…).<br/>
+                3. Súbela aquí. Sólo se dan de alta los que faltan: lo que ya existe no se toca.<br/>
+                Las cuentas no van en la hoja: se invitan en Arranque → Cuentas. El PIN se pone en Equipo.
               </div>
             </div>
 
@@ -18710,7 +18702,6 @@ function SubirCatalogos({ data, setData, session, onClose }) {
 
             <div className="card">
               <div className="card-title">Resumen</div>
-              <div className="confirm-row"><span className="cr-label">Cuentas de administración</span><span className="cr-val">{cuentaSi(colecciones.cuentas)}</span></div>
               {CATALOGOS.map(c => (
                 <div key={c} className="confirm-row">
                   <span className="cr-label">{c}</span>
@@ -18748,23 +18739,6 @@ function SubirCatalogos({ data, setData, session, onClose }) {
               </div>
             )}
 
-            {cuentaSi(colecciones.cuentas) > 0 && (
-              <div className="card" style={{ background: "rgba(125,180,255,.08)", border: "1px solid rgba(125,180,255,.3)" }}>
-                <div className="card-title">Cuentas: paso especial</div>
-                <div className="text-sm" style={{ lineHeight: 1.5, marginBottom: 10 }}>
-                  La app no puede crear cuentas de administración directamente (por seguridad). Te genera un código SQL que tienes que pegar en Supabase:
-                </div>
-                <ol style={{ marginLeft: 18, fontSize: 13, lineHeight: 1.6 }}>
-                  <li>Copia el código de abajo.</li>
-                  <li>Ve a Supabase → SQL Editor → New query.</li>
-                  <li>Pega el código y dale Run.</li>
-                  <li>Listo: las cuentas quedan creadas en Supabase Auth.</li>
-                </ol>
-                <button className="btn btn-outline btn-sm mt-2" onClick={copiarSQL}><Ic e="📋" /> Copiar código SQL</button>
-                <textarea readOnly value={sqlGenerado} style={{ width: "100%", height: 120, marginTop: 10, fontFamily: "monospace", fontSize: 11, padding: 8, borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)" }} />
-              </div>
-            )}
-
             <div className="gap-row mt-3">
               <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setPaso("inicio")}>Cancelar</button>
               <button className="btn btn-accent" style={{ flex: 1 }} onClick={subir} disabled={!validacion.ok}>
@@ -18788,25 +18762,16 @@ function SubirCatalogos({ data, setData, session, onClose }) {
               <span className="alert-icon"><Ic e="✅" /></span>
               <div className="alert-body">
                 <div className="alert-title">¡Listo!</div>
-                <div className="alert-desc">Los catálogos se subieron a la nube y ya están disponibles en la app para usarlos.</div>
+                <div className="alert-desc">Se dieron de alta los que faltaban; lo que ya estaba no se tocó. Suben a la nube como cualquier captura. A cada persona ponle su PIN en Equipo.</div>
               </div>
             </div>
-            {cuentaSi(colecciones.cuentas) > 0 && (
-              <div className="alert alert-gold">
-                <span className="alert-icon"><Ic e="🔐" /></span>
-                <div className="alert-body">
-                  <div className="alert-title">No olvides las cuentas</div>
-                  <div className="alert-desc">Si todavía no pegaste el SQL de cuentas en Supabase, hazlo ahora. Sin eso, los administradores no podrán entrar.</div>
-                </div>
-              </div>
-            )}
             <div className="card">
               <div className="card-title">Resumen</div>
               {Object.entries(resumen || {}).map(([c, r]) => (
                 <div key={c} className="confirm-row">
                   <span className="cr-label">{c}</span>
                   <span className="cr-val" style={{ color: r.ok ? "var(--safe)" : "var(--red)" }}>
-                    {r.ok ? (r.omitido ? "— sin datos" : `✓ ${r.cantidad}`) : `✗ ${r.error}`}
+                    {r.ok ? (r.omitido ? "— sin datos" : `✓ ${r.cantidad} nuevo(s)${r.repetidos ? ` · ${r.repetidos} ya estaba(n)` : ""}`) : `✗ ${r.error}`}
                   </span>
                 </div>
               ))}
@@ -23952,6 +23917,16 @@ function PanelSeguridad({ data, add, upd, session, onClose }) {
       const p = pins[r.k].trim();
       if (!/^\d{6,10}$/.test(p)) { setMsg({ tipo: "err", txt: `El PIN de ${r.label} debe ser de 6 a 10 dígitos (números).` }); return; }
     }
+    // Un PIN repetido no deja entrar a NADIE de los que lo comparten (así está la entrada, a propósito). Antes se podía poner
+    // aquí el PIN de un trabajador, o el mismo a dos perfiles, y los dos se quedaban sin poder entrar sin saber por qué.
+    const nuevos = aCambiar.map(r => pins[r.k].trim());
+    if (new Set(nuevos).size < nuevos.length) { setMsg({ tipo: "err", txt: "No pongas el mismo PIN a dos perfiles: ninguno de los dos podría entrar." }); return; }
+    const deGente = ["trabajadores", "encargados", "agronomos", "cuadrillas", "externos"].flatMap(sec => (data[sec] || []).filter(x => x.pin).map(x => String(x.pin).trim()));
+    if (nuevos.some(n => deGente.includes(n))) { setMsg({ tipo: "err", txt: "Ese PIN ya lo usa alguien del personal. Escoge otro: con un PIN repetido no entra ninguno de los dos." }); return; }
+    for (const r of ROLES.filter(x => !aCambiar.includes(x))) {
+      const otro = cfg?.["pin_" + r.k]; if (!otro) continue;
+      for (const n of nuevos) if ((await hashPin(n)) === otro) { setMsg({ tipo: "err", txt: `Ese PIN ya es el de ${r.label}. Escoge otro: con un PIN repetido no entra ninguno de los dos.` }); return; }
+    }
     const nuevo = { ...(cfg || { id: "seguridad" }) };
     for (const r of aCambiar) {
       const h = await hashPin(pins[r.k]);
@@ -23973,7 +23948,7 @@ function PanelSeguridad({ data, add, upd, session, onClose }) {
       </div>
       <div className="section-pad">
         <div className="text-xs text-muted mb-3" style={{ paddingLeft: 4 }}>
-          Los PINs se guardan cifrados (hash): ni el código ni la base de datos los muestran. Usa 6 a 10 dígitos y no los compartas por mensaje.
+          Los PINs se guardan cifrados (hash): ni el código ni la base de datos los muestran. Usa 6 a 10 dígitos y no los compartas por mensaje. El PIN sirve en un teléfono donde alguien ya entró con su cuenta (ahí queda guardado, cifrado); en un teléfono nuevo se entra primero con correo y contraseña. Un PIN no puede repetirse con el de nadie más.
         </div>
         {msg && (
           <div className="card" style={{ background: msg.tipo === "ok" ? "rgba(228,178,63,.08)" : "rgba(229,80,57,.08)", border: `1px solid ${msg.tipo === "ok" ? "rgba(228,178,63,.3)" : "rgba(229,80,57,.3)"}` }}>

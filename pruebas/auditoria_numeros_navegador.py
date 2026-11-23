@@ -120,6 +120,11 @@ with sync_playwright() as p:
     ir(D, "panel-financiero"); tx = cuerpo(D)
     caso("Dirección en ¿Cómo vamos?: las mismas cifras", "+$950" in tx and "$2,350 más que en noviembre de 2025" in tx, tx[:900])
 
+    # ── 7b · Semana: lo que se va a necesitar para pagar ──
+    ir(A, "proyeccion"); tx = cuerpo(A); foto(A, "08-semana")
+    caso("Semana: la semana de pago en curso, cada quien por los días que le toca venir ($400 × 6), total $4,800", "Pago al personal de la semana del 2026-11-16 al 2026-11-22" in tx and "$400/día × 6 día(s)" in tx and "$4,800" in tx, tx[:900])
+    caso("dice que es una estimación y que lo que corresponde sale de lo registrado", "estimación para planear el dinero" in tx and "Pagos al personal" in tx, tx[:900])
+
     # ── 8 · ContPAQi: las pólizas cuadran y el centro de costos es el cultivo del ciclo de ese día ──
     ir(A, "contpaqi")
     for ph, v in (("Ej: 6000000000", "6000000000"), ("Ej: 1110000000", "1110000000"), ("Ej: 4000000000", "4000000000"), ("Ej: 1120000000", "1120000000"), ("Ej: 6000000100", "6000000100"), ("Ej: 2110000000", "2110000000")):

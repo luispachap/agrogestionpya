@@ -235,3 +235,25 @@ test("quien_fue_marcado_presente_en_el_pase_de_lista_no_sale_como_que_no_vino_pe
   assert.ok(r.sinRegistro.includes("2026-11-17") && r.sinRegistro.includes("2026-11-18"), "sigue siendo una pregunta abierta");
   assert.equal(r.corresponde, 0, "el pase de lista no dice en qué trabajó: no genera pago ni costo solo");
 });
+
+test("la_semana_estima_cada_quien_con_su_sueldo_por_los_dias_que_le_toca_venir_y_no_cuenta_a_los_dados_de_baja", async () => {
+  const { necesidadDeLaSemana } = await import("./pagos.js");
+  const h = (s) => [{ desde: "2026-01-01", sueldo_dia: s, anterior: s }];
+  const n = necesidadDeLaSemana({
+    trabajadores: [
+      { id: "a", nombre: "ANA", sueldo_dia: 400, historialSueldo: h(400) },                                   // lunes a sábado: 6 días
+      { id: "b", nombre: "BETO", sueldo_dia: 400, historialSueldo: h(400), diasAsistencia: [1, 2, 3, 4, 5] }, // no viene el sábado
+      { id: "c", nombre: "CARO", sueldo_dia: 500, historialSueldo: h(500), activo: false, _porBaja: true },  // dado de baja
+      { id: "d", nombre: "DANI", modalidadPago: "destajo" },                                                    // destajo: no se estima
+      { id: "e", nombre: "EVA" },                                                                               // sin sueldo en su ficha
+      { id: "f", nombre: "FER", sueldo_dia: 300, historialSueldo: h(300), fechaIngreso: "2026-11-19" },       // entra el jueves
+    ],
+    encargados: [{ id: "g", nombre: "GUS", sueldo_dia: 600, historialSueldo: h(600) }],
+    desde: "2026-11-16", hasta: "2026-11-22",
+  });
+  const de = (id) => n.renglones.find(r => r.id === id);
+  assert.equal(de("a").monto, 2400); assert.equal(de("b").monto, 2000); assert.equal(de("f").monto, 900, "jueves, viernes y sábado");
+  assert.equal(de("c"), undefined, "una baja no se paga la semana que sigue");
+  assert.deepEqual(n.sinEstimar.map(x => x.id).sort(), ["d", "e"], "destajo y sin sueldo no son cero: se dicen aparte");
+  assert.equal(n.trabajadores, 5300); assert.equal(n.encargados, 3600); assert.equal(n.total, 8900);
+});

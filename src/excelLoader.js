@@ -15,14 +15,10 @@ import * as XLSX from "xlsx";
 //  Define qué columnas tiene cada hoja y qué tipo son.
 // ------------------------------------------------------------
 export const HOJAS = {
-  Cuentas: {
-    columnas: ["Nombre", "Correo", "Contraseña inicial", "Rol"],
-    ejemplos: [
-      ["Juan Pérez García", "juan@agroselectos.com", "Temporal2026!", "admin"],
-      ["María López",       "maria@agroselectos.com", "Temporal2026!", "finanzas"],
-    ],
-    roles_validos: ["admin", "dueno", "finanzas", "encargado", "agronomo"],
-  },
+  // Las CUENTAS no van aquí: se invitan en Arranque → Cuentas y cada persona pone su propia contraseña. Antes esta
+  // plantilla pedía «Contraseña inicial» y armaba un SQL que creaba cuentas directo en la base: una contraseña escrita en
+  // una hoja que pasa de mano en mano, y una cuenta creada por fuera de la invitación. Tampoco va el PIN: se le pone a cada
+  // quien en Equipo, donde se revisa que no lo tenga nadie más.
   Parcelas: {
     columnas: ["Nombre", "Ubicación", "Hectáreas", "Cultivo actual", "Emoji", "Notas"],
     ejemplos: [
@@ -31,30 +27,28 @@ export const HOJAS = {
     ],
   },
   Trabajadores: {
-    columnas: ["Nombre", "PIN", "Sueldo diario", "Categoría", "Teléfono", "Notas"],
+    columnas: ["Nombre", "Sueldo diario", "Categoría", "Teléfono", "Notas"],
     ejemplos: [
-      ["Juan Pérez",   "1111", 350, "Tractorista", "4491234567", ""],
-      ["Pablo Ramírez","2222", 280, "General",   "", ""],
-      ["Miguel Solís", "3333", 400, "Dronero",     "4499876543", ""],
+      ["Juan Pérez",   350, "Tractorista", "4491234567", ""],
+      ["Pablo Ramírez", 280, "General",   "", ""],
     ],
   },
   Encargados: {
-    columnas: ["Nombre", "PIN", "Sueldo diario", "Teléfono", "Notas"],
+    columnas: ["Nombre", "Sueldo diario", "Teléfono", "Notas"],
     ejemplos: [
-      ["Pedro Ramírez", "5555", 600, "4495551234", ""],
+      ["Pedro Ramírez", 600, "4495551234", ""],
     ],
   },
   Agrónomos: {
-    columnas: ["Nombre", "PIN", "Teléfono", "Notas"],
+    columnas: ["Nombre", "Teléfono", "Notas"],
     ejemplos: [
-      ["Luis Herrera", "7777", "4497778888", ""],
+      ["Luis Herrera", "4497778888", ""],
     ],
   },
   Cuadrillas: {
-    columnas: ["Nombre", "PIN", "Miembros", "Flete diario", "Teléfono contacto", "Notas"],
+    columnas: ["Nombre", "Miembros", "Flete diario", "Teléfono contacto", "Notas"],
     ejemplos: [
-      ["Cuadrilla Norte", "8888", 8, 500, "4491112222", ""],
-      ["Cuadrilla Sur",   "9999", 6, 400, "", ""],
+      ["Cuadrilla Norte", 8, 500, "4491112222", ""],
     ],
   },
   Proveedores: {
@@ -98,20 +92,19 @@ const INSTRUCCIONES = [
   [""],
   ["Qué hace cada hoja:"],
   [""],
-  ["• Cuentas:    personas que administran (admin, dirección, finanzas, encargado, agrónomo)."],
-  ["              Entran a la app con correo y contraseña."],
-  ["              Roles válidos: admin, dueno, finanzas, encargado, agronomo"],
+  ["• Las cuentas (correo y contraseña) NO van en esta plantilla: se invitan en Arranque → Cuentas,"],
+  ["  y cada persona pone su propia contraseña. Nadie más la conoce."],
+  ["• El PIN tampoco va aquí: se le pone a cada quien en Equipo, donde se revisa que no se repita."],
   [""],
   ["• Parcelas:   los terrenos del rancho con sus hectáreas y cultivo actual."],
   [""],
-  ["• Trabajadores: trabajadores de planta con su PIN, sueldo y categoría."],
-  ["                Entran a la app con su PIN."],
+  ["• Trabajadores: trabajadores de planta con su sueldo y categoría."],
   [""],
-  ["• Encargados:   encargados con su PIN (también puedes darles cuenta en la hoja Cuentas)."],
+  ["• Encargados:   encargados con su sueldo."],
   [""],
-  ["• Agrónomos:    agrónomos con su PIN (también puedes darles cuenta en la hoja Cuentas)."],
+  ["• Agrónomos:    agrónomos."],
   [""],
-  ["• Cuadrillas:   grupos externos con PIN, número de miembros y flete diario."],
+  ["• Cuadrillas:   grupos externos con su número de miembros y flete diario."],
   [""],
   ["• Proveedores:  proveedores de insumos."],
   [""],
@@ -129,11 +122,8 @@ const INSTRUCCIONES = [
   [""],
   ["Notas importantes:"],
   [""],
-  ["– Los PINs deben ser únicos dentro de cada tipo (no puede haber dos trabajadores con el mismo PIN)."],
-  ["– Para crear las cuentas de administración, la app te dará un código SQL"],
-  ["  que tendrás que pegar en Supabase (instrucciones aparecen al cargar el Excel)."],
-  ["– Si te equivocas o subes el mismo archivo dos veces, la app te avisará y te"],
-  ["  preguntará qué hacer (sobrescribir, ignorar, etc.)."],
+  ["– Sólo se dan de alta los que no están: lo que ya existe con el mismo nombre no se toca ni se sobrescribe."],
+  ["– Subir el mismo archivo dos veces no duplica nada."],
 ];
 
 // ------------------------------------------------------------
@@ -177,6 +167,8 @@ export async function leerExcel(file) {
     const noVacias = filas.filter(f => Object.values(f).some(v => v !== "" && v !== null && v !== undefined));
     resultado[nombre] = noVacias;
   }
+  // Una plantilla vieja trae la hoja «Cuentas» con contraseñas: NO se lee. Sólo se dice que se ignoró.
+  resultado._ignoradas = wb.SheetNames.filter(n => /^cuentas$/i.test(String(n).trim()));
   return resultado;
 }
 
@@ -185,7 +177,7 @@ export async function leerExcel(file) {
 // ------------------------------------------------------------
 export function excelAColecciones(datosExcel) {
   const out = {
-    ranchos: [{ id: "r_agro", nombre: "Agroselectos P&A", hectareas: 0, lat: null, lng: null }],
+    ranchos: [],
     parcelas: [],
     trabajadores: [],
     encargados: [],
@@ -193,7 +185,7 @@ export function excelAColecciones(datosExcel) {
     cuadrillas: [],
     proveedores: [],
     cultivos: [],
-    cuentas: [], // especial: estos no van a una tabla, generan SQL
+
   };
 
   // Parcelas
@@ -220,7 +212,6 @@ export function excelAColecciones(datosExcel) {
     out.trabajadores.push({
       id: `t${unico()}${i}`,
       nombre,
-      pin: (f["PIN"] || "").toString().trim(),
       sueldo_dia: parseFloat(f["Sueldo diario"]) || 0,
       categoria: (f["Categoría"] || "General").toString().trim(),
       telefono: (f["Teléfono"] || "").toString().trim(),
@@ -235,7 +226,6 @@ export function excelAColecciones(datosExcel) {
     out.encargados.push({
       id: `en${unico()}${i}`,
       nombre,
-      pin: (f["PIN"] || "").toString().trim(),
       sueldo_dia: parseFloat(f["Sueldo diario"]) || 0,
       telefono: (f["Teléfono"] || "").toString().trim(),
       notas: (f["Notas"] || "").toString().trim(),
@@ -249,7 +239,6 @@ export function excelAColecciones(datosExcel) {
     out.agronomos.push({
       id: `ag${unico()}${i}`,
       nombre,
-      pin: (f["PIN"] || "").toString().trim(),
       telefono: (f["Teléfono"] || "").toString().trim(),
       notas: (f["Notas"] || "").toString().trim(),
     });
@@ -262,7 +251,6 @@ export function excelAColecciones(datosExcel) {
     out.cuadrillas.push({
       id: `cq${unico()}${i}`,
       nombre,
-      pin: (f["PIN"] || "").toString().trim(),
       miembros: parseInt(f["Miembros"]) || 0,
       flete_dia: parseFloat(f["Flete diario"]) || 0,
       telefono: (f["Teléfono contacto"] || "").toString().trim(),
@@ -317,17 +305,8 @@ export function excelAColecciones(datosExcel) {
     });
   });
 
-  // Cuentas (no son colección, generan SQL aparte)
-  (datosExcel.Cuentas || []).forEach((f) => {
-    const correo = (f["Correo"] || "").toString().trim().toLowerCase();
-    if (!correo || !correo.includes("@")) return;
-    out.cuentas.push({
-      nombre: (f["Nombre"] || "").toString().trim(),
-      correo,
-      password: (f["Contraseña inicial"] || "").toString(),
-      rol: (f["Rol"] || "encargado").toString().trim().toLowerCase(),
-    });
-  });
+  // La hoja «Cuentas» de una plantilla vieja no se lee (traía contraseñas): sólo se avisa.
+  out.hojasIgnoradas = datosExcel._ignoradas || [];
 
   return out;
 }
@@ -340,30 +319,9 @@ export function validar(colecciones) {
   const errores = [];
   const advertencias = [];
 
-  // Validar Cuentas
-  const correosVistos = new Set();
-  const rolesValidos = HOJAS.Cuentas.roles_validos;
-  (colecciones.cuentas || []).forEach((c, i) => {
-    if (!c.correo) errores.push(`Cuenta fila ${i+2}: falta correo`);
-    if (correosVistos.has(c.correo)) errores.push(`Cuenta fila ${i+2}: correo repetido "${c.correo}"`);
-    correosVistos.add(c.correo);
-    if (!c.password || c.password.length < 6) errores.push(`Cuenta "${c.correo}": contraseña muy corta (mínimo 6 caracteres)`);
-    if (!rolesValidos.includes(c.rol)) errores.push(`Cuenta "${c.correo}": rol "${c.rol}" no válido. Debe ser uno de: ${rolesValidos.join(", ")}`);
-  });
-
-  // Validar PINs únicos dentro de cada grupo
-  const verificarPins = (lista, etiqueta) => {
-    const pins = new Set();
-    lista.forEach(x => {
-      if (!x.pin) { advertencias.push(`${etiqueta} "${x.nombre}": sin PIN (no podrá entrar)`); return; }
-      if (pins.has(x.pin)) errores.push(`${etiqueta}: PIN "${x.pin}" repetido`);
-      pins.add(x.pin);
-    });
-  };
-  verificarPins(colecciones.trabajadores || [], "Trabajador");
-  verificarPins(colecciones.encargados || [], "Encargado");
-  verificarPins(colecciones.agronomos || [], "Agrónomo");
-  verificarPins(colecciones.cuadrillas || [], "Cuadrilla");
+  if ((colecciones.hojasIgnoradas || []).length) advertencias.push("La hoja «Cuentas» no se usa: las cuentas se invitan en Arranque → Cuentas y cada persona pone su contraseña. Lo que traía esa hoja no se leyó.");
+  for (const [lista, plural] of [[colecciones.trabajadores, "Trabajadores"], [colecciones.encargados, "Encargados"], [colecciones.cuadrillas, "Cuadrillas"]])
+    if ((lista || []).length) advertencias.push(`${plural}: entran sin PIN. Se lo pones a cada quien en Equipo (no se puede repetir).`);
 
   // Validar coherencia de fenología con cultivos
   const nombresCultivos = new Set((colecciones.cultivos || []).map(c => c.nombre));
@@ -381,54 +339,6 @@ export function validar(colecciones) {
   return { ok: errores.length === 0, errores, advertencias };
 }
 
-// ------------------------------------------------------------
-//  GENERAR SQL para crear cuentas en Supabase Auth
-//  El usuario pega este SQL en Supabase → SQL Editor → Run
-// ------------------------------------------------------------
-export function generarSQLCuentas(cuentas) {
-  if (!cuentas || cuentas.length === 0) return "-- No hay cuentas para crear";
-
-  const lineas = [
-    "-- ============================================================",
-    "-- AGROGESTIÓN — Crear cuentas de administración",
-    "-- ============================================================",
-    "-- Este script crea las cuentas en Supabase Auth y sus perfiles.",
-    "-- Cópialo COMPLETO y pégalo en: Supabase → SQL Editor → Nueva consulta → Run",
-    "-- ============================================================",
-    "",
-  ];
-
-  cuentas.forEach((c, i) => {
-    // Genera un UUID determinista basado en el correo para que sea idempotente
-    lineas.push(`-- Cuenta ${i+1}: ${c.nombre} (${c.correo}) — rol: ${c.rol}`);
-    lineas.push(`DO $$`);
-    lineas.push(`DECLARE`);
-    lineas.push(`  nuevo_id uuid;`);
-    lineas.push(`BEGIN`);
-    lineas.push(`  -- Si la cuenta ya existe, no la duplica`);
-    lineas.push(`  SELECT id INTO nuevo_id FROM auth.users WHERE email = '${c.correo}';`);
-    lineas.push(`  IF nuevo_id IS NULL THEN`);
-    lineas.push(`    nuevo_id := gen_random_uuid();`);
-    lineas.push(`    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, aud, role)`);
-    lineas.push(`    VALUES (nuevo_id, '00000000-0000-0000-0000-000000000000', '${c.correo}', crypt('${c.password.replace(/'/g, "''")}', gen_salt('bf')), now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, 'authenticated', 'authenticated');`);
-    lineas.push(`    INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at)`);
-    lineas.push(`    VALUES (gen_random_uuid(), nuevo_id, format('{"sub":"%s","email":"%s"}', nuevo_id, '${c.correo}')::jsonb, 'email', '${c.correo}', now(), now(), now());`);
-    lineas.push(`  END IF;`);
-    lineas.push(`  -- Crear o actualizar perfil`);
-    lineas.push(`  INSERT INTO perfiles (id, nombre, rol) VALUES (nuevo_id, '${c.nombre.replace(/'/g, "''")}', '${c.rol}')`);
-    lineas.push(`  ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre, rol = EXCLUDED.rol;`);
-    lineas.push(`END $$;`);
-    lineas.push("");
-  });
-
-  lineas.push("-- ============================================================");
-  lineas.push("-- LISTO. Las cuentas ya pueden entrar a la app con su correo");
-  lineas.push("-- y la contraseña que pusiste en el Excel.");
-  lineas.push("-- Recuérdales que cambien su contraseña la primera vez que entren.");
-  lineas.push("-- ============================================================");
-
-  return lineas.join("\n");
-}
 
 /* ════════════ EXPORTAR PÓLIZAS PARA CONTPAQi ════════════ */
 /* Genera un Excel con formato de pólizas de diario para importar a ContPAQi.
