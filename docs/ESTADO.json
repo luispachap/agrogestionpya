@@ -1669,8 +1669,8 @@
     {
       "nombre": "Tabla por cortes (El día → Por cortes)",
       "estado": "APROBADO",
-      "prueba": "auditoria_cortes 17 · auditoria_cortes2 26 · cortes.test (11)",
-      "probado": "Pinceles (actividad en una parcela); pintar una celda, un corte entero y repetir el corte anterior sin pisar lo pintado; el costo sale del motor de mano de obra (pintar no es pagar: cada quien su día); repintar con historial; borrar sin borrar (ese rato queda por aclarar); lo que todavía no pasa no se pinta; avisos de pintado sin checar y checó sin pintar; otro teléfono ve lo mismo; y lo de «Registro de varios» y del reparto: vehículo y para qué parcela, agregar a quien no checó y ponerle entrada y salida por lo pintado (con motivo), pintar como el plan, lo pendiente de otros días como pincel, quién lo ha hecho antes (sólo informa), destajo del personal y de externos, avance, la comida como descanso, y lo asignado en Equipos de trabajo se ve y no se pisa",
+      "prueba": "auditoria_cortes 17 · auditoria_cortes2 31 · cortes.test (13)",
+      "probado": "Pinceles (actividad en una parcela); pintar una celda, un corte entero y repetir el corte anterior sin pisar lo pintado; el costo sale del motor de mano de obra (pintar no es pagar: cada quien su día); repintar con historial; borrar sin borrar (ese rato queda por aclarar); lo que todavía no pasa no se pinta; avisos de pintado sin checar y checó sin pintar; otro teléfono ve lo mismo; y lo de «Registro de varios» y del reparto: vehículo y para qué parcela, agregar a quien no checó y ponerle entrada y salida por lo pintado (con motivo), pintar como el plan, lo pendiente de otros días como pincel, quién lo ha hecho antes (sólo informa), destajo del personal y de externos, avance, la comida como descanso, y lo asignado en Equipos de trabajo se ve y no se pisa; a quien ya se fue no se le pinta en grupo; la salida por lo pintado se pone después si su corte no acababa; sin señal se pinta igual y sube",
       "falta": "Cortes PROVISIONALES hasta validarlos con Miguel; el modo «plan» (pintar mañana) no está construido; un pincel que no se usó no se guarda al salir; la cuota por hora de una máquina no la carga la tabla (lleva el costo real del vehículo). Las pantallas viejas siguen hasta validarlo"
     },
     {
@@ -1683,7 +1683,7 @@
     {
       "nombre": "Tiempo esperando tarea (Mano de obra)",
       "estado": "APROBADO",
-      "prueba": "auditoria_cortes2 (26) · espera.test (5)",
+      "prueba": "auditoria_cortes2 (31) · espera.test (5)",
       "probado": "Al llegar (entrada → primera tarea) y entre tareas, en horas y pesos; lo aclarado como espera es confirmado, lo sin aclarar es posible; la comida entre cortes, lo de después de la última tarea y lo aclarado con otra causa no cuentan; ningún módulo de dinero lo lee",
       "falta": "Indicador grueso hasta que haya registro en tiempo real de lo que hace cada quien"
     },

@@ -170,11 +170,19 @@ export function propuestaDelPlan({ indicaciones = [], fecha, presentes = [], cel
 // horas: su día no se sabe. Un encargado o un administrador puede ponerle entrada y salida desde lo pintado, con su
 // motivo (es la marca a mano de siempre). No se hace solo, ni a quien ya tiene alguna marca ese día.
 export function marcasPorLoPintado({ eventos, trabajadorId, fecha, cortes = [], quien, capturado, motivo, azar }) {
-  if (marcasDe(eventos, { trabajadorId, fecha }).length) return { ok: false, dice: "Ya tiene marcas ese día: lo que falte se pone en Jornadas." };
+  const ya = marcasDe(eventos, { trabajadorId, fecha });
+  // Si sólo tiene la entrada que se le puso a mano (porque su último corte no acababa), ahora se le pone la salida.
+  const soloSalida = ya.length === 1 && ya[0].datos.sentido === "entrada" && ya[0].datos.via === "correccion";
+  if (ya.length && !soloSalida) return { ok: false, dice: "Ya tiene marcas ese día: lo que falte se pone en Jornadas." };
   const celdas = celdasDelDia(eventos, { fecha });
   const pintados = cortes.filter(c => valorDe(celdas, trabajadorId, c.id));
   if (!pintados.length) return { ok: false, dice: "No tiene nada pintado ese día." };
   const entra = instanteDeCorte(fecha, pintados[0].desde), sale = instanteDeCorte(fecha, pintados[pintados.length - 1].hasta);
+  if (soloSalida) {
+    if (sale > capturado) return { ok: false, dice: `Ya tiene su entrada. La salida se pone cuando acabe su último corte (${pintados[pintados.length - 1].hasta}).` };
+    const s = marcaQueFalto({ trabajadorId, sentido: "salida", cuando: sale, fecha, motivo, quien, capturado, azar });
+    return s.ok ? { ok: true, eventos: [s.evento], dice: `Salida ${pintados[pintados.length - 1].hasta}, por lo pintado (la entrada ya estaba).` } : s;
+  }
   const e = marcaQueFalto({ trabajadorId, sentido: "entrada", cuando: entra, fecha, motivo, quien, capturado, azar });
   if (!e.ok) return e;
   if (sale > capturado) return { ok: true, eventos: [e.evento], dice: `Se le puso la entrada (${pintados[0].desde}). La salida se pone cuando acabe su último corte.` };
@@ -195,6 +203,13 @@ export function actividadDeExterno({ id, externo, fecha, parcelaId, actividad, s
     horas_trab: 0, maquinariaId: null, horas_maq: 0, costoMaq: 0, insumos: [], costoMO, costoInsumos: 0, costoTotal: costoMO,
     observaciones: String(nota || "").trim(), flete: 0, modalidadPago: "destajo", externo_tarifa: t, externo_unidades: u,
     hectareas_trab: Number(hectareas) || 0, registradoEnNombrePor: { rol: quien?.rol, id: quien?.id, nombre: quien?.nombre }, registroMasivo: true, deLaTabla: true, cosecha: null } };
+}
+
+// ¿Ya se fue? Su última marca hasta ese instante es una salida. A quien ya se fue no se le pinta en grupo (repetir el
+// corte, pintar a todos, copiar ayer, el plan): sería pintarle un rato en que no estaba. Tocar su celda sí se puede.
+export function seFueAntes(eventos, { trabajadorId, fecha, instante }) {
+  const m = marcasDe(eventos, { trabajadorId, fecha }).filter(x => x.cuando <= instante);
+  return m.length > 0 && m[m.length - 1].datos.sentido === "salida";
 }
 
 // A quiénes se pintó con un pincel ese día (en cualquier corte): para anotar su destajo o su avance.

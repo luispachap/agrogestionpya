@@ -18,7 +18,7 @@ nube = N.Nube([ADM, ENC]); E = {"_espacio": "localhost"}; V = "2026-11-01T00:00:
 t["ranchos"] = {"r1": {"id": "r1", "nombre": "RANCHO INVENTADO", "datos": E, "actualizado": V}}
 t["parcelas"] = {p: {"id": p, "nombre": n, "rancho_id": "r1", "datos": {"hectareas": 2, "cultivo": "Ajo", **E}, "actualizado": V} for p, n in (("p1", "PARCELA UNO"), ("p2", "PARCELA DOS"))}
 H = [{"desde": "2026-01-01", "sueldo_dia": 400, "anterior": 400}]
-t["trabajadores"] = {i: {"id": i, "nombre": n, "pin": pin, "datos": {"categoria": "jornalero", "sueldo_dia": 400, "historialSueldo": H, **E}, "actualizado": V} for i, n, pin in (("t-ana", "ANA INVENTADA", "4101"), ("t-beto", "BETO INVENTADO", "4102"), ("t-caro", "CARO INVENTADA", "4103"))}
+t["trabajadores"] = {i: {"id": i, "nombre": n, "pin": pin, "datos": {"categoria": "jornalero", "sueldo_dia": 400, "historialSueldo": H, **E}, "actualizado": V} for i, n, pin in (("t-ana", "ANA INVENTADA", "4101"), ("t-beto", "BETO INVENTADO", "4102"), ("t-caro", "CARO INVENTADA", "4103"), ("t-dani", "DANI INVENTADA", "4104"))}
 t["maquinaria"] = {"m1": {"id": "m1", "nombre": "TRACTOR INVENTADO", "costo_hora": 0, "datos": {"tipo": "tractor", **E}, "actualizado": V}}
 t["externos"] = {"x1": {"id": "x1", "nombre": "DON EXTERNO INVENTADO", "estado": "activo", "datos": E, "actualizado": V}}
 tarea = lambda i, quien, parcela, que: {"id": i, "fecha": HOY, "tipo": "tarea", "estado": "mandada", "parcela_id": parcela, "asignado_a": quien, "datos": {"resumen": f"{que} en la parcela", "que": que, "deQuien": "ENCARGADO DE PRUEBA", **E}, "actualizado": V}
@@ -100,6 +100,12 @@ with sync_playwright() as p:
     B.get_by_role("button", name="Pintar como el plan").click(); B.wait_for_timeout(600)
     caso("PINTAR COMO EL PLAN: el corte que ya empezó (7–10) queda como dice el plan, y el de las 10 todavía no", "Deshierbe en PARCELA UNO" in celda(B, "ANA INVENTADA", "7–10") and "Riego en PARCELA DOS" in celda(B, "BETO INVENTADO", "7–10") and "sin pintar" in celda(B, "ANA INVENTADA", "10–13"),
          [celda(B, "ANA INVENTADA", "7–10"), celda(B, "BETO INVENTADO", "7–10"), celda(B, "ANA INVENTADA", "10–13")])
+    # Dani no checó (no trae credencial): se agrega, se pinta su corte de 7 y se le pone la entrada; la salida, cuando acabe
+    B.get_by_label("Agregar a alguien a este día").select_option(label="DANI INVENTADA"); B.wait_for_timeout(300)
+    B.locator("button[aria-label='Pincel Riego en PARCELA DOS']").click(); B.get_by_label(re.compile("DANI INVENTADA, 7–10")).click(); B.wait_for_timeout(400)
+    B.get_by_role("button", name="Ponerle entrada y salida por lo pintado").click(); B.wait_for_timeout(500)
+    md = [e for e in evs(B, "marca") if e["datos"]["trabajadorId"] == "t-dani"]
+    caso("a media mañana sólo se le pone la ENTRADA (su corte acaba a las 10) y se dice cuándo poner la salida", len(md) == 1 and md[0]["datos"]["sentido"] == "entrada" and "La salida se pone cuando acabe su último corte" in cuerpo(B), [(m["datos"]["sentido"], m["cuando"]) for m in md])
     # Destajo del personal y de un externo con el pincel de Deshierbe
     B.locator("button[aria-label='Pincel Deshierbe en PARCELA UNO']").click(); B.wait_for_timeout(200)
     B.get_by_role("button", name="Anotar destajo").click(); B.wait_for_timeout(300)
@@ -123,8 +129,12 @@ with sync_playwright() as p:
     B.get_by_label(re.compile("BETO INVENTADO, 10–13")).click(); B.wait_for_timeout(400)
     asig = [e for e in evs(B, "asignacion") if e["datos"].get("vehiculoId")]
     caso("BETO en el tractor de 10 a 13: el rato va al VEHÍCULO (no a una parcela) y dice que fue para la dos", len(asig) == 1 and asig[0]["datos"]["parcelaId"] is None and asig[0]["datos"]["beneficiaId"] == "p2" and asig[0]["datos"]["vehiculo"] == "TRACTOR INVENTADO", [e["datos"] for e in asig])
+    B.get_by_role("button", name="Ponerle su salida por lo pintado").click(); B.wait_for_timeout(500)
+    md = [e for e in evs(B, "marca") if e["datos"]["trabajadorId"] == "t-dani"]
+    caso("en la tarde, «ponerle su salida por lo pintado» le pone la salida a las 10 (lo que acabó su corte)", sorted(m["datos"]["sentido"] for m in md) == ["entrada", "salida"] and [m for m in md if m["datos"]["sentido"] == "salida"][0]["cuando"].startswith("2026-11-19T16:00"), [(m["datos"]["sentido"], m["cuando"]) for m in md])
     B.get_by_role("button", name="Repetir en 10–13 lo de 7–10").click(); B.wait_for_timeout(400)
     B.get_by_role("button", name="Repetir en 14–17 lo de 10–13").click(); B.wait_for_timeout(400)
+    caso("repetir no le pinta nada a quien ya se fue (Dani salió a las 10)", "sin pintar" in celda(B, "DANI INVENTADA", "10–13") and "sin pintar" in celda(B, "DANI INVENTADA", "14–17"), [celda(B, "DANI INVENTADA", "10–13"), celda(B, "DANI INVENTADA", "14–17")])
     caso("repetir respeta lo ya pintado: Ana sigue en deshierbe, Beto en el tractor de 10 a 13 y en el tractor también a la tarde", "Deshierbe en PARCELA UNO" in celda(B, "ANA INVENTADA", "14–17") and "TRACTOR INVENTADO" in celda(B, "BETO INVENTADO", "10–13") and "TRACTOR INVENTADO" in celda(B, "BETO INVENTADO", "14–17"),
          [celda(B, "ANA INVENTADA", "14–17"), celda(B, "BETO INVENTADO", "10–13"), celda(B, "BETO INVENTADO", "14–17")])
     B.get_by_role("button", name=re.compile("La comida")).click(); B.wait_for_timeout(500)
@@ -141,7 +151,7 @@ with sync_playwright() as p:
     # ══ El otro teléfono ══
     A = aparato(ADM, "18:00"); tabla(A)
     caso("el administrador ve la misma tabla: el plan, el tractor y el deshierbe", "TRACTOR INVENTADO" in celda(A, "BETO INVENTADO", "10–13") and "Deshierbe en PARCELA UNO" in celda(A, "ANA INVENTADA", "14–17") and A.get_by_label("Plan de ANA INVENTADA").count() == 1)
-    caso("y los mismos eventos: avance, destajo, aclaraciones y marcas a mano", len(evs(A, "avance_trabajo")) == 1 and len(evs(A, "destajo")) == 1 and len(evs(A, "aclaracion")) == 3 and len([e for e in evs(A, "marca") if e["datos"].get("via") == "correccion"]) == 2,
+    caso("y los mismos eventos: avance, destajo, aclaraciones y marcas a mano", len(evs(A, "avance_trabajo")) == 1 and len(evs(A, "destajo")) == 1 and len(evs(A, "aclaracion")) == 3 and len([e for e in evs(A, "marca") if e["datos"].get("via") == "correccion"]) == 4,
          [len(evs(A, x)) for x in ("avance_trabajo", "destajo", "aclaracion")])
     ir(A, "mano-obra"); A.wait_for_timeout(600)
     ind = A.get_by_label("Tiempo esperando tarea"); ti = plano(ind.inner_text()) if ind.count() else ""

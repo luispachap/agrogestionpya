@@ -943,7 +943,9 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   lo toca una persona). Un pincel que no se usó no se guarda al salir. Las pantallas viejas siguen hasta validarlo con
   Miguel. **Lo asignado en Equipos de trabajo se ve en la tabla (punteado, `asignadoFuera`) y no se pisa**: no sale «checó
   y no está pintado», pintar el corte de antes no lo termina, y un cambio a medio corte se avisa en la celda. Recorrido:
-  `auditoria_cortes2` (26). **La cuota por hora de una máquina** (lo que «Registro de varios» cargaba
+  `auditoria_cortes2` (31). A quien ya se fue (su última marca es una salida, `seFueAntes`) no se le pinta EN GRUPO
+  (repetir, pintar a todos, copiar ayer, el plan); su celda sí. Si a media mañana sólo se le pudo poner la entrada por lo
+  pintado, el mismo botón le pone la salida cuando acaba su último corte. **La cuota por hora de una máquina** (lo que «Registro de varios» cargaba
   con `costoMaq`) no la carga la tabla: el operador en el vehículo lleva su costo REAL a la parcela que se dijo.
 - **`src/espera.js`: EL TIEMPO ESPERANDO TAREA (Luis, 23 nov)** — Mano de obra → «Tiempo esperando tarea». Sale de
   `manoDeObra` (los ratos sin asignar dentro de la jornada): al llegar (entrada → primera asignación) y entre tareas (fin →

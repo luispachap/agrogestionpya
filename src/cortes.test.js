@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { marcar } from "./checador.js";
 import { manoDeObra, cambiarAjuste, asignar } from "./cuadrillas.js";
 import { sumarDinero } from "./calculos.js";
-import { cortesVigentes, pintar, borrarCelda, tablaDelDia, celdasDelDia, valorDe, instanteDeCorte, propuestaDelPlan, marcasPorLoPintado, actividadDeExterno, pintadosCon, llaveDePincel } from "./cortes.js";
+import { cortesVigentes, pintar, borrarCelda, tablaDelDia, celdasDelDia, valorDe, instanteDeCorte, seFueAntes, propuestaDelPlan, marcasPorLoPintado, actividadDeExterno, pintadosCon, llaveDePincel } from "./cortes.js";
 import { experienciaObservada, catalogoEn } from "./actividades.js";
 
 const ENC = { id: "enc1", nombre: "ENCARGADO", rol: "encargado" };
@@ -163,4 +163,24 @@ test("lo_asignado_en_equipos_de_trabajo_se_ve_en_la_tabla_no_sale_como_sin_pinta
   assert.equal(t2.filas[0].fila[0].despues.parcelaId, "p2", "la celda pintada avisa que a medio corte cambió por Equipos de trabajo");
   const m = mo(evs); const en = (p) => sumarDinero(m.partes.filter(x => x.trabajadorId === "t-ana" && x.parcelaId === p).map(x => x.monto));
   assert.ok(en("p2") > en("p1"), "de 7:35 a 17:00 es de la dos");
+});
+
+test("si_su_ultimo_corte_no_acababa_se_le_pone_la_entrada_y_la_salida_despues_con_el_mismo_boton", () => {
+  const F = "2026-11-23", cortes = cortesVigentes([]);
+  const p1 = pintar({ eventos: [], trabajadorIds: ["t1"], fecha: F, corteId: "c1", cortes, parcelaId: "p1", actividad: "Riego", quien: ENC, capturado: "2026-11-23T14:00:00.000Z", azar: (++n) / 1e6 });
+  const r1 = marcasPorLoPintado({ eventos: p1.eventos, trabajadorId: "t1", fecha: F, cortes, quien: ENC, capturado: "2026-11-23T14:30:00.000Z", motivo: "no checó", azar: (++n) / 1e6 });
+  assert.equal(r1.eventos.length, 1, "a las 8:30 sólo la entrada: su corte acaba a las 10"); assert.equal(r1.eventos[0].datos.sentido, "entrada");
+  const evs = [...p1.eventos, ...r1.eventos];
+  assert.equal(marcasPorLoPintado({ eventos: evs, trabajadorId: "t1", fecha: F, cortes, quien: ENC, capturado: "2026-11-23T15:00:00.000Z", motivo: "no checó", azar: (++n) / 1e6 }).ok, false, "todavía no acaba");
+  const r2 = marcasPorLoPintado({ eventos: evs, trabajadorId: "t1", fecha: F, cortes, quien: ENC, capturado: "2026-11-23T17:00:00.000Z", motivo: "no checó", azar: (++n) / 1e6 });
+  assert.equal(r2.ok, true, r2.dice); assert.equal(r2.eventos.length, 1); assert.equal(r2.eventos[0].datos.sentido, "salida"); assert.equal(r2.eventos[0].cuando, instanteDeCorte(F, "10:00"));
+  assert.equal(marcasPorLoPintado({ eventos: [...evs, ...r2.eventos], trabajadorId: "t1", fecha: F, cortes, quien: ENC, capturado: "2026-11-23T17:01:00.000Z", motivo: "otra", azar: (++n) / 1e6 }).ok, false, "con entrada y salida ya no");
+});
+
+test("a_quien_ya_se_fue_no_se_le_pinta_en_grupo_el_corte_siguiente", () => {
+  let evs = checa([], ANA, "07:00"); evs = checa(evs, ANA, "10:00");
+  assert.equal(seFueAntes(evs, { trabajadorId: "t-ana", fecha: D, instante: instanteDeCorte(D, "09:00") }), false);
+  assert.equal(seFueAntes(evs, { trabajadorId: "t-ana", fecha: D, instante: instanteDeCorte(D, "10:00") }), true);
+  evs = checa(evs, ANA, "14:00");
+  assert.equal(seFueAntes(evs, { trabajadorId: "t-ana", fecha: D, instante: instanteDeCorte(D, "14:00") }), false, "regresó: ya no se fue");
 });

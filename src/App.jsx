@@ -8,7 +8,7 @@ import { abrirAlmacenDeEventos, borrarAlmacenDeEventos } from "./almacenEventos.
 // El checador: credenciales, marcas de entrada y salida, y la jornada que sale de ellas.
 import {
   NAVE, emitirCredencial, textoDeCredencial, quienEsPorQR, quienEsPorPin, marcar, marcaQueFalto, cancelarMarca, cambiarHoraDeMarca, voltearMarca,
-  resumenDelDia as resumenDeAsistencia, presenciasDe, horasYMinutos,
+  resumenDelDia as resumenDeAsistencia, presenciasDe, horasYMinutos, marcasDe,
 } from "./checador.js";
 // Cuadrillas: a dónde se mandó a cada quien, y la mano de obra que sale de ahí.
 import {
@@ -42,7 +42,7 @@ import { CONCEPTOS_PERSONAL, POLITICAS, baseDePersonas, pagadoSinActividad, fuen
 import { T_DETERMINADA, T_PAGO_PRESTACION, CONCEPTOS_PRESTACION, cuentaDe as cuentaDePrestaciones, renglonesAlCosto, proponer as proponerPrestacion, determinar as determinarPrestacion, pagarPrestacion, nombreDePeriodo, periodosDe as periodosDePrestacion, determinadasRepetidas, T_SALDO_INICIAL, capturarSaldoInicial, CONCEPTOS_DE_SALDO, RELACIONES, remuneracionesDe } from "./prestaciones.js";
 import { estadoDeSemana, cerrarSemana, reabrirSemana, diferenciasDelCierre, confirmarPagos } from "./cierres.js";
 import { dondeEstoy, marcaDesdeSuTelefono, textoDeMarcaGps, reglasDeGps, puedeChecarConGps } from "./gps.js";
-import { cortesVigentes, pintar as pintarCorte, borrarCelda, tablaDelDia, celdasDelDia, valorDe as valorDeCelda, instanteDeCorte as instanteDeCortePara, llaveDePincel, mismoPincel, propuestaDelPlan, marcasPorLoPintado, actividadDeExterno, pintadosCon } from "./cortes.js";
+import { cortesVigentes, pintar as pintarCorte, borrarCelda, tablaDelDia, celdasDelDia, valorDe as valorDeCelda, instanteDeCorte as instanteDeCortePara, seFueAntes, llaveDePincel, mismoPincel, propuestaDelPlan, marcasPorLoPintado, actividadDeExterno, pintadosCon } from "./cortes.js";
 import { pdfComoDataUrl } from "./pdfSimple.js";
 import { costoDelMes, cerrarMes, reabrirMes, estadoDeMes, ajustesPosteriores } from "./cierreMes.js";
 import { solicitarPrestamo, autorizarPrestamo, rechazarPrestamo, entregarPrestamo, prestamosDe, ESTADOS_DE_PRESTAMO, saldoInicialDePrestamo, corregirSaldoInicial, prestarDeUnaVez, abonoAcordado } from "./prestamos.js";
@@ -2706,8 +2706,11 @@ function TablaPorCortes({ data, add, session }) {
   const quien = { id: session.id, nombre: session.nombre, rol: session.role === "superadmin" ? "admin" : session.role };
   let paso = 0; const capturado = () => new Date(Date.now() + (paso++)).toISOString();   // en orden, aunque sea el mismo instante
   const agregarPincel = (v) => { if (!todos.some(x => mismoPincel(x, v))) setPinceles(p => [...p, v]); setSel(llave(v)); };
-  const aplicar = (ids, corteId, pincel = sel) => {
+  // En grupo (`enGrupo`) no se le pinta a quien ya se fue antes de que empiece ese corte.
+  const aplicar = (idsTodos, corteId, pincel = sel, enGrupo = idsTodos.length > 1) => {
     if (pincel == null) { setDice("Primero escoge un pincel (arriba)."); return false; }
+    const c = cortes.find(x => x.id === corteId), ini = c ? instanteDeCortePara(fecha, c.desde) : null;
+    const ids = enGrupo && ini ? idsTodos.filter(id => !seFueAntes(data.eventos, { trabajadorId: id, fecha, instante: ini })) : idsTodos;
     if (!ids.length) return false;
     const base = { trabajadorIds: ids, fecha, corteId, cortes, quien, capturado: capturado(), semanaCerrada };
     const pz = pincel === "borrar" ? null : (typeof pincel === "object" ? pincel : deLlave(pincel));
@@ -2722,14 +2725,14 @@ function TablaPorCortes({ data, add, session }) {
     const grupos = new Map();
     for (const f of t.filas) { const v = valorDeCelda(celdas, f.persona.id, c0.id); if (!v || valorDeCelda(celdas, f.persona.id, c1.id)) continue; const k = llave(v); if (!grupos.has(k)) grupos.set(k, { v, ids: [] }); grupos.get(k).ids.push(f.persona.id); }
     if (!grupos.size) { setDice(`En ${c0.nombre} no hay a quién repetirle (o en ${c1.nombre} ya están pintados).`); return; }
-    for (const { v, ids } of grupos.values()) aplicar(ids, c1.id, v);
+    for (const { v, ids } of grupos.values()) aplicar(ids, c1.id, v, true);
   };
   const copiarAyer = () => {
     const ayer = sumarDias(fecha, -1); const celdas = celdasDelDia(data.eventos, { fecha: ayer }); let hubo = 0;
     for (const c of cortes) {
       const grupos = new Map();
       for (const id of presentes) { const v = valorDeCelda(celdas, id, c.id); if (!v || valorDeCelda(t.celdas, id, c.id)) continue; const k = llave(v); if (!grupos.has(k)) grupos.set(k, { v, ids: [] }); grupos.get(k).ids.push(id); }
-      for (const { v, ids } of grupos.values()) if (aplicar(ids, c.id, v)) hubo++;
+      for (const { v, ids } of grupos.values()) if (aplicar(ids, c.id, v, true)) hubo++;
     }
     if (!hubo) setDice("Ayer no hay nada pintado de la gente que vino hoy (o ya está pintado).");
   };
@@ -2738,7 +2741,7 @@ function TablaPorCortes({ data, add, session }) {
   const hayPlan = presentes.some(id => planDe(id).length);
   const pintarComoPlan = () => {
     const r = propuestaDelPlan({ indicaciones: data.indicaciones, fecha, presentes, celdas: t.celdas, cortes, ahora, normalizar: catalogo.normalizar });
-    let hubo = 0; for (const g of r.pintar) if (aplicar(g.ids, g.corteId, g.valor)) hubo++;
+    let hubo = 0; for (const g of r.pintar) if (aplicar(g.ids, g.corteId, g.valor, true)) hubo++;
     const dudas = r.dudas.map(d => `${nombrePersona(d.trabajadorId)}: ${d.dice}`);
     setDice([hubo ? "" : "No hay nada del plan que pintar (o ya está pintado, o sus cortes todavía no empiezan).", ...dudas].filter(Boolean).join(" "));
   };
@@ -2764,6 +2767,8 @@ function TablaPorCortes({ data, add, session }) {
     setDice(dichos.join(" "));
   };
   const sinChecar = t.filas.filter(f => f.pintadoSinChecar).map(f => f.persona.id);
+  // A quien se le puso a mano sólo la entrada (su último corte no acababa): falta su salida.
+  const faltaSalida = (id) => { const m = marcasDe(data.eventos, { trabajadorId: id, fecha }); return m.length === 1 && m[0].datos.sentido === "entrada" && m[0].datos.via === "correccion"; };
   // El pincel escogido: quién lo ha hecho antes (sólo informa) y lo que se puede anotar de él.
   const pz = sel && sel !== "borrar" ? deLlave(sel) : null;
   const conEse = pz ? pintadosCon(t.celdas, pz) : [];
@@ -2856,7 +2861,7 @@ function TablaPorCortes({ data, add, session }) {
         </select>}
         {t.filas.length === 0 ? <div className="text-sm text-muted">Ese día todavía no checó nadie ni se pasó lista. La tabla enseña a quien vino; para pintar a alguien que no checó, agrégalo arriba.</div> : (
           <table className="tabla-cortes" style={{ width: "100%", borderCollapse: "separate", borderSpacing: 3, fontSize: 12 }}>
-            <thead><tr><th style={{ textAlign: "left" }}>Persona</th>{cortes.map(c => <th key={c.id}><button className="btn-ghost text-xs" aria-label={`Pintar a todos en ${c.nombre}`} onClick={() => aplicar(presentes, c.id)}>{c.nombre}</button></th>)}</tr></thead>
+            <thead><tr><th style={{ textAlign: "left" }}>Persona</th>{cortes.map(c => <th key={c.id}><button className="btn-ghost text-xs" aria-label={`Pintar a todos en ${c.nombre}`} onClick={() => aplicar(presentes, c.id, sel, true)}>{c.nombre}</button></th>)}</tr></thead>
             <tbody>
               {t.filas.map(f => {
                 const plan = planDe(f.persona.id);
@@ -2864,6 +2869,7 @@ function TablaPorCortes({ data, add, session }) {
                   <tr key={f.persona.id}>
                     <td><button className="btn-ghost text-xs" style={{ textAlign: "left", padding: 0 }} aria-label={`Pintar el día de ${f.persona.nombre}`} onClick={() => { for (const c of cortes) aplicar([f.persona.id], c.id); }}>{f.persona.nombre}</button>
                       {!f.checo && <div className="text-xs" style={{ color: f.pintadoSinChecar ? "var(--gold)" : "var(--muted)" }}>{f.deLista ? "en lista, no checó" : "no checó"}</div>}
+                      {faltaSalida(f.persona.id) && <button className="acc-link text-xs" style={{ padding: 0 }} onClick={() => ponerMarcas([f.persona.id])}>Ponerle su salida por lo pintado</button>}
                       {plan.length > 0 && <div className="text-xs text-muted" aria-label={`Plan de ${f.persona.nombre}`}>Plan: {plan.map(i => `${capital(i.que) || "tarea"}${i.parcelaId ? ` en ${nombreParcela(i.parcelaId)}` : ""}${i.hora ? ` (${i.hora})` : ""}`).join("; ")}</div>}</td>
                     {f.fila.map(({ corte, celda, fuera, despues }) => {
                       const v = celda?.valor;
