@@ -538,10 +538,9 @@
   {
    "n": 47,
    "nombre": "Mis compras",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_almacen 45 · decisiones (local)",
-   "probado": "Aprobar no mete al almacén; recibir sin precio queda por valuar (ni cero ni al promedio); valuar; el flete es gasto; el flujo la cuenta una vez; la misma compra recibida desde dos teléfonos sin señal entra una vez",
-   "falta": "La captura del trabajador con su PIN y la foto del ticket"
+   "estado": "APROBADO",
+   "prueba": "auditoria_almacen 46 · decisiones (local) · auditoria_compras 16",
+   "probado": "Aprobar no mete al almacén; recibir sin precio queda por valuar (ni cero ni al promedio); valuar; el flete es gasto; el flujo la cuenta una vez; la misma compra recibida desde dos teléfonos sin señal entra una vez; la trabajadora con su PIN en el teléfono de su encargado registra su compra con la foto del ticket, sin señal y con doble toque (queda una), la foto va aparte al almacén de comprobantes; el administrador la ve, rechazar pide el porqué y aprobar deja quién y cuándo"
   },
   {
    "n": 48,
@@ -1505,6 +1504,15 @@
    "estado": "corregido",
    "publicado": false,
    "nota": "Lo que cierra algo (consumo, devolución, baja, «sigue en uso») nunca se recorre antes de lo que cierra. Apareció en el recorrido porque el reloj del servidor de imitación iba atrasado respecto al teléfono: el mismo tipo de error que un teléfono con la hora mal medida"
+  },
+  {
+   "n": 90,
+   "modulo": "Mis compras, Finanzas → Compras",
+   "que": "Aprobar o rechazar la compra de un trabajador no dejaba quién ni cuándo, y rechazar no pedía porqué (es dinero que la persona ya pagó de su bolsa)",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Aprobar deja quién y cuándo; rechazar pide el porqué y se enseña en la compra; un doble toque al mandar la compra ya no puede mandarla dos veces"
   }
  ],
  "no_se_pudo": [

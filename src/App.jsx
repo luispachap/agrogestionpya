@@ -13670,12 +13670,18 @@ function AdminContabilidad({ data, add, upd, del, cancelar, reactivar, setInv, o
                       <button className="btn btn-accent btn-sm" style={{ flex: 1 }} onClick={() => {
                         // Aprobar es sólo decir que el gasto es bueno. Lo que es para el almacén entra cuando alguien confirma que llegó
                         // (abajo, «Recibir en el almacén»): así no entra dos veces ni entra con un costo inventado.
-                        upd("compras", { ...c, estado: "aprobada" });
+                        upd("compras", { ...c, estado: "aprobada", revisadoPor: { id: session.id, nombre: session.nombre, rol: session.role }, revisadoEn: new Date().toISOString() });
                       }}>✓ Aprobar</button>
-                      <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={() => upd("compras", { ...c, estado: "rechazada" })}>✕ Rechazar</button>
+                      <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={() => {
+                        // Rechazar el gasto de alguien que ya pagó de su bolsa: se dice por qué (y queda quién y cuándo).
+                        const motivo = window.prompt(`¿Por qué se rechaza la compra «${c.descripcion}» de ${trab}?`);
+                        if (motivo == null) return;
+                        if (!motivo.trim()) { alert("Para rechazar una compra hay que decir por qué."); return; }
+                        upd("compras", { ...c, estado: "rechazada", motivoRechazo: motivo.trim(), revisadoPor: { id: session.id, nombre: session.nombre, rol: session.role }, revisadoEn: new Date().toISOString() });
+                      }}>✕ Rechazar</button>
                     </div>
                   ) : (
-                    <span className={`badge badge-${c.estado === "aprobada" ? "green" : "red"}`}>{c.estado === "aprobada" ? "✓ Aprobada" : "✕ Rechazada"}</span>
+                    <span className={`badge badge-${c.estado === "aprobada" ? "green" : "red"}`}>{c.estado === "aprobada" ? "✓ Aprobada" : "✕ Rechazada"}{c.revisadoPor?.nombre ? ` · ${c.revisadoPor.nombre}` : ""}{c.motivoRechazo ? ` — ${c.motivoRechazo}` : ""}</span>
                   )}
                 </div>
               );
@@ -13986,15 +13992,17 @@ function TrabCompras({ data, add, setInv, session, online, onLogout }) {
     setItemTmp({ nombre: "", cantidad: "", insumoId: "" });
   };
 
+  const enviando = useRef(false); // un doble toque no manda la compra dos veces (un gasto repetido se descubre tarde)
   const enviar = () => {
     if (!form.descripcion || !form.monto) { alert("Falta descripción o monto"); return; }
+    if (enviando.current) return; enviando.current = true;
     add("compras", {
       id: `co${unico()}`, fecha: form.fecha, trabajadorId: session.id, tipoTrab: session.role,
       descripcion: form.descripcion, proveedor: form.proveedor, monto: parseFloat(form.monto) || 0,
       estado: "pendiente", ticket: form.ticket, afectaInventario: form.afectaInventario, items: form.items,
     });
     setEnviado(true);
-    setTimeout(() => { setEnviado(false); setPaso(1); setForm(FORM0); }, 2800);
+    setTimeout(() => { setEnviado(false); setPaso(1); setForm(FORM0); enviando.current = false; }, 2800);
   };
 
   if (enviado) return (

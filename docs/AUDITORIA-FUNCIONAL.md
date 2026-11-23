@@ -2,7 +2,7 @@
 
 > **Generado desde `docs/ESTADO.json` con `node herramientas/estado.mjs`. No se edita a mano:** se cambia el archivo de estado y se vuelve a generar. Es la única fuente de las cifras, los módulos, los pendientes y lo publicado; el tablero de cierre sale de aquí mismo.
 
-Corte: domingo 22 de noviembre de 2026 (noche). **63 aprobados · 4 recorridos en parte · 0 sin verificar.**
+Corte: domingo 22 de noviembre de 2026 (noche). **64 aprobados · 3 recorridos en parte · 0 sin verificar.**
 
 **Veredicto: NO LISTO** como sistema completo · listo para prueba de campo en la operación diaria. Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).
 
@@ -66,7 +66,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **63 aprobados · 4 recorridos e
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
 
-## Defectos encontrados al usar los módulos (89: 89 corregidos, 19 de ellos sin publicar; 0 abiertos)
+## Defectos encontrados al usar los módulos (90: 90 corregidos, 20 de ellos sin publicar; 0 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -159,6 +159,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **63 aprobados · 4 recorridos e
 | 87 | Calendario | La superficie de una siembra no se podía corregir (y reparte el costo cuando dos temporadas comparten la parcela) | P2 | Corregido **sin publicar**: «Editar datos de la siembra» ya trae la superficie |
 | 88 | Temporadas | Reabrir una temporada la dejaba terminando el día que se cerró (lo de después ya no le entraba), sin pedir porqué; cerrar no dejaba quién; y se podía crear una que termina antes de empezar | P2 | Corregido **sin publicar**: Cerrar deja quién y cuándo; reabrir pide el porqué y quita la fecha de fin que puso el cierre; historial a la vista; las fechas se revisan |
 | 89 | Entregas del almacén | Si la corrección del reloj de un teléfono venía mal medida, el cierre de una entrega podía quedar ordenado ANTES de la entrega: en otro teléfono salía como «cierre sin su entrega» y lo usado no contaba | P1 | Corregido **sin publicar**: Lo que cierra algo (consumo, devolución, baja, «sigue en uso») nunca se recorre antes de lo que cierra. Apareció en el recorrido porque el reloj del servidor de imitación iba atrasado respecto al teléfono: el mismo tipo de error que un teléfono con la hora mal medida |
+| 90 | Mis compras, Finanzas → Compras | Aprobar o rechazar la compra de un trabajador no dejaba quién ni cuándo, y rechazar no pedía porqué (es dinero que la persona ya pagó de su bolsa) | P2 | Corregido **sin publicar**: Aprobar deja quién y cuándo; rechazar pide el porqué y se enseña en la compra; un doble toque al mandar la compra ya no puede mandarla dos veces |
 
 ## Lo que no se pudo ejecutar y por qué
 
@@ -221,7 +222,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **63 aprobados · 4 recorridos e
 | 44 | Entregas del almacén | **APROBADO** | auditoria_entregas 14 · auditoria_almacen 46 · auditoria_entregas2 17 · almacen 55 (local) | Entregar a una persona (exige quién recibe), entregar no es gastar, se ve quién lo trae, cerrar con lo usado y lo regresado, ahí nace el costo; los dos teléfonos cerrando la misma entrega sin señal: cuenta una vez y queda «por revisar»; uso directo; con cuentas: herramienta prestada (no se pregunta para qué ni cuánto se usó), «sigue en uso» con fecha, baja con causa y valor (no descuenta a nadie) y la decisión aparte en el teléfono del administrador, traslados entre bodegas desde dos teléfonos sin señal (los dos cuentan), y la herramienta que no regresa a los ocho días | undefined |
 | 45 | Conteo y mermas | **APROBADO** | auditoria_almacen 45 · movimientos.test | Conteo a ciegas (no enseña el número antes), causa obligatoria si no cuadra, merma con causa, importe al costo del día, baja el valor del inventario y no es salida de dinero | Conteo en otra bodega |
 | 46 | Solicitudes de compra | **APROBADO** | auditoria_almacen 45 · auditoria_identidad 27 | El encargado pide (no mueve nada), no se le ofrece comprar; el administrador registra la compra: sube la existencia, sale el dinero una vez, no cambia el resultado; ya comprada no se repite; la misma solicitud comprada desde dos teléfonos sin señal entra una vez | Cotizar por WhatsApp (abre otra aplicación) |
-| 47 | Mis compras | **PARCIAL** | auditoria_almacen 45 · decisiones (local) | Aprobar no mete al almacén; recibir sin precio queda por valuar (ni cero ni al promedio); valuar; el flete es gasto; el flujo la cuenta una vez; la misma compra recibida desde dos teléfonos sin señal entra una vez | La captura del trabajador con su PIN y la foto del ticket |
+| 47 | Mis compras | **APROBADO** | auditoria_almacen 46 · decisiones (local) · auditoria_compras 16 | Aprobar no mete al almacén; recibir sin precio queda por valuar (ni cero ni al promedio); valuar; el flete es gasto; el flujo la cuenta una vez; la misma compra recibida desde dos teléfonos sin señal entra una vez; la trabajadora con su PIN en el teléfono de su encargado registra su compra con la foto del ticket, sin señal y con doble toque (queda una), la foto va aparte al almacén de comprobantes; el administrador la ve, rechazar pide el porqué y aprobar deja quién y cuándo | undefined |
 | 48 | Registrar compra | **APROBADO** | auditoria_agronomo 23 | Insumo nuevo y existente, costo promedio, no es gasto, sale una vez del flujo, nombre repetido no entra, el encargado no la tiene | — |
 | 49 | Proveedores | **APROBADO** | auditoria_proveedores 27 · base 4 | Directorio, crédito con vencimiento, abonos en dinero y en especie, cancelar abono (no borrar) con bitácora, recarga, dos teléfonos con uno sin señal, perfiles | — |
 | 50 | Equipo | **APROBADO** | entrega 68 · auditoria_pagos · auditoria_semana · auditoria_hoja_pagos 44 · auditoria_personal 23 | Alta de planta, encargado (PIN repetido no entra) y máquina (sin nombre o repetida no entra), cambio de sueldo con historial desde hoy, encargado sin edición de sueldos, otro aparato, recarga | La baja se hace en Pagos al personal → Prestaciones (su propia auditoría) |
