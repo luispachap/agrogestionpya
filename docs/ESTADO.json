@@ -825,7 +825,7 @@
       "que": "El proveedor se guarda distinto en cada pantalla (texto / ficha)",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Una deuda nueva apunta a la ficha del proveedor; un nombre que ya existe usa esa ficha; las de antes se leen como de la ficha que se llama igual"
     },
     {
@@ -843,7 +843,7 @@
       "que": "Los cortes, conteos y cajas de plástico de la corrida se pueden borrar sin motivo; y la configuración se guarda con un nombre fijo, no por espacio",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Quitar un corte, conteo o entrada de limpio pide el porqué y queda en el reporte del día; la configuración se guarda por espacio"
     },
     {
@@ -1050,7 +1050,7 @@
       "que": "La cosecha se lleva una por parcela para siempre: el «costo por kilo» de la pantalla de Cosechas junta todas las temporadas de esa parcela (el resultado por temporada, en Finanzas y en Comparar variedades, sí separa por fechas)",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "El costo por kilo es el de la temporada (entre su siembra y su cosecha), con una tabla por temporada en el detalle"
     },
     {
@@ -1365,7 +1365,7 @@
       "que": "Se podía dar de alta una máquina sin nombre, o la misma dos veces (su diésel, horómetro y costo real quedaban partidos)",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Sin nombre o con un nombre que ya existe no entra; el formulario se limpia al guardar"
     },
     {
@@ -1374,7 +1374,7 @@
       "que": "El inventario de ajo terminado era un número que cada teléfono reescribía: con dos teléfonos (la corrida y un embarque) el último en subir borraba la entrada o la salida del otro; y el primer lote de un calibre hecho en dos teléfonos sin señal quedaba repetido",
       "nivel": "P1",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Cada lote (cultivo + calibre) tiene identidad propia, sus cajas y kilos salen de sus movimientos y los movimientos se unen entre teléfonos; los lotes repetidos de antes se enseñan como uno"
     },
     {
@@ -1383,7 +1383,7 @@
       "que": "Cargar más de lo que había dejaba el lote en cero: la diferencia (que el propio aviso pedía revisar) desaparecía",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "El lote queda en negativo, en rojo, con «Salieron N más de las registradas: por explicar»"
     },
     {
@@ -1392,7 +1392,7 @@
       "que": "Cerrar a mano una tarima que todavía traía cajas sólo pedía «¿Confirmar?»: esas cajas salían de circulación sin porqué ni quién",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Si trae cajas pide el porqué; queda con quién y cuándo"
     },
     {
@@ -1401,7 +1401,7 @@
       "que": "Las categorías aparte escribían la existencia del artículo («Ajo Corona») en vez de dejar una entrada, y el artículo se creaba con un identificador al azar: dos teléfonos hacían dos «Ajo Corona»",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Un artículo por categoría con identidad propia; lo que entra es una entrada al almacén con fecha y quién"
     },
     {
@@ -1410,7 +1410,7 @@
       "que": "Dos muestras de calidad sin hora tecleada (lo normal) se ordenaban al revés y la tendencia decía «mejorando» cuando empeoraba; tampoco ordenaba bien 9:50 contra 10:05",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "La muestra se guarda con la hora de ahora y cuándo se capturó; el orden respeta la hora de un dígito"
     },
     {
@@ -1419,7 +1419,7 @@
       "que": "Con un tractor y sin nadie de planta en la captura (sólo externos o cuadrillas), las horas y el costo del tractor no quedaban en ningún lado",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "La máquina va una vez, en el primer renglón que se guarde, sea de quien sea"
     },
     {
@@ -1428,7 +1428,7 @@
       "que": "Todo artículo sin mínimo capturado que estuviera en cero salía como «stock crítico» (el ajo de categoría aparte recién creado, una herramienta prestada): alarmas que no lo eran",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Sin mínimo no hay «bajo»; en negativo sí se avisa, como existencia que falta explicar; una sola regla en las cinco pantallas"
     },
     {
@@ -1437,7 +1437,7 @@
       "que": "Dar una indicación por hecha no dejaba quién ni cuándo, y borrarla era un solo toque sin pregunta",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Queda quién y cuándo la dio por hecha (también desde el teléfono del trabajador); borrar pregunta y dice quién deja de verla"
     },
     {
@@ -1446,7 +1446,7 @@
       "que": "Eliminar una aplicación dejaba su costo cargado a la parcela y el producto descontado, y quitaba en silencio el aviso de «no entrar»",
       "nivel": "P1",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Ya no se borra: se cancela con su porqué; queda tachada, el producto regresa al almacén con el costo con que salió y su costo se cancela con el mismo porqué"
     },
     {
@@ -1455,7 +1455,7 @@
       "que": "Una siembra con actividades, cosecha o estibas se podía eliminar con un «¿Eliminar?»: todo lo de esa temporada se quedaba sin ciclo",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Si tiene registros dice cuáles y no se elimina (márcala como cosechada); la sembrada por error sí"
     },
     {
@@ -1464,7 +1464,7 @@
       "que": "La semilla propia ofrecía «undefined · parcela · 0 kg» (la cosecha de una parcela no tiene fecha ni cantidad propias) y no decía de qué temporada salió",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Ofrece cada temporada que cosechó, con parcela, cultivo, año y kilos; la siembra queda ligada a esa temporada"
     },
     {
@@ -1473,7 +1473,7 @@
       "que": "La aplicación tomaba el cultivo anotado en la parcela, no el de la temporada de ese día, y no quedaba ligada a la temporada",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Cultivo y temporada salen de la siembra que la parcela tenía ese día"
     },
     {
@@ -1482,7 +1482,7 @@
       "que": "La superficie de una siembra no se podía corregir (y reparte el costo cuando dos temporadas comparten la parcela)",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "«Editar datos de la siembra» ya trae la superficie"
     },
     {
@@ -1491,7 +1491,7 @@
       "que": "Reabrir una temporada la dejaba terminando el día que se cerró (lo de después ya no le entraba), sin pedir porqué; cerrar no dejaba quién; y se podía crear una que termina antes de empezar",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Cerrar deja quién y cuándo; reabrir pide el porqué y quita la fecha de fin que puso el cierre; historial a la vista; las fechas se revisan"
     },
     {
@@ -1500,7 +1500,7 @@
       "que": "Si la corrección del reloj de un teléfono venía mal medida, el cierre de una entrega podía quedar ordenado ANTES de la entrega: en otro teléfono salía como «cierre sin su entrega» y lo usado no contaba",
       "nivel": "P1",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Lo que cierra algo (consumo, devolución, baja, «sigue en uso») nunca se recorre antes de lo que cierra. Apareció en el recorrido porque el reloj del servidor de imitación iba atrasado respecto al teléfono: el mismo tipo de error que un teléfono con la hora mal medida"
     },
     {
@@ -1509,7 +1509,7 @@
       "que": "Aprobar o rechazar la compra de un trabajador no dejaba quién ni cuándo, y rechazar no pedía porqué (es dinero que la persona ya pagó de su bolsa)",
       "nivel": "P2",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "Aprobar deja quién y cuándo; rechazar pide el porqué y se enseña en la compra; un doble toque al mandar la compra ya no puede mandarla dos veces"
     }
   ],
@@ -1535,7 +1535,7 @@
     {
       "que": "La app en app.agroselectos.com",
       "estado": "publicado",
-      "detalle": "Versión `52fbafb`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio (18 de 18)."
+      "detalle": "Versión `0d217b0` (23 nov, 4:40 de la mañana), la misma sobre la que corrió la batería completa (67 recorridos); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6."
     },
     {
       "que": "La hoja de pagos que se firma: lo que ya debían al arrancar, prestar en un paso, pago en dos partes, sueldo por semana entre 6 y la importación que no confunde el sueldo de la semana",
