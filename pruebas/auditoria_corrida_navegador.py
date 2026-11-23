@@ -62,18 +62,30 @@ with sync_playwright() as p:
     A.get_by_role("button", name="Elegir tarimas").first.click(); A.wait_for_timeout(300)
     for c in ["AS-L-901", "AS-L-902"]: A.locator(".tarima-chip", has_text=c).first.click(); A.wait_for_timeout(150)
     A.get_by_role("button", name="✓ Listo").click(); A.wait_for_timeout(300)
-    A.locator(".toggle-row", has_text="Precisa").click(); A.wait_for_timeout(300); t = plano(A.locator("body").inner_text())
-    caso("el modo revoltura se prende y dice que se reparte por saldo", "Revoltura" in t and "se reparte por saldo" in t, t[t.find("Origen"):][:300])
+    # PRECISA y CAMBIO DE TARIMA a media corrida: 10 cajas del 7 de la AS-L-901, cambio a la AS-L-902, 10 más del 7.
     campo(A, "Responsable").fill("ENCARGADO DE BODEGA INVENTADO")
     fila = lambda cal: A.locator("xpath=//span[normalize-space(.)='%s']/ancestor::div[.//button[contains(., 'cerrar estiba')]][1]" % cal)
     etq = A.evaluate("() => [...document.querySelectorAll('span.font-bold')].map(x => x.innerText).filter(x => /\\d/.test(x)).slice(0, 12)")
-    cal8 = [x for x in etq if "8" in x][0]
+    cal7 = [x for x in etq if "7" in x][0]; cal8 = [x for x in etq if "8" in x][0]
+    A.locator(".tarima-chip", has_text="AS-L-901").first.click(); A.wait_for_timeout(300)
+    fila(cal7).get_by_role("button", name="+10").click(); A.wait_for_timeout(150); n0 = len(A.dialogos)
+    A.locator(".tarima-chip", has_text="AS-L-902").first.click(); A.wait_for_timeout(400); t = plano(A.locator("body").inner_text())
+    caso("CAMBIO DE TARIMA: avisa lo que rindió la tarima que sale y la nueva queda corriendo", any("Vas a cambiar de tarima" in d and "AS-L-901" in d for d in A.dialogos[n0:]) and "corriendo" in A.locator(".tarima-chip", has_text="AS-L-902").first.inner_text().lower(), A.dialogos[n0:])
+    fila(cal7).get_by_role("button", name="+10").click(); A.wait_for_timeout(150)
+    fila(cal7).get_by_role("button", name="cerrar estiba").click(); A.wait_for_timeout(300)
+    campo(A, "Peso bruto (kg)").fill("215"); campo(A, "Tara (kg)").fill("15")
+    A.get_by_role("button", name="Cerrar y generar folio").click(); A.wait_for_timeout(900)
+    if A.get_by_role("button", name="Volver a la corrida").count(): A.get_by_role("button", name="Volver a la corrida").click(); A.wait_for_timeout(400)
+    c7 = [e for e in D(A, "estibas") if e["fase"] == "calibre"]
+    caso("la estiba del 7 (20 cajas) dice exacto de dónde salió: 10 de la AS-L-901 y 10 de la AS-L-902", len(c7) == 1 and {x["id"]: x["cajas"] for x in c7[0].get("consumos") or []} == {"L1": 10, "L2": 10}, [x for x in (c7[0].get("consumos") if c7 else [])])
+    A.locator(".toggle-row", has_text="Precisa").click(); A.wait_for_timeout(300); t = plano(A.locator("body").inner_text())
+    caso("el modo revoltura se prende y dice que se reparte por saldo", "Revoltura" in t and "se reparte por saldo" in t, t[t.find("Origen"):][:300])
     for _ in range(2): fila(cal8).get_by_role("button", name="+10").click()
     fila(cal8).get_by_role("button", name="cerrar estiba").click(); A.wait_for_timeout(300)
     campo(A, "Peso bruto (kg)").fill("210"); campo(A, "Tara (kg)").fill("10")
     A.get_by_role("button", name="Cerrar y generar folio").click(); A.wait_for_timeout(900)
     if A.get_by_role("button", name="Volver a la corrida").count(): A.get_by_role("button", name="Volver a la corrida").click(); A.wait_for_timeout(400)
-    c8 = [e for e in D(A, "estibas") if e["fase"] == "calibre"]
+    c8 = [e for e in D(A, "estibas") if e["fase"] == "calibre" and str(e.get("calibre")) == "8"]
     cons = {x["id"]: x["cajas"] for x in (c8[0].get("consumos") or [])} if c8 else {}
     caso("REVOLTURA: la estiba de 20 cajas del 8 se reparte entre las dos tarimas según su saldo (50 y 30 → 13 y 7)", len(c8) == 1 and cons == {"L1": 13, "L2": 7}, cons)
     est = {e["id"]: e for e in D(A, "estibas")}
@@ -83,7 +95,7 @@ with sync_playwright() as p:
     A.get_by_role("button", name="Elegir tarimas").first.click(); A.wait_for_timeout(300)
     A.get_by_role("button", name="Tarima limpiada hoy").click(); A.wait_for_timeout(300)
     A.get_by_role("button", name="Meter a la mesa").click(); A.wait_for_timeout(300)
-    caso("sin cajas no se mete nada y la app pregunta cuántas trae", len(D(A, "estibas")) == 4 and "cajas" in (A.dialogos[-1] if A.dialogos else "").lower(), A.dialogos[-1:])
+    caso("sin cajas no se mete nada y la app pregunta cuántas trae", len(D(A, "estibas")) == 5 and "cajas" in (A.dialogos[-1] if A.dialogos else "").lower(), A.dialogos[-1:])
     A.locator(".card", has_text="Tarima limpiada ahora").last.locator(".form-group", has_text="Cajas").locator("input").fill("15")
     A.locator(".card", has_text="Tarima limpiada ahora").last.locator("select").select_option("p1")
     A.get_by_role("button", name="Meter a la mesa").click(); A.wait_for_timeout(700)
@@ -96,7 +108,7 @@ with sync_playwright() as p:
     A.get_by_role("button", name="alto", exact=True).click(); A.wait_for_timeout(150)
     A.get_by_role("button", name="Tomar corte ahora").click(); A.wait_for_timeout(300)
     t = plano(A.locator("body").inner_text())
-    caso("el corte queda con su total (20 cajas) y el ritmo al que iba (alto)", "ritmo alto" in t and "20 cajas" in t.split("Corte ")[-1][:120], t[t.find("Corte "):][:200])
+    caso("el corte queda con su total (40 cajas: 20 del 7 y 20 del 8) y el ritmo al que iba (alto)", "ritmo alto" in t and "40 cajas" in t.split("Corte ")[-1][:120], t[t.find("Corte "):][:200])
     caso("después del corte la app sugiere tomar una muestra de calidad (no la obliga)", "Ahora toma una muestra de calidad" in t, "")
     fila(cal8).get_by_role("button", name="+5").click(); A.wait_for_timeout(150)
     A.get_by_role("button", name="Tomar corte ahora").click(); A.wait_for_timeout(300)
@@ -106,7 +118,7 @@ with sync_playwright() as p:
     caso("si no se dice por qué, el corte NO se quita", A.locator("div.flex-b").filter(has=A.locator("span", has_text="Corte ")).count() == 2)
     A.respuesta = "SE TOMÓ DOS VECES"; A.locator("div.flex-b").filter(has=A.locator("span", has_text="Corte ")).nth(1).locator("button").click(); A.wait_for_timeout(400)
     t = plano(A.locator("body").inner_text()); q = A.locator("[aria-label='Quitado de la corrida']")
-    caso("con su porqué sí se quita, y queda a la vista qué se quitó, a qué hora y por qué", A.locator("div.flex-b").filter(has=A.locator("span", has_text="Corte ")).count() == 1 and q.count() == 1 and "SE TOMÓ DOS VECES" in q.inner_text() and "corte de 25 cajas" in q.inner_text(), q.inner_text() if q.count() else t[:300])
+    caso("con su porqué sí se quita, y queda a la vista qué se quitó, a qué hora y por qué", A.locator("div.flex-b").filter(has=A.locator("span", has_text="Corte ")).count() == 1 and q.count() == 1 and "SE TOMÓ DOS VECES" in q.inner_text() and "corte de 45 cajas" in q.inner_text(), q.inner_text() if q.count() else t[:300])
     A.respuesta = "Motivo de prueba"
 
     # ── 4 · CALIDAD: dos muestras; la app enseña la tendencia y NO ordena ──
@@ -146,7 +158,7 @@ with sync_playwright() as p:
     # ── 7 · ESTIBAS: re-limpia, alta individual, sin origen y cerrar una tarima con cajas ──
     ir(A, "estibas")
     A.locator(".tab-pill", has_text="Calibre").click(); A.wait_for_timeout(300)
-    A.get_by_role("button", name="rastrear").first.click(); A.wait_for_timeout(400); t = plano(A.locator("body").inner_text())
+    A.locator(".list-item", has_text=c8[0]["codigo"]).get_by_role("button", name="rastrear").click(); A.wait_for_timeout(400); t = plano(A.locator("body").inner_text())
     caso("rastrear la estiba de revoltura llega a las DOS parcelas", "PARCELA UNO" in t and "PARCELA DOS" in t, t[:500])
     A.locator(".top-bar .btn-ghost").first.click(); A.wait_for_timeout(300)
     A.locator(".tab-pill", has_text="Re-limpia").click(); A.wait_for_timeout(300)

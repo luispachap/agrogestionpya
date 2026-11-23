@@ -369,18 +369,17 @@
   {
    "n": 24,
    "nombre": "Corrida de ajo",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_bodega 48 · corridaViva.test",
-   "probado": "Corrida en vivo completa: tarima de limpio a la mesa, conteo por calibre, cierre de estiba con peso y folio, conteo físico, salir y volver, recargar, terminar el día con ajuste de la tarima, un solo reporte",
-   "falta": "Pestañas Calidad y Categorías aparte, modo revoltura, cambio de tarima a media corrida, tarima limpiada hoy, cortes de 15 minutos"
+   "estado": "APROBADO",
+   "prueba": "auditoria_bodega 48 · auditoria_corrida 49 · corridaViva.test",
+   "probado": "Corrida en vivo completa (tarima a la mesa, conteo por calibre, cierre con peso y folio, conteo físico, salir, recargar, terminar el día); cambio de tarima a media corrida con la traza exacta de cada una; revoltura repartida por saldo hasta las dos parcelas; tarima limpiada hoy; cortes con su ritmo y quitar uno con su porqué (queda en el reporte); dos muestras de calidad con su tendencia, que informa y no manda; categorías aparte como entradas al almacén, un artículo por categoría desde dos teléfonos"
   },
   {
    "n": 25,
    "nombre": "Estibas",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_bodega 48",
-   "probado": "Alta masiva de barbecho desde la parcela, limpio que consume barbecho, saldos, rastreo hasta la parcela, etiquetas, otro teléfono; la estiba recién cerrada sube con su peso (la base no la rechaza)",
-   "falta": "Re-limpia, alta individual, estiba sin origen, cierre manual de una estiba, imprimir"
+   "estado": "APROBADO",
+   "prueba": "auditoria_bodega 48 · auditoria_corrida 49",
+   "probado": "Alta masiva y alta individual de barbecho, limpio que consume barbecho, re-limpia que consume limpio, estiba sin origen (avisa y lo deja escrito), cerrar una tarima con cajas pide el porqué y queda con quién y cuándo, rastreo hasta la parcela, otro teléfono",
+   "falta": "Imprimir las etiquetas (se comprobó que salen; la impresora es prueba de campo)"
   },
   {
    "n": 26,
@@ -393,26 +392,23 @@
   {
    "n": 27,
    "nombre": "Salida de camión",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_bodega 48",
-   "probado": "Embarque a cliente: tarima pesada, folio, formato, baja del terminado, queda pendiente de cobro, no es venta todavía",
-   "falta": "Salida a nuestra bodega, varias tarimas y calibres, estiba de origen, cargar más de lo que hay, remisión impresa"
+   "estado": "APROBADO",
+   "prueba": "auditoria_bodega 48 · auditoria_corrida 49",
+   "probado": "Embarque con varias tarimas, cargar más de lo que hay (avisa, no bloquea, y el lote queda en negativo a la vista), salida a nuestra bodega (sin cobro), baja del terminado, folio y formato; dos teléfonos sin señal sobre el mismo lote: un lote, tres movimientos, la misma cifra en los dos"
   },
   {
    "n": 28,
    "nombre": "Consignaciones",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_bodega 48 · auditoria_cobros 15",
-   "probado": "Pendiente de cobro, cobrar en dinero, nace una sola venta, llega a resultados y flujo, el encargado no entra; pagos parciales desde dos teléfonos sin señal (los dos cobros quedan, cada uno con identidad, importe, fecha, autor y su venta ligada); doble toque registra un solo cobro; el último pago lo deja cobrado sin perder los anteriores",
-   "falta": "Pago a cuenta de una deuda en pantalla (la regla del flujo sí está probada en cálculo)"
+   "estado": "APROBADO",
+   "prueba": "auditoria_bodega 48 · auditoria_cobros 15 · auditoria_corrida 49",
+   "probado": "Cobrar en dinero, pagos parciales desde dos teléfonos sin señal, doble toque, y pago a cuenta de una deuda: el embarque sigue pendiente por el resto, la deuda baja, la venta cuenta en el resultado y NO en el flujo; el encargado no entra"
   },
   {
    "n": 29,
    "nombre": "Comercialización",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_bodega 48",
-   "probado": "Enseña la venta con su cliente y el precio por kilo",
-   "falta": "Sólo se comprobó una venta; faltan varios clientes y periodos"
+   "estado": "APROBADO",
+   "prueba": "auditoria_bodega 48 · auditoria_corrida 49",
+   "probado": "Varios clientes: cada uno con sus kilos, lo cobrado y su precio por kilo; lo pendiente en la calle"
   },
   {
    "n": 30,
@@ -1385,6 +1381,51 @@
    "estado": "corregido",
    "publicado": false,
    "nota": "Sin nombre o con un nombre que ya existe no entra; el formulario se limpia al guardar"
+  },
+  {
+   "n": 75,
+   "modulo": "Ajo terminado, Salida de camión",
+   "que": "El inventario de ajo terminado era un número que cada teléfono reescribía: con dos teléfonos (la corrida y un embarque) el último en subir borraba la entrada o la salida del otro; y el primer lote de un calibre hecho en dos teléfonos sin señal quedaba repetido",
+   "nivel": "P1",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Cada lote (cultivo + calibre) tiene identidad propia, sus cajas y kilos salen de sus movimientos y los movimientos se unen entre teléfonos; los lotes repetidos de antes se enseñan como uno"
+  },
+  {
+   "n": 76,
+   "modulo": "Ajo terminado, Salida de camión",
+   "que": "Cargar más de lo que había dejaba el lote en cero: la diferencia (que el propio aviso pedía revisar) desaparecía",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "El lote queda en negativo, en rojo, con «Salieron N más de las registradas: por explicar»"
+  },
+  {
+   "n": 77,
+   "modulo": "Estibas",
+   "que": "Cerrar a mano una tarima que todavía traía cajas sólo pedía «¿Confirmar?»: esas cajas salían de circulación sin porqué ni quién",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Si trae cajas pide el porqué; queda con quién y cuándo"
+  },
+  {
+   "n": 78,
+   "modulo": "Corrida de ajo",
+   "que": "Las categorías aparte escribían la existencia del artículo («Ajo Corona») en vez de dejar una entrada, y el artículo se creaba con un identificador al azar: dos teléfonos hacían dos «Ajo Corona»",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Un artículo por categoría con identidad propia; lo que entra es una entrada al almacén con fecha y quién"
+  },
+  {
+   "n": 79,
+   "modulo": "Corrida de ajo",
+   "que": "Dos muestras de calidad sin hora tecleada (lo normal) se ordenaban al revés y la tendencia decía «mejorando» cuando empeoraba; tampoco ordenaba bien 9:50 contra 10:05",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "La muestra se guarda con la hora de ahora y cuándo se capturó; el orden respeta la hora de un dígito"
   }
  ],
  "no_se_pudo": [
