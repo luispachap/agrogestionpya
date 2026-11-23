@@ -1511,6 +1511,24 @@
       "estado": "corregido",
       "publicado": true,
       "nota": "Aprobar deja quién y cuándo; rechazar pide el porqué y se enseña en la compra; un doble toque al mandar la compra ya no puede mandarla dos veces"
+    },
+    {
+      "n": 91,
+      "modulo": "Tabla por cortes",
+      "que": "Lo asignado en Equipos de trabajo no se veía en la tabla: salía «checó y no está pintado» (falso), y pintar el corte de antes le ponía fin a esa asignación al acabar el corte, así que el resto del día quedaba sin asignar",
+      "nivel": "P2",
+      "estado": "corregido",
+      "publicado": false,
+      "nota": "La tabla lo enseña punteado y no lo pisa: no hay aviso falso, pintar el corte de antes no lo termina, y un cambio a medio corte se avisa en la celda"
+    },
+    {
+      "n": 92,
+      "modulo": "Checar con el teléfono propio",
+      "que": "Con el GPS impreciso, alguien lejísimos de todo rancho quedaba registrado «por revisar» en vez de no registrarse",
+      "nivel": "P2",
+      "estado": "corregido",
+      "publicado": false,
+      "nota": "Si ni con su margen de error alcanza a estar en un rancho, está lejos: no se registra"
     }
   ],
   "no_se_pudo": [

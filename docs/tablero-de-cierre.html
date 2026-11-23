@@ -67,7 +67,7 @@ ol.lista { margin: 0; padding-left: 1.4em; display: flex; flex-direction: column
 <div class="hoja">
   <header style="display:flex;flex-direction:column;gap:6px">
     <h1>AgroGestión 1.0 · tablero de cierre</h1>
-    <div class="corte">Corte: domingo 22 de noviembre de 2026 (noche) · 66 módulos aprobados, 1 en parte y 0 sin verificar, de 67 · 90 defectos encontrados, 90 corregidos, todos publicados</div>
+    <div class="corte">Corte: domingo 22 de noviembre de 2026 (noche) · 66 módulos aprobados, 1 en parte y 0 sin verificar, de 67 · 92 defectos encontrados, 92 corregidos, 2 de ellos sin publicar</div>
   </header>
 
   <div class="veredicto">
@@ -92,7 +92,7 @@ ol.lista { margin: 0; padding-left: 1.4em; display: flex; flex-direction: column
       <div><b>66</b><span>aprobados: Operación, El día, ¿Alcanza?, Resumen, ¿Cómo vamos?, Mensajes, Registrar actividad, Registro de varios, Aplicaciones, Indicaciones, Tareas, Reportar, Mapa del rancho, Parcelas, Estado de parcelas, Calendario, Cosechas, Rendimiento por parcela, Variedades, Comparar variedades, Hoja de Fito, Dron, Ganado, Corrida de ajo, Estibas, Ajo terminado, Salida de camión, Consignaciones, Comercialización, Mano de obra, Finanzas, Movimientos, Caja chica, Importar documentos, Banco, Socios, Deudas, Semana, Reportes, Temporadas, ContPAQi, Inventario, Entregas del almacén, Conteo y mermas, Solicitudes de compra, Mis compras, Registrar compra, Proveedores, Equipo, Personal, Equipos de trabajo, Cuadrillas, Checador, Jornadas, Credenciales, Pase de lista, Asistencia, Pagos al personal, Aprobar externos, Mis días, Arranque, Organización, Bitácora, Seguridad, Respaldo, Subir catálogos</span></div>
       <div><b>1</b><span>en parte: Papeles</span></div>
       <div><b>0</b><span>sin verificar con este criterio; de ellos, 0 sólo se sabe que abren</span></div>
-      <div><b>90</b><span>defectos encontrados al usarlos: 90 corregidos y vueltos a probar y publicados, 0 abiertos</span></div>
+      <div><b>92</b><span>defectos encontrados al usarlos: 92 corregidos y vueltos a probar (2 sin publicar), 0 abiertos</span></div>
     </div>
   </section>
 
@@ -243,6 +243,8 @@ ol.lista { margin: 0; padding-left: 1.4em; display: flex; flex-direction: column
       <tr><td class="n">88</td><td>Temporadas</td><td>Reabrir una temporada la dejaba terminando el día que se cerró (lo de después ya no le entraba), sin pedir porqué; cerrar no dejaba quién; y se podía crear una que termina antes de empezar<div class="nota">Cerrar deja quién y cuándo; reabrir pide el porqué y quita la fecha de fin que puso el cierre; historial a la vista; las fechas se revisan</div></td><td><span class="p gris">P2</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
       <tr><td class="n">89</td><td>Entregas del almacén</td><td>Si la corrección del reloj de un teléfono venía mal medida, el cierre de una entrega podía quedar ordenado ANTES de la entrega: en otro teléfono salía como «cierre sin su entrega» y lo usado no contaba<div class="nota">Lo que cierra algo (consumo, devolución, baja, «sigue en uso») nunca se recorre antes de lo que cierra. Apareció en el recorrido porque el reloj del servidor de imitación iba atrasado respecto al teléfono: el mismo tipo de error que un teléfono con la hora mal medida</div></td><td><span class="p aviso">P1</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
       <tr><td class="n">90</td><td>Mis compras, Finanzas → Compras</td><td>Aprobar o rechazar la compra de un trabajador no dejaba quién ni cuándo, y rechazar no pedía porqué (es dinero que la persona ya pagó de su bolsa)<div class="nota">Aprobar deja quién y cuándo; rechazar pide el porqué y se enseña en la compra; un doble toque al mandar la compra ya no puede mandarla dos veces</div></td><td><span class="p gris">P2</span></td><td><span class="p ok">Corregido y publicado</span></td></tr>
+      <tr><td class="n">91</td><td>Tabla por cortes</td><td>Lo asignado en Equipos de trabajo no se veía en la tabla: salía «checó y no está pintado» (falso), y pintar el corte de antes le ponía fin a esa asignación al acabar el corte, así que el resto del día quedaba sin asignar<div class="nota">La tabla lo enseña punteado y no lo pisa: no hay aviso falso, pintar el corte de antes no lo termina, y un cambio a medio corte se avisa en la celda</div></td><td><span class="p gris">P2</span></td><td><span class="p aviso">Corregido, sin publicar</span></td></tr>
+      <tr><td class="n">92</td><td>Checar con el teléfono propio</td><td>Con el GPS impreciso, alguien lejísimos de todo rancho quedaba registrado «por revisar» en vez de no registrarse<div class="nota">Si ni con su margen de error alcanza a estar en un rancho, está lejos: no se registra</div></td><td><span class="p gris">P2</span></td><td><span class="p aviso">Corregido, sin publicar</span></td></tr>
     </tbody></table></div>
   </section>
 

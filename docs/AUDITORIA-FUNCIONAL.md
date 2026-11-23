@@ -66,7 +66,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **66 aprobados · 1 recorridos e
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
 
-## Defectos encontrados al usar los módulos (90: 90 corregidos, 0 de ellos sin publicar; 0 abiertos)
+## Defectos encontrados al usar los módulos (92: 92 corregidos, 2 de ellos sin publicar; 0 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -160,6 +160,8 @@ Corte: domingo 22 de noviembre de 2026 (noche). **66 aprobados · 1 recorridos e
 | 88 | Temporadas | Reabrir una temporada la dejaba terminando el día que se cerró (lo de después ya no le entraba), sin pedir porqué; cerrar no dejaba quién; y se podía crear una que termina antes de empezar | P2 | Corregido y publicado: Cerrar deja quién y cuándo; reabrir pide el porqué y quita la fecha de fin que puso el cierre; historial a la vista; las fechas se revisan |
 | 89 | Entregas del almacén | Si la corrección del reloj de un teléfono venía mal medida, el cierre de una entrega podía quedar ordenado ANTES de la entrega: en otro teléfono salía como «cierre sin su entrega» y lo usado no contaba | P1 | Corregido y publicado: Lo que cierra algo (consumo, devolución, baja, «sigue en uso») nunca se recorre antes de lo que cierra. Apareció en el recorrido porque el reloj del servidor de imitación iba atrasado respecto al teléfono: el mismo tipo de error que un teléfono con la hora mal medida |
 | 90 | Mis compras, Finanzas → Compras | Aprobar o rechazar la compra de un trabajador no dejaba quién ni cuándo, y rechazar no pedía porqué (es dinero que la persona ya pagó de su bolsa) | P2 | Corregido y publicado: Aprobar deja quién y cuándo; rechazar pide el porqué y se enseña en la compra; un doble toque al mandar la compra ya no puede mandarla dos veces |
+| 91 | Tabla por cortes | Lo asignado en Equipos de trabajo no se veía en la tabla: salía «checó y no está pintado» (falso), y pintar el corte de antes le ponía fin a esa asignación al acabar el corte, así que el resto del día quedaba sin asignar | P2 | Corregido **sin publicar**: La tabla lo enseña punteado y no lo pisa: no hay aviso falso, pintar el corte de antes no lo termina, y un cambio a medio corte se avisa en la celda |
+| 92 | Checar con el teléfono propio | Con el GPS impreciso, alguien lejísimos de todo rancho quedaba registrado «por revisar» en vez de no registrarse | P2 | Corregido **sin publicar**: Si ni con su margen de error alcanza a estar en un rancho, está lejos: no se registra |
 
 ## Lo que no se pudo ejecutar y por qué
 
