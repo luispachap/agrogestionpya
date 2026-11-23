@@ -734,8 +734,9 @@ categorías aparte, administrar. **No lo vuelvas a separar** — se unificó a
 petición expresa de Luis porque control y operación son la misma faena.
 
 **Calibres**: `CALIBRES_CORRIDA` = 5–11 (cuentan para el rate).
-`CATEGORIAS_APARTE` = Corona, Grano, Deshecho/segunda, Pata de perro (no cuentan;
-van a inventario). El calibre 12 no existe, se eliminó.
+`CATEGORIAS_APARTE` = Corona, Grano, Deshecho/segunda, Pata de perro (no cuentan para el rate).
+**También se venden, sin precio fijo (Luis, 23 nov)**: entran al AJO TERMINADO como un lote por categoría
+(`entradaTerminado`, calibre = la categoría) y salen en embarque o venta con el precio de ese día; ya no van al almacén. El calibre 12 no existe, se eliminó.
 
 **El bug del Excel de Migue (resuelto, no lo reintroduzcas)**: su hoja calculaba
 el consumo restando inventarios, así que al agregar limpio a media corrida el rate

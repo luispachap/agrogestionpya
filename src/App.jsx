@@ -155,7 +155,7 @@ import {
   fechaLocal, mesLocal, sumarDias, mesAnterior, diasEntre,
   saldoCredito, diasParaVencer, cubetaVencimiento, CUBETAS_VENCIMIENTO,
   estaCancelado, vivos, delRancho, esPersonal, marcarCancelado, ganaAlSincronizar,
-  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana, fichaDeProveedor, esDelProveedor, nombreDelProveedor, revisarMaquina, revisarTemporada, cerrarTemporada, reabrirTemporada, usoDeSiembra, nivelDeExistencia, estaCritico, idDeLote, conExistenciaDeLote, juntarLotes, cerrarTarima, idDeArticuloAparte,
+  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana, fichaDeProveedor, esDelProveedor, nombreDelProveedor, revisarMaquina, revisarTemporada, cerrarTemporada, reabrirTemporada, usoDeSiembra, nivelDeExistencia, estaCritico, idDeLote, conExistenciaDeLote, juntarLotes, cerrarTarima,
 } from "./calculos";
 // El lector de papeles: la cascada de gratis a caro (QR y XML sin costo,
 // patrón aprendido para lo ya conocido, IA sólo para un formato nuevo).
@@ -21536,16 +21536,12 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
       categoria: aparte.categoria, cajas, kilos, nota: aparte.nota,
       registradoPor: { rol: session.role, id: session.id, nombre: session.nombre },
     });
-    // También al almacén, como producto aparte: un artículo por categoría (con identidad propia, para que dos teléfonos
-    // lleguen al mismo) y lo que entra es un MOVIMIENTO con fecha y quién, nunca la existencia escrita a mano.
-    let inv = (data.inventario || []).find(i => i.id === idDeArticuloAparte(aparte.categoria)) || (data.inventario || []).find(i => i.nombre?.toLowerCase() === `ajo ${aparte.categoria}`.toLowerCase());
-    if (!inv) { inv = { id: idDeArticuloAparte(aparte.categoria), nombre: `Ajo ${aparte.categoria}`, cat: "otro", unidad: "caja", existencia: 0, costo_unit: 0, minimo: 0, emoji: "🧄" }; add("inventario", inv); }
-    if (cajas > 0) {
-      const ahora = new Date().toISOString();
-      const ev = movimientoDeSiempre({ articulo: inv, delta: cajas, movimiento: { concepto: `Corrida ${folioCorrida || ""} · ${aparte.categoria}`.trim() }, quien: { id: session.id, nombre: session.nombre, rol: session.role }, cuando: ahora, fecha: today() });
-      if (ev) add("eventos", { ...ev, capturado: ahora });
-    }
-    alert(`${aparte.categoria}: ${fmtN(cajas)} cajas registradas y sumadas al inventario.`);
+    // Corona, grano, deshecho y pata de perro TAMBIÉN SE VENDEN, sin precio fijo (Luis, 23 nov): entran al ajo terminado como
+    // un lote más (cultivo + categoría), con sus cajas y kilos, y salen en un embarque o una venta como cualquier calibre; el
+    // precio es el de cuando se venden. (Antes entraban al almacén como artículos sin precio; lo que haya ahí se sigue leyendo.)
+    entradaTerminado(data, add, upd, { cultivo: cultivo || "Ajo", calibre: aparte.categoria, cajas, kg: kilos, fecha: today(),
+      nota: `Corrida ${folioCorrida || ""} · categoría aparte${aparte.nota ? ` · ${aparte.nota}` : ""}`.replace(/\s+/g, " ").trim(), registradoPor: { rol: session.role, id: session.id, nombre: session.nombre } });
+    alert(`${aparte.categoria}: ${cajas ? `${fmtN(cajas)} cajas` : ""}${cajas && kilos ? " · " : ""}${kilos ? `${fmtN(kilos)} kg` : ""} al ajo terminado, para venderse.`);
     setAparte({ categoria: aparte.categoria, cajas: "", kilos: "", nota: "" });
   };
   const registrosAparte = (data.control_corrida || []).filter(c => c.tipo === "aparte").sort((a, b) => (b.fecha || "").localeCompare(a.fecha || "")).slice(0, 15);
@@ -22391,7 +22387,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
           <>
             <div className="card">
               <div className="card-title">Categorías aparte</div>
-              <div className="text-xs text-muted mb-3">Corona, grano, deshecho y pata de perro no cuentan para el rate de la corrida. Aquí se registran y se suman al inventario como producto aparte.</div>
+              <div className="text-xs text-muted mb-3">Corona, grano, deshecho y pata de perro no cuentan para el rate de la corrida. Aquí se registran y entran al ajo terminado, para venderse: no tienen precio fijo, valen lo que se vendan.</div>
               <div className="form-group"><label className="form-label">Categoría</label>
                 <select className="inp" value={aparte.categoria} onChange={e => setAparte(a => ({ ...a, categoria: e.target.value }))}>
                   {CATEGORIAS_APARTE.map(c => <option key={c} value={c}>{c}</option>)}
@@ -22402,7 +22398,7 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
                 <div className="form-group" style={{ flex: 1 }}><label className="form-label">Kilos (opcional)</label><input type="number" className="inp" placeholder="0" value={aparte.kilos} onChange={e => setAparte(a => ({ ...a, kilos: e.target.value }))} /></div>
               </div>
               <div className="form-group"><label className="form-label">Nota (opcional)</label><input className="inp" placeholder="Ej: de la tarima X" value={aparte.nota} onChange={e => setAparte(a => ({ ...a, nota: e.target.value }))} /></div>
-              <button className="btn btn-accent" style={{ width: "100%" }} onClick={registrarAparte}>Registrar y sumar a inventario</button>
+              <button className="btn btn-accent" style={{ width: "100%" }} onClick={registrarAparte}>Registrar al ajo terminado</button>
             </div>
             {registrosAparte.length > 0 && (
               <div className="card">

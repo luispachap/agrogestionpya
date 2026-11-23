@@ -35,6 +35,7 @@ saldo = lambda e: e["saldo"] if e.get("saldo") is not None else e["cajas"]
 FLUJO = "() => { const f = window.__agroCuentas().flujo; return { ingresos: f.ingresos, sinDinero: f.ventasSinDinero }; }"
 EXIST = "id => { const a = (window.__agroDatos.inventario || []).find(x => x.id === id); return a ? a.existencia : null; }"
 lote8 = lambda pg: [x for x in D(pg, "terminados") if str(x.get("calibre")) == "8"]
+corona = lambda pg: [x for x in D(pg, "terminados") if str(x.get("calibre")) == "Corona"]
 
 with sync_playwright() as p:
     b = p.chromium.launch(); errs = []
@@ -142,19 +143,19 @@ with sync_playwright() as p:
     po = A.get_by_label("Calidad por origen y ritmo"); tp = plano(po.inner_text()) if po.count() else ""
     caso("CALIDAD POR ORIGEN Y RITMO: parcela uno + dos, a ritmo alto, 2 muestras, 91.5% de cabezas buenas", "PARCELA UNO + PARCELA DOS" in tp and "alto · 2 muestras" in tp.lower() and "91.5%" in tp, tp)
 
-    # ── 5 · CATEGORÍAS APARTE: un artículo por categoría y lo que entra es un movimiento ──
+    # ── 5 · CATEGORÍAS APARTE: se venden (Luis, 23 nov): entran al ajo terminado como un lote por categoría ──
     A.get_by_role("button", name="Categorías aparte").click(); A.wait_for_timeout(300)
-    A.get_by_role("button", name="Registrar y sumar a inventario").click(); A.wait_for_timeout(300)
+    A.get_by_role("button", name="Registrar al ajo terminado").click(); A.wait_for_timeout(300)
     caso("sin cajas ni kilos no se registra nada", len([c for c in D(A, "control_corrida") if c.get("tipo") == "aparte"]) == 0)
     def aparte(pg, cat, cajas):
         pg.locator(".form-group", has=pg.locator("label", has_text="Categoría")).locator("select").select_option(cat)
         pg.locator(".form-group", has=pg.locator("label", has_text="Cajas")).locator("input").first.fill(str(cajas))
-        pg.get_by_role("button", name="Registrar y sumar a inventario").click(); pg.wait_for_timeout(600)
+        pg.get_by_role("button", name="Registrar al ajo terminado").click(); pg.wait_for_timeout(600)
     aparte(A, "Corona", 6); aparte(A, "Corona", 4)
-    inv = [a for a in D(A, "inventario") if (a.get("nombre") or "").lower() == "ajo corona"]
-    entradas = [e for e in D(A, "eventos") if e.get("tipo") == "alm_entrada" and (e.get("datos") or {}).get("articuloId") == "art-ajo-corona"]
-    caso("la corona queda en UN artículo «Ajo Corona» con 10 cajas", len(inv) == 1 and inv[0]["id"] == "art-ajo-corona" and A.evaluate(EXIST, "art-ajo-corona") == 10, [(a.get("id"), a.get("existencia")) for a in inv])
-    caso("y esas 10 cajas son dos entradas al almacén con fecha y quién (nadie escribió la existencia)", len(entradas) == 2 and sorted((e["datos"]["cantidad"]) for e in entradas) == [4, 6] and all(e.get("quien") for e in entradas), [(e["datos"].get("cantidad"), e.get("quien")) for e in entradas])
+    co = corona(A)
+    caso("la corona queda en UN lote de ajo terminado (Ajo · Corona) con 10 cajas, para venderse", len(co) == 1 and co[0]["id"].startswith("term-") and co[0]["cajas"] == 10 and co[0].get("cultivo") == "Ajo", [(x.get("id"), x.get("cajas"), x.get("cultivo")) for x in co])
+    caso("y esas 10 cajas son dos entradas con fecha y quién (nadie escribió la existencia); el almacén ya no recibe la corona", len(co) == 1 and sorted(m["cajas"] for m in co[0]["movimientos"] if m["tipo"] == "entrada") == [4, 6] and all(m.get("registradoPor") for m in co[0]["movimientos"])
+         and not [a for a in D(A, "inventario") if "corona" in (a.get("nombre") or "").lower()], [(m.get("cajas"), m.get("registradoPor")) for m in co[0]["movimientos"]] if co else co)
 
     # ── 6 · Recargar a media corrida conserva lo quitado ──
     subio(A); A.reload(); A.wait_for_timeout(3500); ir(A, "corrida"); t = plano(A.locator("body").inner_text())
@@ -202,7 +203,7 @@ with sync_playwright() as p:
 
     # ── 8 · DOS TELÉFONOS SIN SEÑAL sobre el mismo lote del calibre 8 (25 cajas) ──
     B = telefono(MIG)
-    caso("el otro teléfono baja el lote del 8 con sus 20 cajas (las 5 contadas después no se cerraron en estiba) y el ajo corona con 10", [x.get("cajas") for x in lote8(B)] == [20] and B.evaluate(EXIST, "art-ajo-corona") == 10, [(x.get("id"), x.get("cajas")) for x in lote8(B)])
+    caso("el otro teléfono baja el lote del 8 con sus 20 cajas (las 5 contadas después no se cerraron en estiba) y el ajo corona con 10", [x.get("cajas") for x in lote8(B)] == [20] and [x.get("cajas") for x in corona(B)] == [10], [(x.get("id"), x.get("cajas")) for x in lote8(B)])
     nube.caida = True
     ir(B, "terminados"); B.get_by_role("button", name="+ Registrar entrada (encajado)").click(); B.wait_for_timeout(300)
     campo(B, "Calibre").select_option(index=[i for i, o in enumerate(campo(B, "Calibre").locator("option").all_inner_texts()) if "8" in o][0]); campo(B, "Cajas").fill("5"); campo(B, "Kilos").fill("50")
@@ -229,7 +230,7 @@ with sync_playwright() as p:
     nube8 = [v for v in nube.t.get("terminados", {}).values() if str((v.get("datos") or {}).get("calibre")) == "8"]
     caso("en la nube hay UN lote del 8 con los TRES movimientos (la entrada de la corrida, la del otro teléfono y la salida)", len(nube8) == 1 and len((nube8[0].get("datos") or {}).get("movimientos") or []) == 3, [(v["id"], len((v.get("datos") or {}).get("movimientos") or [])) for v in nube8])
     caso("y los dos teléfonos dicen lo mismo: 20 + 5 − 30 = −5 cajas del 8, por explicar", [x.get("cajas") for x in lote8(A)] == [-5] and [x.get("cajas") for x in lote8(B)] == [-5], [[x.get("cajas") for x in lote8(A)], [x.get("cajas") for x in lote8(B)]])
-    caso("el ajo corona de los dos teléfonos es un solo artículo con 15 cajas (10 + 3 + 2)", [a["id"] for a in D(A, "inventario") if "corona" in (a.get("nombre") or "").lower()] == ["art-ajo-corona"] and A.evaluate(EXIST, "art-ajo-corona") == 15 and B.evaluate(EXIST, "art-ajo-corona") == 15, [A.evaluate(EXIST, "art-ajo-corona"), B.evaluate(EXIST, "art-ajo-corona")])
+    caso("la corona de los dos teléfonos es un solo lote con 15 cajas (10 + 3 + 2): sus movimientos se unen", [x.get("cajas") for x in corona(A)] == [15] and [x.get("cajas") for x in corona(B)] == [15] and len([v for v in nube.t.get("terminados", {}).values() if (v.get("datos") or {}).get("calibre") == "Corona"]) == 1, [[x.get("cajas") for x in corona(A)], [x.get("cajas") for x in corona(B)]])
 
     # ── 9 · A NUESTRA BODEGA: sale del inventario, no es venta ni se cobra ──
     ir(A, "terminados"); A.get_by_role("button", name="+ Registrar entrada (encajado)").click(); A.wait_for_timeout(300)
