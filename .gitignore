@@ -24,3 +24,7 @@ npm-debug.log*
 
 # Respaldos de teléfonos y hojas de catálogos: traen datos personales. Nunca al repositorio.
 respaldos/
+
+# Python
+__pycache__/
+*.pyc
