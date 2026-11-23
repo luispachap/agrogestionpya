@@ -587,7 +587,61 @@ export function unirCosecha(gana, otro) {
 export function leFaltaCosecha(a, b) {
   return LISTAS_DE_COSECHA.some(k => { const ids = new Set((a?.[k] || []).map(x => x.id)); return (b?.[k] || []).some(x => !ids.has(x.id)); });
 }
-export const UNIONES_DE_REGISTROS = { creditos: { unir: unirCredito, falta: leFaltanAbonos }, embarques: { unir: unirEmbarque, falta: leFaltanCobros }, cosechas: { unir: unirCosecha, falta: leFaltaCosecha } };
+// EL LOTE DE AJO TERMINADO (un cultivo + calibre + variedad) es UN registro con identidad propia (`idDeLote`): dos
+// teléfonos que cierran estibas del mismo calibre sin señal llegan al MISMO lote, no a dos. Sus cajas y sus kilos NO se
+// escriben: se CALCULAN de sus movimientos (`existenciaDeLote`), que se UNEN entre teléfonos (`unirLote`). Antes cada
+// teléfono reescribía el número y el último en subir borraba la entrada o la salida del otro.
+// Una salida mayor a lo que hay NO se recorta en cero: el lote queda en negativo y eso es lo que dice que falta explicar.
+export const idDeLote = (clave) => "term-" + String(clave || "?").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9_]+/g, "-");
+const r3l = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
+export function existenciaDeLote(lote) {
+  const movs = Array.isArray(lote?.movimientos) ? lote.movimientos : [];
+  if (!movs.length) return { cajas: r3l(lote?.cajas), kg: r3l(lote?.kg) };
+  let cajas = 0, kg = 0;
+  for (const m of movs) {
+    if (!m || m.cancelado) continue;
+    const s = m.tipo === "salida" ? -1 : 1; // entrada suma; un ajuste ya trae su diferencia con signo
+    cajas += s * (Number(m.cajas) || 0); kg += s * (Number(m.kg) || 0);
+  }
+  return { cajas: r3l(cajas), kg: r3l(kg) };
+}
+export const conExistenciaDeLote = (lote) => (lote ? { ...lote, ...existenciaDeLote(lote) } : lote);
+export function unirLote(gana, otro) {
+  if (!gana) return otro;
+  if (!otro) return gana;
+  return conExistenciaDeLote({ ...gana, movimientos: unirLista(gana.movimientos, otro.movimientos) });
+}
+export function leFaltanMovimientos(a, b) { const ids = new Set((a?.movimientos || []).map(x => x.id)); return (b?.movimientos || []).some(x => !ids.has(x.id)); }
+// Lotes de antes que quedaron repetidos (mismo cultivo y calibre con otro identificador): se enseñan como uno solo,
+// con los movimientos de todos, y se queda el identificador propio del lote si alguno lo tiene.
+export function juntarLotes(lotes = []) {
+  const por = new Map();
+  for (const l of lotes || []) {
+    if (!l) continue;
+    const k = l.clave || l.id;
+    const ya = por.get(k);
+    if (!ya) { por.set(k, l); continue; }
+    const propio = [ya, l].find(x => x.id === idDeLote(k)) || ya;
+    por.set(k, { ...propio, movimientos: unirLista(ya.movimientos, l.movimientos) });
+  }
+  return [...por.values()].map(conExistenciaDeLote);
+}
+export const UNIONES_DE_REGISTROS = { creditos: { unir: unirCredito, falta: leFaltanAbonos }, embarques: { unir: unirEmbarque, falta: leFaltanCobros }, cosechas: { unir: unirCosecha, falta: leFaltaCosecha }, terminados: { unir: unirLote, falta: leFaltanMovimientos } };
+
+// CERRAR UNA TARIMA QUE TODAVÍA TRAE CAJAS. Antes bastaba un «¿Confirmar?» y esas cajas salían de circulación sin que
+// quedara por qué ni quién. Ahora, si trae cajas, hay que decir el porqué; cerrarla queda con quién y cuándo.
+export function cerrarTarima(estiba, { saldo, motivo = "", quien = null, cuando }) {
+  const s = Number(saldo) || 0, m = String(motivo || "").trim();
+  if (!estiba?.id) return { ok: false, dice: "Falta cuál tarima." };
+  if (estiba.estado === "consumida") return { ok: false, dice: "Esa tarima ya estaba cerrada." };
+  if (s > 0 && !m) return { ok: false, dice: `La tarima todavía trae ${s} cajas: di por qué se cierra (se mermó, se mezcló con otra, se contó y no había…).` };
+  return { ok: true, estiba: { ...estiba, estado: "consumida", saldoAlCerrar: s, cerradaManual: s > 0, cerrada: { cuando, quien, ...(m ? { motivo: m } : {}) } } };
+}
+
+// LAS CATEGORÍAS APARTE (corona, grano, deshecho, pata de perro) van al almacén como un artículo por categoría, con
+// identidad propia: dos teléfonos que registran corona el mismo día llegan al MISMO artículo. Lo que entra es un
+// MOVIMIENTO; nadie le escribe la existencia.
+export const idDeArticuloAparte = (categoria) => "art-ajo-" + String(categoria || "?").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 // LA MARCA DE NACIMIENTO (`_nace`). La parte al azar del identificador hace una coincidencia casi imposible, pero eso lo
 // decide el teléfono. La que de verdad cuida es la BASE (hoja 56): cada registro capturado nace con esta marca, que

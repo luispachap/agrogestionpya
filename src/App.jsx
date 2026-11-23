@@ -152,7 +152,7 @@ import {
   fechaLocal, mesLocal, sumarDias, mesAnterior, diasEntre,
   saldoCredito, diasParaVencer, cubetaVencimiento, CUBETAS_VENCIMIENTO,
   estaCancelado, vivos, delRancho, esPersonal, marcarCancelado, ganaAlSincronizar,
-  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana, fichaDeProveedor, esDelProveedor, nombreDelProveedor, revisarMaquina,
+  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana, fichaDeProveedor, esDelProveedor, nombreDelProveedor, revisarMaquina, idDeLote, conExistenciaDeLote, juntarLotes, cerrarTarima, idDeArticuloAparte,
 } from "./calculos";
 // El lector de papeles: la cascada de gratis a caro (QR y XML sin costo,
 // patrón aprendido para lo ya conocido, IA sólo para un formato nuevo).
@@ -1656,23 +1656,17 @@ function entradaTerminado(data, add, upd, { cultivo, calibre, variedad, cajas, k
     nota: nota || "", registradoPor: registradoPor || null,
   };
   const exist = (data.terminados || []).find(t => t.clave === clave);
+  // Sus cajas y kilos salen de sus movimientos (`conExistenciaDeLote`); el lote tiene identidad propia (`idDeLote`).
   if (exist) {
-    upd("terminados", {
-      ...exist,
-      cajas: (exist.cajas || 0) + nCajas,
-      kg: (exist.kg || 0) + nKg,
-      movimientos: [...(exist.movimientos || []), mov],
-    });
+    upd("terminados", conExistenciaDeLote({ ...exist, movimientos: [...(exist.movimientos || []), mov] }));
   } else {
-    add("terminados", {
-      id: `term${unico()}`, clave, cultivo, calibre, variedad: variedad || "",
-      cajas: nCajas, kg: nKg, movimientos: [mov],
-    });
+    add("terminados", conExistenciaDeLote({ id: idDeLote(clave), clave, cultivo, calibre, variedad: variedad || "", movimientos: [mov] }));
   }
 }
 
 // SALIDA del inventario de terminados (por embarque o ajuste).
-// Resta cajas y kg. No deja existencia negativa.
+// Resta cajas y kg. Si sale más de lo que había, el lote queda en NEGATIVO a la vista: recortarlo en cero borraba la
+// diferencia que había que explicar.
 function salidaTerminado(data, add, upd, { cultivo, calibre, variedad, cajas, kg, fecha, nota, ref, registradoPor }) {
   const nCajas = parseFloat(cajas) || 0;
   const nKg = parseFloat(kg) || 0;
@@ -1683,12 +1677,7 @@ function salidaTerminado(data, add, upd, { cultivo, calibre, variedad, cajas, kg
     tipo: "salida", fecha: fecha || today(), cajas: nCajas, kg: nKg,
     nota: nota || "", ref: ref || "", registradoPor: registradoPor || null,
   };
-  upd("terminados", {
-    ...exist,
-    cajas: Math.max(0, (exist.cajas || 0) - nCajas),
-    kg: Math.max(0, (exist.kg || 0) - nKg),
-    movimientos: [...(exist.movimientos || []), mov],
-  });
+  upd("terminados", conExistenciaDeLote({ ...exist, movimientos: [...(exist.movimientos || []), mov] }));
   return true;
 }
 
@@ -1703,12 +1692,7 @@ function ajustarTerminado(data, upd, { terminadoId, nuevasCajas, nuevosKg, motiv
     kg: (parseFloat(nuevosKg) || 0) - (exist.kg || 0),
     nota: motivo || "Ajuste manual", registradoPor: registradoPor || null,
   };
-  upd("terminados", {
-    ...exist,
-    cajas: parseFloat(nuevasCajas) || 0,
-    kg: parseFloat(nuevosKg) || 0,
-    movimientos: [...(exist.movimientos || []), mov],
-  });
+  upd("terminados", conExistenciaDeLote({ ...exist, movimientos: [...(exist.movimientos || []), mov] }));
 }
 
 /* ════════════ TRAZABILIDAD POR ESTIBAS (genealogía de lotes) ════════════ */
@@ -2546,6 +2530,7 @@ function normalizeData(d) {
   if (!Array.isArray(fix.envios_bodega)) fix.envios_bodega = [];
   if (!Array.isArray(fix.embarques)) fix.embarques = [];
   if (!Array.isArray(fix.terminados)) fix.terminados = [];
+  fix.terminados = juntarLotes(fix.terminados);
   if (!Array.isArray(fix.corridas)) fix.corridas = [];
   if (!Array.isArray(fix.estibas)) fix.estibas = [];
   if (!Array.isArray(fix.externos)) fix.externos = [];
@@ -20679,7 +20664,8 @@ function InventarioTerminado({ data, add, upd, session, onClose }) {
                     <div className="li-sub">{(t.movimientos || []).length} movimientos</div>
                   </div>
                   <div className="li-right">
-                    <div className="li-val">{fmtN(t.cajas || 0)} cajas</div>
+                    <div className="li-val" style={(t.cajas || 0) < 0 ? { color: "var(--red)" } : undefined}>{fmtN(t.cajas || 0)} cajas</div>
+                    {(t.cajas || 0) < 0 && <div className="text-xs" style={{ color: "var(--red)" }}>Salieron {fmtN(-t.cajas)} más de las registradas: por explicar</div>}
                     {(t.kg || 0) > 0 && <div className="text-xs text-muted">{fmtN(t.kg)} kg</div>}
                     <button className="btn-ghost text-xs" onClick={() => { setShowAjuste(showAjuste === t.id ? null : t.id); setAj({ cajas: String(t.cajas || ""), kg: String(t.kg || ""), motivo: "" }); }}>ajustar</button>
                     <button className="btn-ghost text-xs" onClick={() => setShowHist(showHist === t.id ? null : t.id)}>historial</button>
@@ -21116,12 +21102,14 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
   const pctBueno = q => { const t = parseFloat(q.totalCabezas) || 0; return t > 0 ? (t - malosDe(q)) / t : 0; };
   const guardarCalidad = () => {
     if (!cal.totalCabezas || (parseFloat(cal.totalCabezas) || 0) <= 0) { alert("Captura el total de cabezas muestreadas"); return; }
-    add("control_corrida", { id: `cq${unico()}`, tipo: "calidad", corridaFolio: folioCorrida, ...cal, malos: malosDe(cal), pctBueno: pctBueno(cal), ritmo: ritmoActual, registradoPor: { rol: session.role, id: session.id, nombre: session.nombre } });
+    // Sin hora tecleada, la hora es la de ahora; y cuándo se capturó desempata dos muestras del mismo minuto. Sin eso la
+    // tendencia comparaba al revés (la muestra vieja contra la nueva).
+    add("control_corrida", { id: `cq${unico()}`, tipo: "calidad", corridaFolio: folioCorrida, ...cal, hora: cal.hora || horaActual, capturado: new Date().toISOString(), malos: malosDe(cal), pctBueno: pctBueno(cal), ritmo: ritmoActual, registradoPor: { rol: session.role, id: session.id, nombre: session.nombre } });
     alert(`Muestreo guardado. ${(pctBueno(cal) * 100).toFixed(1)}% de bueno.`);
     setCal({ ...Q0, calibre: cal.calibre });
     setSugerirCalidad(false);
   };
-  const muestreos = (data.control_corrida || []).filter(c => c.tipo === "calidad").sort((a, b) => (b.fecha + (b.hora || "")).localeCompare(a.fecha + (a.hora || ""))).slice(0, 15);
+  const muestreos = (data.control_corrida || []).filter(c => c.tipo === "calidad").sort((a, b) => { const k = (m) => m.fecha + String(m.hora || "").replace(/^(\d):/, "0$1:") + (m.capturado || ""); return k(b).localeCompare(k(a)); }).slice(0, 15); // «9:50» va antes de «10:05»
   // Tendencia de calidad: comparar los dos muestreos más recientes (de hoy).
   const muestreosHoy = muestreos.filter(m => m.fecha === today());
   const tendenciaCalidad = (() => {
@@ -21144,12 +21132,14 @@ function CorridaAjo({ data, add, upd, session, onClose }) {
       categoria: aparte.categoria, cajas, kilos, nota: aparte.nota,
       registradoPor: { rol: session.role, id: session.id, nombre: session.nombre },
     });
-    // También al inventario, para que entre al stock como producto aparte.
-    const inv = (data.inventario || []).find(i => i.nombre?.toLowerCase() === `ajo ${aparte.categoria}`.toLowerCase());
-    if (inv) {
-      upd("inventario", { ...inv, existencia: (parseFloat(inv.existencia) || 0) + cajas });
-    } else {
-      add("inventario", { id: `i${unico()}`, nombre: `Ajo ${aparte.categoria}`, cat: "otro", unidad: "caja", existencia: cajas, costo_unit: 0, minimo: 0, emoji: "🧄" });
+    // También al almacén, como producto aparte: un artículo por categoría (con identidad propia, para que dos teléfonos
+    // lleguen al mismo) y lo que entra es un MOVIMIENTO con fecha y quién, nunca la existencia escrita a mano.
+    let inv = (data.inventario || []).find(i => i.id === idDeArticuloAparte(aparte.categoria)) || (data.inventario || []).find(i => i.nombre?.toLowerCase() === `ajo ${aparte.categoria}`.toLowerCase());
+    if (!inv) { inv = { id: idDeArticuloAparte(aparte.categoria), nombre: `Ajo ${aparte.categoria}`, cat: "otro", unidad: "caja", existencia: 0, costo_unit: 0, minimo: 0, emoji: "🧄" }; add("inventario", inv); }
+    if (cajas > 0) {
+      const ahora = new Date().toISOString();
+      const ev = movimientoDeSiempre({ articulo: inv, delta: cajas, movimiento: { concepto: `Corrida ${folioCorrida || ""} · ${aparte.categoria}`.trim() }, quien: { id: session.id, nombre: session.nombre, rol: session.role }, cuando: ahora, fecha: today() });
+      if (ev) add("eventos", { ...ev, capturado: ahora });
     }
     alert(`${aparte.categoria}: ${fmtN(cajas)} cajas registradas y sumadas al inventario.`);
     setAparte({ categoria: aparte.categoria, cajas: "", kilos: "", nota: "" });
@@ -22541,11 +22531,14 @@ function Estibas({ data, add, upd, session, onClose }) {
                   <button className="btn-ghost text-xs" onClick={() => setRastreo(e)}>rastrear</button>
                   {(e.fase === "limpia" || e.fase === "relimpia") && (
                     <button className="btn-ghost text-xs" style={{ color: "var(--gold)" }} onClick={() => {
-                      const msg = saldo > 0
-                        ? `Cerrar la tarima ${e.codigo} con ${fmtN(saldo)} cajas todavía disponibles. Ya no aparecerá como origen en la corrida (esas cajas quedan fuera de circulación). ¿Confirmar?`
-                        : `Cerrar la tarima ${e.codigo}. Ya no aparecerá como origen en la corrida. ¿Confirmar?`;
-                      if (!window.confirm(msg)) return;
-                      upd("estibas", { ...e, estado: "consumida", saldoAlCerrar: saldo, cerradaManual: saldo > 0 });
+                      let motivo = "";
+                      if (saldo > 0) {
+                        motivo = window.prompt(`La tarima ${e.codigo} todavía trae ${fmtN(saldo)} cajas. Si la cierras ya no aparece en la corrida y esas cajas salen de circulación. ¿Por qué se cierra?`);
+                        if (motivo == null) return;
+                      } else if (!window.confirm(`Cerrar la tarima ${e.codigo}. Ya no aparecerá como origen en la corrida. ¿Confirmar?`)) return;
+                      const r = cerrarTarima(e, { saldo, motivo, quien: { id: session.id, nombre: session.nombre, rol: session.role }, cuando: new Date().toISOString() });
+                      if (!r.ok) { alert(r.dice); return; }
+                      upd("estibas", r.estiba);
                     }}>cerrar</button>
                   )}
                 </div>

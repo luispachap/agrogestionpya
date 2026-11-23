@@ -632,3 +632,36 @@ test("una_maquina_no_se_da_de_alta_sin_nombre_ni_dos_veces", () => {
   assert.equal(revisarMaquina_t({ nombre: "Camioneta", costo_hora: -5 }, maq).ok, false);
   assert.deepEqual(revisarMaquina_t({ nombre: " Camioneta  roja " }, maq), { ok: true, nombre: "Camioneta roja" });
 });
+
+import { idDeLote as idDeLote_t, existenciaDeLote as existenciaDeLote_t, unirLote as unirLote_t, juntarLotes as juntarLotes_t, cerrarTarima as cerrarTarima_t, idDeArticuloAparte as idDeArticuloAparte_t, UNIONES_DE_REGISTROS as UNIONES_T } from "./calculos.js";
+test("el_ajo_terminado_de_dos_telefonos_sin_senal_no_se_pisa_y_sus_cajas_salen_de_sus_movimientos", () => {
+  const clave = "Ajo__7";
+  assert.equal(idDeLote_t(clave), "term-ajo__7", "el mismo calibre es el mismo lote en todos los teléfonos");
+  const base = { id: idDeLote_t(clave), clave, movimientos: [{ id: "m1", tipo: "entrada", fecha: "2026-11-20", cajas: 30, kg: 300 }] };
+  const uno = { ...base, movimientos: [...base.movimientos, { id: "m2", tipo: "salida", fecha: "2026-11-21", cajas: 10, kg: 100 }], cajas: 20 };
+  const otro = { ...base, movimientos: [...base.movimientos, { id: "m3", tipo: "entrada", fecha: "2026-11-21", cajas: 5, kg: 50 }], cajas: 35 };
+  const u = unirLote_t(uno, otro);
+  assert.deepEqual([u.cajas, u.kg], [25, 250], "la salida de uno y la entrada del otro cuentan las dos");
+  assert.equal(u.movimientos.length, 3);
+  assert.ok(UNIONES_T.terminados.falta(uno, otro), "al bajar se sabe que a este teléfono le falta un movimiento y lo vuelve a subir");
+  assert.deepEqual(existenciaDeLote_t({ movimientos: [{ id: "a", tipo: "entrada", cajas: 24 }, { id: "b", tipo: "salida", cajas: 30 }] }).cajas, -6, "salir de más deja el lote en negativo: no se recorta en cero");
+  assert.deepEqual(existenciaDeLote_t({ movimientos: [{ id: "a", tipo: "entrada", cajas: 5 }, { id: "b", tipo: "ajuste", cajas: -1 }] }).cajas, 4, "un ajuste trae su diferencia con signo");
+  assert.equal(existenciaDeLote_t({ cajas: 12, kg: 3 }).cajas, 12, "un lote sin movimientos se queda con lo que traía");
+  const juntos = juntarLotes_t([{ id: "term17630000000000abcdef1", clave, movimientos: [{ id: "x", tipo: "entrada", cajas: 3 }] }, { id: idDeLote_t(clave), clave, movimientos: [{ id: "y", tipo: "entrada", cajas: 4 }] }]);
+  assert.equal(juntos.length, 1, "dos lotes repetidos de antes se enseñan como uno");
+  assert.deepEqual([juntos[0].id, juntos[0].cajas], [idDeLote_t(clave), 7]);
+});
+test("cerrar_una_tarima_que_todavia_trae_cajas_pide_el_porque_y_queda_quien", () => {
+  const e = { id: "e1", codigo: "AS-L-001", estado: "activa", cajas: 50 };
+  assert.equal(cerrarTarima_t(e, { saldo: 12, motivo: "  " }).ok, false, "con cajas y sin porqué no se cierra");
+  const r = cerrarTarima_t(e, { saldo: 12, motivo: "SE MERMÓ", quien: { nombre: "ALGUIEN" }, cuando: "2026-11-23T10:00:00Z" });
+  assert.equal(r.ok, true);
+  assert.deepEqual([r.estiba.estado, r.estiba.saldoAlCerrar, r.estiba.cerradaManual, r.estiba.cerrada.motivo, r.estiba.cerrada.quien.nombre], ["consumida", 12, true, "SE MERMÓ", "ALGUIEN"]);
+  assert.equal(cerrarTarima_t(e, { saldo: 0 }).ok, true, "vacía se cierra sin porqué");
+  assert.equal(cerrarTarima_t({ ...e, estado: "consumida" }, { saldo: 0 }).ok, false);
+});
+test("las_categorias_aparte_son_un_articulo_por_categoria_igual_en_todos_los_telefonos", () => {
+  assert.equal(idDeArticuloAparte_t("Corona"), "art-ajo-corona");
+  assert.equal(idDeArticuloAparte_t("Pata de perro"), "art-ajo-pata-de-perro");
+  assert.equal(idDeArticuloAparte_t("Deshecho/segunda"), "art-ajo-deshecho-segunda");
+});
