@@ -622,3 +622,13 @@ test("un_proveedor_es_una_sola_ficha_en_deudas_y_en_proveedores", () => {
   assert.equal(nombreDelProveedor_t({ proveedorId: "pv2", proveedor: "viejo" }, provs), "Ferretería Inventada");
   assert.equal(nombreDelProveedor_t({ proveedor: "Sólo texto" }, provs), "Sólo texto");
 });
+
+import { revisarMaquina as revisarMaquina_t } from "./calculos.js";
+test("una_maquina_no_se_da_de_alta_sin_nombre_ni_dos_veces", () => {
+  const maq = [{ id: "m1", nombre: "Tractor Inventado" }];
+  assert.equal(revisarMaquina_t({ nombre: "  " }, maq).ok, false);
+  assert.equal(revisarMaquina_t({ nombre: "TRACTOR  inventado" }, maq).ok, false, "el mismo nombre con otras mayúsculas o espacios es la misma");
+  assert.equal(revisarMaquina_t({ nombre: "Tractor Inventado" }, maq, { propioId: "m1" }).ok, true, "editar la misma no choca consigo");
+  assert.equal(revisarMaquina_t({ nombre: "Camioneta", costo_hora: -5 }, maq).ok, false);
+  assert.deepEqual(revisarMaquina_t({ nombre: " Camioneta  roja " }, maq), { ok: true, nombre: "Camioneta roja" });
+});

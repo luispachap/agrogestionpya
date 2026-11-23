@@ -152,7 +152,7 @@ import {
   fechaLocal, mesLocal, sumarDias, mesAnterior, diasEntre,
   saldoCredito, diasParaVencer, cubetaVencimiento, CUBETAS_VENCIMIENTO,
   estaCancelado, vivos, delRancho, esPersonal, marcarCancelado, ganaAlSincronizar,
-  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana, fichaDeProveedor, esDelProveedor, nombreDelProveedor,
+  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana, fichaDeProveedor, esDelProveedor, nombreDelProveedor, revisarMaquina,
 } from "./calculos";
 // El lector de papeles: la cascada de gratis a caro (QR y XML sin costo,
 // patrón aprendido para lo ya conocido, IA sólo para un formato nuevo).
@@ -11688,7 +11688,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
       {showAdd && tab === "maquinaria" && (
         <div className="section-pad">
           <div className="card ab">
-            <div className="card-title">Nuevo Equipo</div>
+            <div className="card-title">Nueva máquina</div>
             {[["Nombre", "text", "nombre"], ["Costo/hora", "number", "costo_hora"], ["Capacidad tanque (L)", "number", "cap_tanque"]].map(([l, t, k]) => (
               <div key={k} className="form-group"><label className="form-label">{l}</label><input type={t} className="inp" value={maqForm[k]} onChange={e => setMaqForm(f => ({ ...f, [k]: t === "number" ? parseFloat(e.target.value) || 0 : e.target.value }))} /></div>
             ))}
@@ -11697,7 +11697,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
                 {["tractor", "vehiculo", "implemento", "dron"].map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
-            <button className="btn btn-accent" onClick={() => { add("maquinaria", { ...maqForm, id: `m${unico()}` }); setShowAdd(false); }}>Guardar</button>
+            <button className="btn btn-accent" onClick={() => { const r = revisarMaquina(maqForm, data.maquinaria); if (!r.ok) { alert(r.dice); return; } add("maquinaria", { ...maqForm, nombre: r.nombre, id: `m${unico()}` }); setMaqForm({ nombre: "", tipo: "tractor", costo_hora: 400, emoji: "🚜", cap_tanque: 0 }); setShowAdd(false); }}>Guardar</button>
           </div>
         </div>
       )}

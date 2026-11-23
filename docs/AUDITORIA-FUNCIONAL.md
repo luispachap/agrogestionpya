@@ -2,7 +2,7 @@
 
 > **Generado desde `docs/ESTADO.json` con `node herramientas/estado.mjs`. No se edita a mano:** se cambia el archivo de estado y se vuelve a generar. Es la única fuente de las cifras, los módulos, los pendientes y lo publicado; el tablero de cierre sale de aquí mismo.
 
-Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos en parte · 0 sin verificar.**
+Corte: domingo 22 de noviembre de 2026 (noche). **44 aprobados · 23 recorridos en parte · 0 sin verificar.**
 
 **Veredicto: NO LISTO** como sistema completo · listo para prueba de campo en la operación diaria. Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).
 
@@ -41,6 +41,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 | Importar documentos con dos teléfonos | `pruebas/auditoria_importar_navegador.py` | 11 de 11 |
 | Mapa y Dron con dos teléfonos | `pruebas/auditoria_mapa_navegador.py` | 13 de 13 |
 | La hoja de pagos que se firma: lo que ya debían, prestar en un paso, pago en dos partes, sueldo por semana, sin señal y otro aparato | `pruebas/auditoria_hoja_pagos_navegador.py` | 44 de 44 |
+| Equipo, Personal, Jornadas y Mano de obra con cuentas y dos teléfonos | `pruebas/auditoria_personal_navegador.py` | 23 de 23 |
 
 ## Qué está publicado y qué no
 
@@ -63,7 +64,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
 
-## Defectos encontrados al usar los módulos (73: 73 corregidos, 3 de ellos sin publicar; 0 abiertos)
+## Defectos encontrados al usar los módulos (74: 74 corregidos, 4 de ellos sin publicar; 0 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -140,6 +141,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 | 71 | Importar documentos | En una lista de pagos al personal, un apodo de menos de cinco letras («Gera», «Rigo») se tiraba como «sin nombre»: 6 de 23 renglones de la nómina del rancho | P2 | Corregido y publicado: Con dos letras basta, igual que en una raya |
 | 72 | Personal, Pagos al personal | No había cómo anotar lo que un trabajador ya debía de préstamos dados antes de la app (la nómina en papel los descuenta cada semana): sus abonos no tenían a qué préstamo ir | P1 | Corregido y publicado: «Lo que ya debían»: saldo a una fecha de corte, con quién responde y evidencia; lo valida la base (hoja 57) y no entra al flujo |
 | 73 | Pagos al personal, Equipo | Con el sueldo de la semana entre 6 (decisión de Luis), la semana completa salía dos centavos abajo: 583.33 × 6 = 3,499.98 | P2 | Corregido y publicado: Sueldo por semana en la ficha: cada día vale su parte, repartida al centavo |
+| 74 | Equipo | Se podía dar de alta una máquina sin nombre, o la misma dos veces (su diésel, horómetro y costo real quedaban partidos) | P2 | Corregido **sin publicar**: Sin nombre o con un nombre que ya existe no entra; el formulario se limpia al guardar |
 
 ## Lo que no se pudo ejecutar y por qué
 
@@ -185,7 +187,7 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 | 27 | Salida de camión | **PARCIAL** | auditoria_bodega 48 | Embarque a cliente: tarima pesada, folio, formato, baja del terminado, queda pendiente de cobro, no es venta todavía | Salida a nuestra bodega, varias tarimas y calibres, estiba de origen, cargar más de lo que hay, remisión impresa |
 | 28 | Consignaciones | **PARCIAL** | auditoria_bodega 48 · auditoria_cobros 15 | Pendiente de cobro, cobrar en dinero, nace una sola venta, llega a resultados y flujo, el encargado no entra; pagos parciales desde dos teléfonos sin señal (los dos cobros quedan, cada uno con identidad, importe, fecha, autor y su venta ligada); doble toque registra un solo cobro; el último pago lo deja cobrado sin perder los anteriores | Pago a cuenta de una deuda en pantalla (la regla del flujo sí está probada en cálculo) |
 | 29 | Comercialización | **PARCIAL** | auditoria_bodega 48 | Enseña la venta con su cliente y el precio por kilo | Sólo se comprobó una venta; faltan varios clientes y periodos |
-| 30 | Mano de obra | **PARCIAL** | auditoria_numeros 28 · antes: checador, cuadrillas, pagos | Lo capturado como actividad ya cuenta y se ve con su parcela y quién (decía $0 cuando nadie checa); total y cargado a parcelas por semana y por fechas | Aclarar el tiempo sin asignar desde la pantalla, en un recorrido de auditoría con dos teléfonos |
+| 30 | Mano de obra | **APROBADO** | auditoria_numeros 28 · antes: checador, cuadrillas, pagos · auditoria_personal 23 | El tiempo sin asignar sale «por aclarar» fuera de la parcela; se aclara como espera con nota y quién (hecho aparte); lo demás sigue por aclarar y no se reparte solo; otro aparato | — |
 | 31 | Finanzas | **APROBADO** | auditoria_dinero 37 · auditoria_identidad 27 · auditoria_numeros 28 · auditoria_banco 37 | Gasto general y de parcela, venta, cancelar con motivo, bitácora, flujo y resultados, recarga, otro teléfono, tres perfiles; doble toque, dos teléfonos sin señal con el mismo gasto, aviso de repetidos, quién capturó; un choque forzado de identificadores: la base rechaza el segundo, el teléfono lo dice y lo reubica solo, ninguno se pierde | — |
 | 32 | Movimientos | **APROBADO** | auditoria_dinero 37 · auditoria_numeros | Totales del periodo iguales a Finanzas; lo cancelado no cuenta y sigue visible | — |
 | 33 | Caja chica | **APROBADO** | auditoria_dinero 37 · auditoria_pagos 40 · caja.test | Ligar una salida a su préstamo o a su pago (toma el importe, no cuenta doble, una segunda no encuentra a qué ligarse y queda por ligar). Fondo, las siete clases de salida, por clasificar y clasificar después, cancelar con su gasto ligado, sólo se corrige el concepto, flujo sin duplicar, saldo al centavo | Ligar una salida a un préstamo o pago real: probado en cálculo, sin recorrido en navegador |
@@ -205,12 +207,12 @@ Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos 
 | 47 | Mis compras | **PARCIAL** | auditoria_almacen 45 · decisiones (local) | Aprobar no mete al almacén; recibir sin precio queda por valuar (ni cero ni al promedio); valuar; el flete es gasto; el flujo la cuenta una vez; la misma compra recibida desde dos teléfonos sin señal entra una vez | La captura del trabajador con su PIN y la foto del ticket |
 | 48 | Registrar compra | **APROBADO** | auditoria_agronomo 23 | Insumo nuevo y existente, costo promedio, no es gasto, sale una vez del flujo, nombre repetido no entra, el encargado no la tiene | — |
 | 49 | Proveedores | **APROBADO** | auditoria_proveedores 27 · base 4 | Directorio, crédito con vencimiento, abonos en dinero y en especie, cancelar abono (no borrar) con bitácora, recarga, dos teléfonos con uno sin señal, perfiles | — |
-| 50 | Equipo | **PARCIAL** | entrega 68 · auditoria_pagos · auditoria_semana · auditoria_hoja_pagos 44 | Alta de trabajadores con sueldo y PIN (repetido o sin nombre no entra), llega a otro aparato; alta con sueldo por semana (el de por día sale solo, la semana suma exacto, queda en su historial) | Editar, baja, maquinaria, encargados |
-| 51 | Personal | **PARCIAL** | auditoria_pagos 40 · auditoria_hoja_pagos 44 | Préstamos de punta a punta: solicitud (no es deuda), autorización por menos, entrega (ahí nace la deuda, no más de lo autorizado), abonos, abono de más, dos aparatos sin señal, el encargado no autoriza ni abona; lo que ya debían al arrancar (fecha de corte, quién responde, evidencia; uno por persona; se corrige con motivo y sus abonos siguen contando; no es dinero que sale) | Pestañas Actividades y Cuadrillas |
+| 50 | Equipo | **APROBADO** | entrega 68 · auditoria_pagos · auditoria_semana · auditoria_hoja_pagos 44 · auditoria_personal 23 | Alta de planta, encargado (PIN repetido no entra) y máquina (sin nombre o repetida no entra), cambio de sueldo con historial desde hoy, encargado sin edición de sueldos, otro aparato, recarga | La baja se hace en Pagos al personal → Prestaciones (su propia auditoría) |
+| 51 | Personal | **APROBADO** | auditoria_pagos 40 · auditoria_hoja_pagos 44 · auditoria_personal 23 | Pestaña Cuadrillas: alta con responsable, miembros y PIN; Equipo la enseña; Actividades; recarga y otro aparato | — |
 | 52 | Equipos de trabajo | **PARCIAL** | entrega 68 · auditoria_pagos · auditoria_semana | Asignar a una parcela desde ahorita, cambio de parcela, el costo sigue a la asignación | Pago por tarea, vehículo, aclarar el tiempo sin asignar (recorridos en local) |
 | 53 | Cuadrillas | **PARCIAL** | auditoria_semana 26 · eventuales (local) | El día de una cuadrilla por día: vacío no se guarda, costo a la parcela, una cuenta por responsable | Destajo, precio por el trabajo, flete y vehículo propio con cuentas |
 | 54 | Checador | **PARCIAL** | entrega 68 · auditoria_pagos · auditoria_semana | Entrada y salida con PIN, jornada de 8 horas, lo que le toca al checar | Credencial con código (pide cámara), aparato ligado sin sesión |
-| 55 | Jornadas | **PARCIAL** | auditoria_captura 66 | Quién está adentro y desde cuándo; de quien no checó dice «sin marca», no «faltó»; cambiar la hora de una marca pide motivo, conserva la original en el historial y dice quién la cambió | «Era salida», cancelar una marca, poner una marca que faltó |
+| 55 | Jornadas | **APROBADO** | auditoria_captura 66 · auditoria_personal 23 | Marca de un PIN prestado cancelada con motivo (sin motivo no), «Era salida» con motivo, la marca que faltó puesta a mano y marcada como tal; otro aparato ve las cancelaciones con su porqué; recarga | — |
 | 56 | Credenciales | **PARCIAL** | auditoria_captura 66 | Emitir una credencial (código propio, sin PIN ni sueldo, con fecha y quién); emitir otra cambia el código y la anterior queda anotada | Imprimirlas y checar con la credencial (pide cámara: prueba de campo) |
 | 57 | Pase de lista | **APROBADO** | auditoria_captura 66 | Palomear un día deja la asistencia y NO genera pago ni costo; avisa de los días palomeados sin actividad; desde ahí se captura la actividad que faltaba (pide parcela y actividad) y entonces sí cuenta; en Pagos el día palomeado sale como «vino, falta decir en qué trabajó»; sólo encargado o superior (y el cabo que nombró un administrador) marca a otros: el trabajador ya no tiene la pantalla | — |
 | 58 | Asistencia | **APROBADO** | auditoria_captura 66 | Es la misma pantalla que Pase de lista con otro nombre en el menú: mismo recorrido; sólo encargado o superior (y el cabo que nombró un administrador) marca a otros: el trabajador ya no tiene la pantalla | — |

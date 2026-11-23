@@ -135,6 +135,11 @@
    "que": "La hoja de pagos que se firma: lo que ya debían, prestar en un paso, pago en dos partes, sueldo por semana, sin señal y otro aparato",
    "con": "pruebas/auditoria_hoja_pagos_navegador.py",
    "resultado": "44 de 44"
+  },
+  {
+   "que": "Equipo, Personal, Jornadas y Mano de obra con cuentas y dos teléfonos",
+   "con": "pruebas/auditoria_personal_navegador.py",
+   "resultado": "23 de 23"
   }
  ],
  "para_listo": [
@@ -402,10 +407,10 @@
   {
    "n": 30,
    "nombre": "Mano de obra",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_numeros 28 · antes: checador, cuadrillas, pagos",
-   "probado": "Lo capturado como actividad ya cuenta y se ve con su parcela y quién (decía $0 cuando nadie checa); total y cargado a parcelas por semana y por fechas",
-   "falta": "Aclarar el tiempo sin asignar desde la pantalla, en un recorrido de auditoría con dos teléfonos"
+   "estado": "APROBADO",
+   "prueba": "auditoria_numeros 28 · antes: checador, cuadrillas, pagos · auditoria_personal 23",
+   "probado": "El tiempo sin asignar sale «por aclarar» fuera de la parcela; se aclara como espera con nota y quién (hecho aparte); lo demás sigue por aclarar y no se reparte solo; otro aparato",
+   "falta": "—"
   },
   {
    "n": 31,
@@ -562,18 +567,18 @@
   {
    "n": 50,
    "nombre": "Equipo",
-   "estado": "PARCIAL",
-   "prueba": "entrega 68 · auditoria_pagos · auditoria_semana · auditoria_hoja_pagos 44",
-   "probado": "Alta de trabajadores con sueldo y PIN (repetido o sin nombre no entra), llega a otro aparato; alta con sueldo por semana (el de por día sale solo, la semana suma exacto, queda en su historial)",
-   "falta": "Editar, baja, maquinaria, encargados"
+   "estado": "APROBADO",
+   "prueba": "entrega 68 · auditoria_pagos · auditoria_semana · auditoria_hoja_pagos 44 · auditoria_personal 23",
+   "probado": "Alta de planta, encargado (PIN repetido no entra) y máquina (sin nombre o repetida no entra), cambio de sueldo con historial desde hoy, encargado sin edición de sueldos, otro aparato, recarga",
+   "falta": "La baja se hace en Pagos al personal → Prestaciones (su propia auditoría)"
   },
   {
    "n": 51,
    "nombre": "Personal",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_pagos 40 · auditoria_hoja_pagos 44",
-   "probado": "Préstamos de punta a punta: solicitud (no es deuda), autorización por menos, entrega (ahí nace la deuda, no más de lo autorizado), abonos, abono de más, dos aparatos sin señal, el encargado no autoriza ni abona; lo que ya debían al arrancar (fecha de corte, quién responde, evidencia; uno por persona; se corrige con motivo y sus abonos siguen contando; no es dinero que sale)",
-   "falta": "Pestañas Actividades y Cuadrillas"
+   "estado": "APROBADO",
+   "prueba": "auditoria_pagos 40 · auditoria_hoja_pagos 44 · auditoria_personal 23",
+   "probado": "Pestaña Cuadrillas: alta con responsable, miembros y PIN; Equipo la enseña; Actividades; recarga y otro aparato",
+   "falta": "—"
   },
   {
    "n": 52,
@@ -602,10 +607,10 @@
   {
    "n": 55,
    "nombre": "Jornadas",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_captura 66",
-   "probado": "Quién está adentro y desde cuándo; de quien no checó dice «sin marca», no «faltó»; cambiar la hora de una marca pide motivo, conserva la original en el historial y dice quién la cambió",
-   "falta": "«Era salida», cancelar una marca, poner una marca que faltó"
+   "estado": "APROBADO",
+   "prueba": "auditoria_captura 66 · auditoria_personal 23",
+   "probado": "Marca de un PIN prestado cancelada con motivo (sin motivo no), «Era salida» con motivo, la marca que faltó puesta a mano y marcada como tal; otro aparato ve las cancelaciones con su porqué; recarga",
+   "falta": "—"
   },
   {
    "n": 56,
@@ -1361,6 +1366,15 @@
    "estado": "corregido",
    "publicado": true,
    "nota": "Sueldo por semana en la ficha: cada día vale su parte, repartida al centavo"
+  },
+  {
+   "n": 74,
+   "modulo": "Equipo",
+   "que": "Se podía dar de alta una máquina sin nombre, o la misma dos veces (su diésel, horómetro y costo real quedaban partidos)",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Sin nombre o con un nombre que ya existe no entra; el formulario se limpia al guardar"
   }
  ],
  "no_se_pudo": [

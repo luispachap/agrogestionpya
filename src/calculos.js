@@ -696,3 +696,13 @@ export function esDelProveedor(credito, proveedor) {
   return !!nombreLlano(credito.proveedor) && nombreLlano(credito.proveedor) === nombreLlano(proveedor.nombre);
 }
 export const nombreDelProveedor = (credito, proveedores = []) => (proveedores || []).find(p => p.id === credito?.proveedorId)?.nombre || credito?.proveedor || "";
+
+// UNA MÁQUINA, UNA FICHA. Se podía dar de alta una máquina sin nombre, o la misma dos veces: su diésel, su horómetro y su
+// costo real quedaban partidos en dos. El mismo nombre con otras mayúsculas o acentos es la misma máquina.
+export function revisarMaquina(form, maquinaria = [], { propioId = null } = {}) {
+  const nombre = String(form?.nombre || "").trim().replace(/\s+/g, " ");
+  if (!nombre) return { ok: false, dice: "Falta el nombre de la máquina." };
+  if ((maquinaria || []).some(m => m.id !== propioId && nombreLlano(m.nombre) === nombreLlano(nombre))) return { ok: false, dice: `Ya hay una máquina que se llama «${nombre}».` };
+  const c = Number(form?.costo_hora ?? 0); if (!(c >= 0)) return { ok: false, dice: "El costo por hora es un número (0 si no se cobra por hora)." };
+  return { ok: true, nombre };
+}
