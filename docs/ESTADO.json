@@ -209,10 +209,9 @@
   {
    "n": 4,
    "nombre": "Resumen",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_numeros 28",
-   "probado": "Siete días (eran ocho); el balance de la semana con la cuenta del cierre: lo no clasificado y lo comprado para el almacén no son costo",
-   "falta": "Los contadores de pendientes (compras, incidencias, existencias bajas, tareas) contra sus pantallas"
+   "estado": "APROBADO",
+   "prueba": "auditoria_numeros 28 · auditoria_captura2 22",
+   "probado": "Siete días (eran ocho); el balance de la semana con la cuenta del cierre: lo no clasificado y lo comprado para el almacén no son costo; los contadores de pendientes (incidencias, indicaciones, existencias bajas) coinciden con sus pantallas; un artículo sin mínimo en cero ya no es alarma"
   },
   {
    "n": 5,
@@ -233,18 +232,16 @@
   {
    "n": 7,
    "nombre": "Registrar actividad",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_captura 66",
-   "probado": "Registrar una actividad a nombre de un trabajador: confirma antes de guardar, queda con quién la hizo y quién la capturó, su costo llega a la parcela; dos actividades el mismo día reparten UN día (no pagan dos); con tractor (cuota por hora) e insumo del almacén (lo descuenta, no es dinero que sale); trabajo general que no se carga a ninguna parcela; sin señal; otro teléfono; quien checó y además tiene actividad cuesta una vez",
-   "falta": "Trabajo de bodega de un cultivo, actividad de cosecha con su cantidad, «quién lo ordenó» y capturar otro día"
+   "estado": "APROBADO",
+   "prueba": "auditoria_captura 66 · auditoria_captura2 22",
+   "probado": "Registrar una actividad a nombre de un trabajador: confirma antes de guardar, queda con quién la hizo y quién la capturó, su costo llega a la parcela; dos actividades el mismo día reparten UN día (no pagan dos); con tractor (cuota por hora) e insumo del almacén (lo descuenta, no es dinero que sale); trabajo general que no se carga a ninguna parcela; sin señal; otro teléfono; quien checó y además tiene actividad cuesta una vez; trabajo de bodega de un cultivo (costo directo de la bodega, a ninguna parcela); cosecha con su cantidad ligada a la actividad; quién lo ordenó aparte de quién la hizo y quién la capturó; capturar otro día (cada día su día completo)"
   },
   {
    "n": 8,
    "nombre": "Registro de varios",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_captura 66",
-   "probado": "La misma actividad para varias personas: pide parcela, actividad y gente; horas por persona; la confirmación dice lo que de verdad se paga; queda una actividad por persona con quién la capturó; costo exacto en la parcela y en Pagos",
-   "falta": "Con maquinaria, con encargados y con externos en la misma captura"
+   "estado": "APROBADO",
+   "prueba": "auditoria_captura 66 · auditoria_captura2 22",
+   "probado": "La misma actividad para varias personas: pide parcela, actividad y gente; horas por persona; la confirmación dice lo que de verdad se paga; queda una actividad por persona con quién la capturó; costo exacto en la parcela y en Pagos; con tractor, un encargado y un externo en la misma captura (el tractor una sola vez); con sólo un externo y el tractor, el tractor ya no se pierde"
   },
   {
    "n": 9,
@@ -265,10 +262,9 @@
   {
    "n": 11,
    "nombre": "Tareas",
-   "estado": "PARCIAL",
-   "prueba": "auditoria_captura 66",
-   "probado": "El encargado manda una tarea a una persona (sin persona o sin texto no sale), ella la ve en «Mis días», la marca hecha y el encargado la ve completada",
-   "falta": "Reportar una necesidad desde Tareas, prioridades, borrar una tarea"
+   "estado": "APROBADO",
+   "prueba": "auditoria_captura 66 · auditoria_captura2 22",
+   "probado": "El encargado manda una tarea a una persona (sin persona o sin texto no sale), ella la ve en «Mis días», la marca hecha y el encargado la ve completada; prioridades; darla por hecha deja quién y cuándo; borrar pregunta antes y no regresa en otro teléfono; una necesidad desde Tareas"
   },
   {
    "n": 12,
@@ -1426,6 +1422,33 @@
    "estado": "corregido",
    "publicado": false,
    "nota": "La muestra se guarda con la hora de ahora y cuándo se capturó; el orden respeta la hora de un dígito"
+  },
+  {
+   "n": 80,
+   "modulo": "Registro de varios",
+   "que": "Con un tractor y sin nadie de planta en la captura (sólo externos o cuadrillas), las horas y el costo del tractor no quedaban en ningún lado",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "La máquina va una vez, en el primer renglón que se guarde, sea de quien sea"
+  },
+  {
+   "n": 81,
+   "modulo": "Resumen, Inventario, avisos",
+   "que": "Todo artículo sin mínimo capturado que estuviera en cero salía como «stock crítico» (el ajo de categoría aparte recién creado, una herramienta prestada): alarmas que no lo eran",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Sin mínimo no hay «bajo»; en negativo sí se avisa, como existencia que falta explicar; una sola regla en las cinco pantallas"
+  },
+  {
+   "n": 82,
+   "modulo": "Tareas",
+   "que": "Dar una indicación por hecha no dejaba quién ni cuándo, y borrarla era un solo toque sin pregunta",
+   "nivel": "P2",
+   "estado": "corregido",
+   "publicado": false,
+   "nota": "Queda quién y cuándo la dio por hecha (también desde el teléfono del trabajador); borrar pregunta y dice quién deja de verla"
   }
  ],
  "no_se_pudo": [

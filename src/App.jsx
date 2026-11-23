@@ -152,7 +152,7 @@ import {
   fechaLocal, mesLocal, sumarDias, mesAnterior, diasEntre,
   saldoCredito, diasParaVencer, cubetaVencimiento, CUBETAS_VENCIMIENTO,
   estaCancelado, vivos, delRancho, esPersonal, marcarCancelado, ganaAlSincronizar,
-  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana, fichaDeProveedor, esDelProveedor, nombreDelProveedor, revisarMaquina, idDeLote, conExistenciaDeLote, juntarLotes, cerrarTarima, idDeArticuloAparte,
+  distKm, formatearTelefonoMX, totalCosecha, calcularCostoManoObra, anotarCambioDeSueldo, sellarSueldoDelDia, sueldoVigente, sueldoDeAlta, conSueldoSemanal, promedioDeSemana, fichaDeProveedor, esDelProveedor, nombreDelProveedor, revisarMaquina, nivelDeExistencia, estaCritico, idDeLote, conExistenciaDeLote, juntarLotes, cerrarTarima, idDeArticuloAparte,
 } from "./calculos";
 // El lector de papeles: la cascada de gratis a caro (QR y XML sin costo,
 // patrón aprendido para lo ya conocido, IA sólo para un formato nuevo).
@@ -1139,8 +1139,10 @@ function getSugerencia(parcela, mes) {
 function genAlertas(data) {
   const al = [];
   data.inventario.forEach(i => {
-    if (i.existencia <= i.minimo) al.push({ tipo: "red", titulo: `Stock crítico: ${i.nombre}`, desc: `${fmtN(i.existencia)} ${i.unidad} (mín: ${fmtN(i.minimo)})`, sec: "inventario" });
-    else if (i.existencia <= i.minimo * 1.5) al.push({ tipo: "gold", titulo: `Stock bajo: ${i.nombre}`, desc: `${fmtN(i.existencia)} ${i.unidad}`, sec: "inventario" });
+    const nivel = nivelDeExistencia(i);
+    if (nivel === "negativo") al.push({ tipo: "red", titulo: `Existencia en negativo: ${i.nombre}`, desc: `${fmtN(i.existencia)} ${i.unidad}: salió más de lo que entró (falta explicar)`, sec: "inventario" });
+    else if (nivel === "critico") al.push({ tipo: "red", titulo: `Stock crítico: ${i.nombre}`, desc: `${fmtN(i.existencia)} ${i.unidad} (mín: ${fmtN(i.minimo)})`, sec: "inventario" });
+    else if (nivel === "bajo") al.push({ tipo: "gold", titulo: `Stock bajo: ${i.nombre}`, desc: `${fmtN(i.existencia)} ${i.unidad}`, sec: "inventario" });
   });
   const pend = data.incidencias.filter(i => i.estado === "pendiente");
   if (pend.length) al.push({ tipo: "gold", titulo: `${pend.length} incidencia(s) pendiente(s)`, desc: String(pend[0].desc || pend[0].descripcion || "").slice(0, 60), sec: "equipo" });
@@ -11507,7 +11509,7 @@ function AdminInventario({ data, add, upd, del, setInv, session = {} }) {
           </>
         )}
         {tab === "stock" && data.inventario.map(i => {
-          const est = i.existencia <= i.minimo ? "Crítico" : i.existencia <= i.minimo * 1.5 ? "Bajo" : "OK";
+          const est = { negativo: "Crítico", critico: "Crítico", bajo: "Bajo", ok: "OK" }[nivelDeExistencia(i)];
           return (
             <div key={i.id} className="list-item">
               <div className="li-icon"><Ic e={i.emoji} /></div>
@@ -12414,7 +12416,7 @@ function TrabHistorial({ data, add, upd, session, onLogout }) {
                   {t.detalle && <div className="text-xs text-muted" style={{ marginTop: 3 }}>{t.detalle}</div>}
                   {p && <div className="text-xs text-accent" style={{ marginTop: 3 }}><Ic e="📍" /> {p.nombre}</div>}
                   {t.estado === "pendiente" && (
-                    <button className="btn btn-accent btn-sm mt-2" style={{ width: "100%" }} onClick={() => upd("tareas", { ...t, estado: "completada" })}>Marcar como hecha</button>
+                    <button className="btn btn-accent btn-sm mt-2" style={{ width: "100%" }} onClick={() => upd("tareas", { ...t, estado: "completada", completadaPor: { id: session.id, nombre: session.nombre, rol: session.role }, completadaEn: new Date().toISOString() })}>Marcar como hecha</button>
                   )}
                 </div>
               );
@@ -12768,7 +12770,7 @@ function CuadHistorial({ data, upd, session, onLogout }) {
                   {t.detalle && <div className="text-xs text-muted" style={{ marginTop: 3 }}>{t.detalle}</div>}
                   {p && <div className="text-xs text-accent" style={{ marginTop: 3 }}><Ic e="📍" /> {p.nombre}</div>}
                   {t.estado === "pendiente" && (
-                    <button className="btn btn-accent btn-sm mt-2" style={{ width: "100%" }} onClick={() => upd("tareas", { ...t, estado: "completada" })}>Marcar como hecha</button>
+                    <button className="btn btn-accent btn-sm mt-2" style={{ width: "100%" }} onClick={() => upd("tareas", { ...t, estado: "completada", completadaPor: { id: session.id, nombre: session.nombre, rol: session.role }, completadaEn: new Date().toISOString() })}>Marcar como hecha</button>
                   )}
                 </div>
               );
@@ -14580,9 +14582,9 @@ function EncargadoTareas({ data, add, upd, del, session }) {
                   {t.detalle && <div className="text-xs text-muted" style={{ marginTop: 3 }}>{t.detalle}</div>}
                   <div className="text-xs text-muted" style={{ marginTop: 6 }}><Ic e="👷" /> {trab?.nombre || "—"}{p ? `· ${p.nombre}` : ""} · {t.fecha}</div>
                   <div className="gap-row mt-2">
-                    {t.estado !== "completada" && <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => upd("tareas", { ...t, estado: "completada" })}>Marcar completada</button>}
+                    {t.estado !== "completada" && <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={() => upd("tareas", { ...t, estado: "completada", completadaPor: { id: session.id, nombre: session.nombre, rol: session.role }, completadaEn: new Date().toISOString() })}>Marcar completada</button>}
                     <button className="btn btn-outline btn-sm" style={{ flex: "0 0 auto" }} onClick={() => setEditTarea(t)}><Ic e="✏️" /></button>
-                    <button className="btn btn-danger btn-sm" style={{ flex: "0 0 auto" }} onClick={() => del("tareas", t.id)}><Ic e="🗑" /></button>
+                    <button className="btn btn-danger btn-sm" style={{ flex: "0 0 auto" }} aria-label="Borrar la indicación" onClick={() => { if (window.confirm(`¿Borrar la indicación «${t.titulo}»? ${trab?.nombre || "La persona"} deja de verla.`)) del("tareas", t.id); }}><Ic e="🗑" /></button>
                   </div>
                 </div>
               );
@@ -16264,7 +16266,7 @@ function ResumenSemanal({ data, onClose }) {
   // Pendientes que requieren atención
   const incPend = (data.incidencias || []).filter(i => i.estado === "pendiente").length;
   const comprasPend = (data.compras || []).filter(c => c.estado === "pendiente").length;
-  const stockBajo = (data.inventario || []).filter(i => i.existencia <= i.minimo).length;
+  const stockBajo = (data.inventario || []).filter(estaCritico).length;
   const tareasPend = (data.tareas || []).filter(t => t.estado === "pendiente").length;
 
   // Actividad por tipo
@@ -16831,7 +16833,7 @@ function PanelParcelas({ data, add, del, session, onClose, onNav }) {
                 const causas = [];
                 const incPend = (data.incidencias || []).filter(i => i.estado === "pendiente");
                 if (incPend.length) causas.push(`Hay ${incPend.length} incidencia(s) sin resolver que pueden estar frenando el trabajo`);
-                const stockBajo = (data.inventario || []).filter(i => i.existencia <= i.minimo);
+                const stockBajo = (data.inventario || []).filter(estaCritico);
                 if (stockBajo.length) causas.push(`${stockBajo.length} insumo(s) con stock crítico — puede faltar material`);
                 const ultimaAct = pr.etapas.reduce((acc, e) => Math.max(acc, e.nActs), 0);
                 if (ultimaAct === 0) causas.push("No hay actividades registradas en este ciclo — quizá no se están capturando");
@@ -17251,6 +17253,9 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
     const _sb = siembraEnFecha(data, parcelaId, fecha);
     const maq = data.maquinaria.find(m => m.id === maquinariaId);
     let idxGlobal = 0;
+    // La máquina va UNA vez, en el primer renglón que se guarde, sea de quien sea (antes, sin trabajadores de planta en la
+    // captura, sus horas no quedaban en ningún lado).
+    const conMaquina = (horas) => (maq && idxGlobal === 0) ? { maquinariaId, horas_maq: horas, costoMaq: maq.costo_hora * horas } : { maquinariaId: null, horas_maq: 0, costoMaq: 0 };
     // Trabajadores y encargados (por horas)
     seleccionados.forEach((p) => {
       const cfg = sel[p.id];
@@ -17281,8 +17286,8 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
         id: `a${unico()}${idxGlobal}`, fecha, parcelaId, tipo,
         siembraId: _sb?.id || null,
         registradoPor: { tipo: "cuadrilla", id: c.id },
-        maquinariaId: null, horas_maq: 0, horas_trab: 0,
-        insumos: [], costoMO, costoMaq: 0, costoInsumos: 0, costoTotal: costoMO,
+        horas_trab: 0, ...conMaquina(horasComun),
+        insumos: [], costoMO, costoInsumos: 0, costoTotal: costoMO + conMaquina(horasComun).costoMaq,
         observaciones: obs, flete: parseFloat(cfg.flete) || 0,
         modalidadPago: cfg.modalidad, cuadrilla_tarifa: parseFloat(cfg.tarifa) || 0,
         cuadrilla_unidades: parseFloat(cfg.unidades) || 0, cuadrilla_personas: parseFloat(cfg.personas) || 0,
@@ -17301,8 +17306,8 @@ function RegistroMasivo({ data, add, upd, setInv, session, onClose }) {
         id: `a${unico()}${idxGlobal}`, fecha, parcelaId, tipo,
         siembraId: _sb?.id || null,
         registradoPor: { tipo: "externo", id: e.id },
-        maquinariaId: null, horas_maq: 0, horas_trab: 0,
-        insumos: [], costoMO, costoMaq: 0, costoInsumos: 0, costoTotal: costoMO,
+        horas_trab: 0, ...conMaquina(horasComun),
+        insumos: [], costoMO, costoInsumos: 0, costoTotal: costoMO + conMaquina(horasComun).costoMaq,
         observaciones: obs, flete: 0,
         modalidadPago: "destajo", externo_tarifa: parseFloat(cfg.tarifa) || 0,
         externo_unidades: parseFloat(cfg.unidades) || 0,

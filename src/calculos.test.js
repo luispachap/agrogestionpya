@@ -665,3 +665,12 @@ test("las_categorias_aparte_son_un_articulo_por_categoria_igual_en_todos_los_tel
   assert.equal(idDeArticuloAparte_t("Pata de perro"), "art-ajo-pata-de-perro");
   assert.equal(idDeArticuloAparte_t("Deshecho/segunda"), "art-ajo-deshecho-segunda");
 });
+
+import { nivelDeExistencia as nivelDeExistencia_t } from "./calculos.js";
+test("un_articulo_sin_minimo_en_cero_no_es_alarma_pero_uno_en_negativo_si", () => {
+  assert.equal(nivelDeExistencia_t({ existencia: 0, minimo: 0 }), "ok", "sin mínimo capturado no hay «bajo»");
+  assert.equal(nivelDeExistencia_t({ existencia: -2, minimo: 0 }), "negativo");
+  assert.equal(nivelDeExistencia_t({ existencia: 5, minimo: 5 }), "critico");
+  assert.equal(nivelDeExistencia_t({ existencia: 7, minimo: 5 }), "bajo");
+  assert.equal(nivelDeExistencia_t({ existencia: 8, minimo: 5 }), "ok");
+});

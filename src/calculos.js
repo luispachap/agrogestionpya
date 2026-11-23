@@ -760,3 +760,16 @@ export function revisarMaquina(form, maquinaria = [], { propioId = null } = {}) 
   const c = Number(form?.costo_hora ?? 0); if (!(c >= 0)) return { ok: false, dice: "El costo por hora es un número (0 si no se cobra por hora)." };
   return { ok: true, nombre };
 }
+
+// CUÁNDO UN ARTÍCULO ESTÁ BAJO. Antes «existencia ≤ mínimo» marcaba crítico a TODO artículo sin mínimo capturado que
+// estuviera en cero (el ajo de categoría aparte recién creado, una herramienta prestada): alarmas que no lo eran, y las
+// alarmas falsas enseñan a ignorar las de verdad. Sin mínimo no hay «bajo»; en negativo sí se avisa (falta explicar algo).
+export function nivelDeExistencia(articulo) {
+  const e = Number(articulo?.existencia) || 0, m = Number(articulo?.minimo) || 0;
+  if (e < 0) return "negativo";
+  if (!(m > 0)) return "ok";
+  if (e <= m) return "critico";
+  if (e <= m * 1.5) return "bajo";
+  return "ok";
+}
+export const estaCritico = (a) => ["critico", "negativo"].includes(nivelDeExistencia(a));
