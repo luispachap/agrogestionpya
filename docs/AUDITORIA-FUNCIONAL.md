@@ -2,7 +2,7 @@
 
 > **Generado desde `docs/ESTADO.json` con `node herramientas/estado.mjs`. No se edita a mano:** se cambia el archivo de estado y se vuelve a generar. Es la única fuente de las cifras, los módulos, los pendientes y lo publicado; el tablero de cierre sale de aquí mismo.
 
-Corte: domingo 22 de noviembre de 2026. **40 aprobados · 27 recorridos en parte · 0 sin verificar.**
+Corte: domingo 22 de noviembre de 2026 (noche). **40 aprobados · 27 recorridos en parte · 0 sin verificar.**
 
 **Veredicto: NO LISTO** como sistema completo · listo para prueba de campo en la operación diaria. Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).
 
@@ -18,24 +18,34 @@ Corte: domingo 22 de noviembre de 2026. **40 aprobados · 27 recorridos en parte
 
 | Qué | Con qué | Resultado |
 |---|---|---|
-| Reglas y cálculos | `npm test` | 1,288 de 1,288 |
+| Reglas y cálculos | `npm test` | 1,296 de 1,296 |
 | La base, armada desde cero y atacada por perfil | `npm run test:base` | 163 de 163 |
 | Respaldo y restauración, de punta a punta en local | `sh pruebas/respaldo_local/ensayo.sh` | 26 de 26 |
-| Todo junto: lo anterior, compilación y 42 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `1355741`) |
+| Todo junto: lo anterior, compilación y 54 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `d82e923`) |
 | Producción cerrada sin sesión | `pruebas/real_sin_sesion.py` | 6 de 6 |
 | El sitio publicado, en Android y iPhone imitados | `pruebas/real_sitio.py` | 18 de 18 |
-| Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos a `1355741` |
+| Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos a `d82e923` |
 | Producción igual a la base probada | `node pruebas/base/paridad.mjs --consulta` | 7 huellas iguales (última hoja instalada: 56) |
 | La base de producción rechaza pisar un identificador ocupado | `prueba directa que se deshace sola` | Otra marca: rechazado · sin marca: rechazado · misma marca: corrige |
 | Asistencia con dos teléfonos, semana cerrada y pago hecho | `pruebas/auditoria_ausencias_navegador.py` | 37 de 37 |
 | Campo: rancho vacío, parcelas, cultivos, calendario y cosechas con dos teléfonos | `pruebas/auditoria_campo_navegador.py` | 63 de 63 |
 | Captura diaria: actividades, registro de varios, pase de lista, tareas, reportes, jornadas, credenciales y externos | `pruebas/auditoria_captura_navegador.py` | 66 de 66 |
+| Los números cuadran entre Finanzas, Cierre de mes, ¿Cómo vamos?, Dirección, Resumen, Temporadas, Mano de obra, Semana y ContPAQi | `pruebas/auditoria_numeros_navegador.py` | 35 de 35 |
+| Socios, Banco y ¿Alcanza?: lo personal fuera de todo, estados que cuadran y que no, conciliar | `pruebas/auditoria_banco_navegador.py` | 37 de 37 |
+| Papeles: factura en XML, almacén, la misma dos veces, foto sin lectura | `pruebas/auditoria_papeles_navegador.py` | 15 de 15 |
+| Control: PINs de dirección, orden de recarga con un gasto sin subir, Subir catálogos, Arranque | `pruebas/auditoria_control_navegador.py` | 32 de 32 |
+| Agronomía: Indicaciones, Hoja de Fito, Operación, etapas del cultivo y Ganado | `pruebas/auditoria_agronomia_navegador.py` | 33 de 33 |
+| El día con dos teléfonos: cierre, lo que pasa a mañana y reabrir desde otro teléfono | `pruebas/auditoria_eldia_navegador.py` | 15 de 15 |
+| Organización: sólo con el permiso otorgado | `pruebas/auditoria_organizacion_navegador.py` | 11 de 11 |
+| Mensajes: una compra dicha en un teléfono y confirmada en otro | `pruebas/auditoria_mensajes_navegador.py` | 12 de 12 |
+| Importar documentos con dos teléfonos | `pruebas/auditoria_importar_navegador.py` | 11 de 11 |
+| Mapa y Dron con dos teléfonos | `pruebas/auditoria_mapa_navegador.py` | 13 de 13 |
 
 ## Qué está publicado y qué no
 
 | Qué | Estado | Detalle |
 |---|---|---|
-| La app en app.agroselectos.com | **Publicado** | Versión `cd7a512`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio (18 de 18). |
+| La app en app.agroselectos.com | **Publicado** | Versión `d82e923`, la misma sobre la que corrió la batería completa; comparada archivo por archivo contra lo que sirve el sitio (18 de 18). |
 | Captura diaria: «Mis días» con la cuenta real, registro de varios que dice lo que se paga, el día que se costeaba dos veces, y rastro al aprobar externos y atender incidencias | **Publicado** | 22 de noviembre; corrección ordinaria, publicada tras la batería completa. |
 | Campo (alta de cultivos, parcelas que no se eliminan con registros, cosechas que no se pisan ni se borran) y dos correcciones de identidad: hechos de nombre propio sin marca y estibas recién cerradas que no subían | **Publicado** | 22 de noviembre; corrección ordinaria, publicada tras la batería completa. |
 | Cobros parciales de un embarque desde dos teléfonos (no se pisan; cada cobro con autor, hora y su venta ligada) | **Publicado** | 22 de noviembre, autorizado por Luis. |
@@ -50,9 +60,8 @@ Corte: domingo 22 de noviembre de 2026. **40 aprobados · 27 recorridos en parte
 | Restaurar conserva quién autorizó y cuándo; nadie puede inventar una autorización | **Instalado en la base** | Hoja 53 en la base y publicado. |
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
-| Las etapas de un cultivo se escriben en la app (defecto 38) | **Sin publicar** | Recorrido auditoria_agronomia 33 de 33 y prueba con nombre; se publica al pasar la batería completa. |
 
-## Defectos encontrados al usar los módulos (69: 66 corregidos, 1 de ellos sin publicar; 3 abiertos)
+## Defectos encontrados al usar los módulos (69: 66 corregidos, 0 de ellos sin publicar; 3 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -93,7 +102,7 @@ Corte: domingo 22 de noviembre de 2026. **40 aprobados · 27 recorridos en parte
 | 35 | Cosechas | Un registro de cosecha se borraba con un toque, sin motivo ni rastro | P1 | Corregido y publicado: se cancela con motivo, queda a la vista tachado con quién y por qué, deja de contar y no revive al sincronizar |
 | 36 | Calendario | La fecha de cosecha real aceptaba cualquier texto (o una fecha anterior a la siembra), y de esa fecha salen los costos de la temporada | P2 | Corregido y publicado |
 | 37 | Comparar variedades | El rendimiento de una variedad se enseñaba sin los ajustes de cosecha (1,450 kg) mientras el rendimiento por hectárea sí los contaba (1,400) | P3 | Corregido y publicado |
-| 38 | Calendario, Estado de parcelas | Las etapas de un cultivo (emergencia, bulbificación…) sólo entran por la hoja de Excel: un cultivo dado de alta en la app no tiene etapas y su «avance por fase» sale vacío | P2 | Corregido **sin publicar**: Las etapas se escriben en la app (Variedades → el cultivo → Etapas), revisadas: con nombre, en orden, sin encimarse y sin pasar de lo que dura el cultivo |
+| 38 | Calendario, Estado de parcelas | Las etapas de un cultivo (emergencia, bulbificación…) sólo entran por la hoja de Excel: un cultivo dado de alta en la app no tiene etapas y su «avance por fase» sale vacío | P2 | Corregido y publicado: Las etapas se escriben en la app (Variedades → el cultivo → Etapas), revisadas: con nombre, en orden, sin encimarse y sin pasar de lo que dura el cultivo |
 | 39 | Cosechas | La cosecha se lleva una por parcela para siempre: el «costo por kilo» de la pantalla de Cosechas junta todas las temporadas de esa parcela (el resultado por temporada, en Finanzas y en Comparar variedades, sí separa por fechas) | P2 | Abierto |
 | 40 | Mis días | Al trabajador se le enseñaba «Mi raya acumulada» = días palomeados en el pase de lista × su sueldo, de toda la vida y sin restar lo ya pagado: con dos actividades registradas veía $0, o un acumulado que nadie le debía | P1 | Corregido y publicado: ahora ve la misma cuenta que quien paga, de la semana: lo que le corresponde, lo entregado y lo que falta |
 | 41 | Registro de varios | La confirmación prometía sueldo × horas ÷ 8 (4 horas = $240) y en Pagos y en el costo salía el día completo ($480): la pantalla decía una cosa y los libros otra | P2 | Corregido y publicado: la pantalla enseña lo que de verdad se paga (su día) y explica que las horas sólo reparten el día entre parcelas |
@@ -131,9 +140,11 @@ Corte: domingo 22 de noviembre de 2026. **40 aprobados · 27 recorridos en parte
 - Un choque real de identificadores entre dos teléfonos no se puede provocar a voluntad: en el recorrido se FUERZA (se congela la hora y se le quita el azar al identificador, no a la marca de nacimiento) y se ataca la base directo.
 - Que la base le niegue algo a un perfil no se ve en la nube de imitación (devuelve todo): se prueba atacando la base aislada (`pruebas/base/auditoria.test.mjs`, 12 pruebas).
 - Que un trabajador capture su compra entrando con su PIN en un teléfono ligado: la compra se sembró en la nube de imitación como si él la hubiera mandado; aprobar, recibir y valuar sí se hicieron en pantalla.
-- «Registrar actividad» (captura tecleada de mano de obra) con cuentas: la pantalla es de varios pasos y no se alcanzó; la cubre `ejecutores` en local.
 - Imprimir etiquetas y remisiones: no hay impresora; se comprobó que la pantalla las genera.
 - Todo lo que pide un teléfono de verdad.
+- La lectura con IA (fotos de tickets, de hojas y del dron): la función está instalada pero sin llave; las pruebas usan respuestas imitadas.
+- El pronóstico del clima de El día y el botón de WhatsApp de una indicación: necesitan internet y el teléfono de verdad.
+- El PIN de dirección en un teléfono nuevo: por diseño no funciona hasta que alguien entra ahí con su cuenta (la base no le da los PINs a nadie sin sesión).
 
 ## Inventario
 
@@ -209,13 +220,12 @@ Corte: domingo 22 de noviembre de 2026. **40 aprobados · 27 recorridos en parte
 
 ## Orden en que sigue
 
-1. Terminar lo que quedó en parte de la operación diaria, con cuentas: Entregas (a una persona y cierre), Cuadrillas (destajo, precio, flete), Equipos de trabajo (pago por tarea, vehículo), ausencias, prestaciones y bajas, El día y Jornadas, Registrar actividad, Mano de obra.
-2. Terminar Bodega: calidad, categorías aparte, revoltura, re-limpia, salida a nuestra bodega, pago parcial y a cuenta de deuda; y los dos pendientes abiertos (16 y 17).
-3. Dinero que falta: Papeles, Banco, Socios (con la consulta autorizada de Finanzas), Semana, Reportes, Temporadas, ContPAQi y los paneles (Operación, ¿Alcanza?, Resumen, ¿Cómo vamos?).
-4. Agronomía y campo: Hoja de Fito, Variedades, Calendario, Cosechas, Rendimiento, Dron, Ganado, Mapa.
-5. Captura anterior y control: Registro de varios, Tareas, Indicaciones, Pase de lista, Asistencia, Reportar, Seguridad, Subir catálogos, Credenciales, Arranque, Organización, Mensajes, Importar documentos.
-6. Integrales: seguridad por perfil en todos, respaldo y recuperación reales.
-7. Decidido por Luis (22 nov): el checado con GPS desde el teléfono propio y la tabla de colores por cortes se construyen DESPUÉS de cerrar los 67 módulos (diseño en docs/PROPUESTAS-ASISTENCIA.md; los cortes se validan con Miguel).
+1. Bodega: calidad, categorías aparte, revoltura, re-limpia, estibas (alta individual, cierre manual), salida a nuestra bodega, varias tarimas, pago a cuenta de deuda; y el pendiente abierto 16.
+2. Personal y pagos con cuentas: Equipo (editar, baja, maquinaria), Personal, Equipos de trabajo (pago por tarea, vehículo), Cuadrillas (destajo, precio, flete), Checador y Jornadas (marcas que faltan, «era salida»), horas adicionales, prestaciones y bajas.
+3. Captura: Registrar actividad (bodega, cosecha con cantidad, quién lo ordenó, otro día), Registro de varios (maquinaria, encargados, externos), Aplicaciones (reentrada y carencia), Tareas, Entregas del almacén, Mis compras.
+4. Reportes por parcela, por ciclo y de rendimiento contra las mismas cifras; Estado de parcelas y Calendario con etapas escritas en la app; «Cosecha en curso» en Operación; Papeles (PDF, etiqueta, horómetro).
+5. Requisitos de salida: el respaldo real (falta el repositorio privado) y la prueba de campo con la familia, en teléfonos de verdad.
+6. Decidido por Luis (22 nov): el checado con GPS desde el teléfono propio y la tabla de colores por cortes se construyen DESPUÉS de cerrar los 67 módulos (diseño en docs/PROPUESTAS-ASISTENCIA.md; los cortes se validan con Miguel).
 
 ## Qué falta para decir «listo»
 
