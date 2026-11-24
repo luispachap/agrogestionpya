@@ -290,7 +290,7 @@ Corte: lunes 23 de noviembre de 2026, 5:30 de la mañana. **66 aprobados · 1 re
 
 ## Lo que le toca a Luis
 
-- Del personal que se subió de la lista de nómina faltan el PIN y la fecha de ingreso de cada quien (el sueldo por semana ya está, el de la columna «Sueldo» de la lista del 16 al 21 de noviembre). Cuatro traen centavos (Chonito, Gera, Lupe, Rigo): si esa semana incluía algo extra, se corrige su ficha a su sueldo de siempre.
+- Del personal que se subió de la lista de nómina faltan el PIN y la fecha de ingreso de cada quien (el sueldo por semana ya está, el de la columna «Sueldo» de la lista del 16 al 21 de noviembre). Cuatro traen centavos: si esa semana incluía algo extra, se corrige su ficha a su sueldo de siempre.
 - Migue es administrador: para que haga lo sensible (préstamos, pagos, cierres) hay que otorgarle cada permiso en Arranque → Cuentas.
 - Los 22 ranchos del Excel entraron sin hectáreas ni ubicación, y sin parcelas: sin parcelas no se puede pintar la tabla por cortes ni repartir costos. Ganado, General y las cinco bodegas del Excel no se subieron como ranchos: dime si alguno lo es.
 - Crear el repositorio privado de respaldos y sus tres secretos.
