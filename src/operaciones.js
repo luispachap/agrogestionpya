@@ -70,7 +70,7 @@ const AVISO_DE_PRESTAMO = "Queda como SOLICITUD de préstamo: todavía no es deu
 // Con cuánta sesión se confirma: lo que mueve dinero o toca a una persona no se confirma sólo por venir de un teléfono conocido.
 const SIN_SESION = "Esto no se confirma desde un teléfono, aunque sea conocido: se confirma dentro de la app, con tu sesión.";
 const PREGUNTA = {
-  "a quién se le prestó": "¿A quién se le prestó? (una persona, con nombre)", "cuánto se prestó": "¿Cuánto se prestó?", "cuántos fueron": "¿Cuántos fueron en total?",
+  "a quién se le prestó": "¿A quién se le prestó? (una persona, con nombre)", "cuánto se prestó": "¿Cuánto se prestó?", "cuántos fueron": "¿Cuántos fueron en total? (Si ese precio ya era el total, dilo: «fue el total».)",
   "cuánto costó": "¿Cuánto costó?", "quién trabajó": "¿Quiénes trabajaron? (con nombre: un número de personas no le registra el día a nadie)", "en qué parcela": "¿En qué parcela?", "de qué parcela": "¿De qué parcela?",
   "cuánto se cosechó": "¿Cuánto se cosechó, y en qué (cajas, kilos…)?", "cuánto se avanzó y en qué (reguladores, surcos, cajas…)": "¿Cuánto se avanzó, y en qué se mide (reguladores, surcos, cajas…)?",
   "en cuál de las parcelas que nombraste": "Nombraste varias parcelas: ¿en cuál fue?", "de qué actividad": "¿De qué actividad es el avance (deshierbe, riego, corte…)?",
@@ -96,7 +96,7 @@ export function preparar({ mensaje, entendido, yaHechas = [] }) {
       if ((p.personas || []).length !== 1) falta.push("a quién se le prestó");
       if (p.monto == null) falta.push("cuánto se prestó");
     }
-    const datos = { fecha: p.fecha, parcelaId: p.parcelas?.[0]?.id || "", parcelaNombre: p.parcelas?.[0]?.nombre || "", personas: (p.personas || []).map(x => ({ id: x.id, nombre: x.nombre })), monto: p.monto ?? null, pagadoCon: p.pagadoCon || null, horas: p.horas ?? null, cantidad: p.cantidad || null, paraQuien: p.paraQuien || null };
+    const datos = { fecha: p.fecha, parcelaId: p.parcelas?.[0]?.id || "", parcelaNombre: p.parcelas?.[0]?.nombre || "", personas: (p.personas || []).map(x => ({ id: x.id, nombre: x.nombre })), monto: p.monto ?? null, precioUnitario: p.precioUnitario ?? null, pagadoCon: p.pagadoCon || null, horas: p.horas ?? null, cantidad: p.cantidad || null, paraQuien: p.paraQuien || null };
     if (tipo === "avance") { datos.actividad = p.actividad || actividadDicha(p.frase); datos.unidad = unidadDe(p.cantidad?.unidad) || null; datos.personasN = p.personasN ?? null; datos.pendiente = p.pendiente || null; if (!datos.actividad) falta.push("de qué actividad"); }
     if ((p.ambiguos || []).length) falta.push(`cuál de las personas es «${p.ambiguos.map(a => a.dijo || a.nombre || "").join("», «")}» (${p.ambiguos.map(a => (a.candidatos || []).map(c => c.nombre).join(" o ")).join("; ")})`);
     const op = OPERACIONES[tipo], puede = op.confirma.includes(rol);
@@ -126,7 +126,7 @@ export function decirPropuesta(p) {
   const d = p.datos;
   if (p.tipo === "avance") return `${d.cantidad ? `${d.cantidad.valor} ${d.unidad ? decirUnidad(d.unidad, d.cantidad.valor) : d.cantidad.unidad}` : "Avance"}${d.actividad ? ` de ${d.actividad}` : ""}${d.parcelaNombre ? ` en ${d.parcelaNombre}` : ""}${d.personasN ? ` · ${d.personasN} persona(s)` : ""}${d.pendiente ? " · quedó pendiente" : ""}`;
   if (p.tipo === "prestamo") return `Solicitud de préstamo${d.monto != null ? ` de $${d.monto.toLocaleString("es-MX")}` : ""}${d.personas.length === 1 ? ` para ${d.personas[0].nombre}` : ""}`;
-  if (p.tipo === "gasto") return `Gasto${d.monto != null ? ` de $${d.monto.toLocaleString("es-MX")}` : ""}${d.pagadoCon ? ` · ${FORMAS_DE_PAGO.find(f => f.clave === d.pagadoCon)?.nombre || d.pagadoCon}` : ""}`;
+  if (p.tipo === "gasto") return `Gasto${d.monto != null ? ` de $${d.monto.toLocaleString("es-MX")}` : ""}${d.precioUnitario != null && d.cantidad?.valor ? ` (${d.cantidad.valor.toLocaleString("es-MX")} ${d.cantidad.unidad || ""} × $${d.precioUnitario.toLocaleString("es-MX")})`.replace(/\s+×/, " ×") : ""}${d.pagadoCon ? ` · ${FORMAS_DE_PAGO.find(f => f.clave === d.pagadoCon)?.nombre || d.pagadoCon}` : ""}`;
   if (p.tipo === "actividad") return `Trabajo de ${d.personas.map(x => x.nombre).join(", ") || "—"}${d.parcelaNombre ? ` en ${d.parcelaNombre}` : ""}`;
   if (p.tipo === "cosecha") return `Cosecha${d.cantidad ? ` de ${d.cantidad.valor} ${d.cantidad.unidad}` : ""}${d.parcelaNombre ? ` de ${d.parcelaNombre}` : ""}`;
   if (p.tipo === "nota") return `Nota · ${NATURALEZAS[p.naturaleza].toLowerCase()}`;
@@ -159,7 +159,9 @@ export function ejecutar(propuesta, { mensaje, quien, cuando, fecha, parcelas = 
     r.evento.datos.origenDicho = origen; r.evento.datos.dichoComoYaEntregado = /\b(le preste|le prestamos|se le presto|le adelante|le adelantamos)\b/.test(plano(p.frase));
     return una("eventos", r.evento);
   }
-  if (p.tipo === "gasto") return una("egresos", { ...comun, concepto: p.frase.slice(0, 90), monto: d.monto, categoria: "insumos", proveedor: d.proveedor || "", ...(d.pagadoCon ? { pagadoCon: d.pagadoCon } : {}) });
+  if (p.tipo === "gasto") return una("egresos", { ...comun, concepto: p.frase.slice(0, 90), monto: d.monto, categoria: "insumos", proveedor: d.proveedor || "", ...(d.pagadoCon ? { pagadoCon: d.pagadoCon } : {}),
+    // Cómo salió el total, si fue precio × cantidad: así se puede revisar la cuenta.
+    ...(d.precioUnitario != null && d.cantidad?.valor ? { precioUnitario: d.precioUnitario, cantidad: d.cantidad.valor, unidad: d.cantidad.unidad || "" } : {}) });
   if (p.tipo === "actividad") return { ok: true, dice: `Trabajo de ${d.personas.length} persona(s): quedó en Actividades.`, escrituras: d.personas.map(per => ({ coleccion: "actividades", registro: { ...comun, parcelaId: d.parcelaId, tipo: "Trabajo de campo", horas: d.horas, trabajadorId: per.id, nota: p.frase } })) };
   // Con la MISMA forma que usan sus pantallas (si no, la pantalla no lo enseña o truena al leerlo).
   // De lo que hace falta se guarda lo dicho en las notas; los productos no se inventan.
@@ -286,6 +288,10 @@ export function aclarar({ propuesta, respuesta, personas = [], parcelas = [], ho
       } else { cambios.monto = n; entendio.push(`el importe: ${pesos(n)}`); resueltas.add(f); }
     } else if (f === "cuántos fueron") {
       const n = numeroEn(texto)?.valor ?? null;
+      // «Fue el total»: el precio que se dijo ya era lo de todo, no el de cada uno.
+      if (n == null && p.precioUnitario != null && /\b(total|todo|fue todo|por todo|eso fue)\b/.test(t)) {
+        cambios.monto = p.precioUnitario; cambios.precioUnitario = null; entendio.push(`${pesos(p.precioUnitario)} fue el total`); resueltas.add(f); continue;
+      }
       if (n == null) continue;
       cambios.cantidad = { valor: n, unidad: suelto.cantidad?.unidad || "", dicho: texto }; cambios.monto = Math.round(n * p.precioUnitario * 100) / 100;
       entendio.push(`${n} × ${pesos(p.precioUnitario)} = ${pesos(cambios.monto)}`); resueltas.add(f);

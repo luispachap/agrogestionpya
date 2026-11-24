@@ -15,6 +15,9 @@ def cuenta(n, correo, nombre, rol):
 _raiz = pathlib.Path(__file__).parent.parent.parent
 SENSIBLES = json.loads(subprocess.run(["node", "-e", "import('./src/eventos.js').then(m => console.log(JSON.stringify(m.OPERACION_DE)))"], cwd=_raiz, capture_output=True, text=True).stdout or "{}")
 SOLO_OTORGADOS = json.loads(subprocess.run(["node", "-e", "import('./src/eventos.js').then(m => console.log(JSON.stringify(m.SOLO_OTORGADOS)))"], cwd=_raiz, capture_output=True, text=True).stdout or "[]")
+# Las columnas que de verdad tiene cada tabla, leídas de las hojas SQL. Antes esta nube aceptaba cualquier columna, y el
+# 24 nov ningún mensaje del chat subía a la base real («deQuien» se llama `dequien`) sin que ningún recorrido lo viera.
+COLUMNAS = {t: set(c) for t, c in json.loads(subprocess.run(["node", "herramientas/columnas.mjs"], cwd=_raiz, capture_output=True, text=True).stdout or "{}").items()}
 
 import hashlib
 def firma(fila, llave="llave-de-la-nube-de-mentira"):
@@ -105,16 +108,42 @@ class Nube:
             self.rechazos.append(tabla); return J({"code": "42501", "message": "new row violates row-level security policy"}, 401)
         if r.method == "DELETE": return J([], 200)
         entran = cuerpo if isinstance(cuerpo, list) else [cuerpo]; salen = []
-        solo_faltantes = "ignore-duplicates" in (r.headers.get("prefer") or "")
+        prefer = r.headers.get("prefer") or ""
+        solo_faltantes = "ignore-duplicates" in prefer
+        # Como PostgREST: una columna que la tabla no tiene rechaza el renglón entero.
+        if tabla in COLUMNAS:
+            for f in entran:
+                otra = next((k for k in (f or {}) if k not in COLUMNAS[tabla]), None) if isinstance(f, dict) else None
+                if otra:
+                    self.rechazos.append(tabla); return J({"code": "PGRST204", "message": f"Could not find the '{otra}' column of '{tabla}' in the schema cache"}, 400)
+        import urllib.parse
+        filtros = [(k, urllib.parse.unquote(v)) for k, v in re.findall(r"[?&](\w+)=eq\.([^&]+)", r.url)]
+        if r.method == "PATCH":
+            # Actualizar: sólo los renglones que ya están y cumplen el filtro; si no hay ninguno, no pasa nada (lista vacía).
+            for fid, ya in list(filas.items()):
+                if not filtros or not all(str(ya.get(k)) == v for k, v in filtros): continue
+                cambio = {**ya, **(entran[0] if entran and isinstance(entran[0], dict) else {}), "id": fid}
+                self.subidas.append((tabla, fid, c["rol"]))
+                g = self.sellar(cambio, c) if tabla == "eventos" else {**cambio, "actualizado": cambio.get("actualizado") or self.ahora()}
+                filas[fid] = g; salen.append(g)
+            return J(salen, 200)
+        upsert = "merge-duplicates" in prefer or solo_faltantes or "on_conflict=" in r.url
         for f in entran:
             if not isinstance(f, dict) or "id" not in f: continue
             if solo_faltantes and f["id"] in filas: continue          # lo que ya está no se toca
+            if not upsert and f["id"] in filas:
+                return J({"code": "23505", "message": f'duplicate key value violates unique constraint "{tabla}_pkey"'}, 409)
             # Igual que la hoja 56: un identificador ocupado por OTRO registro (otra marca de nacimiento) no se pisa.
             ya = filas.get(f["id"]); nace = lambda x: (x.get("datos") or {}).get("_nace") if isinstance(x.get("datos"), dict) else None
             if ya and nace(ya) and nace(f) != nace(ya):
                 self.ocupados.append((tabla, f["id"], c["rol"])); return J({"code": "23505", "message": f'identificador_ocupado: ya existe otro registro con el identificador "{f["id"]}" en {tabla}. No se sobrescribió.'}, 409)
             self.subidas.append((tabla, f["id"], c["rol"]))
             g = self.sellar(f, c) if tabla == "eventos" else {**f, "actualizado": f.get("actualizado") or self.ahora()}
+            # Como la política «crear eventos» de la base: lo que entra por INSERT —también un upsert que acaba
+            # actualizando— tiene que ser vigente (o venir restaurado con su sello). Cancelar o corregir es un UPDATE.
+            if tabla == "eventos" and (f.get("estado") or "vigente") != "vigente" and not g.get("restaurado"):
+                self.subidas.pop(); self.rechazos.append(tabla)
+                return J({"code": "42501", "message": 'new row violates row-level security policy for table "eventos"'}, 403)
             filas[g["id"]] = g; salen.append(g)
         return J(salen, 201)
     def cuantos(self): return {t: len(f) for t, f in sorted(self.t.items()) if f}

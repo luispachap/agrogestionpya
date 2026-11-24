@@ -12,6 +12,7 @@
 
 import { objetoAFila, filaAObjeto } from "./filas.js";
 import { UNIONES_DE_REGISTROS } from "./calculos.js";
+import { subirEvento } from "./subirEvento.js";
 import { supabase, supabaseListo } from "./supabase";
 
 // ------------------------------------------------------------
@@ -145,9 +146,14 @@ export async function guardarRegistro(tabla, obj) {
   const fila = objetoAFila(tabla, obj);
   if (tabla === "eventos") {
     // De un evento se pide de regreso lo que la base le selló (cuándo lo recibió y, si es sensible, si lo autorizó).
-    const { data, error } = await supabase.from(tabla).upsert(fila, { onConflict: "id" }).select();
-    if (error) throw error;
-    const sellado = data && data[0] ? filaAObjeto(data[0]) : null;
+    // Cancelado o corregido se ACTUALIZA, no se sube con upsert: la base no deja que un evento nazca así (subirEvento.js).
+    const cliente = {
+      upsert: (f) => supabase.from("eventos").upsert(f, { onConflict: "id" }).select(),
+      update: (f) => supabase.from("eventos").update(f).eq("id", f.id).select(),
+      insert: (f) => supabase.from("eventos").insert(f).select(),
+    };
+    const devuelta = await subirEvento(cliente, obj, (o) => objetoAFila("eventos", o));
+    const sellado = devuelta ? filaAObjeto(devuelta) : null;
     if (sellado) { try { alSellar?.(sellado); } catch { /* el sello llega igual en la siguiente bajada */ } }
     return true;
   }

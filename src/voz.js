@@ -39,7 +39,7 @@
 // ============================================================
 
 import { normalizar, aNumero, aFecha } from "./lectura.js";
-import { fechaLocal, sumarDinero } from "./calculos.js";
+import { fechaLocal, sumarDinero, multiplicarDinero } from "./calculos.js";
 
 /* ════════════ NÚMEROS DICHOS CON LA BOCA ════════════ */
 
@@ -59,7 +59,9 @@ const UNIDADES = {
 };
 
 export function numeroDicho(texto) {
-  const t = normalizar(texto).toLowerCase().replace(/[.,]/g, "");
+  // La coma es de miles («1,000»); el punto seguido de cifras es el decimal («28.50» son veintiocho pesos con cincuenta,
+  // no 2,850: con el punto borrado, el litro de diésel salía cien veces más caro).
+  const t = normalizar(texto).toLowerCase().replace(/,/g, "").replace(/\.(?!\d)/g, "");
   const palabras = t.split(/\s+/).filter(Boolean);
   let total = 0, parcial = 0, hubo = false;
   for (const p of palabras) {
@@ -95,7 +97,7 @@ export function numerosDichos(texto) {
     buffer = [];
   };
   for (const p of palabras) {
-    const limpio = p.replace(/[^a-z0-9]/g, "");
+    const limpio = p.replace(/[^a-z0-9.]/g, "").replace(/\.(?!\d)/g, "").replace(/^\./, "");
     if (UNIDADES[limpio] !== undefined || limpio === "mil" || limpio === "y" || aNumero(limpio) !== null || limpio === "millon" || limpio === "millones") {
       if (limpio !== "y" || buffer.length > 0) buffer.push(limpio);
       continue;
@@ -251,6 +253,27 @@ export function clasificarDicho(frase) {
   return { tipo: puntos[0].tipo, seguro: puntos[0].n >= 2, porque: `Suena a ${puntos[0].tipo}.` };
 }
 
+/* ════════════ PRECIO DE UNO O PRECIO DE TODO ════════════ */
+
+// «28 pesos el litro», «a 580 cada uno», «por kilo»: lo que se dice junto al precio cuando es de UNA unidad.
+export const POR_UNIDAD_DICHO = /\b(el|la|por|cada|c\/u|x)\s+(kilo|kg|litro|lt|bulto|costal|caja|pieza|metro|tonelada|rollo|saco|galon|uno|una)\b|\bcada uno\b|\bc\/u\b|\bpor pieza\b/;
+// «Compramos diésel A 28 pesos»: la «a» delante del precio dice que es lo que costó cada uno («lo compramos a
+// tanto»); «en 28 mil» o «fueron 28 mil» es el total.
+export function esPrecioPorUnidad(frase, numero) {
+  const t = normalizar(frase).toLowerCase().replace(/,(?=\d)/g, "");
+  if (POR_UNIDAD_DICHO.test(t)) return true;
+  const dicho = String(numero?.dicho || "").trim();
+  if (!dicho) return false;
+  const d = dicho.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+  return new RegExp(`(^|\\s)a\\s+\\$?\\s*${d}(?![\\d.])`).test(t);
+}
+const multiplicar = (precio, cantidad) => multiplicarDinero(precio, cantidad);
+// Lo que se compra por unidad (una frase de horas o de gente no es la cantidad de una compra).
+const UNIDADES_DE_COMPRA = ["litros", "litro", "kilos", "kilo", "kg", "cajas", "caja", "bultos", "bulto", "toneladas", "tonelada", "costales", "costal", "piezas", "pieza"];
+const SINGULAR = { litros: "litro", kilos: "kilo", cajas: "caja", bultos: "bulto", toneladas: "tonelada", costales: "costal", piezas: "pieza" };
+const unidadEnSingular = (u) => SINGULAR[u] || u || "unidad";
+const pesoDe = (n) => `$${Number(n).toLocaleString("es-MX", Number.isInteger(Number(n)) ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 /* ════════════ LA PROPUESTA COMPLETA ════════════ */
 
 // Toma lo dicho y arma los movimientos que PROPONE. No guarda nada: eso lo
@@ -283,10 +306,21 @@ export function entenderLoDicho({ texto, personas, parcelas, insumos, hoy }) {
       const ARTICULOS = ["un", "una", "uno"];
       const sueltos = numeros.filter(n => !n.unidad && !ARTICULOS.includes(String(n.dicho).trim()));
       const pesos = numeros.find(n => n.unidad === "pesos") || sueltos[sueltos.length - 1];
-      base.monto = pesos ? pesos.valor : null;
-      if (base.monto === null) base.falta.push("cuánto costó");
-      const cantidad = numeros.find(n => n.unidad && n.unidad !== "pesos");
+      const cantidad = numeros.find(n => n.unidad && n.unidad !== "pesos" && n.unidad !== "peso");
       if (cantidad) base.cantidad = cantidad;
+      // «a 28 pesos» o «28 pesos el litro» es lo que cuesta CADA UNO, no el total (24 nov: «compramos diésel a 28
+      // pesos, fueron 1000 litros» se propuso como un gasto de $28). Con la cantidad se multiplica; sin ella se
+      // pregunta cuántos fueron. Nunca se propone el precio de uno como si fuera el total.
+      if (pesos && esPrecioPorUnidad(frase, pesos)) {
+        const uno = numeros.find(n => n !== pesos && !n.unidad && ARTICULOS.includes(String(n.dicho).trim()));
+        base.precioUnitario = pesos.valor;
+        if (cantidad?.valor > 0) base.monto = multiplicar(pesos.valor, cantidad.valor);
+        else if (uno && !POR_UNIDAD_DICHO.test(normalizar(frase).toLowerCase())) base.monto = pesos.valor;   // «un filtro a 350 pesos»
+        else { base.monto = null; base.falta.push("cuántos fueron"); }
+      } else {
+        base.monto = pesos ? pesos.valor : null;
+        if (base.monto === null) base.falta.push("cuánto costó");
+      }
     }
     if (clase.tipo === "actividad") {
       if (quienes.personas.length === 0 && quienes.ambiguos.length === 0) base.falta.push("quién trabajó");
@@ -327,6 +361,37 @@ export function entenderLoDicho({ texto, personas, parcelas, insumos, hoy }) {
     if (gente && previo.personasN == null) previo.personasN = gente.valor;
     if (pendiente) { const q = p.numeros.find(n => UNIDADES_DE_AVANCE_DICHAS.includes(n.unidad)); previo.pendiente = { texto: p.frase, cantidad: q ? q.valor : null, unidad: q ? q.unidad : null }; }
     p.parteDe = previo.i; p.tipo = "nota"; p.seguro = true; p.porque = "Va con el avance de arriba.";
+  }
+
+  // Lo mismo con una compra: «Compramos diésel a 28 pesos. Fueron 1000 litros.» La segunda frase no es otra cosa
+  // (24 nov salió como nota suelta y el gasto se quedó en $28): es cuánto se compró, o cuánto costó, de lo de arriba.
+  // Sólo si la frase no trae su propia compra, persona ni parcela, y sólo llena lo que a la compra le faltaba.
+  for (let i = 1; i < propuestas.length; i++) {
+    const p = propuestas[i], previo = propuestas.slice(0, i).reverse().find(x => !x.parteDe);
+    if (!previo || previo.tipo !== "gasto" || !["nota", "gasto"].includes(p.tipo) || p.parcelas.length || p.personas.length) continue;
+    const t = normalizar(p.frase).toLowerCase();
+    if (/\b(compr|pag|gast|factur|presta)/.test(t)) continue;
+    const cantidad = p.numeros.find(n => UNIDADES_DE_COMPRA.includes(n.unidad));
+    const total = /^(y\s+)?(fueron|fue|eran|era|son|salio|salieron|costo|costaron|en total|total|todo)\b/.test(t);
+    const dinero = p.numeros.find(n => n.unidad === "pesos") || (total && !cantidad ? p.numeros.find(n => !n.unidad && !["un", "una", "uno"].includes(String(n.dicho).trim())) : null);
+    const llena = [];
+    if (cantidad && !previo.cantidad) {
+      previo.cantidad = cantidad; llena.push("cantidad");
+      if (previo.precioUnitario != null) { previo.monto = multiplicar(previo.precioUnitario, cantidad.valor); previo.falta = previo.falta.filter(f => f !== "cuántos fueron"); }
+    }
+    if (dinero && previo.monto == null) {
+      if (previo.precioUnitario != null && !esPrecioPorUnidad(p.frase, dinero)) { previo.monto = dinero.valor; previo.falta = previo.falta.filter(f => f !== "cuántos fueron"); llena.push("total"); }
+      else if (previo.precioUnitario == null) { previo.monto = dinero.valor; previo.falta = previo.falta.filter(f => f !== "cuánto costó"); llena.push("total"); }
+    }
+    if (!llena.length) continue;
+    previo.frase = `${previo.frase} ${p.frase}`.trim();
+    p.parteDe = previo.i; p.tipo = "nota"; p.seguro = true; p.porque = "Va con la compra de arriba."; delete p.monto; delete p.cantidad; p.falta = [];
+  }
+  for (const p of propuestas) {
+    if (p.tipo !== "gasto" || p.precioUnitario == null) continue;
+    p.porque = p.monto != null && p.cantidad?.valor
+      ? `Se entendió ${pesoDe(p.precioUnitario)} por ${unidadEnSingular(p.cantidad.unidad)} × ${p.cantidad.valor.toLocaleString("es-MX")} ${p.cantidad.unidad} = ${pesoDe(p.monto)}.`
+      : p.monto != null ? `Se entendió ${pesoDe(p.monto)}.` : `Se entendió ${pesoDe(p.precioUnitario)} por cada uno: falta saber cuántos fueron.`;
   }
   return {
     frases: frases.length,

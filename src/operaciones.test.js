@@ -255,3 +255,45 @@ test("la_pregunta_abierta_es_lo_ultimo_que_dijo_esa_persona_y_caduca", () => {
   assert.equal(pendienteDe([m], "enc1", "2026-11-23T18:10:00.000Z"), null, "dos días después ya no es una respuesta");
   assert.equal(pendienteDe([m, { id: "c2", de: capataz, cuando: "2026-11-21T18:05:00.000Z", propuestas: [] }], "enc1", "2026-11-21T18:10:00.000Z"), null, "si ya dijo otra cosa después, tampoco");
 });
+
+/* ── 24 nov, primera prueba en teléfonos: «compramos diésel a 28 pesos… fueron 1000 litros» salió como gasto de $28 ── */
+test("diesel_a_28_pesos_y_1000_litros_es_un_gasto_de_28_mil_aunque_venga_en_otra_frase", () => {
+  for (const texto of ["Compramos diesel a 28 pesos... fueron 1000 litros", "Compramos diésel a 28 pesos. Fueron mil litros.", "Compramos 1000 litros de diésel a 28 pesos", "Compramos diésel a 28 pesos el litro, fueron 1000 litros"]) {
+    const { mensaje, plan } = dicho(texto, admin);
+    assert.equal(plan.propuestas.length, 1, `${texto}: la cantidad va con la compra, no es una nota aparte`);
+    const p = plan.propuestas[0];
+    assert.deepEqual([p.tipo, p.datos.monto, p.datos.precioUnitario, p.datos.cantidad.valor, p.lista], ["gasto", 28000, 28, 1000, true], texto);
+    assert.match(decirPropuesta(p), /Gasto de \$28,000 \(1,000 litros × \$28\)/, "la cuenta se ve antes de firmar");
+    const e = ejecutar(p, { mensaje, quien: admin, parcelas, ...sello() }).escrituras[0].registro;
+    assert.deepEqual([e.monto, e.precioUnitario, e.cantidad, e.unidad], [28000, 28, 1000, p.datos.cantidad.unidad]);
+    assert.match(e.concepto, /28 pesos.*1000 litros|1000 litros.*28 pesos|28 pesos.*mil litros/, "el concepto lleva las dos frases");
+  }
+});
+
+test("a_28_pesos_sin_cantidad_no_se_propone_como_total_se_pregunta_cuantos_fueron", () => {
+  const p0 = entendida("Compramos diésel a 28 pesos");
+  assert.deepEqual([p0.monto ?? null, p0.precioUnitario, p0.falta], [null, 28, ["cuántos fueron"]], "$28 es el litro, no el gasto");
+  const mensaje = { id: "m-diesel", canal: "chat", de: admin, cuando: "2026-11-21T18:00:00.000Z" };
+  const antes = preparar({ mensaje, entendido: { propuestas: [p0] } }).propuestas[0];
+  assert.equal(antes.lista, false); assert.match(antes.preguntas[0], /¿Cuántos fueron en total\?/);
+  const r = aclarar({ propuesta: p0, respuesta: resp("mil litros"), personas, parcelas });
+  assert.deepEqual([r.propuesta.monto, r.propuesta.falta], [28000, []]);
+  // Y si los 28 ya eran el total, se dice y vale eso.
+  const total = aclarar({ propuesta: entendida("Compramos aceite para el tractor a 350 pesos"), respuesta: resp("fue el total"), personas, parcelas });
+  assert.deepEqual([total.propuesta.monto, total.propuesta.falta], [350, []]);
+});
+
+test("un_precio_con_centavos_no_se_vuelve_cien_veces_mas_caro", () => {
+  const p = entendida("Compramos 1000 litros de diésel a 28.50 pesos el litro");
+  assert.deepEqual([p.precioUnitario, p.cantidad.valor, p.monto], [28.5, 1000, 28500]);
+});
+
+test("el_total_dicho_sigue_siendo_el_total_y_un_filtro_a_350_es_350", () => {
+  assert.equal(entendida("Se compraron doscientos litros de diésel en la gasolinera, tres mil ochocientos pesos").monto, 3800);
+  assert.equal(entendida("Compramos 3 bultos de urea en 1740 pesos").monto, 1740);
+  assert.equal(entendida("Compramos 3 bultos de urea a 580 cada uno").monto, 1740);
+  assert.equal(entendida("Compramos un filtro a 350 pesos").monto, 350);
+  // Una frase de después que no es de la compra no se le pega.
+  const e = entenderLoDicho({ texto: "Compramos 28 mil pesos de diésel. Mañana regamos 3 horas", personas, parcelas, insumos: [], hoy: "2026-11-21" }).propuestas;
+  assert.deepEqual([e[0].monto, e[0].cantidad ?? null, e[1].parteDe ?? null], [28000, null, null]);
+});

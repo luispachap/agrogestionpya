@@ -79,6 +79,14 @@ const MAP_COL = {
   asignadoA:    "asignado_a",
   trabajadorId: "trabajador_id",
   cat:          "categoria",
+  // Estas hojas escribieron la columna en camelCase SIN comillas, y PostgreSQL la guardó en minúsculas: «deQuien» es
+  // `dequien`. Mandarla como «deQuien» hacía que la base rechazara el renglón entero (24 nov: ningún mensaje del chat
+  // subía). La prueba `toda_columna_real_se_sube_con_el_nombre_que_tiene_en_la_base` cuida que no vuelva a pasar.
+  deQuien:      "dequien",
+  potreroId:    "potreroid",
+  animalId:     "animalid",
+  titularId:    "titularid",
+  registroId:   "registroid",
 };
 // Lo que sólo la base puede decir de un registro. Nunca se sube, y al bajar sólo se cree lo que venga en su columna.
 export const DEL_SERVIDOR = ["_recibido", "_validacion", "_validacionDice", "_validadoPor", "_validadoRol", "_validado", "_cambioRechazado", "_restaurado", "_restauradoPor", "_selloFirma"];

@@ -102,3 +102,20 @@ test("cualquier_cuenta_con_perfil_puede_preguntar_la_hora_del_servidor_y_un_anon
   assert.ok((await como(db, "encargado", "select hora_del_servidor() as h")).ok);
   assert.equal((await como(db, null, "select hora_del_servidor() as h")).ok, false);
 });
+
+// 24 nov, primera prueba en teléfonos de verdad: una marca corregida se quedó «sin subir». La app subía la corrección
+// con upsert (insert … on conflict do update), y PostgreSQL revisa la regla de «nacer vigente» también cuando el
+// insert acaba actualizando. Esta prueba deja dicho cómo se porta la base, que es por lo que `subirEvento` cancela y
+// corrige con UPDATE.
+test("una_cancelacion_subida_con_upsert_la_rechaza_la_base_y_con_update_entra", async () => {
+  assert.ok((await mete("encargado", "e-upsert")).ok);
+  const cancelado = E("e-upsert", { cancelado: { motivo: "marca de prueba", por: { id: "x", nombre: "Encargado" }, cuando: "2026-11-19T13:00:00.000Z" } });
+  const upsert = await como(db, "encargado", `insert into eventos (id, tipo, fecha, estado, datos) values ('e-upsert', 'marca', '2026-11-19', 'cancelado', $1::jsonb)
+    on conflict (id) do update set estado = excluded.estado, datos = excluded.datos, actualizado = now()`, [cancelado]);
+  assert.equal(upsert.ok, false, "el upsert de algo cancelado choca con la regla de nacer vigente");
+  assert.match(upsert.error, /row-level security/);
+  assert.equal((await fila("e-upsert")).estado, "vigente");
+  const update = await como(db, "encargado", "update eventos set estado = 'cancelado', datos = $1::jsonb where id = 'e-upsert'", [cancelado]);
+  assert.ok(update.ok, update.error);
+  assert.equal((await fila("e-upsert")).estado, "cancelado");
+});

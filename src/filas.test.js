@@ -20,3 +20,25 @@ test("lo_restaurado_baja_diciendo_quien_lo_restauro_y_eso_solo_lo_dice_la_base",
   assert.equal(o._validadoPor, "c-migue"); assert.equal(o._restauradoPor, "c-luis", "vale la columna, no lo que venga escrito dentro"); assert.equal(o._restaurado, "2026-12-01T10:00:00Z");
   assert.equal(filaAObjeto({ id: "e3", datos: { _restauradoPor: "inventado" } })._restauradoPor, undefined);
 });
+
+// 24 nov, primera prueba en teléfonos de verdad: ningún mensaje del chat subía. La app mandaba la columna «deQuien» y en
+// la base se llama `dequien` (la hoja la escribió sin comillas y PostgreSQL la guardó en minúsculas). La nube de
+// imitación aceptaba cualquier columna, así que ningún recorrido lo vio. Esta prueba compara contra las hojas SQL.
+import { COLUMNAS_REALES } from "./filas.js";
+import { columnasDeLasHojas } from "../herramientas/columnas.mjs";
+test("toda_columna_real_se_sube_con_el_nombre_que_tiene_en_la_base", () => {
+  const hojas = columnasDeLasHojas();
+  for (const [tabla, reales] of Object.entries(COLUMNAS_REALES)) {
+    const fila = objetoAFila(tabla, Object.fromEntries(reales.map(c => [c, "x"])));
+    for (const col of Object.keys(fila)) {
+      assert.equal(col, col.toLowerCase(), `${tabla}.${col}: una columna sin comillas en la base siempre es minúscula`);
+      if (hojas[tabla]) assert.ok(hojas[tabla].has(col), `${tabla}: la base no tiene la columna «${col}»; la app la mandaría y la base rechazaría el renglón entero`);
+    }
+  }
+  assert.ok(hojas.chat && hojas.chat.has("dequien"), "la prueba sí lee las hojas");
+});
+test("el_mensaje_del_chat_sube_con_dequien_y_regresa_como_deQuien", () => {
+  const fila = objetoAFila("chat", { id: "m1", fecha: "2026-11-24", tipo: "texto", deQuien: "c-fito", texto: "Ya entré" });
+  assert.equal(fila.dequien, "c-fito"); assert.equal("deQuien" in fila, false);
+  assert.equal(filaAObjeto({ id: "m1", dequien: "c-fito", datos: { texto: "Ya entré" } }).deQuien, "c-fito");
+});
