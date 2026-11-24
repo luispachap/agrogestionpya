@@ -2,7 +2,7 @@
 
 > **Generado desde `docs/ESTADO.json` con `node herramientas/estado.mjs`. No se edita a mano:** se cambia el archivo de estado y se vuelve a generar. Es la única fuente de las cifras, los módulos, los pendientes y lo publicado; el tablero de cierre sale de aquí mismo.
 
-Corte: lunes 23 de noviembre de 2026, 5:30 de la mañana. **66 aprobados · 1 recorridos en parte · 0 sin verificar.**
+Corte: martes 24 de noviembre de 2026, en la tarde. **66 aprobados · 1 recorridos en parte · 0 sin verificar.**
 
 **Veredicto: NO LISTO** como sistema completo · listo para prueba de campo en la operación diaria. Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).
 
@@ -18,10 +18,10 @@ Corte: lunes 23 de noviembre de 2026, 5:30 de la mañana. **66 aprobados · 1 re
 
 | Qué | Con qué | Resultado |
 |---|---|---|
-| Reglas y cálculos | `npm test` | 1,347 de 1,347 |
-| La base, armada desde cero y atacada por perfil | `npm run test:base` | 164 de 164 |
+| Reglas y cálculos | `npm test` | 1,360 de 1,360 |
+| La base, armada desde cero y atacada por perfil | `npm run test:base` | 165 de 165 |
 | Respaldo y restauración, de punta a punta en local | `sh pruebas/respaldo_local/ensayo.sh` | 26 de 26 |
-| Todo junto: lo anterior, compilación y 69 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `4edbcb3`) |
+| Todo junto: lo anterior, compilación y 70 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (24 nov, con la nube de imitación que ya rechaza lo que rechaza la base) |
 | Producción cerrada sin sesión | `pruebas/real_sin_sesion.py` | 6 de 6 |
 | El sitio publicado, en Android y iPhone imitados | `pruebas/real_sitio.py` | 18 de 18 |
 | Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos a `6c483a2` |
@@ -81,7 +81,7 @@ Corte: lunes 23 de noviembre de 2026, 5:30 de la mañana. **66 aprobados · 1 re
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
 
-## Defectos encontrados al usar los módulos (92: 92 corregidos, 0 de ellos sin publicar; 0 abiertos)
+## Defectos encontrados al usar los módulos (95: 95 corregidos, 3 de ellos sin publicar; 0 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -177,6 +177,9 @@ Corte: lunes 23 de noviembre de 2026, 5:30 de la mañana. **66 aprobados · 1 re
 | 90 | Mis compras, Finanzas → Compras | Aprobar o rechazar la compra de un trabajador no dejaba quién ni cuándo, y rechazar no pedía porqué (es dinero que la persona ya pagó de su bolsa) | P2 | Corregido y publicado: Aprobar deja quién y cuándo; rechazar pide el porqué y se enseña en la compra; un doble toque al mandar la compra ya no puede mandarla dos veces |
 | 91 | Tabla por cortes | Lo asignado en Equipos de trabajo no se veía en la tabla: salía «checó y no está pintado» (falso), y pintar el corte de antes le ponía fin a esa asignación al acabar el corte, así que el resto del día quedaba sin asignar | P2 | Corregido y publicado: La tabla lo enseña punteado y no lo pisa: no hay aviso falso, pintar el corte de antes no lo termina, y un cambio a medio corte se avisa en la celda |
 | 92 | Checar con el teléfono propio | Con el GPS impreciso, alguien lejísimos de todo rancho quedaba registrado «por revisar» en vez de no registrarse | P2 | Corregido y publicado: Si ni con su margen de error alcanza a estar en un rancho, está lejos: no se registra |
+| 93 | Mensajes | Ningún mensaje del chat subía a la base (24 nov, primera prueba con teléfonos de verdad): la app mandaba la columna «deQuien» y en la base se llama «dequien». Se veía «no subió» en la General y en la conversación con AgroGestión | P0 | Corregido **sin publicar**: la app manda el nombre real de la columna, y una prueba compara cada columna contra las hojas SQL; la nube de imitación ya rechaza una columna que la tabla no tiene (por eso ningún recorrido lo había visto). Lo apartado en los teléfonos sube con «toca para reintentar» |
+| 94 | Checador | Una marca corregida (y cualquier hecho cancelado o corregido) no subía: la base lo rechazaba siempre, porque se subía como alta y la base sólo deja nacer hechos vigentes | P0 | Corregido **sin publicar**: cancelar y corregir se suben como cambio del que ya está; si se creó y canceló sin señal, primero nace vigente y luego se cancela. Probado contra la base aislada y en la nube de imitación, que ya rechaza lo mismo que la base |
+| 95 | Mensajes | «Compramos diésel a 28 pesos… fueron 1000 litros» se proponía como un gasto de $28: el precio de un litro se tomaba como el total y la cantidad quedaba como nota aparte. Además, «28.50» se leía 2,850 | P1 | Corregido **sin publicar**: «a 28 pesos» o «28 pesos el litro» es precio por unidad: con la cantidad se multiplica y la propuesta enseña la cuenta (1,000 litros × $28 = $28,000); sin cantidad se pregunta cuántos fueron («fue el total» también vale). La frase de la cantidad va con su compra |
 
 ## Lo que no se pudo ejecutar y por qué
 
@@ -198,7 +201,7 @@ Corte: lunes 23 de noviembre de 2026, 5:30 de la mañana. **66 aprobados · 1 re
 | 3 | ¿Alcanza? | **APROBADO** | auditoria_banco 37 | Con una bolsa sin saldo contesta NO SÉ TU SALDO y dice cuál; con las dos al día, ALCANZA o FALTA con la cuenta; agregar pagos; lo que dejó de aparecer (con checador y reparto); noviembre contra noviembre, sin comparar contra el mes anterior | — |
 | 4 | Resumen | **APROBADO** | auditoria_numeros 28 · auditoria_captura2 22 | Siete días (eran ocho); el balance de la semana con la cuenta del cierre: lo no clasificado y lo comprado para el almacén no son costo; los contadores de pendientes (incidencias, indicaciones, existencias bajas) coinciden con sus pantallas; un artículo sin mínimo en cero ya no es alarma | undefined |
 | 5 | ¿Cómo vamos? | **APROBADO** | auditoria_numeros 28 | Resultado del año con la misma cuenta que Finanzas y el cierre de mes (sin las compras para el almacén ni lo no clasificado, que se dicen aparte); este mes contra el mismo mes del año pasado, del 1 al mismo día, o «todavía no hay con qué comparar»; presupuesto e inversión por ciclo, no por toda la vida de la parcela; a las 6:30 de la tarde; recarga; administrador y Dirección en dos teléfonos | — |
-| 6 | Mensajes | **APROBADO** | auditoria_mensajes 12 · mensajes 24 · mensajes_movil 34 · dicho 32 · base | Una compra dicha por el encargado se completa y se confirma desde otro teléfono: un solo gasto con quién lo dijo y quién lo confirmó; la plática no genera nada; recargar no duplica; la privacidad la ataca la base | Los avisos al teléfono (sin probar en un teléfono real) |
+| 6 | Mensajes | **APROBADO** | auditoria_mensajes 12 · mensajes 23 · mensajes_movil 33 · dicho 32 · base | Una compra dicha por el encargado se completa y se confirma desde otro teléfono: un solo gasto con quién lo dijo y quién lo confirmó; la plática no genera nada; recargar no duplica; la privacidad la ataca la base | Los avisos al teléfono (sin probar en un teléfono real) |
 | 7 | Registrar actividad | **APROBADO** | auditoria_captura 66 · auditoria_captura2 22 | Registrar una actividad a nombre de un trabajador: confirma antes de guardar, queda con quién la hizo y quién la capturó, su costo llega a la parcela; dos actividades el mismo día reparten UN día (no pagan dos); con tractor (cuota por hora) e insumo del almacén (lo descuenta, no es dinero que sale); trabajo general que no se carga a ninguna parcela; sin señal; otro teléfono; quien checó y además tiene actividad cuesta una vez; trabajo de bodega de un cultivo (costo directo de la bodega, a ninguna parcela); cosecha con su cantidad ligada a la actividad; quién lo ordenó aparte de quién la hizo y quién la capturó; capturar otro día (cada día su día completo) | undefined |
 | 8 | Registro de varios | **APROBADO** | auditoria_captura 66 · auditoria_captura2 22 | La misma actividad para varias personas: pide parcela, actividad y gente; horas por persona; la confirmación dice lo que de verdad se paga; queda una actividad por persona con quién la capturó; costo exacto en la parcela y en Pagos; con tractor, un encargado y un externo en la misma captura (el tractor una sola vez); con sólo un externo y el tractor, el tractor ya no se pierde | undefined |
 | 9 | Aplicaciones | **APROBADO** | auditoria_agronomo 24 · ejecutores 10 · auditoria_ciclo 30 | Aplicación con un producto del inventario: descuenta lo aplicado, carga su costo a la parcela una vez, no vuelve a salir del flujo, avisa si no se dice quién aplicó, recarga, otro aparato; una compra posterior más cara no le cambia el costo; con dos aplicadores y quién la indicó; queda en la temporada de ese día; reentrada (rojo, no entrar) y carencia (ámbar, no cortar) en el tablero; el producto sin etiqueta lo dice en el inventario sin decir que ya se puede; el reporte; cancelar (ya no se borra) con su porqué: el producto regresa con su costo y el costo se cancela | undefined |

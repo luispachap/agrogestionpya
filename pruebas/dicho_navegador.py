@@ -48,7 +48,7 @@ with sync_playwright() as p:
 
     bur, t = decir(pg, "Hoy terminamos dos reguladores de deshierbe en San Felipe 4. Trabajaron siete personas y mañana tenemos que terminar lo que falta.")
     caso("la dirección vieja de «Dile a la app» cae en la conversación con AgroGestión", "AgroGestión" in pg.locator(".msj-cabeza h2").inner_text())
-    caso("lo que diría Miguel se entiende como UN avance, con unidad, gente y pendiente", "2 reguladores de deshierbe en San Felipe 4 · 7 persona(s) · quedó pendiente" in t and "Algo que se hizo · queda en Avances" in t and guardar(bur).count() == 1, plano(t)[-700:])
+    caso("lo que diría Miguel se entiende como UN avance, con unidad, gente y pendiente", "2 reguladores de deshierbe en San Felipe 4 · 7 persona(s) · quedó pendiente" in t and "Algo que se hizo · queda en Avances" in t and guardar(bur).count() == 1 and "nota · por confirmar" not in t, plano(t)[-700:])
     caso("se dice que el avance no es pago ni porcentaje", "no le registra el día a nadie ni genera pago. No se calcula porcentaje" in t)
     r = pg.locator(".msj-burbuja.asistente").last.inner_text()
     caso("AgroGestión contesta en la conversación, con su nombre, y dice que falta confirmar", r.startswith("AgroGestión") and "falta que lo confirmes" in r, plano(r))
@@ -95,6 +95,12 @@ with sync_playwright() as p:
     guardar(bur).first.click(); pg2.wait_for_timeout(400)
     e = pg2.evaluate("() => window.__agroDatos.egresos.slice(-1)[0]")
     caso("el administrador sí confirma el gasto, y queda de qué mensaje salió", e["monto"] == 3800 and e["origen"]["canal"] == "chat" and e["origen"]["mensaje"].startswith("msj") and e["origen"]["frase"].startswith("Compramos"), {k: e.get(k) for k in ("monto", "concepto", "origen")})
+    # 24 nov, la demostración con teléfonos de verdad: esto salió como un gasto de $28 y una nota suelta.
+    bur, t = decir(pg2, "Compramos diésel a 28 pesos... fueron 1000 litros")
+    caso("«a 28 pesos… fueron 1000 litros» es UN gasto de $28,000 y enseña la cuenta antes de firmar", "Gasto de $28,000 (1,000 litros × $28)" in t and guardar(bur).count() == 1 and "nota · por confirmar" not in t, plano(t)[-500:])
+    guardar(bur).first.click(); pg2.wait_for_timeout(400)
+    e = pg2.evaluate("() => window.__agroDatos.egresos.slice(-1)[0]")
+    caso("y el gasto guardado lleva el total, el precio por litro y la cantidad", [e["monto"], e.get("precioUnitario"), e.get("cantidad")] == [28000, 28, 1000] and "1000 litros" in e["concepto"], {k: e.get(k) for k in ("monto", "precioUnitario", "cantidad", "unidad", "concepto")})
     bur, t = decir(pg2, "jajaja")
     antes = cuenta(pg2)["bit"]
     if bur.get_by_role("button", name="Dejar tal cual en la bitácora").count():

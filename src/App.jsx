@@ -4507,7 +4507,8 @@ function ChatDelRancho({ data, add, upd, session, onClose, abrir = null }) {
                 {dia.mensajes.map(m => {
                   const mio = m.de?.id === yo.id && !m.delAsistente, quien = m.delAsistente ? "AgroGestión" : (m.deQuien || m.de?.nombre || "alguien");
                   const junto = anterior && anterior.dia === dia.fecha && anterior.quien === (m.delAsistente ? "*" : m.de?.id) && m.id !== primerNuevo; anterior = { dia: dia.fecha, quien: m.delAsistente ? "*" : m.de?.id };
-                  const props = m.propuestas || [], plan = conAsistente ? planDe(m) : null;
+                  // Lo que va con otra frase del mismo mensaje («fueron 1000 litros» con su compra) no se enseña aparte: no hay nada que firmar.
+                  const props = (m.propuestas || []).filter(p => p.parteDe == null), plan = conAsistente ? planDe(m) : null;
                   // Con AgroGestión lo que falta confirmar va a la vista (a eso se viene); entre personas va plegado.
                   const estaAbierta = pr => (abiertas[pr.id] ?? (conAsistente && !pr.confirmacion));
                   const conAlgoAbierto = props.some(estaAbierta);

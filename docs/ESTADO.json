@@ -1,6 +1,6 @@
 {
   "_nota": "ÚNICA FUENTE DE VERDAD del estado de AgroGestión 1.0. De aquí se generan docs/AUDITORIA-FUNCIONAL.md y el tablero de cierre (node herramientas/estado.mjs). No se escriben cifras en ningún otro documento.",
-  "corte": "lunes 23 de noviembre de 2026, 5:30 de la mañana",
+  "corte": "martes 24 de noviembre de 2026, en la tarde",
   "veredicto": {
     "sello": "NO LISTO",
     "detalle": "como sistema completo · listo para prueba de campo en la operación diaria",
@@ -11,8 +11,8 @@
         "d": "La copia de cada noche está preparada y ensayada en local. Falta el primer respaldo real y restaurarlo en un proyecto aislado. Hasta entonces no conviene capturar dinero real como registro definitivo."
       },
       {
-        "t": "Nada se ha probado en el rancho",
-        "d": "Todo es con datos inventados y teléfonos imitados: señal, cámara, GPS, impresora y correo reales no se pueden imitar."
+        "t": "Casi nada se ha probado en el rancho",
+        "d": "La primera prueba con teléfonos de verdad (24 nov) encontró tres fallas —el chat no subía, una marca corregida no subía y un precio por litro se tomaba como total— y están corregidas. Lo demás sigue probado con datos inventados y teléfonos imitados: señal, cámara, GPS, impresora y correo reales no se pueden imitar."
       },
       {
         "t": "66 de 67 módulos aprobados; uno en parte",
@@ -24,12 +24,12 @@
     {
       "que": "Reglas y cálculos",
       "con": "npm test",
-      "resultado": "1,347 de 1,347"
+      "resultado": "1,360 de 1,360"
     },
     {
       "que": "La base, armada desde cero y atacada por perfil",
       "con": "npm run test:base",
-      "resultado": "164 de 164"
+      "resultado": "165 de 165"
     },
     {
       "que": "Respaldo y restauración, de punta a punta en local",
@@ -37,9 +37,9 @@
       "resultado": "26 de 26"
     },
     {
-      "que": "Todo junto: lo anterior, compilación y 69 recorridos en navegador",
+      "que": "Todo junto: lo anterior, compilación y 70 recorridos en navegador",
       "con": "sh pruebas/todo.sh",
-      "resultado": "Todo pasa (sobre la versión publicada, `4edbcb3`)"
+      "resultado": "Todo pasa (24 nov, con la nube de imitación que ya rechaza lo que rechaza la base)"
     },
     {
       "que": "Producción cerrada sin sesión",
@@ -284,7 +284,7 @@
       "n": 6,
       "nombre": "Mensajes",
       "estado": "APROBADO",
-      "prueba": "auditoria_mensajes 12 · mensajes 24 · mensajes_movil 34 · dicho 32 · base",
+      "prueba": "auditoria_mensajes 12 · mensajes 23 · mensajes_movil 33 · dicho 32 · base",
       "probado": "Una compra dicha por el encargado se completa y se confirma desde otro teléfono: un solo gasto con quién lo dijo y quién lo confirmó; la plática no genera nada; recargar no duplica; la privacidad la ataca la base",
       "falta": "Los avisos al teléfono (sin probar en un teléfono real)"
     },
@@ -1589,6 +1589,33 @@
       "estado": "corregido",
       "publicado": true,
       "nota": "Si ni con su margen de error alcanza a estar en un rancho, está lejos: no se registra"
+    },
+    {
+      "n": 93,
+      "modulo": "Mensajes",
+      "que": "Ningún mensaje del chat subía a la base (24 nov, primera prueba con teléfonos de verdad): la app mandaba la columna «deQuien» y en la base se llama «dequien». Se veía «no subió» en la General y en la conversación con AgroGestión",
+      "nivel": "P0",
+      "estado": "corregido",
+      "publicado": false,
+      "nota": "la app manda el nombre real de la columna, y una prueba compara cada columna contra las hojas SQL; la nube de imitación ya rechaza una columna que la tabla no tiene (por eso ningún recorrido lo había visto). Lo apartado en los teléfonos sube con «toca para reintentar»"
+    },
+    {
+      "n": 94,
+      "modulo": "Checador",
+      "que": "Una marca corregida (y cualquier hecho cancelado o corregido) no subía: la base lo rechazaba siempre, porque se subía como alta y la base sólo deja nacer hechos vigentes",
+      "nivel": "P0",
+      "estado": "corregido",
+      "publicado": false,
+      "nota": "cancelar y corregir se suben como cambio del que ya está; si se creó y canceló sin señal, primero nace vigente y luego se cancela. Probado contra la base aislada y en la nube de imitación, que ya rechaza lo mismo que la base"
+    },
+    {
+      "n": 95,
+      "modulo": "Mensajes",
+      "que": "«Compramos diésel a 28 pesos… fueron 1000 litros» se proponía como un gasto de $28: el precio de un litro se tomaba como el total y la cantidad quedaba como nota aparte. Además, «28.50» se leía 2,850",
+      "nivel": "P1",
+      "estado": "corregido",
+      "publicado": false,
+      "nota": "«a 28 pesos» o «28 pesos el litro» es precio por unidad: con la cantidad se multiplica y la propuesta enseña la cuenta (1,000 litros × $28 = $28,000); sin cantidad se pregunta cuántos fueron («fue el total» también vale). La frase de la cantidad va con su compra"
     }
   ],
   "no_se_pudo": [
