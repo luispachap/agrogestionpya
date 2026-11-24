@@ -39,7 +39,7 @@
     {
       "que": "Todo junto: lo anterior, compilación y 70 recorridos en navegador",
       "con": "sh pruebas/todo.sh",
-      "resultado": "Todo pasa (24 nov, con la nube de imitación que ya rechaza lo que rechaza la base)"
+      "resultado": "Todo pasa (sobre la versión publicada, `3e40534`)"
     },
     {
       "que": "Producción cerrada sin sesión",
@@ -1596,7 +1596,7 @@
       "que": "Ningún mensaje del chat subía a la base (24 nov, primera prueba con teléfonos de verdad): la app mandaba la columna «deQuien» y en la base se llama «dequien». Se veía «no subió» en la General y en la conversación con AgroGestión",
       "nivel": "P0",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "la app manda el nombre real de la columna, y una prueba compara cada columna contra las hojas SQL; la nube de imitación ya rechaza una columna que la tabla no tiene (por eso ningún recorrido lo había visto). Lo apartado en los teléfonos sube con «toca para reintentar»"
     },
     {
@@ -1605,7 +1605,7 @@
       "que": "Una marca corregida (y cualquier hecho cancelado o corregido) no subía: la base lo rechazaba siempre, porque se subía como alta y la base sólo deja nacer hechos vigentes",
       "nivel": "P0",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "cancelar y corregir se suben como cambio del que ya está; si se creó y canceló sin señal, primero nace vigente y luego se cancela. Probado contra la base aislada y en la nube de imitación, que ya rechaza lo mismo que la base"
     },
     {
@@ -1614,7 +1614,7 @@
       "que": "«Compramos diésel a 28 pesos… fueron 1000 litros» se proponía como un gasto de $28: el precio de un litro se tomaba como el total y la cantidad quedaba como nota aparte. Además, «28.50» se leía 2,850",
       "nivel": "P1",
       "estado": "corregido",
-      "publicado": false,
+      "publicado": true,
       "nota": "«a 28 pesos» o «28 pesos el litro» es precio por unidad: con la cantidad se multiplica y la propuesta enseña la cuenta (1,000 litros × $28 = $28,000); sin cantidad se pregunta cuántos fueron («fue el total» también vale). La frase de la cantidad va con su compra"
     }
   ],
@@ -1640,7 +1640,7 @@
     {
       "que": "La app en app.agroselectos.com",
       "estado": "publicado",
-      "detalle": "Versión `28c2536` (23 nov, 18:50): las 33 actividades del rancho en el catálogo, el pase de lista con el catálogo único, y «faltan sus hectáreas» / «falta su sueldo» / «sin PIN» en vez de un cero. Batería completa (1,348 pruebas de reglas, 164 ataques a la base, 69 recorridos; el de la organización se ajustó al catálogo nuevo y pasó 24 de 24); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6."
+      "detalle": "Versión `3e40534` (24 nov, tarde): lo que se captura con señal ya sube —los mensajes del chat (la columna se llama `dequien` en la base) y lo cancelado o corregido (se sube como cambio, no como alta)— y «a 28 pesos… fueron 1000 litros» es un gasto de $28,000 con la cuenta a la vista. Batería completa (1,360 pruebas de reglas, 165 ataques a la base, 70 recorridos con la nube de imitación que ya rechaza lo que rechaza la base); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6."
     },
     {
       "que": "La nave (Agroselectos P&A, Palmira, Zac.) dada de alta en producción como rancho con su ubicación, y su punto en el mapa",
