@@ -1613,7 +1613,7 @@
     {
       "que": "La app en app.agroselectos.com",
       "estado": "publicado",
-      "detalle": "Versión `6c483a2` (23 nov, 11:50): la de las 5:30 (batería completa: 1,347 pruebas de reglas, 164 ataques a la base, 69 recorridos) más el punto de la nave en el mapa (probado aparte: reglas, compilación, auditoria_mapa 14, mapa 22, recorrido 25, humo 9); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6."
+      "detalle": "Versión `28c2536` (23 nov, 18:50): las 33 actividades del rancho en el catálogo, el pase de lista con el catálogo único, y «faltan sus hectáreas» / «falta su sueldo» / «sin PIN» en vez de un cero. Batería completa (1,348 pruebas de reglas, 164 ataques a la base, 69 recorridos; el de la organización se ajustó al catálogo nuevo y pasó 24 de 24); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6."
     },
     {
       "que": "La nave (Agroselectos P&A, Palmira, Zac.) dada de alta en producción como rancho con su ubicación, y su punto en el mapa",
@@ -1623,7 +1623,7 @@
     {
       "que": "Personal y ranchos dados de alta en producción (a petición de Luis, 23 nov)",
       "estado": "publicado",
-      "detalle": "23 de noviembre, 18:30. 23 personas de la lista de nómina del 16 al 21 de noviembre, con el nombre impreso, sin sueldo, sin PIN y sin fecha de ingreso. 22 ranchos del catálogo de ubicaciones del Excel de rayas de 2024, con su clave y sin hectáreas. Fuera, a propósito: General (no es un lugar), Ganado y las cinco bodegas. Cada registro lleva su marca de espacio, de nacimiento y de dónde salió; no se repitió ninguno."
+      "detalle": "23 de noviembre, 18:25. 23 personas de la lista de nómina del 16 al 21 de noviembre, con el nombre impreso, sin sueldo, sin PIN y sin fecha de ingreso. 22 ranchos del catálogo de ubicaciones del Excel de rayas de 2024, con su clave y sin hectáreas. Fuera, a propósito: General (no es un lugar), Ganado y las cinco bodegas. Cada registro lleva su marca de espacio, de nacimiento y de dónde salió; no se repitió ninguno."
     },
     {
       "que": "Lo de las respuestas de Luis del 23 nov: la tabla por cortes con lo de «Registro de varios» y del reparto, el tiempo esperando tarea, la calidad de la corrida por origen y ritmo, corona/grano/deshecho/pata de perro al ajo terminado, prestaciones sobre la semana entre 7, y checar con el teléfono propio",
