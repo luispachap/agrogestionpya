@@ -559,11 +559,14 @@ Usuarios reales de la app:
   **`src/actividades.js`: EL CATÁLOGO ÚNICO DE ACTIVIDADES** (pestaña «Actividades» de Organización): `DE_FABRICA` =
   sólo lo que las pantallas ya ofrecían; Reparto, Cuadrillas y la actividad tecleada leen de `catalogoEn`. **No pongas
   otra lista de actividades en una pantalla.** `normalizar` no adivina; lo no reconocido sale en `porLigar` y lo liga una
-  persona (`act_equivalencia`). Requisitos (`act_requisito`): legal · interno · experiencia; lo legal nace `por_validar` y
+  persona (`act_equivalencia`). **Las del rancho (Luis, 23 nov): `DEL_RANCHO`** = las 45 del Excel de rayas SIN su código,
+  menos Deshierbe (ya estaba), las ocho dichas de otra forma (Regar = Riego… las liga una persona, no la app) y las tres
+  ausencias (faltas y vacaciones); se ofrecen, y Subsoleo y Rastreo también. El pase de lista ya lee el catálogo.
+  Requisitos (`act_requisito`): legal · interno · experiencia; lo legal nace `por_validar` y
   no se valida sin norma y sin quién validó; lo interno no lleva norma ni cambia de clase. `RESTRICCIONES_ACTIVAS = false`:
   nada restringe todavía. El catálogo trae TODO lo que alguna captura ya ofrecía (25; una prueba lee las listas de
   `App.jsx` y falla si falta una); la bodega es un lugar, no una actividad; `nombres()` sólo ofrece en Reparto/Cuadrillas
-  las doce de siempre + lo agregado. Umbral para SUGERIR por actividad (`UMBRAL_PROVISIONAL` 10 días · 40 h · 1 confirmada ·
+  las doce de siempre + las del rancho + lo agregado. Umbral para SUGERIR por actividad (`UMBRAL_PROVISIONAL` 10 días · 40 h · 1 confirmada ·
   12 meses): no acredita ni autoriza. Requisito legal: norma, vigencia, quién validó y cuándo.
   **`src/ejecucion.js`: QUIÉN ORDENÓ · CAPTURÓ · EJECUTÓ · CONFIRMÓ**: `add` le pone `quienes` a toda actividad y
   aplicación (`conQuienes`); se lee con `quienesDe` (los registros de antes: `origen: "registro_anterior"`, sin rellenar).

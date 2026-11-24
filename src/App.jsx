@@ -11501,7 +11501,7 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
           {data.ranchos.map(r => (
             <div key={r.id} className="card">
               <div className="flex-b mb-3">
-                <div><div className="font-bold font-syne" style={{ fontSize: 16 }}><Ic e="🏡" /> {r.nombre}</div><div className="text-xs text-muted">{r.hectareas} ha · {data.parcelas.filter(p => p.ranchoId === r.id).length} parcelas</div></div>
+                <div><div className="font-bold font-syne" style={{ fontSize: 16 }}><Ic e="🏡" /> {r.nombre}</div><div className="text-xs text-muted">{Number(r.hectareas) > 0 ? `${fmtN(r.hectareas)} ha` : "faltan sus hectáreas"} · {data.parcelas.filter(p => p.ranchoId === r.id).length} parcelas</div></div>
               </div>
               {data.parcelas.filter(p => p.ranchoId === r.id).map(p => {
                 const costo = sumarDinero((data.actividadesContables || data.actividades || []).filter(a => a.parcelaId === p.id).map(a => a.costoTotal || 0));
@@ -11694,7 +11694,7 @@ function AdminParcelas({ data, add, upd, del, onBack }) {
             {data.ranchos.map(r => (
               <div key={r.id} className="list-item">
                 <div className="li-icon"><Ic e="🏡" /></div>
-                <div className="li-body"><div className="li-title">{r.nombre}</div><div className="li-sub">{r.hectareas} ha · {data.parcelas.filter(p => p.ranchoId === r.id).length} parcelas</div></div>
+                <div className="li-body"><div className="li-title">{r.nombre}</div><div className="li-sub">{Number(r.hectareas) > 0 ? `${fmtN(r.hectareas)} ha` : "faltan sus hectáreas"} · {data.parcelas.filter(p => p.ranchoId === r.id).length} parcelas</div></div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button className="btn-ghost" style={{ padding: 4, fontSize: 14 }} onClick={() => setEditRancho(r)}><Ic e="✏️" /></button>
                   <button className="btn-ghost" style={{ color: "var(--red)", padding: 4 }} onClick={() => { const n = data.parcelas.filter(p => p.ranchoId === r.id).length; if (n) { alert(`No se puede eliminar: tiene ${n} parcela${n === 1 ? "" : "s"}. Un rancho con parcelas no se elimina.`); return; } if (confirm("¿Eliminar rancho? No tiene parcelas.")) del("ranchos", r.id); }}><Ic e="🗑" /></button>
@@ -12066,7 +12066,7 @@ function AdminEquipo({ data, add, upd, del, onBack, session = { role: "admin", i
               <div className="li-icon"><Ic e={ci[t.categoria] || "👤"} /></div>
               <div className="li-body">
                 <div className="li-title">{t.nombre}{t.cabo ? <span style={{ color: "var(--accent)", fontSize: 11, marginLeft: 6 }}>· CABO</span> : null}</div>
-                <div className="li-sub">{nombreDeCategoria(t.categoria)}{t.codigoNomina ? ` · ${t.codigoNomina}` : ""} · {Number(t.sueldo_semana) > 0 ? `${fmt(t.sueldo_semana)}/semana · ` : ""}{fmt(t.sueldo_dia)}/día · PIN {t.pin}</div>
+                <div className="li-sub">{nombreDeCategoria(t.categoria)}{t.codigoNomina ? ` · ${t.codigoNomina}` : ""} · {Number(t.sueldo_semana) > 0 ? `${fmt(t.sueldo_semana)}/semana · ` : ""}{Number(t.sueldo_dia) > 0 ? `${fmt(t.sueldo_dia)}/día` : "falta su sueldo"} · {String(t.pin ?? "").trim() ? `PIN ${t.pin}` : "sin PIN"}</div>
                 <div className="li-sub">{acts.length} actividades · Bonif: {fmt(bons)}{prestamoSaldo > 0 ? <span style={{ color: "var(--gold)" }}> · 💸 Debe {fmt(prestamoSaldo)}</span> : null}</div>
               </div>
               <div className="li-right" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
@@ -24092,9 +24092,9 @@ function PaseLista({ data, add, upd, session, onClose }) {
   const [selFalt, setSelFalt] = useState({}); // {`tid|fecha`: true}
   const CAP0 = { parcelaId: "", tipo: "", tipoOtro: "", horas: "8" };
   const [cap, setCap] = useState(CAP0);
-  // Catálogo de actividades: las canónicas + las ya usadas en el rancho
-  // (sin duplicar por mayúsculas/ortografía) + la sugerida del mes para la parcela.
-  const tiposCanon = ["Preparación de suelo", "Siembra", "Fertilización", "Riego", "Control de plagas", "Deshierbe", "Cosecha", "Limpieza"];
+  // Las actividades: las de campo del catálogo único (las de siempre y las del rancho) + las ya usadas en el rancho
+  // (sin duplicar por mayúsculas/ortografía) + la sugerida del mes para la parcela. Antes traía su propia lista.
+  const tiposCanon = catalogoDeActividades(data.eventos, hoy).nombres(["campo"]);
   const tiposMap = new Map();
   tiposCanon.forEach(t => tiposMap.set(t.toLowerCase(), t));
   (data.actividades || []).forEach(a => {

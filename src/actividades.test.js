@@ -3,17 +3,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { catalogoEn, porLigar, guardarActividad, ligarTexto, ponerRequisito, claveDe, DE_FABRICA, TIPOS, OPERACION, RESTRICCIONES_ACTIVAS, CLASES_DE_REQUISITO, UMBRAL_PROVISIONAL } from "./actividades.js";
+import { catalogoEn, porLigar, guardarActividad, ligarTexto, ponerRequisito, claveDe, DE_FABRICA, DEL_RANCHO, TIPOS, OPERACION, RESTRICCIONES_ACTIVAS, CLASES_DE_REQUISITO, UMBRAL_PROVISIONAL } from "./actividades.js";
 import { OPERACION_DE, nuevoEvento, exigirValidacion } from "./eventos.js";
 
 const HOY = "2026-11-23", jefa = { id: "adm1", nombre: "ADMINISTRADORA INVENTADA", rol: "admin" };
 let n = 0; const ctx = () => ({ quien: jefa, hoy: HOY, cuando: `${HOY}T15:00:${String(n++ % 60).padStart(2, "0")}.000Z` });
 const va = (ev, r) => { assert.ok(r.ok, r.dice); ev.push(r.evento); return r; };
 
-test("de_fabrica_solo_estan_las_actividades_que_las_pantallas_ya_ofrecian", () => {
+test("de_fabrica_solo_estan_las_actividades_que_las_pantallas_ya_ofrecian_y_las_del_rancho", () => {
   const c = catalogoEn([], HOY);
-  assert.deepEqual(c.nombres(["campo"]), ["Control de plagas", "Cosecha", "Deshierbe", "Fertilización", "Limpieza", "Preparación de suelo", "Riego", "Siembra"]);
-  assert.deepEqual(c.nombres(["vehiculo"]), ["Acarreo de cosecha", "Acarreo de insumos", "Mantenimiento del vehículo", "Traslado de personal"]);
+  const deSiempre = ["Control de plagas", "Cosecha", "Deshierbe", "Fertilización", "Limpieza", "Preparación de suelo", "Riego", "Siembra"];
+  const delRanchoEn = (ambito) => DEL_RANCHO.filter(a => a.ambito === ambito).map(a => a.nombre);
+  const orden = (l) => [...l].sort((a, b) => a.localeCompare(b, "es"));
+  assert.deepEqual(c.nombres(["campo"]), orden([...deSiempre, ...delRanchoEn("campo")]));
+  assert.deepEqual(c.nombres(["vehiculo"]), orden(["Acarreo de cosecha", "Acarreo de insumos", "Mantenimiento del vehículo", "Traslado de personal", "Subsoleo", "Rastreo", ...delRanchoEn("vehiculo")]));
   assert.equal(c.actividades.length, DE_FABRICA.length); assert.ok(c.actividades.every(a => a.deFabrica && a.requisitos.length === 0), "ninguna nace con requisitos: la app no decide qué pide cada una");
   // Todo lo que CUALQUIER captura ya ofrecía está en el catálogo con su mismo nombre: nada queda «por ligar» de fábrica
   // y nada nació duplicado (incluye el trabajo de bodega, que usa la captura del administrador).
@@ -23,7 +26,8 @@ test("de_fabrica_solo_estan_las_actividades_que_las_pantallas_ya_ofrecian", () =
   for (const n of ofrecidas) assert.ok(c.normalizar(n).actividadId, `«${n}» se ofrece en una captura y no está en el catálogo`);
   assert.equal(new Set(c.actividades.map(a => claveDe(a.nombre))).size, c.actividades.length, "ninguna repetida");
   assert.equal(c.porId.get("act-empaque").ambito, "bodega"); assert.equal(c.normalizar("Limpieza").nombre, "Limpieza", "la bodega es un lugar: su limpieza es la misma Limpieza");
-  assert.ok(!c.nombres().includes("Subsoleo") && !c.nombres().includes("Empaque"), "las de las capturas por oficio se reconocen, pero no se meten a Equipos de trabajo ni a Cuadrillas");
+  assert.ok(!c.nombres().includes("Surcado") && !c.nombres().includes("Empaque"), "las de las capturas por oficio se reconocen, pero no se meten a Equipos de trabajo ni a Cuadrillas");
+  assert.ok(c.nombres(["vehiculo"]).includes("Subsoleo"), "salvo las que el rancho tiene en su catálogo (Subsuelar, Arrastre)");
   // Y son las mismas que usa la app: una sola lista, no una copia.
   const app = readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
   assert.ok(!/const ACTIVIDADES_DE_CAMPO = \[/.test(app) && !/const tiposAct = \["Preparación/.test(app), "las pantallas ya no traen su propia lista escrita a mano");
@@ -132,4 +136,22 @@ test("un_requisito_legal_guarda_fundamento_vigencia_y_quien_lo_valido_y_vencido_
   assert.deepEqual([q.norma, q.validadoPor, q.validadoEl, q.vigenteDesde, q.vigenteHasta, q.vencido, q.restringiria, q.restringeHoy], ["Norma inventada 000, numeral 2", "ASESORA INVENTADA (seguridad)", HOY, "2026-01-01", "2026-12-31", false, true, false]);
   const v = catalogoEn(ev, "2027-01-05").porId.get(A).requisitos[0];
   assert.deepEqual([v.vencido, v.restringiria], [true, false]); assert.match(v.estado, /vigencia terminó/);
+});
+
+test("las_actividades_del_rancho_entran_sin_su_codigo_sin_duplicar_y_sin_las_ausencias", () => {
+  const c = catalogoEn([], HOY);
+  assert.equal(DEL_RANCHO.length, 33, "45 del Excel − Deshierbe (ya estaba) − 8 dichas de otra forma − 3 ausencias");
+  for (const a of DEL_RANCHO) {
+    assert.ok(!/\b([AG]\d{2}|GA\d|SUP|FAJ|FNJ|VAC)\b/.test(a.nombre), `«${a.nombre}» trae el código del Excel`);
+    assert.equal(c.porId.get(c.normalizar(a.nombre).actividadId).nombre, a.nombre, "se reconoce por su nombre");
+  }
+  // Lo que ya estaba con otro nombre NO se duplica: si alguien lo escribe así, lo liga una persona.
+  for (const n of ["Regar", "Sembrar", "Cosechar", "Fertilizar", "Limpiar", "Empacar", "Subsuelar", "Arrastre (Rastrear)"]) assert.equal(c.normalizar(n).via, "sin_reconocer", `«${n}» no se adivina`);
+  // Una falta o las vacaciones no son una actividad.
+  for (const n of ["Falta justificada", "Falta injustificada", "Vacaciones"]) assert.equal(c.normalizar(n).actividadId, null);
+  // Plantar y Sembrar son distintas en el rancho: cada una tenía su clave.
+  assert.notEqual(c.normalizar("Plantar").actividadId, c.normalizar("Siembra").actividadId);
+  // La bodega y lo general quedan en el catálogo, pero no se ofrecen para pintar una parcela.
+  assert.equal(c.porId.get(c.normalizar("Desgranar").actividadId).ambito, "bodega");
+  assert.ok(!c.nombres(["campo", "vehiculo"]).includes("Desgranar") && !c.nombres(["campo"]).includes("Supervisar"));
 });

@@ -5,8 +5,9 @@
 // mismo, la experiencia de una persona se parte en pedazos. Aquí vive UNA lista, y todo lo demás se liga a ella.
 //
 // Reglas que no se rompen:
-//   · No se inventa nada: de fábrica sólo están las actividades que las pantallas YA ofrecían. Lo demás lo agrega una
-//     persona, y queda con fecha, quién y por qué (son hechos, como la organización).
+//   · No se inventa nada: de fábrica están las actividades que las pantallas YA ofrecían y las del rancho que Luis pidió
+//     subir del Excel de rayas (`DEL_RANCHO`). Lo demás lo agrega una persona, y queda con fecha, quién y por qué (son
+//     hechos, como la organización).
 //   · Un texto que no se reconoce NO se adivina: sale «por ligar» hasta que alguien diga a qué actividad corresponde.
 //   · Tres clases de requisito, que nunca se mezclan:
 //       - legal:       lo pide una norma. Nace «por validar» y NO restringe nada hasta que alguien documente QUÉ NORMA
@@ -35,7 +36,28 @@ export const CLASES_DE_REQUISITO = {
   experiencia: { nombre: "Experiencia recomendada", dice: "Se recomienda; nunca impide asignar." },
 };
 
-// Lo que las pantallas YA ofrecían (Equipos de trabajo, Cuadrillas, la actividad tecleada). Ni una más.
+// LAS DEL RANCHO (Luis, 23 nov: «sube del formato de nóminas las actividades sin el prefijo»): el catálogo de
+// actividades del Excel de rayas de 2024, con el nombre como allá se escribía y SIN su código (A07, G01, GA1, SUP…).
+// Se ofrecen en Equipos de trabajo, Cuadrillas y la tabla por cortes (las de campo, y las de vehículo con un vehículo);
+// las de bodega y las generales quedan en el catálogo y se reconocen al escribirlas. NO entraron, a propósito:
+//   · Deshierbe: ya estaba, con el mismo nombre.
+//   · Las que ya estaban dichas de otra forma (Regar = Riego, Sembrar = Siembra, Cosechar = Cosecha, Fertilizar =
+//     Fertilización, Limpiar = Limpieza, Empacar = Empaque, Subsuelar = Subsoleo, Arrastre (Rastrear) = Rastreo):
+//     duplicarlas partiría en dos la experiencia de cada quien; si alguien las escribe así, las liga una persona
+//     (`ligarTexto`), no la app.
+//   · Falta justificada, Falta injustificada y Vacaciones: no son actividades, son ausencias (Pagos al personal).
+// Plantar y Sembrar SÍ son distintas: el Excel tenía una clave para cada una.
+export const DEL_RANCHO = [
+  ...["Arreglar cintilla", "Arrodilla", "Corte", "Cultivar", "Desvarar", "Fumigar", "Juntar", "Manojear", "Plantar", "Poner hule",
+    "Tirar cintilla", "Voltear", "Sacar hule", "Aflojar hule", "Sacar cintilla", "Poner hilo", "Revolver fertilizante", "Poner laiflat",
+    "Inyectar", "Quitar hilo", "Sacar estacas"].map(n => ({ nombre: n, ambito: "campo" })),
+  ...["Arreglar maquinaria", "Traer partes maquinaria", "Flete"].map(n => ({ nombre: n, ambito: "vehiculo" })),
+  ...["Desgranar", "Hacer coronas", "Correr (corredora)", "Seleccionar"].map(n => ({ nombre: n, ambito: "bodega" })),
+  ...["Albañilería", "Reparar", "Acomodar caminos", "Alimentar", "Supervisar"].map(n => ({ nombre: n, ambito: "general" })),
+].map(a => ({ ...a, ofrecida: true, delRancho: true }));
+// Lo que las pantallas YA ofrecían (Equipos de trabajo, Cuadrillas, la actividad tecleada), más las del rancho.
+// Subsoleo y Rastreo eran sólo de la captura del tractorista; como el rancho las tiene en su catálogo (Subsuelar,
+// Arrastre), ahora también se ofrecen.
 const DE_DRON = ["Aplicación agroquímicos", "Fumigación herbicida", "Fertilización aérea", "Monitoreo de cultivo", "Mapeo de parcela"];
 // `ofrecidas` marca las doce de Equipos de trabajo y Cuadrillas (las listas de esas pantallas no cambian); las demás
 // son las que ya ofrecían las capturas de actividad —la del trabajador, la del tractorista, la del dronero, la de la
@@ -47,8 +69,10 @@ export const DE_FABRICA = [
   ...["Preparación de suelo", "Siembra", "Fertilización", "Riego", "Control de plagas", "Deshierbe", "Cosecha", "Limpieza"].map(n => ({ nombre: n, ambito: "campo", ofrecida: true })),
   ...["Traslado de personal", "Acarreo de cosecha", "Acarreo de insumos", "Mantenimiento del vehículo"].map(n => ({ nombre: n, ambito: "vehiculo", ofrecida: true })),
   ...["Empaque"].map(n => ({ nombre: n, ambito: "bodega" })),
-  ...["Transporte", "Transporte interno", "Fertilización mecanizada", "Subsoleo", "Rastreo", "Surcado", "Mantenimiento tractor"].map(n => ({ nombre: n, ambito: "vehiculo" })),
+  ...["Transporte", "Transporte interno", "Fertilización mecanizada", "Surcado", "Mantenimiento tractor"].map(n => ({ nombre: n, ambito: "vehiculo" })),
+  ...["Subsoleo", "Rastreo"].map(n => ({ nombre: n, ambito: "vehiculo", ofrecida: true })),
   ...DE_DRON.map(n => ({ nombre: n, ambito: "campo" })),
+  ...DEL_RANCHO,
 ];
 // La misma actividad escrita de dos formas tiene la misma clave: sin acentos, sin mayúsculas, sin signos.
 export const claveDe = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9ñ]+/g, " ").trim();
@@ -58,7 +82,7 @@ const enOrden = (a, b) => String(a.datos.desde || a.fecha).localeCompare(String(
 
 /* ── El catálogo de un día ── */
 export function catalogoEn(eventos, fecha) {
-  const acts = new Map(DE_FABRICA.map(a => [idDeFabrica(a.nombre), { id: idDeFabrica(a.nombre), nombre: a.nombre, ambito: a.ambito, activa: true, deFabrica: true, ofrecida: !!a.ofrecida }]));
+  const acts = new Map(DE_FABRICA.map(a => [idDeFabrica(a.nombre), { id: idDeFabrica(a.nombre), nombre: a.nombre, ambito: a.ambito, activa: true, deFabrica: true, ofrecida: !!a.ofrecida, ...(a.delRancho ? { delRancho: true } : {}) }]));
   const equiv = new Map(), reqs = new Map();
   for (const e of vigentes(eventos || []).filter(e => TIPOS.includes(e.tipo) && (e.datos.desde || e.fecha) <= fecha).sort(enOrden)) {
     const d = e.datos;
@@ -76,7 +100,7 @@ export function catalogoEn(eventos, fecha) {
   return {
     fecha, actividades: lista, porId,
     equivalencias: [...equiv.entries()].filter(([, v]) => porId.has(v.actividadId)).map(([clave, v]) => ({ clave, escrito: v.escrito, actividadId: v.actividadId, nombre: porId.get(v.actividadId).nombre })),
-    // Lo que se OFRECE en Equipos de trabajo y Cuadrillas: las doce de siempre y lo que una persona haya agregado. Las
+    // Lo que se OFRECE en Equipos de trabajo y Cuadrillas: las doce de siempre, las del rancho y lo que una persona haya agregado. Las
     // de las capturas por oficio (tractorista, dronero…) se reconocen, pero no se meten a esas listas: nada cambia ahí.
     nombres: (ambitos) => lista.filter(a => a.activa && (a.ofrecida || !a.deFabrica) && (!ambitos || ambitos.includes(a.ambito))).map(a => a.nombre),
     // ¿Qué actividad del catálogo es este texto? Por su nombre, o porque alguien dijo que es lo mismo. Si no, NO se adivina.

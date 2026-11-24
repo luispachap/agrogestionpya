@@ -63,6 +63,7 @@ Corte: lunes 23 de noviembre de 2026, 5:30 de la mañana. **66 aprobados · 1 re
 |---|---|---|
 | La app en app.agroselectos.com | **Publicado** | Versión `6c483a2` (23 nov, 11:50): la de las 5:30 (batería completa: 1,347 pruebas de reglas, 164 ataques a la base, 69 recorridos) más el punto de la nave en el mapa (probado aparte: reglas, compilación, auditoria_mapa 14, mapa 22, recorrido 25, humo 9); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6. |
 | La nave (Agroselectos P&A, Palmira, Zac.) dada de alta en producción como rancho con su ubicación, y su punto en el mapa | **Publicado** | 23 de noviembre, 11:50, a petición de Luis. Ubicación de Google Maps; faltan sus hectáreas. |
+| Personal y ranchos dados de alta en producción (a petición de Luis, 23 nov) | **Publicado** | 23 de noviembre, 18:30. 23 personas de la lista de nómina del 16 al 21 de noviembre, con el nombre impreso, sin sueldo, sin PIN y sin fecha de ingreso. 22 ranchos del catálogo de ubicaciones del Excel de rayas de 2024, con su clave y sin hectáreas. Fuera, a propósito: General (no es un lugar), Ganado y las cinco bodegas. Cada registro lleva su marca de espacio, de nacimiento y de dónde salió; no se repitió ninguno. |
 | Lo de las respuestas de Luis del 23 nov: la tabla por cortes con lo de «Registro de varios» y del reparto, el tiempo esperando tarea, la calidad de la corrida por origen y ritmo, corona/grano/deshecho/pata de perro al ajo terminado, prestaciones sobre la semana entre 7, y checar con el teléfono propio | **Publicado** | 23 de noviembre, 5:30 de la mañana. Sin hojas nuevas en la base. |
 | La hoja de pagos que se firma: lo que ya debían al arrancar, prestar en un paso, pago en dos partes, sueldo por semana entre 6 y la importación que no confunde el sueldo de la semana | **Publicado** | 23 de noviembre, de madrugada; hoja 57 instalada en la base y las siete huellas de producción iguales a las de la base probada. |
 | Captura diaria: «Mis días» con la cuenta real, registro de varios que dice lo que se paga, el día que se costeaba dos veces, y rastro al aprobar externos y atender incidencias | **Publicado** | 22 de noviembre; corrección ordinaria, publicada tras la batería completa. |
@@ -289,6 +290,8 @@ Corte: lunes 23 de noviembre de 2026, 5:30 de la mañana. **66 aprobados · 1 re
 
 ## Lo que le toca a Luis
 
+- Del personal que se subió de la lista de nómina faltan el sueldo de la semana, el PIN y la fecha de ingreso de cada quien; sin eso Pagos dice «no se puede calcular» (nunca un cero). La columna «Sueldo» de la lista se puede usar como sueldo de la semana si confirmas que es su sueldo base y no trae extras.
+- Los 22 ranchos del Excel entraron sin hectáreas ni ubicación, y sin parcelas: sin parcelas no se puede pintar la tabla por cortes ni repartir costos. Ganado, General y las cinco bodegas del Excel no se subieron como ranchos: dime si alguno lo es.
 - Crear el repositorio privado de respaldos y sus tres secretos.
 - Hacer la prueba de campo con la familia.
 - Otorgarse el permiso para configurar la organización (Arranque → Cuentas), si la va a usar.
@@ -309,7 +312,6 @@ Corte: lunes 23 de noviembre de 2026, 5:30 de la mañana. **66 aprobados · 1 re
 - El archivo principal pesa 2.7 MB: la primera carga con mala señal es lenta.
 - En producción quedan los datos de la prueba de avisos (1 conversación, 3 mensajes). Hay que retirarlos.
 - Eliminar una siembra del calendario avisa que sus costos quedan sin temporada, pero lo permite.
-- El pase de lista ofrece su propia lista de actividades al capturar un día faltante, en vez del catálogo único.
 - En un teléfono ligado para la gente, cada recarga le vuelve a pedir la contraseña al encargado (así está pensado; puede cansar).
 
 ## Riesgos que quedan aunque todo pase
@@ -322,4 +324,4 @@ Corte: lunes 23 de noviembre de 2026, 5:30 de la mañana. **66 aprobados · 1 re
 - El teléfono ligado guarda lo que ve la cuenta del encargado: por eso nunca se liga la de un administrador.
 - El PIN no es identidad: lo que mueve dinero se hace con cuenta, y la base lo exige.
 - La base gratuita se pausa si pasan varios días sin uso. Se reactiva sin perder nada.
-- Producción está vacía: una cuenta, sin personal, sin parcelas y sin fecha de inicio declarada.
+- Producción todavía no opera: ya tiene el personal de la lista de nómina (sin sueldo ni PIN) y los ranchos del Excel de rayas (sin hectáreas), pero ninguna parcela y ninguna fecha de inicio declarada.
