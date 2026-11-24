@@ -76,7 +76,7 @@ Las tres están en la app y probadas en navegador; falta usarlas con datos reale
 ## 5 · Orden del arranque
 
 1. Montar el proyecto y **sellarlo** con su espacio.
-2. Cuentas nuevas: Luis superadministrador; Migue administrador (Luis, 24 nov); luego encargados.
+2. Cuentas nuevas: Luis y Migue superadministradores (el puesto de Migue es administrador del rancho); luego encargados.
 3. Cargar los catálogos aprobados.
 4. PIN nuevos para la gente de campo.
 5. Conteo físico del almacén.

@@ -1405,5 +1405,7 @@ Nunca pongas credenciales en el código ni las pidas por chat. El cliente sólo 
 `docs/TABLERO.md` es la fuente de verdad del avance. Antes de cambiar acceso,
 sesión o sincronización lee `docs/auditoria/02-CONTENCION-P0.md`. Las reglas de
 quién entra viven en `src/acceso.js` (puro, probado). Nada se publica sin
-autorización de Luis. Luis es superadministrador; Migue es **administrador** (Luis, 24 nov), con
-cuenta propia: las operaciones sensibles (préstamos, pagos, cierres…) se le otorgan una por una en Arranque → Cuentas.
+autorización de Luis. Luis y Migue entran como superadministradores, cada uno con su cuenta. El PUESTO de Migue
+es administrador del rancho (Luis, 24 nov): la administración del rancho (pagos, préstamos, cierres de semana) la
+comparten; lo contable y el desarrollo de la app los lleva Luis. La app no tiene un perfil intermedio de
+«administrador» que se pueda invitar (`invitaciones` no acepta `admin` y `es_admin()` es `es_superadmin()`).
