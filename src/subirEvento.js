@@ -8,7 +8,8 @@
 //  subir un evento cancelado o corregido con upsert SIEMPRE lo rechazaba
 //  (24 nov, primera prueba en teléfonos de verdad: una marca corregida se
 //  quedó «sin subir»). Por eso:
-//    · vigente → upsert, como siempre;
+//    · vigente → se da de ALTA una vez: si ya estaba (un intento anterior sí
+//      llegó y su respuesta no), no se toca y se trae el que está, con su sello;
 //    · cancelado o corregido → se ACTUALIZA el que ya está en la base;
 //    · y si todavía no estaba (se creó y se canceló sin señal), primero nace
 //      vigente y luego se cambia: la base ve los dos pasos y guarda quién.
@@ -25,30 +26,23 @@ export function versionAlNacer(evento) {
   return o;
 }
 
-// cliente: { upsert(fila), update(fila), insert(fila) } → cada uno regresa { data, error } (como supabase-js con .select()).
+// cliente: { alta(fila) → renglón que quedó (o lanza), update(fila) → { data, error } }
 // aFila: convierte el evento de la app en el renglón de la base.
 export async function subirEvento(cliente, evento, aFila) {
-  if ((evento?.estado || VIGENTE) === VIGENTE) {
-    const { data, error } = await cliente.upsert(aFila(evento));
-    if (error) throw error;
-    return (data && data[0]) || null;
-  }
+  if ((evento?.estado || VIGENTE) === VIGENTE) return (await cliente.alta(aFila(evento))) || null;
   const fila = aFila(evento);
   let r = await cliente.update(fila);
   if (r.error) throw r.error;
   if (r.data && r.data.length) return r.data[0];
-  // No estaba en la base: primero nace vigente.
-  const nace = await cliente.insert(aFila(versionAlNacer(evento)));
-  if (nace.error) {
-    // Ya existe pero esta cuenta no lo puede cambiar (la actualización no tocó nada): es un rechazo, no falta de señal.
-    if (nace.error.code === "23505") {
-      const e = new Error("La base no dejó cambiar este evento: esta cuenta no tiene permiso para editarlo.");
-      e.code = "42501";
-      throw e;
-    }
-    throw nace.error;
-  }
+  // No cambió nada: o no estaba en la base, o esta cuenta no lo puede cambiar. Primero que exista (nace vigente;
+  // si ya estaba, no se toca), y luego el cambio.
+  await cliente.alta(aFila(versionAlNacer(evento)));
   r = await cliente.update(fila);
   if (r.error) throw r.error;
-  return (r.data && r.data[0]) || null;
+  if (r.data && r.data.length) return r.data[0];
+  // Ya existe y la actualización no tocó nada: la regla de la base no deja que esta cuenta lo cambie. Es un rechazo,
+  // no falta de señal.
+  const e = new Error("La base no dejó cambiar este evento: esta cuenta no tiene permiso para cancelarlo o corregirlo.");
+  e.code = "42501";
+  throw e;
 }

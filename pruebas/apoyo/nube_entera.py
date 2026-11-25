@@ -18,8 +18,32 @@ SOLO_OTORGADOS = json.loads(subprocess.run(["node", "-e", "import('./src/eventos
 # Las columnas que de verdad tiene cada tabla, leídas de las hojas SQL. Antes esta nube aceptaba cualquier columna, y el
 # 24 nov ningún mensaje del chat subía a la base real («deQuien» se llama `dequien`) sin que ningún recorrido lo viera.
 COLUMNAS = {t: set(c) for t, c in json.loads(subprocess.run(["node", "herramientas/columnas.mjs"], cwd=_raiz, capture_output=True, text=True).stdout or "{}").items()}
+# Los tipos de evento que la base sólo autoriza con importe (`datos.monto` mayor que cero; hojas 39, 41 y 57), leídos de las
+# hojas: la última que lo dice manda.
+PIDE_IMPORTE = {}
+for _h in sorted((_raiz / "supabase").glob("[0-9]*.sql")):
+    for _b in re.findall(r"insert into operaciones_sensibles[^;]*", _h.read_text(encoding="utf8"), re.I):
+        for _t, _op, _pide in re.findall(r"\('([a-z_]+)',\s*'([a-z_]+)',\s*(true|false)", _b): PIDE_IMPORTE[_t] = _pide == "true"
 
-import hashlib
+import hashlib, tempfile
+# Qué puede cada perfil en cada tabla (`permisos_rol`, como queda con TODAS las hojas aplicadas). Lo que no está ahí, la
+# base lo niega (hoja 24). Se calcula armando la base aislada una vez y se guarda por la huella de las hojas.
+def _permisos():
+    h = hashlib.sha256(b"".join(p.read_bytes() for p in sorted((_raiz / "supabase").glob("[0-9]*.sql"))) + (_raiz / "supabase" / "orden.json").read_bytes()).hexdigest()[:16]
+    cache = pathlib.Path(tempfile.gettempdir()) / f"agro-permisos-rol-{h}.json"
+    if not cache.exists():
+        r = subprocess.run(["node", "pruebas/apoyo/permisos_rol.mjs"], cwd=_raiz, capture_output=True, text=True)
+        if r.returncode: raise RuntimeError("No se pudo leer permisos_rol de la base aislada: " + r.stderr[-400:])
+        cache.write_text(r.stdout)
+    return json.loads(cache.read_text())
+PERMISOS = _permisos()
+# Las tablas cuya regla NO es `puede()`: la bitácora de auditoría (cualquiera con perfil la escribe; nadie la cambia).
+POR_OTRA_REGLA = {"auditoria", "preferencias", "perfiles", "invitaciones", "operacion", "restauraciones"}
+def puede(c, tabla, accion):
+    if not c: return False
+    if c["rol"] == "superadmin" or tabla in POR_OTRA_REGLA: return True
+    return bool(PERMISOS.get(c["rol"], {}).get(tabla, {}).get(accion))
+
 def firma(fila, llave="llave-de-la-nube-de-mentira"):
     """Como la hoja 53: la firma amarra el evento entero (qué es, lo que dice, su estado) con su sello."""
     datos = {k: v for k, v in (fila.get("datos") or {}).items() if k not in ("_actualizado", "_selloOriginal")}
@@ -29,6 +53,15 @@ class Nube:
     def __init__(self, cuentas, inicio="2026-11-01"):
         self.cuentas = {c["ficha"]: c for c in cuentas}; self.porCorreo = {c["correo"]: c for c in cuentas}
         self.t = {}; self.subidas = []; self.rechazos = []; self.ocupados = []; self.otorgados = {}; self.inicio = inicio; self.caida = False; self.depura = None; self.restaurando = set(); self.restauraciones = []; self.sin_hoja_53 = False; self.reloj = None
+        self.detalle = []   # qué rechazó, a quién y por qué: lo que en el rancho sería «no se pudo subir»
+        import atexit
+        atexit.register(lambda: self.detalle and print("   [nube] rechazó:", "; ".join(sorted({f"{t}·{r}·{m}" for t, r, m in self.detalle}))[:1500], flush=True))
+    def rechazar(self, tabla, c, porque, f=None):
+        self.rechazos.append(tabla); self.detalle.append((tabla, (c or {}).get("rol", "sin sesión"), porque))
+        import os
+        if os.environ.get("NUBE_DETALLE"):
+            datos = (f or {}).get("datos") if isinstance((f or {}).get("datos"), dict) else {}
+            print("   [nube rechaza]", tabla, (c or {}).get("rol"), porque, (f or {}).get("id"), sorted(k for k in datos if not k.startswith("_"))[:25], flush=True)
     def ahora(self):
         return (self.reloj() if self.reloj else datetime.datetime.now(datetime.timezone.utc)).isoformat().replace("+00:00", "Z")
     def quien(self, r):
@@ -49,7 +82,13 @@ class Nube:
         op = SENSIBLES.get(f.get("tipo"))
         if op and not viejo:
             ok = op in self.otorgados.get(c["id"], []) or (c["rol"] == "superadmin" and op not in SOLO_OTORGADOS)
-            fila.update(validacion="autorizado" if ok else "rechazado", validacion_dice=None if ok else "sin_permiso", validado_rol=c["rol"], validado_por=c["id"], validado=self.ahora())
+            dice = None if ok else "sin_permiso"
+            # Como la base: un pago, un abono o un préstamo sin importe en `datos.monto` no se autoriza.
+            if ok and PIDE_IMPORTE.get(f.get("tipo")):
+                try: monto = float(((fila.get("datos") or {}).get("datos") or {}).get("monto"))
+                except Exception: monto = None
+                if not monto or monto <= 0: ok = False; dice = "importe"
+            fila.update(validacion="autorizado" if ok else "rechazado", validacion_dice=dice, validado_rol=c["rol"], validado_por=c["id"], validado=self.ahora())
         if not viejo or viejo.get("estado") == "vigente": fila["sello_firma"] = firma(fila)
         return fila
     def __call__(self, route):
@@ -91,6 +130,8 @@ class Nube:
         if r.method == "GET":
             if self.depura and tabla in self.depura: print("   [nube]", tabla, "cuenta:", c and c["rol"], "filas:", len(filas), (r.headers.get("authorization") or "")[-12:], flush=True)
             if not c: return J([])
+            # Como la base: lo que el perfil no puede leer no le llega (lista vacía, sin error).
+            if not puede(c, tabla, "leer"): return J(None if "vnd.pgrst.object" in (r.headers.get("accept") or "") else [])
             lista = sorted(filas.values(), key=lambda x: (x.get("actualizado") or "", str(x.get("id"))))
             m = re.search(r"actualizado=gte\.([^&]+)", r.url)
             if m:
@@ -115,10 +156,12 @@ class Nube:
             for f in entran:
                 otra = next((k for k in (f or {}) if k not in COLUMNAS[tabla]), None) if isinstance(f, dict) else None
                 if otra:
-                    self.rechazos.append(tabla); return J({"code": "PGRST204", "message": f"Could not find the '{otra}' column of '{tabla}' in the schema cache"}, 400)
+                    self.rechazar(tabla, c, f"columna {otra}"); return J({"code": "PGRST204", "message": f"Could not find the '{otra}' column of '{tabla}' in the schema cache"}, 400)
         import urllib.parse
         filtros = [(k, urllib.parse.unquote(v)) for k, v in re.findall(r"[?&](\w+)=eq\.([^&]+)", r.url)]
         if r.method == "PATCH":
+            # Sin permiso de editar (o en la bitácora, que nadie cambia) la base no toca ningún renglón: lista vacía.
+            if tabla == "auditoria" or not puede(c, tabla, "editar"): return J([], 200)
             # Actualizar: sólo los renglones que ya están y cumplen el filtro; si no hay ninguno, no pasa nada (lista vacía).
             for fid, ya in list(filas.items()):
                 if not filtros or not all(str(ya.get(k)) == v for k, v in filtros): continue
@@ -130,6 +173,21 @@ class Nube:
         upsert = "merge-duplicates" in prefer or solo_faltantes or "on_conflict=" in r.url
         for f in entran:
             if not isinstance(f, dict) or "id" not in f: continue
+            # Como la hoja 31: lo que entra sin la marca de ESTE espacio se rechaza, aunque quien lo suba tenga permiso.
+            if tabla in COLUMNAS and "datos" in COLUMNAS[tabla] and tabla != "preferencias":
+                if ((f.get("datos") or {}) if isinstance(f.get("datos"), dict) else {}).get("_espacio") != E:
+                    self.rechazar(tabla, c, "sin marca de espacio"); return J({"code": "P0001", "message": f'Este registro no es de esta operación (espacio "{E}"). No se sube: puede ser un dato viejo o de prueba.'}, 400)
+            # Como la base: un evento sin tipo o sin día no entra (columnas obligatorias).
+            if tabla == "eventos" and (not f.get("tipo") or not f.get("fecha")):
+                self.rechazar(tabla, c, "sin tipo o sin día"); return J({"code": "23502", "message": 'null value in column "fecha" of relation "eventos" violates not-null constraint'}, 400)
+            # Como las reglas de la base: dar de alta pide «crear»; un upsert de algo que ya está va además por el camino
+            # de actualizar, que pide «editar».
+            if not puede(c, tabla, "crear") or (f["id"] in filas and not solo_faltantes and not puede(c, tabla, "editar")):
+                self.rechazar(tabla, c, "sin permiso", f); return J({"code": "42501", "message": f'new row violates row-level security policy for table "{tabla}"'}, 403)
+            # La bitácora de auditoría no tiene regla para cambiar: un upsert de algo que ya está va por el camino de
+            # actualizar y la base lo rechaza (aunque sea lo mismo que ya subió).
+            if tabla == "auditoria" and f["id"] in filas and not solo_faltantes:
+                self.rechazar(tabla, c, "bitácora otra vez"); return J({"code": "42501", "message": 'new row violates row-level security policy (USING expression) for table "auditoria"'}, 403)
             if solo_faltantes and f["id"] in filas: continue          # lo que ya está no se toca
             if not upsert and f["id"] in filas:
                 return J({"code": "23505", "message": f'duplicate key value violates unique constraint "{tabla}_pkey"'}, 409)
@@ -142,7 +200,7 @@ class Nube:
             # Como la política «crear eventos» de la base: lo que entra por INSERT —también un upsert que acaba
             # actualizando— tiene que ser vigente (o venir restaurado con su sello). Cancelar o corregir es un UPDATE.
             if tabla == "eventos" and (f.get("estado") or "vigente") != "vigente" and not g.get("restaurado"):
-                self.subidas.pop(); self.rechazos.append(tabla)
+                self.subidas.pop(); self.rechazar(tabla, c, "evento no vigente por alta")
                 return J({"code": "42501", "message": 'new row violates row-level security policy for table "eventos"'}, 403)
             filas[g["id"]] = g; salen.append(g)
         return J(salen, 201)

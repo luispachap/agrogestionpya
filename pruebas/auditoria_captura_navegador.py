@@ -210,12 +210,16 @@ with sync_playwright() as p:
     caso("cambiar la hora de una marca sin decir por qué no se guarda", all(e["estado"] == "vigente" for e in m0) and len(m0) == 1, [[e["tipo"], e["estado"]] for e in m0])
     campo(B, "Por qué").fill("CHECO TARDE PORQUE NO HABIA TELEFONO INVENTADO"); B.get_by_role("button", name="Guardar").click(); B.wait_for_timeout(800); m1 = marcas(B); t = cuerpo(B)
     caso("con motivo sí: la marca original se queda en el historial y nace la corregida, con quién y por qué", len(m1) == 2 and sorted(e["estado"] for e in m1) != ["vigente", "vigente"] and "CHECO TARDE" in json.dumps(m1, ensure_ascii=False) and "6:30" in t, [[e["tipo"], e["estado"], e.get("relacion")] for e in m1])
-    ir(B, "credenciales"); B.get_by_role("button", name="Emitir", exact=True).first.click(); B.wait_for_timeout(700)
-    quien_c = next(x for x in datos(B)["trabajadores"] if x.get("credencial")); c1 = quien_c["credencial"]["codigo"]; t = cuerpo(B); foto(B, "11-credenciales")
-    caso("emitir una credencial le da a la persona un código propio, con fecha y quién la emitió, sin su PIN ni su sueldo", len(c1) >= 8 and quien_c["credencial"]["por"] == "ENCARGADO DE PRUEBA" and quien_c["pin"] not in c1 and "Emitida el" in t, quien_c["credencial"])
-    B.get_by_role("button", name="Emitir otra").first.click(); B.wait_for_timeout(700); q2 = next(x for x in datos(B)["trabajadores"] if x["id"] == quien_c["id"])
+    # Las credenciales las emite un administrador (Luis, 24 nov): emitir cambia la ficha de la persona. El encargado las ve y las imprime.
+    ir(B, "credenciales"); t = cuerpo(B)
+    caso("el encargado no tiene botón para emitir credenciales y la pantalla le dice que las emite un administrador", B.get_by_role("button", name=re.compile("^Emitir")).count() == 0 and "Las emite un administrador" in t, t[:500])
+    ir(A, "credenciales"); A.get_by_role("button", name="Emitir", exact=True).first.click(); A.wait_for_timeout(700)
+    quien_c = next(x for x in datos(A)["trabajadores"] if x.get("credencial")); c1 = quien_c["credencial"]["codigo"]; t = cuerpo(A); foto(A, "11-credenciales")
+    caso("el administrador emite una credencial: la persona tiene un código propio, con fecha y quién la emitió, sin su PIN ni su sueldo", len(c1) >= 8 and quien_c["credencial"]["por"] == "ADMIN DE PRUEBA" and quien_c["pin"] not in c1 and "Emitida el" in t, quien_c["credencial"])
+    A.get_by_role("button", name="Emitir otra").first.click(); A.wait_for_timeout(700); q2 = next(x for x in datos(A)["trabajadores"] if x["id"] == quien_c["id"])
     caso("emitir otra cambia el código y la anterior queda anotada como ya no vigente", q2["credencial"]["codigo"] != c1 and c1 in json.dumps(q2.get("credencialesAnteriores")), [q2["credencial"], q2.get("credencialesAnteriores")])
-    subio(B)
+    subio(A); al_dia(B); ir(B, "credenciales"); t = cuerpo(B)
+    caso("al encargado le llega la credencial nueva y la puede imprimir", "Emitida el" in t and B.get_by_role("button", name=re.compile("Imprimir")).count() == 1 and any((x.get("credencial") or {}).get("codigo") == q2["credencial"]["codigo"] for x in datos(B)["trabajadores"]), t[:500])
 
     # ══ 10. Un externo: entra con su nombre, registra, y no cuenta hasta que alguien lo aprueba ══
     egresos_antes = B.evaluate(CUENTAS)["egresos"]

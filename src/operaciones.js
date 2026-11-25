@@ -55,8 +55,11 @@ export const OPERACIONES = {
   incidencia: { nombre: "Incidencia", confirma: ["admin", "encargado", "agronomo"], dinero: false, a: "Incidencias", porque: "una incidencia la levanta quien la ve" },
   fertirriego: { nombre: "Indicación de fertirriego", confirma: ["admin", "agronomo", "encargado"], dinero: false, a: "Indicaciones", porque: "la indicación la confirma el agrónomo o quien la ejecuta" },
   // Lo dicho de un préstamo nace como SOLICITUD (prestamos.js): no es deuda, no es gasto y no descuenta nada.
-  prestamo: { nombre: "Solicitud de préstamo", confirma: ["admin", "encargado", "finanzas"], dinero: false, requiereSesion: true, a: "Préstamos, como solicitud por autorizar", porque: "pedir un préstamo no lo autoriza ni lo entrega" },
-  nota: { nombre: "Nota en la bitácora", confirma: ["admin", "encargado", "finanzas", "agronomo"], dinero: false, a: "Bitácora", porque: "una nota no mueve nada" },
+  // Sin Finanzas: la base no le deja crear hechos (`permisos_rol`: eventos sin «crear»). Antes se le ofrecía, firmaba y se
+  // quedaba sin subir. Dárselo es un permiso de la base, no de esta lista.
+  prestamo: { nombre: "Solicitud de préstamo", confirma: ["admin", "encargado"], dinero: false, requiereSesion: true, a: "Préstamos, como solicitud por autorizar", porque: "pedir un préstamo no lo autoriza ni lo entrega" },
+  // Sin Finanzas: la base no le deja escribir la bitácora (`permisos_rol`).
+  nota: { nombre: "Nota en la bitácora", confirma: ["admin", "encargado", "agronomo"], dinero: false, a: "Bitácora", porque: "una nota no mueve nada" },
 };
 // Lo que la gente va a decir y TODAVÍA no se registra por aquí. Se reconoce para decir a dónde ir; no se guarda parecido.
 export const POR_CONECTAR = [
@@ -71,7 +74,8 @@ const AVISO_DE_PRESTAMO = "Queda como SOLICITUD de préstamo: todavía no es deu
 const SIN_SESION = "Esto no se confirma desde un teléfono, aunque sea conocido: se confirma dentro de la app, con tu sesión.";
 const PREGUNTA = {
   "a quién se le prestó": "¿A quién se le prestó? (una persona, con nombre)", "cuánto se prestó": "¿Cuánto se prestó?", "cuántos fueron": "¿Cuántos fueron en total? (Si ese precio ya era el total, dilo: «fue el total».)",
-  "cuánto costó": "¿Cuánto costó?", "quién trabajó": "¿Quiénes trabajaron? (con nombre: un número de personas no le registra el día a nadie)", "en qué parcela": "¿En qué parcela?", "de qué parcela": "¿De qué parcela?",
+  "cuánto costó": "¿Cuánto costó?", "cuánto costó en total": "¿Cuánto costó en total? (El precio de cada uno y el total que se dijeron no cuadran.)",
+  "si es por unidad o el total": "¿Ese precio es de cada uno, o es lo que costó todo? (Contesta «cada uno» o «el total».)", "quién trabajó": "¿Quiénes trabajaron? (con nombre: un número de personas no le registra el día a nadie)", "en qué parcela": "¿En qué parcela?", "de qué parcela": "¿De qué parcela?",
   "cuánto se cosechó": "¿Cuánto se cosechó, y en qué (cajas, kilos…)?", "cuánto se avanzó y en qué (reguladores, surcos, cajas…)": "¿Cuánto se avanzó, y en qué se mide (reguladores, surcos, cajas…)?",
   "en cuál de las parcelas que nombraste": "Nombraste varias parcelas: ¿en cuál fue?", "de qué actividad": "¿De qué actividad es el avance (deshierbe, riego, corte…)?",
 };
@@ -126,7 +130,7 @@ export function decirPropuesta(p) {
   const d = p.datos;
   if (p.tipo === "avance") return `${d.cantidad ? `${d.cantidad.valor} ${d.unidad ? decirUnidad(d.unidad, d.cantidad.valor) : d.cantidad.unidad}` : "Avance"}${d.actividad ? ` de ${d.actividad}` : ""}${d.parcelaNombre ? ` en ${d.parcelaNombre}` : ""}${d.personasN ? ` · ${d.personasN} persona(s)` : ""}${d.pendiente ? " · quedó pendiente" : ""}`;
   if (p.tipo === "prestamo") return `Solicitud de préstamo${d.monto != null ? ` de $${d.monto.toLocaleString("es-MX")}` : ""}${d.personas.length === 1 ? ` para ${d.personas[0].nombre}` : ""}`;
-  if (p.tipo === "gasto") return `Gasto${d.monto != null ? ` de $${d.monto.toLocaleString("es-MX")}` : ""}${d.precioUnitario != null && d.cantidad?.valor ? ` (${d.cantidad.valor.toLocaleString("es-MX")} ${d.cantidad.unidad || ""} × $${d.precioUnitario.toLocaleString("es-MX")})`.replace(/\s+×/, " ×") : ""}${d.pagadoCon ? ` · ${FORMAS_DE_PAGO.find(f => f.clave === d.pagadoCon)?.nombre || d.pagadoCon}` : ""}`;
+  if (p.tipo === "gasto") return `Gasto${d.monto != null ? ` de $${d.monto.toLocaleString("es-MX")}` : ""}${d.precioUnitario != null && d.cantidad?.valor ? ` (${d.cantidad.valor.toLocaleString("es-MX")} ${d.cantidad.unidad || ""} × ${pesos(d.precioUnitario)})`.replace(/\s+×/, " ×") : ""}${d.pagadoCon ? ` · ${FORMAS_DE_PAGO.find(f => f.clave === d.pagadoCon)?.nombre || d.pagadoCon}` : ""}`;
   if (p.tipo === "actividad") return `Trabajo de ${d.personas.map(x => x.nombre).join(", ") || "—"}${d.parcelaNombre ? ` en ${d.parcelaNombre}` : ""}`;
   if (p.tipo === "cosecha") return `Cosecha${d.cantidad ? ` de ${d.cantidad.valor} ${d.cantidad.unidad}` : ""}${d.parcelaNombre ? ` de ${d.parcelaNombre}` : ""}`;
   if (p.tipo === "nota") return `Nota · ${NATURALEZAS[p.naturaleza].toLowerCase()}`;
@@ -154,7 +158,9 @@ export function ejecutar(propuesta, { mensaje, quien, cuando, fecha, parcelas = 
     return r.ok ? una("eventos", r.evento) : r;
   }
   if (p.tipo === "prestamo") {
-    const r = solicitarPrestamo({ trabajador: d.personas[0], monto: d.monto, motivo: p.frase, quien, cuando, fecha: d.fecha || fecha, azar: `dicho-${p.id}`.replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 80) });
+    // Identificador fijo por propuesta, como el avance: antes el «azar» era un texto y salía igual para todas
+    // (`…-cho-msj`), así que el mismo préstamo confirmado en dos teléfonos dejaba dos solicitudes.
+    const r = solicitarPrestamo({ id: `ev-prestamo-${p.id}`.replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 120), trabajador: d.personas[0], monto: d.monto, motivo: p.frase, quien, cuando, fecha: d.fecha || fecha });
     if (!r.ok) return r;
     r.evento.datos.origenDicho = origen; r.evento.datos.dichoComoYaEntregado = /\b(le preste|le prestamos|se le presto|le adelante|le adelantamos)\b/.test(plano(p.frase));
     return una("eventos", r.evento);
@@ -238,14 +244,18 @@ export function confirmarDelChat({ mensaje, propuesta, quien, hoy, cuando, parce
    · Nada se pierde: la frase original no cambia, cada aclaración queda con quién, cuándo y qué se entendió de ella
      (también la que no se entendió), y `comoLlego` guarda cómo venía antes de aclararse. */
 const POR_UNIDAD = /\b(el|la|por|cada|c\/u|x)\s+(kilo|kg|litro|lt|bulto|costal|caja|pieza|metro|tonelada|rollo|saco|galon|uno|una)\b|\bcada uno\b|\bc\/u\b|\bpor pieza\b/;
-const pesos = (n) => `$${Number(n).toLocaleString("es-MX")}`;
+const pesos = (n) => `$${Number(n).toLocaleString("es-MX", Number.isInteger(Number(n)) ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const ES_DINERO = /^(peso|pesos|varo|varos)$/;
 // El primer número de la respuesta, con su unidad si la trae. «tres kilos» no es dinero; «350» o «350 pesos» sí puede serlo.
+// El número de una respuesta corta, como se dice: «5 mil» son 5,000 (antes se leía 5 «mil» y no se entendía como
+// dinero), «3 mil 500», «veintiocho mil», «1.5 millones», «$28,000». Sólo si no se reconoce ninguno se busca la cifra.
 const numeroEn = (texto) => {
+  const n = numerosDichos(texto).find(x => x.valor > 0 && !["un", "una", "uno"].includes(String(x.dicho).trim()));
+  if (n) return { valor: n.valor, unidad: n.unidad ? plano(n.unidad) : null, pesos: /\$/.test(String(texto)) };
   const m = String(texto).replace(/,(?=\d{3})/g, "").match(/(\$)?\s*(\d+(?:\.\d+)?)\s*([a-záéíóúñ]+)?/i);
   if (m) return { valor: Number(m[2]), unidad: m[3] && !/^(el|la|los|las|por|cada|en|de|a|y)$/i.test(m[3]) ? plano(m[3]) : null, pesos: !!m[1] };
-  const n = numerosDichos(texto)[0];
-  return n && n.valor > 0 ? { valor: n.valor, unidad: n.unidad ? plano(n.unidad) : null, pesos: false } : null;
+  const u = numerosDichos(texto)[0];
+  return u && u.valor > 0 ? { valor: u.valor, unidad: u.unidad ? plano(u.unidad) : null, pesos: false } : null;
 };
 const comoDinero = (n) => (n && (n.pesos || !n.unidad || ES_DINERO.test(n.unidad)) ? n.valor : null);
 // De dónde salió el dinero, si alguien lo dice («se pagó de caja chica»). Se anota; no mueve ninguna caja por sí solo.
@@ -274,6 +284,21 @@ export function aclarar({ propuesta, respuesta, personas = [], parcelas = [], ho
   const cambios = {}, entendio = [], resueltas = new Set(), nuevas = [];
   const suelto = entenderLoDicho({ texto, personas, parcelas, insumos: [], hoy }).propuestas?.[0] || {};
   for (const f of falta) {
+    if (f === "si es por unidad o el total") {
+      // «a 28 mil» con «1000 litros»: puede ser lo de cada uno o lo de todo, y si se entiende al revés el error es grande.
+      const n = comoDinero(numeroEn(texto));
+      const cada = /\b(cada|por (litro|kilo|bulto|caja|pieza|tonelada|costal|unidad)|el (litro|kilo|bulto)|unidad|unitario|de cada)\b|^s[ií]\b/.test(t);
+      const todo = /\b(total|todo|por todo|en total|fue todo)\b|^no\b/.test(t);
+      if (n != null && !cada) { cambios.monto = n; cambios.precioUnitario = null; entendio.push(`el importe: ${pesos(n)}`); resueltas.add(f); }
+      else if (cada && !todo && p.cantidad?.valor > 0 && p.precioUnitario != null) { cambios.monto = Math.round(p.precioUnitario * p.cantidad.valor * 100) / 100; entendio.push(`${pesos(p.precioUnitario)} por unidad × ${p.cantidad.valor} ${p.cantidad.unidad || ""} = ${pesos(cambios.monto)}`.replace(/\s+=/, " =")); resueltas.add(f); }
+      else if (todo && !cada && p.precioUnitario != null) { cambios.monto = p.precioUnitario; cambios.precioUnitario = null; entendio.push(`${pesos(p.precioUnitario)} fue el total`); resueltas.add(f); }
+      continue;
+    }
+    if (f === "cuánto costó en total") {
+      const n = comoDinero(numeroEn(texto));
+      if (n == null) continue;
+      cambios.monto = n; entendio.push(`el importe: ${pesos(n)}`); resueltas.add(f); continue;
+    }
     if (f === "cuánto costó" || f === "cuánto se prestó") {
       const leido = numeroEn(texto), n = comoDinero(leido);
       if (n == null) {

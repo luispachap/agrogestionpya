@@ -11,8 +11,7 @@
 // ============================================================
 
 import { objetoAFila, filaAObjeto } from "./filas.js";
-import { UNIONES_DE_REGISTROS } from "./calculos.js";
-import { subirEvento } from "./subirEvento.js";
+import { subirRegistro } from "./subir.js";
 import { supabase, supabaseListo } from "./supabase";
 
 // ------------------------------------------------------------
@@ -141,36 +140,22 @@ export async function leerEventosDesde(desde) {
 // ------------------------------------------------------------
 //  SUBIR (insertar o actualizar) un registro
 // ------------------------------------------------------------
+// Cómo le habla `subir.js` a la base de verdad (supabase-js). La prueba de contrato le pone otro, sobre una base aislada.
+export const clienteSupabase = {
+  upsert: (tabla, fila, { soloFaltantes = false, regresar = false } = {}) => {
+    const q = supabase.from(tabla).upsert(fila, { onConflict: "id", ignoreDuplicates: soloFaltantes });
+    return regresar ? q.select() : q;
+  },
+  update: (tabla, fila, { regresar = false } = {}) => { const q = supabase.from(tabla).update(fila).eq("id", fila.id); return regresar ? q.select() : q; },
+  insert: (tabla, fila, { regresar = false } = {}) => { const q = supabase.from(tabla).insert(fila); return regresar ? q.select() : q; },
+  leer: (tabla, id) => supabase.from(tabla).select("*").eq("id", id).maybeSingle(),
+};
+
 export async function guardarRegistro(tabla, obj) {
   if (!supabaseListo) throw new Error("Supabase no está configurado");
-  const fila = objetoAFila(tabla, obj);
-  if (tabla === "eventos") {
-    // De un evento se pide de regreso lo que la base le selló (cuándo lo recibió y, si es sensible, si lo autorizó).
-    // Cancelado o corregido se ACTUALIZA, no se sube con upsert: la base no deja que un evento nazca así (subirEvento.js).
-    const cliente = {
-      upsert: (f) => supabase.from("eventos").upsert(f, { onConflict: "id" }).select(),
-      update: (f) => supabase.from("eventos").update(f).eq("id", f.id).select(),
-      insert: (f) => supabase.from("eventos").insert(f).select(),
-    };
-    const devuelta = await subirEvento(cliente, obj, (o) => objetoAFila("eventos", o));
-    const sellado = devuelta ? filaAObjeto(devuelta) : null;
-    if (sellado) { try { alSellar?.(sellado); } catch { /* el sello llega igual en la siguiente bajada */ } }
-    return true;
-  }
-  if (UNIONES_DE_REGISTROS[tabla]) {
-    // Antes de subir un crédito se lee el de la nube y se UNEN sus abonos: si otro aparato registró un abono mientras
-    // éste estaba sin señal, subir encima lo borraba (dinero pagado que desaparecía).
-    const { data: ya, error: e0 } = await supabase.from(tabla).select("*").eq("id", fila.id).maybeSingle();
-    if (e0) throw e0;
-    if (ya) {
-      const unido = UNIONES_DE_REGISTROS[tabla].unir(obj, filaAObjeto(ya));
-      const { error } = await supabase.from(tabla).upsert(objetoAFila(tabla, unido), { onConflict: "id" });
-      if (error) throw error;
-      return true;
-    }
-  }
-  const { error } = await supabase.from(tabla).upsert(fila, { onConflict: "id" });
-  if (error) throw error;
+  const devuelta = await subirRegistro(clienteSupabase, tabla, obj);
+  // De un evento se trae de regreso lo que la base le selló (cuándo lo recibió y, si es sensible, si lo autorizó).
+  if (tabla === "eventos" && devuelta) { try { alSellar?.(filaAObjeto(devuelta)); } catch { /* el sello llega igual en la siguiente bajada */ } }
   return true;
 }
 // La app deja aquí a quién avisarle cuando la base devuelve un evento ya sellado.

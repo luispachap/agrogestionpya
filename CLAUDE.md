@@ -783,6 +783,23 @@ Estado, alcance y veredicto: `docs/ENTREGA-1.0.md`. Guía para operar, respaldo 
   perfiles → respaldo y restauración. Si cambias sincronización, sesión, almacén o pagos, corre ésta. En esa prueba el
   trabajador de servicio va bloqueado (Playwright no intercepta lo que él pide); lo suyo lo prueba `sinsenal_navegador.py`
   contra la versión compilada.
+- **EL CONTRATO APP–BASE (24 nov, tras la primera prueba con teléfonos: el chat y lo cancelado no subían).** Todo lo que
+  sube la app pasa por `src/subir.js` (`subirRegistro`): un evento vigente se da de ALTA una vez (si ya estaba, se trae el
+  que está con su sello); cancelado o corregido se ACTUALIZA (`subirEvento.js`); la bitácora de auditoría sólo se da de
+  alta (`SOLO_ALTA`); lo demás se sube encima. **Subir dos veces lo mismo (la respuesta se perdió con mala señal) nunca es
+  un rechazo**, y otro registro en el mismo identificador se dice como ocupado. `pruebas/base/contrato.test.mjs` usa ese
+  MISMO código contra la base aislada, por cada colección y cada perfil (alta, reintento, corrección), y comprueba que lo
+  que el chat deja confirmar a un perfil lo acepta la base de ese perfil. **Si agregas una colección, una regla de acceso
+  o una operación del chat, esa prueba dice si en el rancho se quedaría «sin subir».** La nube de imitación
+  (`nube_entera.py`) ya niega lo que niega la base: columnas que no existen, el permiso de cada perfil por tabla
+  (`permisos_rol` leído de la base aislada), la marca de espacio, eventos no vigentes por alta, la bitácora otra vez y
+  pagos sin importe; al final de cada recorrido dice qué rechazó (`[nube] rechazó: …`).
+  **Quien puede dar de alta y no corregir** (hoja 58, decisiones de Luis del 24 nov: el encargado con los externos, el
+  agrónomo con actividades e indicaciones): su reintento lo rechaza la base por permiso, y `subirEncima` lee lo que quedó —
+  si es EXACTAMENTE lo mismo (`mismoContenido`), subió; si es distinto, es una corrección que no puede hacer y se dice.
+  Las credenciales las emite sólo un administrador (cambian la ficha del trabajador); el encargado las ve y las imprime.
+  Finanzas casi no puede crear nada en la base (ni eventos: pagos, préstamos, cierres): antes de invitar a alguien con ese
+  perfil, Luis decide qué se le da.
 - **La cola reintenta sola** cada 30 s mientras haya algo (`CADA_CUANTO_REINTENTAR_MS`), y una falla de RED no gasta
   intentos (`esFallaDeRed`): sólo un rechazo de la base cuenta para apartar un registro.
 - **Lo de otros aparatos se vuelve a bajar** cada 5 min con la app a la vista y al regresar a ella (`tocaBajar`), no sólo
@@ -973,7 +990,7 @@ Después de **cada** cambio en `App.jsx`, en este orden:
    en español y en la lengua del rancho (`la_remision_nunca_imprime_100_centavos`,
    no `test_17`): dentro de seis meses ese nombre es lo único que va a explicar
    por qué la prueba existía.
-2. `npm run build` — debe decir "✓ built" y transformar **230 módulos**, y el
+2. `npm run build` — debe decir "✓ built" y transformar **231 módulos**, y el
    archivo `pdf-*.js` debe seguir saliendo APARTE del principal.
 3. Revisa que no haya declaraciones duplicadas a nivel superior ni fragmentos JSX
    desbalanceados.

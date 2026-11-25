@@ -297,3 +297,57 @@ test("el_total_dicho_sigue_siendo_el_total_y_un_filtro_a_350_es_350", () => {
   const e = entenderLoDicho({ texto: "Compramos 28 mil pesos de diésel. Mañana regamos 3 horas", personas, parcelas, insumos: [], hoy: "2026-11-21" }).propuestas;
   assert.deepEqual([e[0].monto, e[0].cantidad ?? null, e[1].parteDe ?? null], [28000, null, null]);
 });
+
+/* ── Lo de CADA UNO y lo de TODO, dichos de cualquier manera (24 nov: «que no se repita nada así») ── */
+test("salio_a_28_el_litro_en_otra_frase_tambien_es_por_litro", () => {
+  for (const texto of ["Compramos 1000 litros de diésel. Salió a 28 el litro.", "Compramos diesel. Fueron 1000 litros a 28", "Compramos diésel, el litro a 28, fueron mil litros"]) {
+    const p = dicho(texto, admin).plan.propuestas;
+    assert.deepEqual([p.length, p[0].tipo, p[0].datos.monto, p[0].datos.precioUnitario], [1, "gasto", 28000, 28], texto);
+  }
+});
+test("el_total_y_el_precio_de_cada_uno_dichos_juntos_se_cotejan", () => {
+  const bien = entendida("Compramos 5 bultos de fertilizante en 4,000 pesos, a 800 cada uno");
+  assert.deepEqual([bien.monto, bien.precioUnitario, bien.falta], [4000, 800, []], "cuadran: vale el total");
+  const mal = entendida("Compramos 5 bultos de fertilizante en 5,000 pesos, a 800 cada uno");
+  assert.deepEqual([mal.monto ?? null, mal.falta], [null, ["cuánto costó en total"]], "no cuadran: se pregunta, no se escoge");
+  const r = aclarar({ propuesta: mal, respuesta: resp("fueron 5 mil"), personas, parcelas });
+  assert.deepEqual([r.propuesta.monto, r.propuesta.falta], [5000, []]);
+});
+test("a_28_mil_con_mil_litros_no_se_vuelve_28_millones_se_pregunta", () => {
+  const p = entendida("Compramos 1000 litros de diesel a 28 mil pesos");
+  assert.deepEqual([p.monto ?? null, p.precioUnitario, p.falta], [null, 28000, ["si es por unidad o el total"]]);
+  assert.match(p.porque, /si es lo de cada litro, son \$28,000,000; si es lo de todo, \$28,000/);
+  const total = aclarar({ propuesta: p, respuesta: resp("el total"), personas, parcelas });
+  assert.deepEqual([total.propuesta.monto, total.propuesta.falta], [28000, []]);
+  const cada = aclarar({ propuesta: p, respuesta: resp("cada litro"), personas, parcelas });
+  assert.equal(cada.propuesta.monto, 28000000, "si de verdad era por litro, se dice y vale eso");
+  // Una compra normal no pregunta: 10 bultos a 580 son $5,800.
+  assert.deepEqual([entendida("Compramos 10 bultos de urea a 580").monto, entendida("Compramos 10 bultos de urea a 580").falta], [5800, []]);
+});
+test("gastamos_ya_es_un_gasto", () => {
+  const p = entendida("Gastamos 1,500 en refacciones");
+  assert.deepEqual([p.tipo, p.monto], ["gasto", 1500]);
+});
+test("contestar_5_mil_o_tres_mil_quinientos_es_dinero", () => {
+  for (const [r, monto] of [["5 mil", 5000], ["fueron 3 mil 500", 3500], ["veintiocho mil pesos", 28000], ["$28,000", 28000], ["1.5 millones", 1500000]]) {
+    const x = aclarar({ propuesta: entendida("Compramos un rollo de manguera."), respuesta: resp(r), personas, parcelas });
+    assert.equal(x.propuesta.monto, monto, r);
+  }
+  assert.equal(aclarar({ propuesta: entendida("Compramos clavos."), respuesta: resp("tres kilos"), personas, parcelas }).propuesta.monto ?? null, null, "tres kilos siguen sin ser tres pesos");
+});
+test("el_mismo_prestamo_dicho_confirmado_en_dos_telefonos_es_una_sola_solicitud", () => {
+  const { mensaje, plan } = dicho("Le presté quinientos pesos a Juan Pérez", admin, "msj1795222807822b1rzyng3");
+  const a = ejecutar(plan.propuestas[0], { mensaje, quien: admin, parcelas, cuando: "2026-11-21T18:00:00.000Z", fecha: "2026-11-21" }).escrituras[0].registro;
+  const b = ejecutar(plan.propuestas[0], { mensaje, quien: admin, parcelas, cuando: "2026-11-21T18:07:31.000Z", fecha: "2026-11-21" }).escrituras[0].registro;
+  assert.equal(a.id, b.id, "mismo mensaje, misma solicitud");
+  const otro = dicho("Le presté quinientos pesos a Juan Pérez", admin, "msj1795222899999zzzzzzz9");
+  assert.notEqual(ejecutar(otro.plan.propuestas[0], { mensaje: otro.mensaje, quien: admin, parcelas, cuando: "2026-11-21T18:00:00.000Z", fecha: "2026-11-21" }).escrituras[0].registro.id, a.id, "otro mensaje, otra solicitud");
+});
+test("finanzas_no_firma_en_el_chat_lo_que_la_base_no_le_deja_guardar", () => {
+  const fin = { id: "fin1", nombre: "Finanzas", rol: "finanzas" };
+  for (const texto of ["Le presté quinientos pesos a Juan Pérez", "Vimos mucha hierba en San Felipe 4"]) {
+    const { mensaje, plan } = dicho(texto, fin);
+    const r = ejecutar(plan.propuestas[0], { mensaje, quien: fin, parcelas, ...sello() });
+    assert.equal(r.ok, false, texto); assert.equal(r.sinPermiso, true, texto);
+  }
+});

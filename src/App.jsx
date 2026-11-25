@@ -9794,6 +9794,8 @@ function Credenciales({ data, upd, session, onClose }) {
   const activos = (data.trabajadores || []).map(t => ({ ...t, _sec: "trabajadores" })).concat((data.encargados || []).map(t => ({ ...t, _sec: "encargados" }))).filter(t => t.activo !== false).sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
   const con = activos.filter(t => t.credencial?.codigo), sin = activos.filter(t => !t.credencial?.codigo && t._sec === "trabajadores");   // a un encargado se le emite una por una: para él es opcional
   const [sel, setSel] = useState({});       // a quién imprimir; vacío = a todos los que tienen
+  // Emitir cambia la ficha de la persona, y eso es de la administración (Luis, 24 nov). El encargado las ve y las imprime.
+  const puedeEmitir = session?.role === "admin";
   const emitir = ({ _sec, ...t }) => upd(_sec, emitirCredencial(t, { cuando: new Date().toISOString(), quien: quienDe(session) }));
   const emitirFaltantes = () => sin.forEach(emitir);
   const otra = (t) => { if (window.confirm(`Se va a emitir OTRA credencial para ${t.nombre}. La que trae ahora deja de servir en cuanto este aparato y el checador sincronicen. ¿Seguro?`)) emitir(t); };
@@ -9806,7 +9808,8 @@ function Credenciales({ data, upd, session, onClose }) {
         <div className="card">
           <div className="text-sm text-muted" style={{ marginBottom: 10 }}>Cada credencial trae un código propio. No lleva el PIN, el sueldo ni ningún dato de la persona: si se pierde, se emite otra y la vieja deja de servir.</div>
           {activos.length === 0 && <div className="text-sm">Todavía no hay trabajadores dados de alta. Se dan de alta en Equipo.</div>}
-          {sin.length > 0 && <button className="btn btn-accent" style={{ width: "100%", marginBottom: 10 }} onClick={emitirFaltantes}>Emitir credencial a los {sin.length} que no tienen</button>}
+          {sin.length > 0 && puedeEmitir && <button className="btn btn-accent" style={{ width: "100%", marginBottom: 10 }} onClick={emitirFaltantes}>Emitir credencial a los {sin.length} que no tienen</button>}
+          {sin.length > 0 && !puedeEmitir && <div className="text-sm cred-quien-emite" style={{ marginBottom: 10 }}>{sin.length} {sin.length === 1 ? "persona no tiene" : "personas no tienen"} credencial todavía. Las emite un administrador; aquí se ven y se imprimen.</div>}
           {con.length > 0 && <button className="btn btn-outline" style={{ width: "100%" }} onClick={() => window.print()}><Ic e="🖨️" /> Imprimir {elegidos.length ? `las ${elegidos.length} marcadas` : `las ${con.length}`}</button>}
         </div>
         {activos.length > 0 && (
@@ -9818,7 +9821,7 @@ function Credenciales({ data, upd, session, onClose }) {
                   <span className="mn-tx"><span className="mn-n">{t.nombre}</span>
                     <span className="mn-s">{t.credencial?.codigo ? `Emitida el ${fechaLocal(new Date(t.credencial.emitida))}${(t.credencialesAnteriores || []).length ? ` · van ${(t.credencialesAnteriores || []).length + 1}` : ""}` : "Sin credencial: checa con PIN"}</span></span>
                 </label>
-                <button className="btn btn-outline btn-sm" onClick={() => (t.credencial?.codigo ? otra(t) : emitir(t))}>{t.credencial?.codigo ? "Emitir otra" : "Emitir"}</button>
+                {puedeEmitir && <button className="btn btn-outline btn-sm" onClick={() => (t.credencial?.codigo ? otra(t) : emitir(t))}>{t.credencial?.codigo ? "Emitir otra" : "Emitir"}</button>}
               </div>
             ))}
           </div>

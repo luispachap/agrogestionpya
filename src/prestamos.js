@@ -25,13 +25,14 @@ export const ESTADOS_DE_PRESTAMO = { solicitado: "Solicitado: falta que lo autor
 const limpio = (s) => String(s || "").trim();
 const peso = (n) => Math.round(Number(n) * 100) / 100;
 
-export function solicitarPrestamo({ trabajador, monto, motivo, quien, cuando, fecha, azar }) {
+// `id`: cuando la solicitud es UN hecho con nombre propio (la de un mensaje dicho), para que confirmarla dos veces no haga dos.
+export function solicitarPrestamo({ id, trabajador, monto, motivo, quien, cuando, fecha, azar }) {
   const m = peso(monto);
   if (!quien?.id) return { ok: false, dice: "Falta quién lo solicita." };
   if (!trabajador?.id) return { ok: false, dice: "Falta para quién es." };
   if (!(m > 0)) return { ok: false, dice: "Falta cuánto se pide." };
   if (!limpio(motivo)) return { ok: false, dice: "Falta para qué es." };
-  return { ok: true, evento: nuevoEvento({ tipo: T_SOLICITUD, cuando, fecha, quien, azar, datos: { trabajadorId: trabajador.id, nombre: limpio(trabajador.nombre), monto: m, motivo: limpio(motivo) } }) };
+  return { ok: true, evento: nuevoEvento({ id, tipo: T_SOLICITUD, cuando, fecha, quien, azar, datos: { trabajadorId: trabajador.id, nombre: limpio(trabajador.nombre), monto: m, motivo: limpio(motivo) } }) };
 }
 
 // Los préstamos, armados de sus eventos. Tienen la forma de siempre (`monto`, `abonado`, `estado`)

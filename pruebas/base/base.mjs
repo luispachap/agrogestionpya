@@ -81,7 +81,7 @@ export async function como(db, quien, sql, params = []) {
     const r = await db.query(sql, params);
     return { ok: true, filas: r.rows, afectadas: r.affectedRows ?? 0 };
   } catch (e) {
-    return { ok: false, error: String(e.message), filas: [], afectadas: 0 };
+    return { ok: false, error: String(e.message), codigo: e.code || null, filas: [], afectadas: 0 };
   } finally {
     await db.exec("reset role");
   }
