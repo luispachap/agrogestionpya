@@ -2,7 +2,7 @@
 
 > **Generado desde `docs/ESTADO.json` con `node herramientas/estado.mjs`. No se edita a mano:** se cambia el archivo de estado y se vuelve a generar. Es la única fuente de las cifras, los módulos, los pendientes y lo publicado; el tablero de cierre sale de aquí mismo.
 
-Corte: martes 24 de noviembre de 2026, en la tarde. **66 aprobados · 1 recorridos en parte · 0 sin verificar.**
+Corte: martes 24 de noviembre de 2026, en la noche. **66 aprobados · 1 recorridos en parte · 0 sin verificar.**
 
 **Veredicto: NO LISTO** como sistema completo · listo para prueba de campo en la operación diaria. Lo que se ha probado funciona, y lo que falló al probarlo está corregido. Se prefiere una entrega completa y comprobada a forzar una fecha con errores de dinero (decisión de Luis, 22 nov).
 
@@ -18,18 +18,19 @@ Corte: martes 24 de noviembre de 2026, en la tarde. **66 aprobados · 1 recorrid
 
 | Qué | Con qué | Resultado |
 |---|---|---|
-| Reglas y cálculos | `npm test` | 1,360 de 1,360 |
-| La base, armada desde cero y atacada por perfil | `npm run test:base` | 165 de 165 |
+| Reglas y cálculos | `npm test` | 1,376 de 1,376 |
+| La base, armada desde cero y atacada por perfil | `npm run test:base` | 174 de 174 |
+| Lo que la app sube lo acepta la base, por colección y perfil: alta, reintento, corrección, cancelación y lo que firma el chat | `node --test pruebas/base/contrato.test.mjs` | 9 de 9 |
 | Respaldo y restauración, de punta a punta en local | `sh pruebas/respaldo_local/ensayo.sh` | 26 de 26 |
-| Todo junto: lo anterior, compilación y 70 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa (sobre la versión publicada, `3e40534`) |
+| Todo junto: lo anterior, compilación y 70 recorridos en navegador | `sh pruebas/todo.sh` | Todo pasa sobre la versión publicada, `eb8a852` (se corrió en dos tandas: la primera se quedó sin tiempo antes de los últimos recorridos). Ningún recorrido dejó registros rechazados en la nube de imitación |
 | Producción cerrada sin sesión | `pruebas/real_sin_sesion.py` | 6 de 6 |
 | El sitio publicado, en Android y iPhone imitados | `pruebas/real_sitio.py` | 18 de 18 |
-| Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos a `6c483a2` |
-| Producción igual a la base probada | `node pruebas/base/paridad.mjs --consulta` | 7 huellas iguales (última hoja instalada: 57; esta noche no se instaló ninguna) |
+| Lo publicado es exactamente lo probado, byte por byte | `pruebas/real_identico.py` | 18 de 18 archivos idénticos a `eb8a852` |
+| Producción igual a la base probada | `node pruebas/base/paridad.mjs --consulta` | 7 huellas iguales (última hoja instalada: 58, el 24 nov en la noche) |
 | La base de producción rechaza pisar un identificador ocupado | `prueba directa que se deshace sola` | Otra marca: rechazado · sin marca: rechazado · misma marca: corrige |
 | Asistencia con dos teléfonos, semana cerrada y pago hecho | `pruebas/auditoria_ausencias_navegador.py` | 37 de 37 |
 | Campo: rancho vacío, parcelas, cultivos, calendario y cosechas con dos teléfonos | `pruebas/auditoria_campo_navegador.py` | 63 de 63 |
-| Captura diaria: actividades, registro de varios, pase de lista, tareas, reportes, jornadas, credenciales y externos | `pruebas/auditoria_captura_navegador.py` | 66 de 66 |
+| Captura diaria: actividades, registro de varios, pase de lista, tareas, reportes, jornadas, credenciales y externos | `pruebas/auditoria_captura_navegador.py` | 68 de 68 |
 | Los números cuadran entre Finanzas, Cierre de mes, ¿Cómo vamos?, Dirección, Resumen, Temporadas, Mano de obra, Semana y ContPAQi | `pruebas/auditoria_numeros_navegador.py` | 39 de 39 |
 | Socios, Banco y ¿Alcanza?: lo personal fuera de todo, estados que cuadran y que no, conciliar | `pruebas/auditoria_banco_navegador.py` | 37 de 37 |
 | Papeles: factura en XML, almacén, la misma dos veces, foto sin lectura | `pruebas/auditoria_papeles_navegador.py` | 15 de 15 |
@@ -61,7 +62,7 @@ Corte: martes 24 de noviembre de 2026, en la tarde. **66 aprobados · 1 recorrid
 
 | Qué | Estado | Detalle |
 |---|---|---|
-| La app en app.agroselectos.com | **Publicado** | Versión `3e40534` (24 nov, tarde): lo que se captura con señal ya sube —los mensajes del chat (la columna se llama `dequien` en la base) y lo cancelado o corregido (se sube como cambio, no como alta)— y «a 28 pesos… fueron 1000 litros» es un gasto de $28,000 con la cuenta a la vista. Batería completa (1,360 pruebas de reglas, 165 ataques a la base, 70 recorridos con la nube de imitación que ya rechaza lo que rechaza la base); comparada archivo por archivo contra lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18 y base sin sesión 6 de 6. |
+| La app en app.agroselectos.com | **Publicado** | Versión `eb8a852` (24 nov, noche): subir dos veces lo mismo ya no es un rechazo (con mala señal la base guarda y la respuesta no llega); el encargado da de alta externos y el agrónomo la actividad de una indicación hecha y el fertirriego del chat (hoja 58, instalada); las credenciales las emite el administrador; lo dicho con dinero distingue precio de cada uno y total, y pregunta lo que no cuadra. Prueba nueva de contrato: lo que sube la app, contra la base aislada, por colección y perfil (9 de 9). Batería completa (1,376 reglas, 174 ataques a la base, todos los recorridos sin rechazos en la nube de imitación); archivo por archivo igual a lo que sirve el sitio (18 de 18), sitio en teléfono 18 de 18, base sin sesión 6 de 6 y producción igual a la base probada (7 huellas). |
 | La nave (Agroselectos P&A, Palmira, Zac.) dada de alta en producción como rancho con su ubicación, y su punto en el mapa | **Publicado** | 23 de noviembre, 11:50, a petición de Luis. Ubicación de Google Maps; faltan sus hectáreas. |
 | Personal y ranchos dados de alta en producción (a petición de Luis, 23 nov) | **Publicado** | 23 de noviembre, 18:25. 23 personas de la lista de nómina del 16 al 21 de noviembre, con el nombre impreso, sin sueldo, sin PIN y sin fecha de ingreso. 22 ranchos del catálogo de ubicaciones del Excel de rayas de 2024, con su clave y sin hectáreas. Fuera, a propósito: General (no es un lugar), Ganado y las cinco bodegas. Cada registro lleva su marca de espacio, de nacimiento y de dónde salió; no se repitió ninguno. 24 de noviembre, 9:30 (a petición de Luis): las 23 con su sueldo por semana, el de la columna «Sueldo» de esa lista (antes de repartirlo en dispersado, préstamo y efectivo); el del día sale de la semana entre 6 y su historial de sueldo empieza el 16 de noviembre. Siguen sin PIN y sin fecha de ingreso. |
 | Lo de las respuestas de Luis del 23 nov: la tabla por cortes con lo de «Registro de varios» y del reparto, el tiempo esperando tarea, la calidad de la corrida por origen y ritmo, corona/grano/deshecho/pata de perro al ajo terminado, prestaciones sobre la semana entre 7, y checar con el teléfono propio | **Publicado** | 23 de noviembre, 5:30 de la mañana. Sin hojas nuevas en la base. |
@@ -81,7 +82,7 @@ Corte: martes 24 de noviembre de 2026, en la tarde. **66 aprobados · 1 recorrid
 | Respaldo automático de cada noche | **Sin estrenar** | Ensayado en local. Falta el repositorio privado y sus tres secretos (lo hace Luis). |
 | Permiso para configurar la organización | **Sin otorgar** | Lo otorga el administrador a su propia cuenta. |
 
-## Defectos encontrados al usar los módulos (95: 95 corregidos, 0 de ellos sin publicar; 0 abiertos)
+## Defectos encontrados al usar los módulos (102: 102 corregidos, 0 de ellos sin publicar; 0 abiertos)
 
 | # | Módulo | Qué pasaba | Nivel | Estado |
 |---|---|---|---|---|
@@ -180,6 +181,13 @@ Corte: martes 24 de noviembre de 2026, en la tarde. **66 aprobados · 1 recorrid
 | 93 | Mensajes | Ningún mensaje del chat subía a la base (24 nov, primera prueba con teléfonos de verdad): la app mandaba la columna «deQuien» y en la base se llama «dequien». Se veía «no subió» en la General y en la conversación con AgroGestión | P0 | Corregido y publicado: la app manda el nombre real de la columna, y una prueba compara cada columna contra las hojas SQL; la nube de imitación ya rechaza una columna que la tabla no tiene (por eso ningún recorrido lo había visto). Lo apartado en los teléfonos sube con «toca para reintentar» |
 | 94 | Checador | Una marca corregida (y cualquier hecho cancelado o corregido) no subía: la base lo rechazaba siempre, porque se subía como alta y la base sólo deja nacer hechos vigentes | P0 | Corregido y publicado: cancelar y corregir se suben como cambio del que ya está; si se creó y canceló sin señal, primero nace vigente y luego se cancela. Probado contra la base aislada y en la nube de imitación, que ya rechaza lo mismo que la base |
 | 95 | Mensajes | «Compramos diésel a 28 pesos… fueron 1000 litros» se proponía como un gasto de $28: el precio de un litro se tomaba como el total y la cantidad quedaba como nota aparte. Además, «28.50» se leía 2,850 | P1 | Corregido y publicado: «a 28 pesos» o «28 pesos el litro» es precio por unidad: con la cantidad se multiplica y la propuesta enseña la cuenta (1,000 litros × $28 = $28,000); sin cantidad se pregunta cuántos fueron («fue el total» también vale). La frase de la cantidad va con su compra |
+| 96 | Todos los registros (subida) | Con mala señal la base puede guardar y la respuesta no llegar; al reintentarlo, un renglón de la bitácora de auditoría (o un hecho capturado por el agrónomo) la base lo rechazaba y quedaba «no se pudo subir» aunque sí había subido | P1 | Corregido y publicado: subir dos veces lo mismo ya es subirlo una vez: lo que sólo se da de alta se sube «si no está», y si ya está se trae el que quedó; otro registro en el mismo identificador se dice como ocupado. Lo prueba la prueba de contrato contra la base aislada, por colección y perfil |
+| 97 | Mensajes | La conversación dejaba a Finanzas firmar una solicitud de préstamo o una nota, que la base no le deja guardar: se veía «guardado» y se quedaba sin subir | P2 | Corregido y publicado: ya no se le ofrece; si Finanzas debe poder hacerlo, es un permiso de la base (decisión de Luis). Hoy nadie tiene perfil de Finanzas |
+| 98 | Mensajes | Un préstamo dicho tomaba un identificador que no cambiaba de un mensaje a otro: el mismo préstamo confirmado en dos teléfonos dejaba dos solicitudes | P2 | Corregido y publicado: identificador fijo por propuesta, como el avance |
+| 99 | Mensajes | Lo dicho con dinero, de otras formas: «salió a 28 el litro» en otra frase daba $28; con un total y un precio que no cuadran se escogía uno; «5 mil» como respuesta a ¿cuánto costó? no se entendía; «gastamos» no era gasto; «1000 litros a 28 mil» se volvía $28,000,000 | P1 | Corregido y publicado: de cada compra se sacan cantidad, precio de cada uno y total, y el importe sale de juntarlos; lo que no cuadra o es grande y ambiguo se pregunta, con las dos lecturas a la vista |
+| 100 | Externos | «Soy externo» en el teléfono del encargado registraba al externo, pero la base no le dejaba darlo de alta a la cuenta del encargado: se quedaba sin subir | P1 | Corregido y publicado: decisión de Luis (24 nov): el encargado puede dar de alta externos (nombre y fecha); corregir la ficha y su tarifa sigue siendo de la administración, y su pago lo aprueba quien aprueba. Hoja 58, instalada |
+| 101 | Indicaciones y Mensajes (agrónomo) | Al marcar como hecha una indicación, la actividad de quien hizo el trabajo, y la indicación de fertirriego que el agrónomo confirma en Mensajes, la base no se las dejaba guardar al agrónomo: se quedaban sin subir | P1 | Corregido y publicado: decisión de Luis (24 nov): el agrónomo da de alta actividades e indicaciones; no corrige ni borra las de otros. Reintentar después de una respuesta perdida no es corregir: la app compara lo que ya quedó en la base. Hoja 58, instalada |
+| 102 | Credenciales | La pantalla le ofrecía al encargado «Emitir credencial», que cambia la ficha del trabajador y la base no le deja: se veía emitida y no subía | P2 | Corregido y publicado: decisión de Luis (24 nov): las emite un administrador; el encargado las ve y las imprime, y la pantalla se lo dice |
 
 ## Lo que no se pudo ejecutar y por qué
 
@@ -306,6 +314,7 @@ Corte: martes 24 de noviembre de 2026, en la tarde. **66 aprobados · 1 recorrid
 - Checar desde el teléfono propio: a quién se activa, qué radio cuenta como «en el rancho» (hoy 300 m) y qué precisión (hoy 100 m); y si una marca «por revisar» (GPS impreciso) cuenta para el pago mientras nadie la revisa (hoy cuenta y se ve marcada). Para usarlo, cada rancho necesita su ubicación.
 - La salida «a nuestra bodega» hoy saca el ajo del inventario de terminado (como una venta, sin cobro). Propuesta: que sea un traspaso al inventario de la bodega de Aguascalientes (sigue siendo nuestro, en otro lugar); se construye junto con la integración de esa bodega (docs/BODEGA-AGUASCALIENTES.md).
 - La lectura con IA (fotos de tickets, etiquetas, horómetro) sigue sin llave: es un gasto que autorizas tú. Mientras, la foto se guarda y se captura a mano.
+- Antes de invitar a alguien con perfil de Finanzas: decidir qué puede capturar. Hoy la base casi no le deja crear nada (ni pagos, préstamos, cierres ni caja chica); la app ya no le ofrece lo que la base le negaría.
 
 ## Pendientes menores que pueden esperar
 
