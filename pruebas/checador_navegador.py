@@ -57,7 +57,13 @@ with sync_playwright() as p:
     caso("un PIN que no es de nadie no registra y lo dice", len(marcas(pg)) == 2 and pg.locator(".chk-aviso.mal").count() == 1)
     ctx.set_offline(True)
     teclea(pg, "7711")
-    caso("sin internet se sigue checando", len(marcas(pg)) == 3 and "CARO" in pg.locator(".chk-aviso-t").inner_text())
+    # Sin señal el evento se guarda en el almacén del navegador sin esperar a la nube; con la máquina cargada tarda un poco más.
+    for _ in range(10):
+        if len(marcas(pg)) == 3: break
+        pg.wait_for_timeout(300)
+    # Lo que cuenta es la marca guardada: el aviso de la pantalla puede volver a ser de ANA, cuya credencial sigue frente a la
+    # cámara de imitación todo el tiempo.
+    caso("sin internet se sigue checando", len(marcas(pg)) == 3 and marcas(pg)[2]["datos"]["trabajadorId"] == "t-off", [len(marcas(pg)), [m["datos"].get("trabajadorId") for m in marcas(pg)], pg.locator(".chk-aviso").all_inner_texts()])
     ctx.set_offline(False)
     caso("los contadores del día cuadran", pg.locator(".stat-val").all_inner_texts()[:3] == ["3", "0", "0"], pg.locator(".stat-val").all_inner_texts())
 
@@ -90,7 +96,11 @@ with sync_playwright() as p:
     pg.evaluate("() => window.__agroIr('jornadas')"); pg.wait_for_timeout(600)
     caso("y siguen ahí después de cerrar y volver a abrir", pg.get_by_text("Adentro (3)").count() == 1, pg.locator(".card-title").all_inner_texts())
 
-    # ── Credenciales ──
+    # ── Credenciales: las emite un administrador (Luis, 24 nov); el encargado las ve y las imprime ──
+    pg.evaluate("() => window.__agroIr('credenciales')"); pg.wait_for_timeout(500)
+    caso("el encargado no tiene con qué emitir credenciales y la pantalla le dice quién las emite", pg.get_by_role("button", name=__import__("re").compile("^Emitir")).count() == 0 and pg.get_by_text("Las emite un administrador").count() == 1)
+    pg.locator(".btn-ghost").first.click(); pg.get_by_role("button", name="Salir").click(); pg.wait_for_timeout(500)
+    g["entrar"](pg, "Admin", "7391"); pg.wait_for_timeout(400)
     pg.evaluate("() => window.__agroIr('credenciales')"); pg.wait_for_timeout(500)
     pg.get_by_role("button", name="Emitir credencial a los 2 que no tienen").click(); pg.wait_for_timeout(1200)
     tr = {t["id"]: t for t in datos(pg)["trabajadores"]}

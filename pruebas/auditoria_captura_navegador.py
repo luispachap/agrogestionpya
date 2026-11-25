@@ -218,7 +218,11 @@ with sync_playwright() as p:
     caso("el administrador emite una credencial: la persona tiene un código propio, con fecha y quién la emitió, sin su PIN ni su sueldo", len(c1) >= 8 and quien_c["credencial"]["por"] == "ADMIN DE PRUEBA" and quien_c["pin"] not in c1 and "Emitida el" in t, quien_c["credencial"])
     A.get_by_role("button", name="Emitir otra").first.click(); A.wait_for_timeout(700); q2 = next(x for x in datos(A)["trabajadores"] if x["id"] == quien_c["id"])
     caso("emitir otra cambia el código y la anterior queda anotada como ya no vigente", q2["credencial"]["codigo"] != c1 and c1 in json.dumps(q2.get("credencialesAnteriores")), [q2["credencial"], q2.get("credencialesAnteriores")])
-    subio(A); al_dia(B); ir(B, "credenciales"); t = cuerpo(B)
+    subio(A); al_dia(B)
+    # El teléfono del encargado quedó ligado para la gente: al recargar vuelve a pedir su contraseña.
+    if B.locator(".login-bg").count():
+        B.get_by_placeholder("Tu correo o tu PIN").fill(ENC["correo"]); B.get_by_placeholder("Contraseña", exact=True).fill("contrasena-larga-1"); B.get_by_role("button", name="Entrar").click(); B.wait_for_timeout(3500)
+    ir(B, "credenciales"); t = cuerpo(B)
     caso("al encargado le llega la credencial nueva y la puede imprimir", "Emitida el" in t and B.get_by_role("button", name=re.compile("Imprimir")).count() == 1 and any((x.get("credencial") or {}).get("codigo") == q2["credencial"]["codigo"] for x in datos(B)["trabajadores"]), t[:500])
 
     # ══ 10. Un externo: entra con su nombre, registra, y no cuenta hasta que alguien lo aprueba ══
